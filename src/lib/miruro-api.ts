@@ -28,26 +28,29 @@ if (MIRURO_API_KEY) {
   HEADERS["x-api-key"] = MIRURO_API_KEY;
 }
 
-// Provider priority order — miku FIRST (user requested), then other reliable providers
-// NO kiwi as primary — miku is the main provider, kiwi is backup only
+// Provider priority order — matching YumeZone exactly
+// YumeZone uses: zenith → kiwi → ax-mimi → ax-wave → ax-shiro → ax-yuki → ax-zen → ax-beep → bee → zoro → anixtv
 const PROVIDER_PRIORITY = [
-  "miku", "ax-mimi", "ax-wave", "ax-shiro", "ax-yuki", "ax-zen", "bee", "kiwi", "zoro",
-  "arc", "jet",
+  "zenith", "kiwi", "ax-mimi", "ax-wave", "ax-shiro", "ax-yuki", "ax-zen", "ax-beep",
+  "bee", "miku", "zoro", "arc", "jet", "anixtv",
 ];
 
-// Which providers support HLS vs embed
-const PROVIDER_CAPABILITIES: Record<string, { hls: boolean; embed: boolean }> = {
-  "miku":     { hls: true, embed: true },
-  "kiwi":     { hls: true, embed: true },
-  "ax-mimi":  { hls: true, embed: false },
-  "ax-wave":  { hls: true, embed: false },
-  "ax-shiro": { hls: true, embed: false },
-  "ax-yuki":  { hls: true, embed: false },
-  "ax-zen":   { hls: true, embed: false },
-  "bee":      { hls: true, embed: false },
-  "zoro":     { hls: false, embed: true },
-  "arc":      { hls: true, embed: false },
-  "jet":      { hls: true, embed: false },
+// Which providers support HLS vs embed — matching YumeZone's PROVIDER_CAPABILITIES
+const PROVIDER_CAPABILITIES: Record<string, { hls: boolean; embed: boolean; mp4?: boolean }> = {
+  "zenith":    { hls: true,  embed: false, mp4: true },
+  "kiwi":      { hls: true,  embed: true },
+  "ax-mimi":   { hls: true,  embed: false },
+  "ax-wave":   { hls: true,  embed: false },
+  "ax-shiro":  { hls: true,  embed: false },
+  "ax-yuki":   { hls: true,  embed: false },
+  "ax-zen":    { hls: true,  embed: false },
+  "ax-beep":   { hls: true,  embed: false },
+  "bee":       { hls: true,  embed: false },
+  "miku":      { hls: true,  embed: true },
+  "zoro":      { hls: false, embed: true },  // Megaplay embed only
+  "arc":       { hls: true,  embed: false },
+  "jet":       { hls: true,  embed: false },
+  "anixtv":    { hls: false, embed: true },  // AnixTv Hindi embed
 };
 
 // Cache for working API base URL
@@ -587,19 +590,23 @@ export async function miruroWatch(
 export const MIRURO_PROVIDERS = PROVIDER_PRIORITY;
 export type MiruroProvider = typeof PROVIDER_PRIORITY[number];
 
+// Provider display names — matching YumeZone's PROVIDER_DISPLAY_NAMES
 export function getProviderDisplayName(provider: string): string {
   const names: Record<string, string> = {
-    "miku": "Miku",
-    "kiwi": "Kiwi",
-    "ax-mimi": "Ax-Mimi",
-    "ax-wave": "Ax-Wave",
-    "ax-shiro": "Ax-Shiro",
-    "ax-yuki": "Ax-Yuki",
-    "ax-zen": "Ax-Zen",
-    "bee": "Bee",
-    "zoro": "Zoro",
-    "arc": "Arc",
-    "jet": "Jet",
+    "zenith":  "Zenith",
+    "kiwi":    "Miku",
+    "ax-mimi": "Shinra",
+    "ax-wave": "Nami",
+    "ax-shiro":"Shiro",
+    "ax-yuki": "Yuki",
+    "ax-zen":  "Senku",
+    "ax-beep": "Cosmic",
+    "bee":     "Hachi",
+    "miku":    "Miku",
+    "zoro":    "Megaplay",
+    "arc":     "Arc",
+    "jet":     "Jet",
+    "anixtv":  "Hindi",
   };
   return names[provider] || provider.charAt(0).toUpperCase() + provider.slice(1);
 }

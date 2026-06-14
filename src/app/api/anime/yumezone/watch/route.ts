@@ -11,8 +11,18 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// CDN proxy for Miruro/arc/jet/zoro streams (from YumeZone source)
+// ── Proxy endpoints (matching YumeZone source) ──────────────────────────
 const CDN_PROXY_URL = process.env.CDN_PROXY_URL || "https://cdn-eu.1ani.me/proxy/m3u8";
+const WORKER_BASE = process.env.WORKER_URL || "";
+
+// Providers that must use kiwi worker proxy (/p/ Base64 route)
+const WORKER_PROVIDERS = new Set([
+  "kiwi", "animex", "ax", "ax-uwu", "ax-mochi", "ax-wave", "ax-zaza",
+  "ax-yuki", "ax-zen", "ax-beep", "uwu", "mochi", "wave", "zaza", "yuki", "zen",
+]);
+
+// Providers that must always use CDN-EU (never kiwi worker)
+const CDN_ONLY_PROVIDERS = new Set(["arc", "jet", "zoro", "miruro"]);
 
 // Provider priority matching YumeZone
 const PROVIDER_PRIORITY = [
@@ -23,14 +33,13 @@ const PROVIDER_PRIORITY = [
 /**
  * GET /api/anime/yumezone/watch?anilistId=1535&episode=1&provider=kiwi&type=sub
  *
- * Properly maps AniList ID to Miruro episode slug, then fetches the correct
- * m3u8/HLS stream with proper headers and proxy routing.
+ * Properly maps AniList ID → Miruro episode slug → m3u8/HLS stream with correct headers.
  *
  * Flow (matching YumeZone):
- * 1. Fetch episodes from Miruro API -> get providers_map
+ * 1. Fetch episodes from Miruro API → get providers_map
  * 2. Find episode ID for requested provider + episode number + category
- * 3. Fetch stream data from Miruro watch API: /watch/{provider}/{anilistId}/{category}/{slug}
- * 4. Route m3u8 URLs through appropriate proxy (cdn-eu for arc/jet/zoro, kiwi worker for kiwi/ax-*)
+ * 3. Fetch stream data from Miruro: /watch/{provider}/{anilistId}/{category}/{slug}
+ * 4. Route m3u8 URLs through correct proxy (cdn-eu for arc/jet/zoro, kiwi worker for kiwi/ax-*)
  * 5. Return structured video data with HLS sources, embed sources, subtitles, intro/outro
  */
 export async function GET(req: NextRequest) {
@@ -44,20 +53,20 @@ export async function GET(req: NextRequest) {
   }
 
   const anilistId = parseInt(anilistIdStr);
-  const episodeNum = parseInt(episodeStr);
+  const episodeNum = parseFloat(episodeStr);
 
   if (isNaN(anilistId)) {
     return NextResponse.json({ error: "Invalid anilistId" }, { status: 400 });
   }
 
   try {
-    // Step 1: Fetch episodes to get the providers_map and episode slugs
+    // Step 1: Fetch episodes to get providers_map
     const epData = await miruroEpisodes(anilistId);
     const providersMap = epData.providersMap || {};
 
-    // Step 2: Handle Zoro/Megaplay provider specially (YumeZone approach)
+    // Step 2: Handle Zoro/Megaplay specially (YumeZone approach)
     // Zoro uses direct embed: megaplay.buzz/stream/ani/{anilistId}/{ep}/{lang}
-    if (provider === "zoro" || (!provider && Object.keys(providersMap).length === 0)) {
+    if (provider === "zoro") {
       const lang = translationType === "dub" ? "dub" : "sub";
       const embedUrl = `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNum}/${lang}`;
       return NextResponse.json({
@@ -83,7 +92,7 @@ export async function GET(req: NextRequest) {
       episodeSlug = getEpisodeSlugForProvider(providersMap, activeProvider, episodeNum, translationType);
     }
 
-    // If no slug found, try providers in priority order
+    // If no slug found, try providers in priority order (YumeZone's approach)
     if (!episodeSlug) {
       const availableProviders = getAvailableProvidersForEpisode(providersMap, episodeNum, translationType);
 
@@ -117,28 +126,70 @@ export async function GET(req: NextRequest) {
       if (!activeProvider) activeProvider = "kiwi";
     }
 
-    console.log(`[YumeZone Watch] anilistId=${anilistId} ep=${episodeNum} provider=${activeProvider} slug=${episodeSlug}`);
-
-    // Step 4: Fetch stream data from Miruro watch API with auto-switching
-    const result = await miruroWatch(
-      activeProvider,
-      anilistId,
-      translationType,
-      episodeSlug,
-      providersMap,
-      episodeNum
-    );
-
-    if (!result || result.sources.length === 0) {
-      return NextResponse.json({
-        error: "No sources found",
-        provider: activeProvider,
-        episodeSlug,
-        _debug: { anilistId, episodeNum, translationType, triedProviders: result?.triedProviders || [] },
-      }, { status: 404 });
+    // Positional fallback for 0-based numbering (YumeZone's _resolve_episode Pass 2)
+    if (!episodeSlug || episodeSlug === String(episodeNum)) {
+      // Try exact float match first
+      const exactMatch = findExactEpisode(providersMap, activeProvider, episodeNum, translationType);
+      if (exactMatch) {
+        episodeSlug = exactMatch;
+      }
     }
 
-    // Step 5: Separate sources into HLS and embed, and route through proxy
+    console.log(`[YumeZone Watch] anilistId=${anilistId} ep=${episodeNum} provider=${activeProvider} slug=${episodeSlug}`);
+
+    // Step 4: Fetch stream data from Miruro watch API
+    let result: Awaited<ReturnType<typeof miruroWatchProvider>> = null;
+    let triedProviders: string[] = [activeProvider];
+
+    try {
+      result = await miruroWatchProvider(activeProvider, anilistId, translationType, episodeSlug);
+    } catch (e) {
+      console.log(`[YumeZone Watch] Provider ${activeProvider} failed:`, e);
+    }
+
+    // Auto-fallback to other providers if primary fails (YumeZone's _PROVIDER_PRIORITY)
+    if (!result || result.sources.length === 0) {
+      const allProviders = getAvailableProvidersForEpisode(providersMap, episodeNum, translationType);
+      for (const fallbackProvider of allProviders) {
+        if (fallbackProvider === activeProvider) continue;
+        const fallbackSlug = getEpisodeSlugForProvider(providersMap, fallbackProvider, episodeNum, translationType);
+        if (!fallbackSlug) continue;
+
+        triedProviders.push(fallbackProvider);
+        try {
+          const fallbackResult = await miruroWatchProvider(fallbackProvider, anilistId, translationType, fallbackSlug);
+          if (fallbackResult && fallbackResult.sources.length > 0) {
+            result = fallbackResult;
+            activeProvider = fallbackProvider;
+            episodeSlug = fallbackSlug;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
+    }
+
+    if (!result || result.sources.length === 0) {
+      // All HLS providers exhausted — try Zoro/Megaplay embed as last resort
+      const lang = translationType === "dub" ? "dub" : "sub";
+      const embedUrl = `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNum}/${lang}`;
+      return NextResponse.json({
+        video_link: embedUrl,
+        source_type: "embed",
+        embed_sources: [{ url: embedUrl, quality: "default", label: "Megaplay (Embed)", type: "embed" }],
+        hls_sources: [],
+        video_sources: [],
+        subtitle_tracks: [],
+        intro: null,
+        outro: null,
+        provider: "zoro",
+        available_qualities: [],
+        _fallback: true,
+      });
+    }
+
+    // Step 5: Separate sources into HLS and embed, route through proxy (YumeZone logic)
     const hlsSources: Array<{
       url: string; quality: string; label: string; isM3U8: boolean;
       width?: number; height?: number; codec?: string; fansub?: string;
@@ -148,70 +199,133 @@ export async function GET(req: NextRequest) {
     }> = [];
 
     for (const source of result.sources) {
-      const url = source.url || "";
-      if (!url) continue;
+      const rawUrl = source.url || "";
+      if (!rawUrl) continue;
 
-      // Route through proxy based on provider (YumeZone routing logic)
-      const routedUrl = routeStreamProxy(url, activeProvider, source.headers || result.headers);
+      // Megaplay domain mapping fix (from YumeZone source)
+      let url = rawUrl;
+      if (url.includes("megaup.nl")) {
+        url = url.replace("megaup.nl", "megaplay.buzz");
+      }
 
-      if (source.isM3U8 || url.includes(".m3u8") || source.sourceType === "internal") {
-        hlsSources.push({
-          url: routedUrl,
-          quality: source.quality || "Auto",
-          label: source.quality || "Auto",
-          isM3U8: true,
-        });
-      } else if (source.sourceType === "external" || source.type === "iframe" || source.type === "embed") {
+      // Route through correct proxy based on provider type (YumeZone _route_stream_proxy)
+      const sourceHeaders = (source as any).headers || result.headers;
+      const routedUrl = routeStreamProxy(url, activeProvider, sourceHeaders);
+      const streamType = (source as any).type || "";
+      const isM3U8 = source.isM3U8 || url.includes(".m3u8") || url.includes("/proxy/m3u8") || url.includes("/p/");
+
+      if (streamType === "embed") {
         embedSources.push({
           url: routedUrl,
           quality: source.quality || "SD",
-          label: source.sourceName || source.quality || "Embed",
+          label: (source as any).sourceName || source.quality || "Embed",
+          type: "embed",
+        });
+      } else if ((source as any).sourceType === "external" || streamType === "iframe") {
+        embedSources.push({
+          url: routedUrl,
+          quality: source.quality || "SD",
+          label: (source as any).sourceName || source.quality || "Embed",
           type: "embed",
         });
       } else {
-        // Default: treat as HLS
+        // Default: treat as HLS/m3u8
         hlsSources.push({
           url: routedUrl,
           quality: source.quality || "Auto",
           label: source.quality || "Auto",
           isM3U8: true,
+          width: (source as any).width || 0,
+          height: (source as any).height || 0,
+          codec: (source as any).codec || "",
+          fansub: (source as any).fansub || "",
         });
       }
     }
 
-    // Route subtitle URLs through CDN proxy
+    // Filter sources: only show > 480p (matching YumeZone)
+    const filteredHls = hlsSources.filter(s =>
+      (s.height ?? 0) > 700 || ((s.height ?? 0) === 0 && !s.quality.toLowerCase().includes("480") && !s.quality.toLowerCase().includes("360"))
+    );
+
+    // Route subtitle URLs through CDN proxy (YumeZone: subtitles always cdn-eu)
     const subtitleTracks = (result.subtitles || []).map(sub => ({
       url: routeCdnProxy(sub.url, { referer: "https://miruro.tv/" }),
       label: sub.lang || sub.language || "English",
       kind: "subtitles" as const,
     }));
 
+    // Sort subtitles: English first, thumbnails last (YumeZone sort_subtitle_priority)
+    subtitleTracks.sort((a, b) => {
+      const la = a.label.toLowerCase();
+      const lb = b.label.toLowerCase();
+      if (la.includes("thumbnail")) return 1;
+      if (lb.includes("thumbnail")) return -1;
+      if (la.includes("english") || la.includes("eng")) return -1;
+      if (lb.includes("english") || lb.includes("eng")) return 1;
+      return 0;
+    });
+
     // Determine source type
     let sourceType: "hls" | "embed" | "mp4" = "hls";
-    if (hlsSources.length === 0 && embedSources.length > 0) sourceType = "embed";
-    else if (hlsSources.length === 0 && embedSources.length === 0) sourceType = "mp4";
+    if (filteredHls.length === 0 && embedSources.length > 0) sourceType = "embed";
+    else if (filteredHls.length === 0 && embedSources.length === 0) sourceType = "mp4";
 
     // Determine the primary video link
     let videoLink = "";
     if (sourceType === "embed" && embedSources.length > 0) {
       videoLink = embedSources[0].url;
-    } else if (hlsSources.length > 0) {
-      videoLink = hlsSources[0].url;
+    } else if (filteredHls.length > 0) {
+      // Prefer the "active" stream if marked, otherwise first
+      const activeStream = filteredHls.find(s => (s as any).isActive) || filteredHls[0];
+      videoLink = activeStream.url;
+    }
+
+    // Scavenge intro/outro from other providers if missing (YumeZone's _scavenge_intro_outro)
+    let intro = result.intro || null;
+    let outro = result.outro || null;
+
+    if (!intro && !outro) {
+      const otherProviders = Object.keys(providersMap)
+        .filter(p => p !== activeProvider && p !== "zoro" && p !== "anixtv")
+        .sort((a, b) => {
+          // Prioritize arc (consistently provides metadata)
+          if (a === "arc") return -1;
+          if (b === "arc") return 1;
+          if (a.startsWith("ax-")) return -1;
+          if (b.startsWith("ax-")) return 1;
+          return 0;
+        });
+
+      for (const otherP of otherProviders.slice(0, 3)) {
+        const otherSlug = getEpisodeSlugForProvider(providersMap, otherP, episodeNum, translationType);
+        if (!otherSlug) continue;
+        try {
+          const mResult = await miruroWatchProvider(otherP, anilistId, translationType, otherSlug);
+          if (mResult?.intro || mResult?.outro) {
+            intro = mResult.intro || intro;
+            outro = mResult.outro || outro;
+            break;
+          }
+        } catch {
+          continue;
+        }
+      }
     }
 
     return NextResponse.json({
       video_link: videoLink,
       source_type: sourceType,
-      hls_sources: hlsSources,
+      hls_sources: filteredHls.length > 0 ? filteredHls : hlsSources,
       embed_sources: embedSources,
       video_sources: [],
       subtitle_tracks: subtitleTracks,
-      intro: result.intro || null,
-      outro: result.outro || null,
-      provider: result.provider || activeProvider,
-      available_qualities: hlsSources.map(s => s.quality),
-      tried_providers: result.triedProviders || [],
-      all_providers: result.allProviders || [],
+      intro,
+      outro,
+      provider: activeProvider,
+      available_qualities: (filteredHls.length > 0 ? filteredHls : hlsSources).map(s => s.quality),
+      tried_providers: triedProviders,
+      all_providers: Object.keys(providersMap),
       _debug: { anilistId, episodeNum, translationType, episodeSlug, activeProvider },
     });
   } catch (err) {
@@ -224,36 +338,96 @@ export async function GET(req: NextRequest) {
 }
 
 /**
- * Route stream URLs to the correct proxy based on provider type.
- * Matches YumeZone's _route_stream_proxy logic:
- * - kiwi / animex / ax-* -> kiwi worker proxy (not available, use CDN proxy)
- * - arc / jet / zoro / miruro -> cdn-eu proxy
- * - subtitles -> cdn-eu proxy
+ * Find exact episode slug by float matching (YumeZone's _resolve_episode Pass 1)
+ */
+function findExactEpisode(
+  providersMap: Record<string, MiruroProviderEpisodes>,
+  providerName: string,
+  episodeNum: number,
+  category: "sub" | "dub"
+): string | null {
+  const providerData = providersMap[providerName];
+  if (!providerData?.episodes) return null;
+
+  const eps = category === "dub" ? providerData.episodes.dub : providerData.episodes.sub;
+  const ep = eps.find(e => parseFloat(String(e.number)) === episodeNum);
+  if (ep) return ep.slug || ep.id || null;
+
+  // Positional fallback (0-based indexing)
+  const sortedEps = [...eps].sort((a, b) => a.number - b.number);
+  const idx = Math.floor(episodeNum) - 1;
+  if (idx >= 0 && idx < sortedEps.length) {
+    return sortedEps[idx].slug || sortedEps[idx].id || null;
+  }
+
+  return null;
+}
+
+/**
+ * Route stream URLs to the correct proxy (YumeZone _route_stream_proxy logic).
+ *
+ * Rules:
+ *   - kiwi / animex / ax-* → kiwi worker proxy (/p/ Base64 route)
+ *   - arc / jet / zoro / miruro → cdn-eu only
+ *   - zenith → no proxy (direct URL)
+ *   - subtitles → cdn-eu only
+ *   - everything else → cdn-eu only
  */
 function routeStreamProxy(url: string, provider: string, headers?: Record<string, string>): string {
-  if (!url) return url;
-  if (isAlreadyProxied(url)) return url;
+  if (!url || isAlreadyProxied(url)) return url;
 
   const providerNorm = (provider || "").toLowerCase();
 
-  // These providers should NOT be proxied through CDN (they need worker proxy)
-  // For now, use CDN proxy for everything since we don't have a kiwi worker
+  // Zenith: no proxy (direct URL)
+  if (providerNorm === "zenith") return url;
+
+  // CDN-only providers: arc, jet, zoro, miruro
+  if (CDN_ONLY_PROVIDERS.has(providerNorm)) {
+    return routeCdnProxy(url, headers);
+  }
+
+  // Kiwi / AnimeX family → kiwi worker proxy
+  const isWorkerProvider =
+    WORKER_PROVIDERS.has(providerNorm) ||
+    providerNorm.startsWith("ax-") ||
+    providerNorm.startsWith("animex");
+
+  if (isWorkerProvider && WORKER_BASE) {
+    const referer = headers?.referer || headers?.Referer || "";
+    const finalReferer = referer || (providerNorm === "kiwi" ? "https://kwik.cx/" : "");
+    return encodePayload(url, finalReferer);
+  }
+
+  // Default: CDN-EU proxy
   return routeCdnProxy(url, headers);
+}
+
+/**
+ * Kiwi worker proxy encoding (/p/ Base64 route)
+ * Format: WORKER_BASE/p/{base64(url\x00referer)}
+ */
+function encodePayload(url: string, referer: string): string {
+  if (!url || isAlreadyProxied(url)) return url;
+  try {
+    const raw = `${url}\x00${referer || ""}`;
+    const b64 = Buffer.from(raw, "utf-8").toString("base64url");
+    return `${WORKER_BASE}/p/${b64}`;
+  } catch {
+    return url;
+  }
 }
 
 /**
  * Route through CDN-EU proxy with optional headers
  * Format: https://cdn-eu.1ani.me/proxy/m3u8?url=...&headers={"referer":"..."}
  */
-function routeCdnProxy(url: string, headers?: Record<string, string>): string {
+function routeCdnProxy(url: string, headers?: Record<string, string> | undefined): string {
   if (!url || isAlreadyProxied(url)) return url;
-
   try {
     const encodedUrl = encodeURIComponent(url);
     let proxyUrl = `${CDN_PROXY_URL}?url=${encodedUrl}`;
 
-    if (headers && Object.keys(headers).length > 0) {
-      // Filter out empty headers
+    if (headers && typeof headers === "object" && Object.keys(headers).length > 0) {
       const filteredHeaders: Record<string, string> = {};
       for (const [k, v] of Object.entries(headers)) {
         if (v) filteredHeaders[k] = v;
@@ -271,11 +445,12 @@ function routeCdnProxy(url: string, headers?: Record<string, string>): string {
 
 function isAlreadyProxied(url: string): boolean {
   if (!url) return false;
+  const workerBaseP = WORKER_BASE ? url.startsWith(WORKER_BASE + "/p/") : false;
   return (
     url.includes("cdn-eu.1ani.me/proxy/m3u8") ||
     url.includes("workers.dev/p/") ||
     url.includes("/api/hls-proxy") ||
     url.includes("/api/hls-resolve") ||
-    url.startsWith("/api/")
+    workerBaseP
   );
 }
