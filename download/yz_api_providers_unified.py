@@ -1,0 +1,896 @@
+"""
+Unified scraper - uses AniList GraphQL directly for home data, Miruro for episodes.
+"""
+
+import asyncio
+import logging
+import re
+from typing import Optional, Dict, Any, Union
+from urllib.parse import parse_qs
+
+from .miruro import MiruroScraper
+from .anilist_home import AnilistHomeService
+from .animex import AnimexScraper
+from .mal_fallback import MalFallbackService
+from .allanime import ZenithScraper
+# from .kuudere import KuudereScraper
+
+
+logger = logging.getLogger(__name__)
+
+
+class UnifiedScraper:
+    """
+    Unified scraper using AniList GraphQL for home data + Miruro for episodes.
+    """
+
+    def __init__(self):
+        self.miruro = MiruroScraper()
+        self.anilist_home = AnilistHomeService()
+        self.animex = AnimexScraper()
+        self.zenith = ZenithScraper()
+        self.mal_fallback = MalFallbackService()
+        # self.kuudere = KuudereScraper()
+        self._metadata_cache = {}  # (anilist_id, ep_num) -> {"intro": ..., "outro": ...}
+
+        logger.debug("[UnifiedScraper] Initialized with AniList GraphQL + Miruro + Jikan fallback + Zenith")
+
+
+    # =========================================================================
+    # HOME
+    # =========================================================================
+    async def home(self) -> Dict[str, Any]:
+        """Get home page data from AniList GraphQL with fallback to Miruro API"""
+        try:
+            result = await self.anilist_home.home()
+            if (
+                result
+                and result.get("success")
+                and any(
+                    result.get("data", {}).get(k)
+                    for k in [
+                        "trendingAnimes",
+                        "mostPopularAnimes",
+                        "latestEpisodeAnimes",
+                    ]
+                )
+            ):
+                logger.debug("[UnifiedScraper] Home: AniList succeeded")
+                return result
+        except Exception as e:
+            logger.warning(f"[UnifiedScraper] Home: AniList failed: {e}")
+
+        try:
+            logger.debug("[UnifiedScraper] Home: Falling back to Miruro API")
+            miruro_result = await self.miruro.home()
+            if (
+                miruro_result
+                and miruro_result.get("success")
+                and any(
+                    miruro_result.get("data", {}).get(k)
+                    for k in [
+                        "trendingAnimes",
+                        "mostPopularAnimes",
+                        "latestEpisodeAnimes",
+                    ]
+                )
+            ):
+                return miruro_result
+        except Exception as e:
+            logger.warning(f"[UnifiedScraper] Home: Miruro fallback failed: {e}")
+
+        # Third tier: Jikan (MAL) fallback
+        try:
+            logger.debug("[UnifiedScraper] Home: Falling back to Jikan (MAL)")
+            mal_result = await self.mal_fallback.home()
+            if (
+                mal_result
+                and mal_result.get("success")
+                and any(
+                    mal_result.get("data", {}).get(k)
+                    for k in [
+                        "trendingAnimes",
+                        "mostPopularAnimes",
+                        "latestEpisodeAnimes",
+                    ]
+                )
+            ):
+                logger.debug("[UnifiedScraper] Home: Jikan (MAL) succeeded")
+                return mal_result
+        except Exception as e:
+            logger.warning(f"[UnifiedScraper] Home: Jikan (MAL) fallback failed: {e}")
+
+        return {"success": False, "data": {}}
+
+    def clear_home_cache(self) -> None:
+        """Clear caches on AniList home service"""
+        try:
+            # AnilistHomeService doesn't have a clear cache method yet, but we can add one if needed
+            pass
+        except Exception:
+            pass
+
+    # =========================================================================
+    # ANIME INFO
+    # =========================================================================
+    async def get_anime_info(self, anime_id: str) -> dict:
+        """
+        Get anime info.
+        - If anime_id is numeric → Miruro (AniList ID)
+        - If slug → Try to resolve to AniList ID using cache, then search Miruro
+        """
+        print(f"[Info] Anime ID: {anime_id}")
+
+        # Check if this is an AniList ID (numeric)
+        if str(anime_id).isdigit():
+            try:
+                result = await self.miruro.get_anime_info(anime_id)
+                if result and result.get("title"):
+                    logger.debug(
+                        f"[UnifiedScraper] AnimeInfo (Miruro, anilistId={anime_id}): OK"
+                    )
+                    return result
+            except Exception as e:
+                logger.warning(
+                    f"[UnifiedScraper] AnimeInfo Miruro failed for {anime_id}: {e}"
+                )
+
+        # Third tier: Jikan (MAL) fallback for anime info
+        if str(anime_id).isdigit():
+            try:
+                result = await self.mal_fallback.get_anime_info_by_anilist_id(int(anime_id))
+                if result and result.get("title"):
+                    logger.debug(
+                        f"[UnifiedScraper] AnimeInfo (Jikan MAL fallback, anilistId={anime_id}): OK"
+                    )
+                    return result
+            except Exception as e:
+                logger.warning(
+                    f"[UnifiedScraper] AnimeInfo Jikan fallback failed for {anime_id}: {e}"
+                )
+
+        return {}
+
+    # =========================================================================
+    # EPISODES
+    # =========================================================================
+    async def get_episodes(self, anime_id: str) -> Dict[str, Any]:
+        """Get episodes — Miruro for numeric IDs, or resolve slug first"""
+        # If numeric (AniList ID), try Miruro
+        if str(anime_id).isdigit():
+            try:
+                result = await self.miruro.get_episodes(anime_id)
+                if result and result.get("episodes"):
+                    logger.debug(
+                        f"[UnifiedScraper] Episodes (Miruro, {anime_id}): {len(result.get('episodes', []))} eps"
+                    )
+                    return result
+            except Exception as e:
+                logger.warning(
+                    f"[UnifiedScraper] Episodes Miruro failed for {anime_id}: {e}"
+                )
+
+        # Fallback removed since miruro.search is dead.
+        return {
+            "anime_id": anime_id,
+            "title": "",
+            "total_sub_episodes": 0,
+            "total_dub_episodes": 0,
+            "episodes": [],
+            "total_episodes": 0,
+        }
+
+    async def episodes(self, anime_id: str, anime_slug: str = None) -> Dict[str, Any]:
+        """Get episodes list — Miruro for numeric IDs, merged with AnimeX and Zenith provider blocks."""
+        logger.debug(f"[UnifiedScraper] episodes() called with: {anime_id}, slug: {anime_slug}")
+
+        result: Dict[str, Any] = {}
+
+        if str(anime_id).isdigit():
+            try:
+                miruro_result = await self.miruro.episodes(anime_id, anime_slug)
+                if miruro_result and miruro_result.get("episodes"):
+                    result = miruro_result
+            except Exception as e:
+                logger.warning(f"[UnifiedScraper] episodes() Miruro failed: {e}")
+
+            anime_title = result.get("title") or ""
+            if not anime_title:
+                try:
+                    info = await self.get_anime_info(anime_id)
+                    anime_title = info.get("title") or ""
+                except Exception:
+                    pass
+
+            async def _load_zenith_blocks():
+                try:
+                    return await self.zenith.build_provider_blocks(int(anime_id), anime_title)
+                except Exception as e:
+                    logger.warning(f"[UnifiedScraper] episodes() Zenith merge failed: {e}")
+                    return {}
+
+            async def _load_animex_blocks():
+                try:
+                    return await self.animex.build_provider_blocks(int(anime_id), anime_title)
+                except Exception as e:
+                    logger.warning(f"[UnifiedScraper] episodes() AnimeX merge failed: {e}")
+                    return {}
+
+            if result.get("episodes"):
+                sub_eps = []
+                for ep in result.get("episodes", []) or []:
+                    ep_num = ep.get("number")
+                    if ep_num is None:
+                        continue
+                    sub_eps.append({
+                        "id": f"watch/zenith/{anime_id}/sub/zenith-{ep_num}",
+                        "number": ep_num,
+                        "title": ep.get("title") or f"Episode {ep_num}",
+                        "filler": ep.get("isFiller", False),
+                    })
+                zenith_blocks = {
+                    "zenith": {
+                        "meta": {"title": anime_title},
+                        "episodes": {"sub": sub_eps, "dub": []},
+                    }
+                } if sub_eps else {}
+                ax_blocks = await _load_animex_blocks()
+            else:
+                zenith_blocks, ax_blocks = await asyncio.gather(
+                    _load_zenith_blocks(),
+                    _load_animex_blocks(),
+                )
+
+            if zenith_blocks:
+                providers_map = result.setdefault("providers_map", {})
+                for server_id, block in zenith_blocks.items():
+                    providers_map[server_id] = block
+                logger.debug(
+                    f"[UnifiedScraper] episodes() merged Zenith servers for "
+                    f"anilist_id={anime_id}: {list(zenith_blocks.keys())}"
+                )
+
+                # If result is empty (Miruro failed/empty), populate basic metadata/episodes from Zenith
+                if not result.get("episodes") and "zenith" in providers_map:
+                    zenith_episodes = providers_map["zenith"].get("episodes", {})
+                    sub_eps = zenith_episodes.get("sub", [])
+                    
+                    episodes = []
+                    for ep in sub_eps:
+                        episodes.append({
+                            "episodeId": ep.get("id", ""),
+                            "number": ep.get("number", 0),
+                            "title": ep.get("title") or f"Episode {ep.get('number', '?')}",
+                            "isFiller": ep.get("filler", False),
+                            "description": "",
+                            "image": "",
+                            "airDate": "",
+                        })
+                    result["episodes"] = episodes
+                    result["totalEpisodes"] = len(episodes)
+                    result["title"] = anime_title
+
+            if ax_blocks:
+                providers_map = result.setdefault("providers_map", {})
+                for server_id, block in ax_blocks.items():
+                    provider_key = f"ax-{server_id}"
+                    providers_map[provider_key] = block
+                logger.debug(
+                    f"[UnifiedScraper] episodes() merged AnimeX servers for "
+                    f"anilist_id={anime_id}: {list(ax_blocks.keys())}"
+                )
+
+            # Ensure default_provider is a working streaming server from PROVIDER_PRIORITY
+            if result.get("providers_map"):
+                try:
+                    from .miruro.episodes import PROVIDER_PRIORITY
+                    providers_map = result["providers_map"]
+                    best_default = None
+                    for p_name in PROVIDER_PRIORITY:
+                        if p_name in providers_map:
+                            p_data = providers_map[p_name]
+                            if isinstance(p_data, dict):
+                                eps = p_data.get("episodes", {}) or {}
+                                if len(eps.get("sub", []) or []) > 0 or len(eps.get("dub", []) or []) > 0:
+                                    best_default = p_name
+                                    break
+                    if best_default:
+                        result["default_provider"] = best_default
+                except Exception as e:
+                    logger.warning(f"[UnifiedScraper] default_provider resolution failed: {e}")
+
+        if result:
+            return result
+
+        return {"episodes": [], "totalEpisodes": 0}
+
+    async def episode_servers(self, anime_episode_id: str) -> Dict[str, Any]:
+        """Get available servers — Miruro doesn't have server concept"""
+        return {}
+
+    async def is_dub_available(
+        self, eps_title: str, anime_episode_id: str = None
+    ) -> bool:
+        """Check if dub is available — Miruro for numeric IDs"""
+        if str(eps_title).strip().isdigit():
+            try:
+                return await self.miruro.is_dub_available(eps_title)
+            except Exception:
+                return False
+        return False
+
+    async def episode_sources(
+        self, anime_episode_id: str, server: Optional[str] = None, category: str = "sub"
+    ) -> Dict[str, Any]:
+        """Get episode streaming sources"""
+        return {}
+
+    # =========================================================================
+    # VIDEO / STREAMING — Miruro only
+    # =========================================================================
+    def _parse_miruro_ep(self, ep_id_str: str):
+        """
+        Extract Miruro episode ID components from full_slug.
+        Supports new format: 'watch/kiwi/178005/sub/animepahe-1'
+        Also supports: 'anime_slug?ep=watch/kiwi/178005/sub/animepahe-1'
+        Also supports: '108465?ep=animepahe:4171:47277:1'
+        Returns (miruro_ep_id, anilist_id) or (None, None)
+        """
+
+        logger.debug(f"[UnifiedScraper] _parse_miruro_ep input: {ep_id_str}")
+
+        # First, extract episode ID from query string if present
+        # Format: "anime_slug?ep=watch/kiwi/178005/sub/animepahe-1"
+        if "?" in ep_id_str:
+            slug_part, query_part = ep_id_str.split("?", 1)
+            params = parse_qs(query_part)
+            ep_values = params.get("ep", [])
+            ep_value = ep_values[0] if ep_values else None
+            if ep_value:
+                ep_id_str = ep_value
+                logger.debug(f"[UnifiedScraper] After query extract: {ep_id_str}")
+
+        # New format: watch/{provider}/{anilist_id}/{category}/{slug}
+        pattern = r"watch/([^/]+)/(\d+)/([^/]+)/(.+)"
+        match = re.match(pattern, ep_id_str)
+        if match:
+            logger.debug(
+                f"[UnifiedScraper] Matched new format: provider={match.group(1)}, anilist_id={match.group(2)}, category={match.group(3)}, slug={match.group(4)}"
+            )
+            return (ep_id_str, int(match.group(2)))
+
+        # Old format with colons (animepahe:4171:47277:1)
+        miruro_ep_id = None
+        anilist_id = None
+
+        if ":" in ep_id_str and not ep_id_str.startswith("http"):
+            miruro_ep_id = ep_id_str
+
+        logger.debug(
+            f"[UnifiedScraper] Returning: miruro_ep_id={miruro_ep_id}, anilist_id={anilist_id}"
+        )
+        return miruro_ep_id, anilist_id
+
+    async def video(
+        self,
+        ep_id: Union[str, int],
+        language: str = "sub",
+        server: Optional[str] = None,
+        anilist_id: Optional[int] = None,
+        ep_number: Optional[Union[int, float]] = None,
+    ) -> Dict[str, Any]:
+
+        ep_id_str = str(ep_id)
+        miruro_ep_id, parsed_anilist_id = self._parse_miruro_ep(ep_id_str)
+
+        if parsed_anilist_id:
+            anilist_id = parsed_anilist_id
+
+        if server == "anixtv" or language == "hindi":
+            if not anilist_id:
+                return {
+                    "error": "no_sources",
+                    "message": "AnixTv: missing anilist_id.",
+                }
+            ep_num = ep_number
+            if ep_num is None:
+                num_match = re.search(r"(\d+(?:\.\d+)?)\s*$", ep_id_str)
+                if num_match:
+                    try:
+                        f_num = float(num_match.group(1))
+                        ep_num = int(f_num) if f_num.is_integer() else f_num
+                    except ValueError:
+                        pass
+            if ep_num is None:
+                ep_num = 1
+
+            embed_url = f"https://anixtv.in/anime-watch?action=hindi_1_player&id={anilist_id}&season=1&episode={ep_num}"
+
+            try:
+                import aiohttp
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(embed_url, timeout=5) as resp:
+                        text = await resp.text()
+                        if "We couldn't find a Hindi Dub" in text or "Error: Could not map" in text or "<iframe" not in text:
+                            return {
+                                "error": "no_sources",
+                                "message": "Hindi dub is not available for this episode on AnixTv.",
+                            }
+            except Exception as e:
+                logger.warning(f"[UnifiedScraper] AnixTv verification failed: {e}")
+
+            return {
+                "video_link": embed_url,
+                "subtitle_tracks": [],
+                "intro": None,
+                "outro": None,
+                "video_sources": [],
+                "available_qualities": [],
+                "embed_sources": [{"url": embed_url, "name": "AnixTv"}],
+                "hls_sources": [],
+                "source_type": "embed",
+                "source_provider": "anixtv",
+            }
+
+
+        # Detect Zenith-routed episodes by the `watch/zenith/...` or `server == "zenith"` pattern.
+        is_zenith = "/zenith/" in f"/{ep_id_str}/" or server == "zenith"
+
+        if is_zenith:
+            zen_anilist_id = anilist_id or parsed_anilist_id
+            zen_ep_num = ep_number
+
+            # Parse from ep_id_str if possible, e.g. watch/zenith/12345/sub/zenith-1
+            m = re.search(r"/zenith/(\d+)/(sub|dub)/zenith-([^/]+)$", f"/{ep_id_str}")
+            if m:
+                try:
+                    zen_anilist_id = int(m.group(1))
+                except ValueError:
+                    pass
+                language = m.group(2) or language
+                tail = m.group(3)
+                try:
+                    raw_num = float(tail)
+                    zen_ep_num = int(raw_num) if raw_num.is_integer() else raw_num
+                except ValueError:
+                    pass
+
+            if zen_ep_num is None:
+                # Try parsing from tail of ep_id_str
+                num_match = re.search(r"(\d+(?:\.\d+)?)\s*$", ep_id_str)
+                if num_match:
+                    try:
+                        raw_num = float(num_match.group(1))
+                        zen_ep_num = int(raw_num) if raw_num.is_integer() else raw_num
+                    except ValueError:
+                        pass
+
+            if not zen_anilist_id or zen_ep_num is None:
+                return {
+                    "error": "no_sources",
+                    "message": "Zenith: missing anilist_id or episode number.",
+                }
+
+            try:
+                # Fetch anime title first
+                info = await self.get_anime_info(str(zen_anilist_id))
+                anime_title = info.get("title") or ""
+                
+                # Fetch Zenith streaming link
+                result = await self.zenith.get_episode_url(
+                    anilist_id=int(zen_anilist_id),
+                    title=anime_title,
+                    ep_no=str(zen_ep_num),
+                    mode=language,
+                    quality="best"
+                )
+                if result and not result.get("error"):
+                    logger.debug(
+                        f"[UnifiedScraper] Video (Zenith): OK anilist_id={zen_anilist_id} "
+                        f"ep={zen_ep_num}"
+                    )
+                    result["source_provider"] = "zenith"
+                    
+                    # Update metadata cache if found
+                    if zen_anilist_id and zen_ep_num is not None:
+                        intro = result.get("intro")
+                        outro = result.get("outro")
+                        if intro or outro:
+                            self._metadata_cache[(int(zen_anilist_id), zen_ep_num)] = {"intro": intro, "outro": outro}
+                        elif (int(zen_anilist_id), zen_ep_num) in self._metadata_cache:
+                            cached = self._metadata_cache[(int(zen_anilist_id), zen_ep_num)]
+                            result["intro"] = cached.get("intro")
+                            result["outro"] = cached.get("outro")
+                            logger.debug(f"[UnifiedScraper] Borrowed intro/outro from cache for ep {zen_ep_num} (Zenith)")
+
+                    return result
+                logger.warning(
+                    f"[UnifiedScraper] Zenith returned no sources for anilist_id={zen_anilist_id} "
+                    f"ep={zen_ep_num}: {result}"
+                )
+            except Exception as e:
+                logger.warning(f"[UnifiedScraper] Zenith video failed: {e}")
+            return {
+                "error": "no_sources",
+                "message": "Zenith has no playable streams for this episode.",
+            }
+
+        # Detect AnimeX-routed episodes by the `watch/ax/...` slug pattern.
+        is_ax = "/ax/" in f"/{ep_id_str}/"
+
+        if is_ax:
+            ax_anilist_id = anilist_id
+            ax_server_id = None
+            ax_ep_num = None
+
+            m = re.search(r"/ax/(\d+)/(sub|dub)/([^/]+)$", f"/{ep_id_str}")
+            if m:
+                try:
+                    ax_anilist_id = int(m.group(1))
+                except ValueError:
+                    pass
+                language = m.group(2) or language
+                tail = m.group(3)
+                # tail is "<server_id>-<ep_num>" (server id may itself contain
+                # dashes; episode number is the trailing numeric chunk).
+                num_match = re.search(r"(\d+(?:\.\d+)?)\s*$", tail)
+                if num_match:
+                    try:
+                        raw_num = float(num_match.group(1))
+                        ax_ep_num = int(raw_num) if raw_num.is_integer() else raw_num
+                    except ValueError:
+                        ax_ep_num = None
+                    ax_server_id = tail[: num_match.start()].rstrip("-") or None
+
+            # If the explicit `server` param looks like an AnimeX sub-server, prefer it.
+            if server and server not in ("kiwi", "jet", "arc", "zoro", "bee", "wco"):
+                ax_server_id = ax_server_id or server
+
+            if not ax_anilist_id or ax_ep_num is None:
+                return {
+                    "error": "no_sources",
+                    "message": "AnimeX: missing anilist_id or episode number.",
+                }
+
+            try:
+                result = await self.animex.get_sources(
+                    ax_anilist_id, ax_ep_num, language, preferred_server=ax_server_id
+                )
+                if result and not result.get("error"):
+                    logger.debug(
+                        f"[UnifiedScraper] Video (AnimeX): OK anilist_id={ax_anilist_id} "
+                        f"ep={ax_ep_num} server={ax_server_id}"
+                    )
+                    result["source_provider"] = ax_server_id or result.get("source_provider")
+                    
+                    # Update metadata cache if found
+                    if ax_anilist_id and ax_ep_num is not None:
+                        intro = result.get("intro")
+                        outro = result.get("outro")
+                        if intro or outro:
+                            self._metadata_cache[(int(ax_anilist_id), ax_ep_num)] = {"intro": intro, "outro": outro}
+                        elif (int(ax_anilist_id), ax_ep_num) in self._metadata_cache:
+                            cached = self._metadata_cache[(int(ax_anilist_id), ax_ep_num)]
+                            result["intro"] = cached.get("intro")
+                            result["outro"] = cached.get("outro")
+                            logger.debug(f"[UnifiedScraper] Borrowed intro/outro from cache for ep {ax_ep_num} (AnimeX)")
+                        else:
+                            logger.debug(f"[UnifiedScraper] Intro/outro not coming for AnimeX (server {ax_server_id}) ep {ax_ep_num}")
+
+                    return result
+                logger.warning(
+                    f"[UnifiedScraper] AnimeX returned no sources for anilist_id={ax_anilist_id} "
+                    f"ep={ax_ep_num} server={ax_server_id}: "
+                    f"{result.get('message') if isinstance(result, dict) else result}"
+                )
+            except Exception as e:
+                logger.warning(f"[UnifiedScraper] AnimeX video failed: {e}")
+            return {
+                "error": "no_sources",
+                "message": "AnimeX has no playable streams for this episode.",
+            }
+
+        # ── Kuudere-routed episodes: watch/KUUDERE/{anilist_id}/{category}/{slug} ──
+        is_kuudere = "/KUUDERE/" in f"/{ep_id_str}/"
+
+        if is_kuudere:
+            kd_anilist_id = anilist_id
+            kd_ep_num = None
+
+            m = re.search(r"/KUUDERE/(\d+)/(sub|dub)/([^/]+)$", f"/{ep_id_str}")
+            if m:
+                try:
+                    kd_anilist_id = int(m.group(1))
+                except ValueError:
+                    pass
+                language = m.group(2) or language
+                tail = m.group(3)
+                # slug is "kuudere-{ep_num}"
+                num_match = re.search(r"(\d+(?:\.\d+)?)\s*$", tail)
+                if num_match:
+                    try:
+                        raw_num = float(num_match.group(1))
+                        kd_ep_num = int(raw_num) if raw_num.is_integer() else raw_num
+                    except ValueError:
+                        kd_ep_num = None
+
+            if not kd_anilist_id or kd_ep_num is None:
+                return {
+                    "error": "no_sources",
+                    "message": "Kuudere: missing anilist_id or episode number.",
+                }
+
+            # Resolve kuudere anime ID from Miruro episodes API
+            kuudere_id = self.kuudere.get_cached_id(kd_anilist_id)
+            if not kuudere_id:
+                try:
+                    ep_resp = await self.miruro.client._get(f"episodes/{kd_anilist_id}")
+                    if ep_resp:
+                        kd_provider = (ep_resp.get("providers") or {}).get("KUUDERE", {})
+                        pids = kd_provider.get("provider_id", [])
+                        if isinstance(pids, list) and pids:
+                            kuudere_id = pids[0]
+                        elif isinstance(pids, str) and pids:
+                            kuudere_id = pids
+                    if kuudere_id:
+                        self.kuudere.cache_kuudere_id(kd_anilist_id, kuudere_id)
+                except Exception as e:
+                    logger.warning(f"[UnifiedScraper] Failed to resolve Kuudere ID: {e}")
+
+            if not kuudere_id:
+                return {
+                    "error": "no_sources",
+                    "message": "Could not resolve Kuudere anime ID from Miruro.",
+                }
+
+            try:
+                result = await self.kuudere.get_sources(
+                    kuudere_id, kd_ep_num, language
+                )
+                if result and not result.get("error"):
+                    logger.info(
+                        f"[UnifiedScraper] Video (Kuudere): OK anilist_id={kd_anilist_id} "
+                        f"ep={kd_ep_num} kuudere_id={kuudere_id}"
+                    )
+                    return result
+                logger.warning(
+                    f"[UnifiedScraper] Kuudere returned no sources for ep={kd_ep_num}: "
+                    f"{result.get('message') if isinstance(result, dict) else result}"
+                )
+            except Exception as e:
+                logger.warning(f"[UnifiedScraper] Kuudere video failed: {e}")
+            return {
+                "error": "no_sources",
+                "message": "Kuudere has no playable streams for this episode.",
+            }
+
+        if miruro_ep_id:
+            try:
+                # Derive provider from the ep_id slug if not explicitly passed.
+                # Format: watch/{provider}/{anilist_id}/{category}/{slug}
+                _m = re.match(r"watch/([^/]+)/\d+/", ep_id_str)
+                provider = server or (_m.group(1) if _m else "kiwi")
+
+                # Extract episode number for metadata caching
+                slug_tail = ep_id_str.split("/")[-1]
+                num_match = re.search(r"(\d+(?:\.\d+)?)$", slug_tail)
+                ep_num = None
+                if num_match:
+                    try:
+                        f_num = float(num_match.group(1))
+                        ep_num = int(f_num) if f_num.is_integer() else f_num
+                    except: pass
+
+                result = await self.miruro.get_sources(
+                    episode_id=miruro_ep_id,
+                    provider=provider,
+                    anilist_id=anilist_id,
+                    category=language,
+                )
+                if result and not result.get("error") and (result.get("video_link") or result.get("embed_sources")):
+                    logger.debug(f"[UnifiedScraper] Video (Miruro, server={provider}): OK for {miruro_ep_id}")
+                    result["source_provider"] = provider
+                    
+                    # Update metadata cache if found
+                    if anilist_id and ep_num is not None:
+                        intro = result.get("intro")
+                        outro = result.get("outro")
+                        if intro or outro:
+                            self._metadata_cache[(int(anilist_id), ep_num)] = {"intro": intro, "outro": outro}
+                        elif (int(anilist_id), ep_num) in self._metadata_cache:
+                            cached = self._metadata_cache[(int(anilist_id), ep_num)]
+                            result["intro"] = cached.get("intro")
+                            result["outro"] = cached.get("outro")
+                            logger.debug(f"[UnifiedScraper] Borrowed intro/outro from cache for ep {ep_num}")
+                        else:
+                            logger.debug(f"[UnifiedScraper] Intro/outro not coming for {provider} {ep_num}. Checking providers_map...")
+                            # Note: scavenge logic is better handled in the route or a separate loop to avoid recursion
+                    
+                    return result
+                else:
+                    logger.warning(
+                        f"[UnifiedScraper] Video Miruro: no video_link for {miruro_ep_id}"
+                    )
+            except Exception as e:
+                logger.warning(f"[UnifiedScraper] Video Miruro failed: {e}")
+
+        # Final check: if we have cached metadata but the result was empty or missing it, 
+        # (Actually, if we are here it failed, but if it returned something we should ensure intro/outro)
+        
+        logger.debug(f"[UnifiedScraper] Video: Miruro failed for {ep_id_str}")
+        return {
+            "error": "no_sources",
+            "message": "No video sources available from Miruro.",
+        }
+
+    # =========================================================================
+    # SEARCH
+    # =========================================================================
+    async def search(self, q: str, page: int = 1, **kwargs) -> Dict[str, Any]:
+        """Search anime — Miruro with Jikan fallback"""
+        try:
+            result = await self.miruro.search(q, page, **kwargs)
+            if result and result.get("animes"):
+                logger.debug(
+                    f"[UnifiedScraper] Search (Miruro): {len(result.get('animes', []))} results"
+                )
+                return result
+        except Exception as e:
+            logger.warning(f"[UnifiedScraper] Search Miruro failed: {e}")
+
+        try:
+            logger.debug("[UnifiedScraper] Search: Falling back to Jikan (MAL)")
+            result = await self.mal_fallback.search(q, page, **kwargs)
+            if result and result.get("animes"):
+                return result
+        except Exception as e:
+            logger.warning(f"[UnifiedScraper] Search Jikan fallback failed: {e}")
+
+        return {
+            "animes": [],
+            "mostPopularAnimes": [],
+            "totalPages": 1,
+            "hasNextPage": False,
+            "currentPage": page,
+            "searchQuery": q,
+        }
+
+    async def search_suggestions(self, q: str) -> Dict[str, Any]:
+        """Get search suggestions — Miruro with Jikan fallback"""
+        try:
+            result = await self.miruro.search_suggestions(q)
+            if result and result.get("suggestions"):
+                logger.debug(
+                    f"[UnifiedScraper] Suggestions (Miruro): {len(result.get('suggestions', []))} results"
+                )
+                return result
+        except Exception as e:
+            logger.warning(f"[UnifiedScraper] Suggestions Miruro failed: {e}")
+
+        try:
+            logger.debug("[UnifiedScraper] Suggestions: Falling back to Jikan (MAL)")
+            result = await self.mal_fallback.search_suggestions(q)
+            if result and result.get("suggestions"):
+                return result
+        except Exception as e:
+            logger.warning(f"[UnifiedScraper] Suggestions Jikan fallback failed: {e}")
+
+        return {"suggestions": []}
+
+    async def az_list(self, sort_option: str = "all", page: int = 1) -> Dict[str, Any]:
+        """Get A-Z anime list — Miruro with Jikan fallback"""
+        try:
+            result = await self.miruro.az_list(sort_option, page)
+            if result and result.get("animes"):
+                return result
+        except Exception as e:
+            logger.warning(f"[UnifiedScraper] az_list Miruro failed: {e}")
+
+        try:
+            logger.debug("[UnifiedScraper] az_list: Falling back to Jikan (MAL)")
+            result = await self.mal_fallback.az_list(sort_option, page)
+            if result and result.get("animes"):
+                return result
+        except Exception as e:
+            logger.warning(f"[UnifiedScraper] az_list Jikan fallback failed: {e}")
+
+        return {"animes": []}
+
+    # =========================================================================
+    # CATALOG
+    # =========================================================================
+    async def producer(self, name: str, page: int = 1) -> Dict[str, Any]:
+        """Get anime by producer"""
+        try:
+            result = await self.miruro.producer(name, page)
+            if result and result.get("animes"):
+                return result
+        except Exception:
+            pass
+        return {}
+
+    async def get_studio_details(self, studio_id: int, page: int = 1) -> Dict[str, Any]:
+        """Get studio details via AniList"""
+        try:
+            return await self.anilist_home.get_studio_details(studio_id, page)
+        except Exception:
+            return {"success": False, "message": "Failed to fetch studio details"}
+
+    async def genre(self, name: str, page: int = 1) -> Dict[str, Any]:
+        """Get anime by genre"""
+        try:
+            result = await self.miruro.genre(name, page)
+            if result and result.get("animes"):
+                logger.debug(
+                    f"[UnifiedScraper] Genre (Miruro, {name}): {len(result.get('animes', []))} results"
+                )
+                return result
+        except Exception as e:
+            logger.warning(f"[UnifiedScraper] Genre Miruro failed for {name}: {e}")
+
+        return {}
+
+    async def category(self, name: str, page: int = 1) -> Dict[str, Any]:
+        """Get anime by category"""
+        try:
+            result = await self.miruro.category(name, page)
+            if result and result.get("animes"):
+                logger.debug(
+                    f"[UnifiedScraper] Category (Miruro, {name}): {len(result.get('animes', []))} results"
+                )
+                return result
+        except Exception as e:
+            logger.warning(f"[UnifiedScraper] Category Miruro failed for {name}: {e}")
+
+        return {}
+
+    async def schedule(self, date: str = None) -> Dict[str, Any]:
+        """Get anime schedule"""
+        try:
+            result = await self.miruro.schedule(date)
+            if result and (result.get("scheduledAnimes") or result.get("animes")):
+                return result
+        except Exception:
+            pass
+        return {}
+
+    async def qtip(self, anime_id: str) -> Dict[str, Any]:
+        """Quick tooltip info"""
+        if str(anime_id).isdigit():
+            try:
+                return await self.miruro.qtip(anime_id)
+            except Exception:
+                pass
+        return {}
+
+    async def anime_about(self, anime_id: str) -> Dict[str, Any]:
+        """Detailed anime about"""
+        if str(anime_id).isdigit():
+            try:
+                return await self.miruro.anime_about(anime_id)
+            except Exception:
+                pass
+        return {}
+
+    # =========================================================================
+    # SCHEDULE
+    # =========================================================================
+    async def next_episode_schedule(self, anime_id: str) -> Dict[str, Any]:
+        """Get next episode schedule"""
+        if str(anime_id).isdigit():
+            try:
+                result = await self.miruro.next_episode_schedule(anime_id)
+                if result and result.get("airingTimestamp"):
+                    return result
+            except Exception:
+                pass
+        return {}
+
+    # =========================================================================
+    # UTILITY
+    # =========================================================================
+    async def raw(
+        self, endpoint: str, params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """Fetch arbitrary endpoint"""
+        return {}
