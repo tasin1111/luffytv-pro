@@ -517,13 +517,14 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     return s;
   };
 
-  // ── Server icon emoji (AnimeX style) ──
+  // ── Server icon initial (clean letter badge) ──
   const serverEmoji = (name: string) => {
     const map: Record<string, string> = {
-      "Pikachu": "⚡", "Eevee": "🦊", "Charizard": "🔥", "Umbreon": "🌙",
-      "Mewtwo": "🧬", "Bulbasaur": "🌿", "Charmander": "🔥", "Flareon": "💥",
+      "Miku": "M", "Pikachu": "P", "Eevee": "E", "Charizard": "C", "Zoro": "Z",
+      "Kiwi": "K", "Arc": "A", "Bee": "B", "Umbreon": "U",
+      "Mewtwo": "M", "Bulbasaur": "B", "Charmander": "C", "Flareon": "F",
     };
-    return map[name] || "🖥️";
+    return map[name] || name.charAt(0).toUpperCase();
   };
 
   // ── Tab count badge ──
@@ -537,7 +538,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   };
 
   return (
-    <div className="fade-in min-h-screen bg-[#080B12]">
+    <div className="fade-in min-h-screen bg-[#0F172A]">
 
       {/* ═══════════════════════════════════════════════════════
           IMMERSIVE BACKDROP — full-width cinematic gradient
@@ -553,7 +554,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         <div className="wp-player-inner">
           {/* Hindi not available state */}
           {translation === "hindi" && servers.length === 0 && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#080B12]/95 z-20">
+            <div className="absolute inset-0 flex items-center justify-center bg-[#0F172A]/95 z-20">
               <div className="text-center space-y-5 max-w-sm px-6">
                 <div className="w-20 h-20 rounded-2xl bg-[#FF6B00]/10 border border-[#FF6B00]/20 flex items-center justify-center mx-auto">
                   <svg className="w-10 h-10 text-[#FF6B00]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -598,7 +599,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
           {/* Loading — cinematic pulse */}
           {loading && !(translation === "hindi" && servers.length === 0) && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#080B12]/90 z-20">
+            <div className="absolute inset-0 flex items-center justify-center bg-[#0F172A]/90 z-20">
               <div className="text-center space-y-4">
                 <div className="wp-loader-ring">
                   <div />
@@ -613,7 +614,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
           {/* Error state */}
           {error && !loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#080B12]/90 z-20">
+            <div className="absolute inset-0 flex items-center justify-center bg-[#0F172A]/90 z-20">
               <div className="text-center space-y-5 max-w-sm px-6">
                 <div className="w-16 h-16 rounded-2xl bg-[#E63946]/10 border border-[#E63946]/20 flex items-center justify-center mx-auto">
                   <svg className="w-8 h-8 text-[#E63946]/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -686,8 +687,8 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 {translation === "hindi" ? "HINDI DUB" : translation.toUpperCase()}
               </span>
               {activeServer && (
-                <span className="wp-trans-badge bg-white/[0.04] text-white/30 border border-white/[0.06]">
-                  {serverEmoji(activeServer.name)} {activeServer.name}
+                <span className="wp-trans-badge bg-white/[0.06] text-white/50 border border-white/[0.08]">
+                  {activeServer.name}
                 </span>
               )}
             </div>

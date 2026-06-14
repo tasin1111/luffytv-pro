@@ -3,12 +3,16 @@
 // CLEAN PROVIDER LIST:
 //
 // Anime Servers (SUB/DUB) in priority order:
+//   0. Miku          (YumeZone/Miruro)  — AniList ID — Miruro miku provider, HLS+embed, auto-switch
 //   1. Pikachu       (VidNest Anime)    — AniList ID — sub/dub/hindi, iframe
 //   2. Eevee         (VidNest AnimePahe) — AniList ID — sub/dub, iframe
 //   3. Charizard     (Videasy)          — AniList ID — auto sub/dub, iframe
-//   4. Umbreon       (AniVexa/AniNeko)  — AniList ID — HLS embeds (vibeplayer/bibiemb/otakuhg/otakuvid)
-//   5. Mewtwo        (AniVexa/AllAnime) — AniList ID — 6+ Sources, MP4+Iframe (Zenith)
-//   6. Bulbasaur     (AnimeX)           — AniList ID — GraphQL+REST, HLS proxy, auto-race providers
+//   4. Zoro          (YumeZone/Megaplay) — AniList ID — Megaplay embed, sub+dub
+//   5. Kiwi          (YumeZone/Miruro)  — AniList ID — Miruro kiwi provider, HLS
+//   6. Arc           (YumeZone/Miruro)  — AniList ID — Miruro arc provider, HLS
+//   7. Umbreon       (AniVexa/AniNeko)  — AniList ID — HLS embeds
+//   8. Mewtwo        (AniVexa/AllAnime) — AniList ID — 6+ Sources, MP4+Iframe
+//   9. Bulbasaur     (AnimeX)           — AniList ID — GraphQL+REST, HLS proxy
 //
 // Hindi Servers:
 //   Charmander      (AniXtv)           — AniList ID — Hindi dub
@@ -42,6 +46,109 @@ export interface EmbedUrlParams {
   title?: string;
   session?: string;
 }
+
+// =====================================================
+// YUMEZONE SERVERS — Miruro-based with proper AniList ID mapping
+// These servers use the /api/anime/yumezone/watch route which:
+// 1. Maps AniList ID -> Miruro episodes -> provider episode IDs
+// 2. Fetches correct m3u8/HLS streams with proper headers
+// 3. Routes through CDN proxy for CORS-free playback
+// =====================================================
+
+const yumezoneMiku: EmbedServer = {
+  id: "yz-miku",
+  name: "Miku",
+  priority: 0,
+  supportsSub: true,
+  supportsDub: true,
+  supportsHindi: false,
+  idType: "anilist",
+  color: "#00D4AA",
+  category: "anime",
+  streamType: "hls",
+  noSandbox: true,
+  generateUrl: (p) => {
+    if (!p.anilistId) return "";
+    const type = p.translation === "dub" ? "dub" : "sub";
+    return `/api/anime/yumezone/watch?anilistId=${p.anilistId}&episode=${p.episode}&provider=miku&type=${type}`;
+  },
+};
+
+const yumezoneZoro: EmbedServer = {
+  id: "yz-zoro",
+  name: "Zoro",
+  priority: 4,
+  supportsSub: true,
+  supportsDub: true,
+  supportsHindi: false,
+  idType: "anilist",
+  color: "#22C55E",
+  category: "anime",
+  streamType: "iframe",
+  noSandbox: true,
+  generateUrl: (p) => {
+    if (!p.anilistId) return "";
+    const lang = p.translation === "dub" ? "dub" : "sub";
+    return `https://megaplay.buzz/stream/ani/${p.anilistId}/${p.episode}/${lang}`;
+  },
+};
+
+const yumezoneKiwi: EmbedServer = {
+  id: "yz-kiwi",
+  name: "Kiwi",
+  priority: 5,
+  supportsSub: true,
+  supportsDub: true,
+  supportsHindi: false,
+  idType: "anilist",
+  color: "#A3E635",
+  category: "anime",
+  streamType: "hls",
+  noSandbox: true,
+  generateUrl: (p) => {
+    if (!p.anilistId) return "";
+    const type = p.translation === "dub" ? "dub" : "sub";
+    return `/api/anime/yumezone/watch?anilistId=${p.anilistId}&episode=${p.episode}&provider=kiwi&type=${type}`;
+  },
+};
+
+const yumezoneArc: EmbedServer = {
+  id: "yz-arc",
+  name: "Arc",
+  priority: 6,
+  supportsSub: true,
+  supportsDub: true,
+  supportsHindi: false,
+  idType: "anilist",
+  color: "#818CF8",
+  category: "anime",
+  streamType: "hls",
+  noSandbox: true,
+  generateUrl: (p) => {
+    if (!p.anilistId) return "";
+    const type = p.translation === "dub" ? "dub" : "sub";
+    return `/api/anime/yumezone/watch?anilistId=${p.anilistId}&episode=${p.episode}&provider=arc&type=${type}`;
+  },
+};
+
+const yumezoneBee: EmbedServer = {
+  id: "yz-bee",
+  name: "Bee",
+  priority: 7,
+  supportsSub: true,
+  supportsDub: false,
+  supportsHindi: false,
+  idType: "anilist",
+  color: "#FBBF24",
+  category: "anime",
+  streamType: "hls",
+  noSandbox: true,
+  generateUrl: (p) => {
+    if (!p.anilistId) return "";
+    const type = p.translation === "dub" ? "dub" : "sub";
+    return `/api/anime/yumezone/watch?anilistId=${p.anilistId}&episode=${p.episode}&provider=bee&type=${type}`;
+  },
+};
 
 // =====================================================
 // ANIME SERVERS — Pokemon-named, priority order
@@ -305,9 +412,14 @@ const vidsrcme: EmbedServer = {
 // =====================================================
 
 const ANIME_SERVERS: EmbedServer[] = [
+  yumezoneMiku,       // Miku (YumeZone/Miruro — best provider, auto-switch)
   vidnestAnime,       // Pikachu
   vidnestAnimepahe,   // Eevee
   videasyAnime,       // Charizard
+  yumezoneZoro,       // Zoro (YumeZone/Megaplay embed)
+  yumezoneKiwi,       // Kiwi (YumeZone/Miruro HLS)
+  yumezoneArc,        // Arc (YumeZone/Miruro HLS)
+  yumezoneBee,        // Bee (YumeZone/Miruro HLS)
   ...anivexaServers,  // Umbreon(AniNeko), Mewtwo(AllAnime)
   animexServer,       // Bulbasaur(AnimeX)
 ];
@@ -379,7 +491,7 @@ export function hasHindiSupport(anilistId?: number): boolean {
  * Check if a server uses HLS (M3U8) streaming instead of iframe
  */
 export function isHlsServer(serverId: string): boolean {
-  return serverId.startsWith("animex-") || serverId.startsWith("anivexa-");
+  return serverId.startsWith("animex-") || serverId.startsWith("anivexa-") || serverId.startsWith("yz-");
 }
 
 /**

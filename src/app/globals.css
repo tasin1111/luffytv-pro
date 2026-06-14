@@ -745,14 +745,14 @@ video::-webkit-media-controls { border-radius: 8px; }
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(to bottom, transparent 20%, #080B12 100%);
+  background: linear-gradient(to bottom, transparent 20%, #111827 100%);
 }
 
 /* ── Cinematic Player Zone ── */
 .wp-player-zone {
   width: 100%;
   position: relative;
-  background: #000;
+  background: #0a0f1a;
 }
 .wp-player-inner {
   position: relative;
@@ -800,7 +800,7 @@ video::-webkit-media-controls { border-radius: 8px; }
   align-items: center;
   gap: 8px;
   padding: 6px;
-  background: rgba(8, 11, 18, 0.92);
+  background: rgba(15, 23, 42, 0.92);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -851,7 +851,7 @@ video::-webkit-media-controls { border-radius: 8px; }
   justify-content: space-between;
   gap: 16px;
   padding: 20px 0 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 /* ── Live Dot ── */
@@ -861,7 +861,7 @@ video::-webkit-media-controls { border-radius: 8px; }
   border-radius: 50%;
   background: #E63946;
   animation: pulseGlow 2s ease-in-out infinite;
-  box-shadow: 0 0 8px rgba(230, 57, 70, 0.6);
+  box-shadow: 0 0 6px rgba(230, 57, 70, 0.3);
 }
 
 /* ── Labels ── */
@@ -870,7 +870,7 @@ video::-webkit-media-controls { border-radius: 8px; }
   font-weight: 700;
   letter-spacing: 0.15em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.5);
 }
 
 /* ── Translation Badge ── */
@@ -888,7 +888,7 @@ video::-webkit-media-controls { border-radius: 8px; }
 .wp-title-main {
   font-size: 20px;
   font-weight: 800;
-  color: white;
+  color: #f1f5f9;
   line-height: 1.2;
   letter-spacing: -0.01em;
 }
@@ -897,7 +897,7 @@ video::-webkit-media-controls { border-radius: 8px; }
 }
 .wp-subtitle {
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.3);
+  color: rgba(255, 255, 255, 0.45);
   margin-top: 4px;
 }
 
@@ -1026,9 +1026,8 @@ video::-webkit-media-controls { border-radius: 8px; }
   font-size: 11px;
   font-weight: 600;
   color: white;
-  background: rgba(255, 255, 255, 0.05);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 10px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1119,9 +1118,9 @@ video::-webkit-media-controls { border-radius: 8px; }
   padding: 8px 14px;
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.45);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.2s ease;
@@ -1129,17 +1128,25 @@ video::-webkit-media-controls { border-radius: 8px; }
 .wp-server-pill:hover {
   background: rgba(255, 255, 255, 0.08);
   color: rgba(255, 255, 255, 0.8);
-  border-color: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 .wp-server-pill.active {
-  background: rgba(230, 57, 70, 0.12);
-  border-color: rgba(230, 57, 70, 0.25);
+  background: rgba(230, 57, 70, 0.15);
+  border-color: rgba(230, 57, 70, 0.4);
   color: white;
-  box-shadow: 0 0 20px rgba(230, 57, 70, 0.08);
 }
 .wp-server-emoji {
-  font-size: 14px;
+  font-size: 11px;
+  font-weight: 700;
   line-height: 1;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(230, 57, 70, 0.12);
+  color: #E63946;
 }
 .wp-server-name {
   font-weight: 700;
@@ -1147,8 +1154,8 @@ video::-webkit-media-controls { border-radius: 8px; }
 .wp-server-num {
   font-size: 9px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.05);
   padding: 1px 5px;
   border-radius: 4px;
 }
@@ -1189,8 +1196,8 @@ video::-webkit-media-controls { border-radius: 8px; }
 /* ── Tabs Container — Anime.nexus style ── */
 .wp-tabs-container {
   margin-top: 16px;
-  background: rgba(12, 15, 22, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(17, 24, 39, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 18px;
   overflow: hidden;
 }
@@ -1200,7 +1207,7 @@ video::-webkit-media-controls { border-radius: 8px; }
   display: flex;
   align-items: center;
   gap: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -1212,7 +1219,7 @@ video::-webkit-media-controls { border-radius: 8px; }
   padding: 12px 18px;
   font-size: 12px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.5);
   border: none;
   border-bottom: 2px solid transparent;
   background: none;
@@ -1222,8 +1229,8 @@ video::-webkit-media-controls { border-radius: 8px; }
   position: relative;
 }
 .wp-tab:hover {
-  color: rgba(255, 255, 255, 0.6);
-  background: rgba(255, 255, 255, 0.02);
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.03);
 }
 .wp-tab.active {
   color: #E63946;
@@ -1341,25 +1348,24 @@ video::-webkit-media-controls { border-radius: 8px; }
   justify-content: center;
   aspect-ratio: 1;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   cursor: pointer;
   transition: all 0.15s ease;
 }
 .wp-ep-grid-item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
 }
 .wp-ep-grid-item.active {
   background: rgba(230, 57, 70, 0.12);
-  border-color: rgba(230, 57, 70, 0.25);
-  box-shadow: 0 0 16px rgba(230, 57, 70, 0.08);
+  border-color: rgba(230, 57, 70, 0.3);
 }
 .wp-ep-num {
   font-size: 14px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.5);
 }
 .wp-ep-grid-item.active .wp-ep-num {
   color: white;

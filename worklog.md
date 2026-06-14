@@ -136,3 +136,25 @@ Stage Summary:
 - Letter-based quick-jump navigation for easy browsing
 - Category auto-classification working
 - All changes pushed to luffytv-tasin remote
+---
+Task ID: yumezone-integration
+Agent: Main
+Task: Scrape YumeZone website and properly integrate anime streaming with AniList ID mapping, correct m3u8/HLS routing, and fix watch page UI
+
+Work Log:
+- Cloned YumeZone open-source repo (github.com/OTAKUWeBer/YumeZone) since yumezone.live was returning 502
+- Studied the full YumeZone codebase: Miruro API, Zenith (AllAnime) scraper, AnimeX provider, video_utils proxy routing, watch_routes
+- Discovered key architecture: Miruro API provides episodes via /episodes/{anilistId} with providers_map, sources via /watch/{provider}/{anilistId}/{category}/{slug}
+- Learned proxy routing: kiwi/animex/ax-* -> kiwi worker (/p/ Base64), arc/jet/zoro -> cdn-eu.1ani.me/proxy/m3u8
+- Created /api/anime/yumezone/episodes/route.ts - Miruro episodes with full provider mapping, Zoro/Megaplay auto-generation
+- Created /api/anime/yumezone/watch/route.ts - Proper AniList ID -> episode slug resolution, Miruro watch API with auto-provider-switching, CDN proxy routing for m3u8
+- Added 5 new YumeZone servers to embed-servers.ts: Miku (Miruro primary), Zoro (Megaplay embed), Kiwi (Miruro HLS), Arc (Miruro HLS), Bee (Miruro HLS)
+- Fixed watch page UI: brighter backgrounds (#0F172A instead of #080B12), removed gummy glow effects, cleaner server pill styling, better text contrast, removed blur effects
+- Updated serverEmoji function to use clean letter initials for new servers
+- Build verified successfully with all new routes
+
+Stage Summary:
+- New API routes: /api/anime/yumezone/episodes, /api/anime/yumezone/watch
+- New servers: Miku (priority 0), Zoro (priority 4), Kiwi (priority 5), Arc (priority 6), Bee (priority 7)
+- Watch page UI: brighter, cleaner, less gummy/gooey styling
+- All changes compile and build successfully
