@@ -30,16 +30,35 @@ const UPSTREAM_HEADERS: Record<string, string> = {
 
 // ─── Provider Config ──────────────────────────────────────────────────────────
 
-// Working providers in priority order
-// Updated: kiwi/beep/mimi are Cloudflare-blocked from server-side, miku/yuki/vee work
+// Complete provider list in priority order
+// Updated: All providers mapped with correct headers, CDN patterns, and proxy requirements
+//
+// Provider (CB) Reference:
+//   beep  — Hard sub, Default sub provider, CDN: bd.24stream.xyz, Multi-quality HLS
+//   mimi  — Hard sub, Default dub provider, CDN: hawk.24stream.xyz, PNG-wrapped TS
+//   vee   — Soft sub, DASH (.mpd), CDN: cdn.animeonsen.xyz
+//   yuki  — Soft sub, Multi quality HLS, CDN: s2.cinewave2.site, TS as .jpg
+//   miku  — Hard sub, Best quality HLS, CDN: sxic.oceancrestdigital.shop, .txt sub-playlists
+//   neko  — Hard sub, Direct MP4, CDN: neko.yokai.cfd
+//   huzz  — Hard sub, HLS, CDN: s2.vidhosters.com
+//   mochi — Hard sub, MP4 with token, CDN: tools.fast4speed.rsvp
+//   uwu   — Hard sub, HLS, Same CDN as miku
+//   koto  — Hard sub, HLS, Same CDN as miku
+//   kiwi  — Hard sub, Cloudflare-protected, CDN: anidb.app
+//   kami  — Alt provider
 const PROVIDER_PRIORITY = [
-  "miku",  // Soft sub, Multi quality m3u8, WORKS (allanime.uns.bio referer)
-  "yuki",  // Soft sub, Multi quality m3u8, WORKS (megaplay.buzz referer)
-  "vee",   // Soft sub, DASH manifest, WORKS (animeonsen.xyz referer)
-  "mimi",  // Hard sub, m3u8, often Cloudflare-blocked from server
-  "kiwi",  // Hard sub, m3u8, Cloudflare-blocked from server
-  "mochi", // Hard sub, MP4, token expires quickly
-  "beep",  // Hard sub, often Cloudflare-blocked
+  "miku",  // Hard sub, Best Quality HLS, WORKS (allanime.uns.bio referer + mobile UA)
+  "yuki",  // Soft sub, Multi quality HLS, WORKS (megaplay.buzz referer)
+  "beep",  // Hard sub, Default sub, Multi-quality HLS
+  "mimi",  // Hard sub, Default dub, PNG-wrapped TS (often CF-blocked)
+  "vee",   // Soft sub, DASH manifest (needs DASH player)
+  "mochi", // Hard sub, MP4 with expiring token
+  "neko",  // Hard sub, Direct MP4 (animeverse.to referer + Firefox UA)
+  "huzz",  // Hard sub, HLS (kem.clvd.xyz origin + Firefox UA)
+  "uwu",   // Hard sub, HLS, Same CDN as miku
+  "koto",  // Hard sub, HLS, Same CDN as miku
+  "kiwi",  // Hard sub, Cloudflare-protected (anidb.app origin)
+  "kami",  // Alt provider
 ];
 
 const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
@@ -51,16 +70,25 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   uwu: "Uwu",
   beep: "Beep",
   vee: "Vee",
+  miku: "Miku",
+  neko: "Neko",
+  huzz: "Huzz",
+  koto: "Koto",
 };
 
 const PROVIDER_TIPS: Record<string, string> = {
-  miku: "Soft sub, Multi quality",
+  miku: "Hard sub, Best Quality",
   yuki: "Soft sub, Multi quality + subs",
   vee: "Soft sub, DASH",
-  kiwi: "Hard sub, High quality",
+  beep: "Hard sub, Fast (Default sub)",
+  mimi: "Hard sub, Fastest (Default dub)",
   mochi: "Hard sub, MP4",
-  mimi: "Hard sub, Fast",
-  beep: "Hard sub, Alt",
+  neko: "Hard sub, MP4 Direct",
+  huzz: "Hard sub, HLS Alt",
+  uwu: "Hard sub, HLS Alt",
+  koto: "Hard sub, HLS Rare",
+  kiwi: "Hard sub, CF-Protected",
+  kami: "Alt provider",
 };
 
 // ─── Types ──────────────────────────────────────────────────────────────────────

@@ -1,0 +1,881 @@
+- generic
+  - generic
+    - region "Notifications alt+T" [ref=e1]
+    - main
+      - sectionheader
+        - navigation
+          - button "Open menu" [ref=e37]
+            - image
+          - link "logo AnimeX" [ref=e38]
+            - image "logo"
+            - StaticText "AnimeX"
+          - textbox "Search anime" [ref=e67]
+          - button "Search" [ref=e68]
+            - image
+          - button "Notifications" [ref=e66]
+            - button "Notifications" [ref=e69]
+              - image
+          - button "Open login" [ref=e39]
+            - image "Guest"
+            - StaticText "Open account"
+      - generic
+        - generic
+          - image "Wistoria: Wand and Sword Season 2"
+        - generic
+          - heading "Wistoria: Wand and Sword Season 2" [level=3, ref=e40]
+          - StaticText "RELEASING"
+          - image
+          - StaticText "Spring 2026"
+          - image
+          - StaticText "Ep 10"
+          - image
+          - StaticText "in 5d 21h"
+          - paragraph
+            - StaticText "The second season of Tsue to Tsurugi no Wistoria. Will, a washout student at a magical academy who is unable to use magic, is aiming to join the top tier of mages, the Magia Vander, to fulfill a promise to his childhood friend, Elfaria. Wielding a sword instead of a wand, his abilities are slowly recognized within the academy. During the all-student praxis dungeon training he undertakes with Lihanna and the other top students of his year, they are ambushed by a mysterious mage. Though they barely manage to survive the attack together, they go on to face the exit exam. Can Will reach the girl waiting for him in the tower? (Source: Official Site)"
+          - link "Watch Now" [ref=e41]
+            - image
+            - StaticText "Watch Now"
+          - link [ref=e42]
+            - image
+          - button "Select [object Object]" [ref=e43]
+          - button "Select [object Object]" [ref=e44]
+          - button "Select [object Object]" [ref=e45]
+          - button "Select [object Object]" [ref=e46]
+          - button "Select [object Object]" [ref=e47]
+          - button "Select [object Object]" [ref=e48]
+          - button "Select [object Object]" [ref=e49]
+        - generic
+          - button "Previous" [ref=e50]
+            - image
+          - button "Next" [ref=e51]
+            - image
+      - generic
+        - heading "Recently Added" [level=2, ref=e18]
+        - navigation
+          - button "Previous" [disabled, ref=e52]
+            - image
+          - button "Next" [ref=e53]
+            - image
+        - generic
+          - generic
+            - group "1 / 30"
+              - article
+                - link "View Renegade Immortal" [ref=e70]
+                  - generic
+                    - button "Add to watchlist" [ref=e220]
+                  - StaticText "7H AGO"
+                  - StaticText "RELEASING"
+                  - heading "Renegade Immortal" [level=3, ref=e145]
+            - group "2 / 30"
+              - article
+                - link "View GHOST CONCERT : missing Songs" [ref=e71]
+                  - generic
+                    - image "GHOST CONCERT : missing Songs"
+                    - button "Add to watchlist" [ref=e221]
+                  - StaticText "18H AGO"
+                  - StaticText "RELEASING"
+                  - heading "GHOST CONCERT : missing Songs" [level=3, ref=e146]
+            - group "3 / 30"
+              - article
+                - link "View The Classroom of the Black Cat and a Witch" [ref=e72]
+                  - generic
+                    - button "Add to watchlist" [ref=e222]
+                  - StaticText "19H AGO"
+                  - StaticText "RELEASING"
+                  - heading "The Classroom of the Black Cat and a Witch" [level=3, ref=e147]
+            - group "4 / 30"
+              - article
+                - link "View ONE PIECE" [ref=e73]
+                  - generic
+                    - button "Add to watchlist" [ref=e223]
+                  - StaticText "19H AGO"
+                  - StaticText "RELEASING"
+                  - heading "ONE PIECE" [level=3, ref=e148]
+            - group "5 / 30"
+              - article
+                - link "View Magical Sisters LuluttoLilly" [ref=e74]
+                  - generic
+                    - button "Add to watchlist" [ref=e224]
+                  - StaticText "20H AGO"
+                  - StaticText "RELEASING"
+                  - heading "Magical Sisters LuluttoLilly" [level=3, ref=e149]
+            - group "6 / 30"
+              - article
+                - link "View The Food Diary of Miss Maid" [ref=e75]
+                  - generic
+                    - button "Add to watchlist" [ref=e225]
+                  - StaticText "20H AGO"
+                  - StaticText "RELEASING"
+                  - heading "The Food Diary of Miss Maid" [level=3, ref=e150]
+            - group "7 / 30"
+              - article
+                - link "View NIPPON SANGOKU: The Three Nations of the Crimson Sun" [ref=e76]
+                  - generic
+                    - image "NIPPON SANGOKU: The Three Nations of the Crimson Sun"
+                    - button "Add to watchlist" [ref=e226]
+                  - StaticText "21H AGO"
+                  - StaticText "RELEASING"
+                  - heading "NIPPON SANGOKU: The Three Nations of the Crimson Sun" [level=3, ref=e151]
+            - group "8 / 30"
+              - article
+                - link "View Ace of the Diamond act II -Second Season-" [ref=e77]
+                  - generic
+                    - button "Add to watchlist" [ref=e227]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Ace of the Diamond act II -Second Season-" [level=3, ref=e152]
+            - group "9 / 30"
+              - article
+                - link "View Mission: Yozakura Family Season 2" [ref=e78]
+                  - generic
+                    - image "Mission: Yozakura Family Season 2"
+                    - button "Add to watchlist" [ref=e228]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Mission: Yozakura Family Season 2" [level=3, ref=e153]
+            - group "10 / 30"
+              - article
+                - link "View Wistoria: Wand and Sword Season 2" [ref=e79]
+                  - generic
+                    - image "Wistoria: Wand and Sword Season 2"
+                    - button "Add to watchlist" [ref=e229]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Wistoria: Wand and Sword Season 2" [level=3, ref=e154]
+            - group "11 / 30"
+              - article
+                - link "View Dou Po Cangqiong: Nian Fan 4" [ref=e80]
+                  - generic
+                    - image "Dou Po Cangqiong: Nian Fan 4"
+                    - button "Add to watchlist" [ref=e230]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Dou Po Cangqiong: Nian Fan 4" [level=3, ref=e155]
+            - group "12 / 30"
+              - article
+                - link "View DIGIMON BEATBREAK" [ref=e81]
+                  - generic
+                    - button "Add to watchlist" [ref=e231]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "DIGIMON BEATBREAK" [level=3, ref=e156]
+            - group "13 / 30"
+              - article
+                - link "View Star Detective Precure!" [ref=e82]
+                  - generic
+                    - button "Add to watchlist" [ref=e232]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Star Detective Precure!" [level=3, ref=e157]
+            - group "14 / 30"
+              - article
+                - link "View Koupen-chan" [ref=e83]
+                  - generic
+                    - button "Add to watchlist" [ref=e233]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Koupen-chan" [level=3, ref=e158]
+            - group "15 / 30"
+              - article
+                - link "View Little Shark's Day Out Season 2" [ref=e84]
+                  - generic
+                    - button "Add to watchlist" [ref=e234]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Little Shark's Day Out Season 2" [level=3, ref=e159]
+            - group "16 / 30"
+              - article
+                - link "View Ichijyoma Mankitsu Gurashi!" [ref=e85]
+                  - generic
+                    - button "Add to watchlist" [ref=e235]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Ichijyoma Mankitsu Gurashi!" [level=3, ref=e160]
+            - group "17 / 30"
+              - article
+                - link "View Kusunoki's Garden of Gods" [ref=e86]
+                  - generic
+                    - button "Add to watchlist" [ref=e236]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Kusunoki's Garden of Gods" [level=3, ref=e161]
+            - group "18 / 30"
+              - article
+                - link "View Mistress Kanan is Devilishly Easy" [ref=e87]
+                  - generic
+                    - button "Add to watchlist" [ref=e237]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Mistress Kanan is Devilishly Easy" [level=3, ref=e162]
+            - group "19 / 30"
+              - article
+                - link "View Scum of the Brave" [ref=e88]
+                  - generic
+                    - button "Add to watchlist" [ref=e238]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Scum of the Brave" [level=3, ref=e163]
+            - group "20 / 30"
+              - article
+                - link "View NEEDY GIRL OVERDOSE" [ref=e89]
+                  - generic
+                    - button "Add to watchlist" [ref=e239]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "NEEDY GIRL OVERDOSE" [level=3, ref=e164]
+            - group "21 / 30"
+              - article
+                - link "View Agents of the Four Seasons: Dance of Spring" [ref=e90]
+                  - generic
+                    - image "Agents of the Four Seasons: Dance of Spring"
+                    - button "Add to watchlist" [ref=e240]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Agents of the Four Seasons: Dance of Spring" [level=3, ref=e165]
+            - group "22 / 30"
+              - article
+                - link "View MAO" [ref=e91]
+                  - generic
+                    - button "Add to watchlist" [ref=e241]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "MAO" [level=3, ref=e166]
+            - group "23 / 30"
+              - article
+                - link "View The strongest job is apparently not a hero or a sage, but an appraiser (provisional)!" [ref=e92]
+                  - generic
+                    - button "Add to watchlist" [ref=e242]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "The strongest job is apparently not a hero or a sage, but an appraiser (provisional)!" [level=3, ref=e167]
+            - group "24 / 30"
+              - article
+                - link "View Daemons of the Shadow Realm" [ref=e93]
+                  - generic
+                    - button "Add to watchlist" [ref=e243]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Daemons of the Shadow Realm" [level=3, ref=e168]
+            - group "25 / 30"
+              - article
+                - link "View Akane-banashi" [ref=e94]
+                  - generic
+                    - button "Add to watchlist" [ref=e244]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Akane-banashi" [level=3, ref=e169]
+            - group "26 / 30"
+              - article
+                - link "View KILL BLUE" [ref=e95]
+                  - generic
+                    - button "Add to watchlist" [ref=e245]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "KILL BLUE" [level=3, ref=e170]
+            - group "27 / 30"
+              - article
+                - link "View Yowayowa Sensei" [ref=e96]
+                  - generic
+                    - button "Add to watchlist" [ref=e246]
+                  - StaticText "1D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Yowayowa Sensei" [level=3, ref=e171]
+            - group "28 / 30"
+              - article
+                - link "View Welcome to Demon School! Iruma-kun Season 4" [ref=e97]
+                  - generic
+                    - button "Add to watchlist" [ref=e247]
+                  - StaticText "2D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Welcome to Demon School! Iruma-kun Season 4" [level=3, ref=e172]
+            - group "29 / 30"
+              - article
+                - link "View Case Closed" [ref=e98]
+                  - generic
+                    - button "Add to watchlist" [ref=e248]
+                  - StaticText "2D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Case Closed" [level=3, ref=e173]
+            - group "30 / 30"
+              - article
+                - link "View Ascendance of a Bookworm: Adopted Daughter of an Archduke" [ref=e99]
+                  - generic
+                    - image "Ascendance of a Bookworm: Adopted Daughter of an Archduke"
+                    - button "Add to watchlist" [ref=e249]
+                  - StaticText "2D AGO"
+                  - StaticText "RELEASING"
+                  - heading "Ascendance of a Bookworm: Adopted Daughter of an Archduke" [level=3, ref=e174]
+      - generic
+        - heading "Popular This Season" [level=2, ref=e19]
+        - navigation
+          - button "Previous" [disabled, ref=e54]
+            - image
+          - button "Next" [ref=e55]
+            - image
+        - generic
+          - generic
+            - group "1 / 15"
+              - article
+                - link "View Witch Hat Atelier" [ref=e100]
+                  - generic
+                    - button "Add to watchlist" [ref=e250]
+                  - StaticText "ONA"
+                  - StaticText "RELEASING"
+                  - heading "Witch Hat Atelier" [level=3, ref=e175]
+            - group "2 / 15"
+              - article
+                - link "View Re:ZERO -Starting Life in Another World- Season 4" [ref=e101]
+                  - generic
+                    - button "Add to watchlist" [ref=e251]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "Re:ZERO -Starting Life in Another World- Season 4" [level=3, ref=e176]
+            - group "3 / 15"
+              - article
+                - link "View Daemons of the Shadow Realm" [ref=e102]
+                  - generic
+                    - button "Add to watchlist" [ref=e252]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "Daemons of the Shadow Realm" [level=3, ref=e177]
+            - group "4 / 15"
+              - article
+                - link "View That Time I Got Reincarnated as a Slime Season 4" [ref=e103]
+                  - generic
+                    - button "Add to watchlist" [ref=e253]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "That Time I Got Reincarnated as a Slime Season 4" [level=3, ref=e178]
+            - group "5 / 15"
+              - article
+                - link "View Classroom of the Elite 4th Season: Second Year, First Semester" [ref=e104]
+                  - generic
+                    - image "Classroom of the Elite 4th Season: Second Year, First Semester"
+                    - button "Add to watchlist" [ref=e254]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "Classroom of the Elite 4th Season: Second Year, First Semester" [level=3, ref=e179]
+            - group "6 / 15"
+              - article
+                - link "View Wistoria: Wand and Sword Season 2" [ref=e105]
+                  - generic
+                    - image "Wistoria: Wand and Sword Season 2"
+                    - button "Add to watchlist" [ref=e255]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "Wistoria: Wand and Sword Season 2" [level=3, ref=e180]
+            - group "7 / 15"
+              - article
+                - link "View I Made Friends with the Second Prettiest Girl in My Class" [ref=e106]
+                  - generic
+                    - button "Add to watchlist" [ref=e256]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "I Made Friends with the Second Prettiest Girl in My Class" [level=3, ref=e181]
+            - group "8 / 15"
+              - article
+                - link "View MARRIAGETOXIN" [ref=e107]
+                  - generic
+                    - button "Add to watchlist" [ref=e257]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "MARRIAGETOXIN" [level=3, ref=e182]
+            - group "9 / 15"
+              - article
+                - link "View The Angel Next Door Spoils Me Rotten2" [ref=e108]
+                  - generic
+                    - button "Add to watchlist" [ref=e258]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "The Angel Next Door Spoils Me Rotten2" [level=3, ref=e183]
+            - group "10 / 15"
+              - article
+                - link "View Dr. STONE SCIENCE FUTURE Cour 3" [ref=e109]
+                  - generic
+                    - button "Add to watchlist" [ref=e259]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "Dr. STONE SCIENCE FUTURE Cour 3" [level=3, ref=e184]
+            - group "11 / 15"
+              - article
+                - link "View Gals Can't Be Kind to Otaku!?" [ref=e110]
+                  - generic
+                    - button "Add to watchlist" [ref=e260]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "Gals Can't Be Kind to Otaku!?" [level=3, ref=e185]
+            - group "12 / 15"
+              - article
+                - link "View The Ramparts of Ice" [ref=e111]
+                  - generic
+                    - button "Add to watchlist" [ref=e261]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "The Ramparts of Ice" [level=3, ref=e186]
+            - group "13 / 15"
+              - article
+                - link "View The Warrior Princess and the Barbaric King" [ref=e112]
+                  - generic
+                    - button "Add to watchlist" [ref=e262]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "The Warrior Princess and the Barbaric King" [level=3, ref=e187]
+            - group "14 / 15"
+              - article
+                - link "View NIPPON SANGOKU: The Three Nations of the Crimson Sun" [ref=e113]
+                  - generic
+                    - image "NIPPON SANGOKU: The Three Nations of the Crimson Sun"
+                    - button "Add to watchlist" [ref=e263]
+                  - StaticText "ONA"
+                  - StaticText "RELEASING"
+                  - heading "NIPPON SANGOKU: The Three Nations of the Crimson Sun" [level=3, ref=e188]
+            - group "15 / 15"
+              - article
+                - link "View I Want to End this Love Game" [ref=e114]
+                  - generic
+                    - button "Add to watchlist" [ref=e264]
+                  - StaticText "TV"
+                  - StaticText "RELEASING"
+                  - heading "I Want to End this Love Game" [level=3, ref=e189]
+      - generic
+        - heading "Popular Movies" [level=2, ref=e20]
+        - navigation
+          - button "Previous" [disabled, ref=e56]
+            - image
+          - button "Next" [ref=e57]
+            - image
+        - generic
+          - generic
+            - group "1 / 15"
+              - article
+                - link "View Your Name." [ref=e115]
+                  - generic
+                    - button "Add to watchlist" [ref=e265]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "Your Name." [level=3, ref=e190]
+            - group "2 / 15"
+              - article
+                - link "View A Silent Voice" [ref=e116]
+                  - generic
+                    - button "Add to watchlist" [ref=e266]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "A Silent Voice" [level=3, ref=e191]
+            - group "3 / 15"
+              - article
+                - link "View Demon Slayer -Kimetsu no Yaiba- The Movie: Mugen Train" [ref=e117]
+                  - generic
+                    - image "Demon Slayer -Kimetsu no Yaiba- The Movie: Mugen Train"
+                    - button "Add to watchlist" [ref=e267]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "Demon Slayer -Kimetsu no Yaiba- The Movie: Mugen Train" [level=3, ref=e192]
+            - group "4 / 15"
+              - article
+                - link "View Spirited Away" [ref=e118]
+                  - generic
+                    - button "Add to watchlist" [ref=e268]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "Spirited Away" [level=3, ref=e193]
+            - group "5 / 15"
+              - article
+                - link "View JUJUTSU KAISEN 0" [ref=e119]
+                  - generic
+                    - button "Add to watchlist" [ref=e269]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "JUJUTSU KAISEN 0" [level=3, ref=e194]
+            - group "6 / 15"
+              - article
+                - link "View I Want to Eat Your Pancreas" [ref=e120]
+                  - generic
+                    - button "Add to watchlist" [ref=e270]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "I Want to Eat Your Pancreas" [level=3, ref=e195]
+            - group "7 / 15"
+              - article
+                - link "View Howl‘s Moving Castle" [ref=e121]
+                  - generic
+                    - button "Add to watchlist" [ref=e271]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "Howl‘s Moving Castle" [level=3, ref=e196]
+            - group "8 / 15"
+              - article
+                - link "View Weathering With You" [ref=e122]
+                  - generic
+                    - button "Add to watchlist" [ref=e272]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "Weathering With You" [level=3, ref=e197]
+            - group "9 / 15"
+              - article
+                - link "View Princess Mononoke" [ref=e123]
+                  - generic
+                    - button "Add to watchlist" [ref=e273]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "Princess Mononoke" [level=3, ref=e198]
+            - group "10 / 15"
+              - article
+                - link "View My Neighbor Totoro" [ref=e124]
+                  - generic
+                    - button "Add to watchlist" [ref=e274]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "My Neighbor Totoro" [level=3, ref=e199]
+            - group "11 / 15"
+              - article
+                - link "View Rascal Does Not Dream of a Dreaming Girl" [ref=e125]
+                  - generic
+                    - button "Add to watchlist" [ref=e275]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "Rascal Does Not Dream of a Dreaming Girl" [level=3, ref=e200]
+            - group "12 / 15"
+              - article
+                - link "View Neon Genesis Evangelion: The End of Evangelion" [ref=e126]
+                  - generic
+                    - image "Neon Genesis Evangelion: The End of Evangelion"
+                    - button "Add to watchlist" [ref=e276]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "Neon Genesis Evangelion: The End of Evangelion" [level=3, ref=e201]
+            - group "13 / 15"
+              - article
+                - link "View 5 Centimeters per Second" [ref=e127]
+                  - generic
+                    - button "Add to watchlist" [ref=e277]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "5 Centimeters per Second" [level=3, ref=e202]
+            - group "14 / 15"
+              - article
+                - link "View The Garden of Words" [ref=e128]
+                  - generic
+                    - button "Add to watchlist" [ref=e278]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "The Garden of Words" [level=3, ref=e203]
+            - group "15 / 15"
+              - article
+                - link "View Perfect Blue" [ref=e129]
+                  - generic
+                    - button "Add to watchlist" [ref=e279]
+                  - StaticText "MOVIE"
+                  - StaticText "FINISHED"
+                  - heading "Perfect Blue" [level=3, ref=e204]
+      - link "Newest Posts" [ref=e6]
+      - link "Question FEEDBACK 0 David •1h ago" [ref=e7]
+        - paragraph
+          - StaticText "Question"
+        - StaticText "FEEDBACK"
+        - image
+        - StaticText "0"
+        - paragraph
+          - StaticText "David •1h ago"
+      - link "Fullscreen mode should remain between episodes SUGGESTIONS 0 Sleepy •14h ago" [ref=e8]
+        - paragraph
+          - StaticText "Fullscreen mode should remain between episodes"
+        - StaticText "SUGGESTIONS"
+        - image
+        - StaticText "0"
+        - paragraph
+          - StaticText "Sleepy •14h ago"
+      - link "Koto Server Issue and Download Request BUGS 2 starlight •2d ago" [ref=e9]
+        - paragraph
+          - StaticText "Koto Server Issue and Download Request"
+        - StaticText "BUGS"
+        - image
+        - StaticText "2"
+        - paragraph
+          - StaticText "starlight •2d ago"
+      - link "Appreciation FEEDBACK 2 Jiren_Sow •3d ago" [ref=e10]
+        - paragraph
+          - StaticText "Appreciation"
+        - StaticText "FEEDBACK"
+        - image
+        - StaticText "2"
+        - paragraph
+          - StaticText "Jiren_Sow •3d ago"
+      - link "Login Issues BUGS 4 Jiren_Sow •3d ago" [ref=e11]
+        - paragraph
+          - StaticText "Login Issues"
+        - StaticText "BUGS"
+        - image
+        - StaticText "4"
+        - paragraph
+          - StaticText "Jiren_Sow •3d ago"
+      - link "Skip Opening Timing BUGS 1 Jiren_Sow •3d ago" [ref=e12]
+        - paragraph
+          - StaticText "Skip Opening Timing"
+        - StaticText "BUGS"
+        - image
+        - StaticText "1"
+        - paragraph
+          - StaticText "Jiren_Sow •3d ago"
+      - link "Digimon our war game BUGS 0 kidteeput212@merry.pink •4d ago" [ref=e13]
+        - paragraph
+          - StaticText "Digimon our war game"
+        - StaticText "BUGS"
+        - image
+        - StaticText "0"
+        - paragraph
+          - StaticText "kidteeput212@merry.pink •4d ago"
+      - link "Digimon Adventure movie BUGS 0 kidteeput212@merry.pink •4d ago" [ref=e14]
+        - paragraph
+          - StaticText "Digimon Adventure movie"
+        - StaticText "BUGS"
+        - image
+        - StaticText "0"
+        - paragraph
+          - StaticText "kidteeput212@merry.pink •4d ago"
+      - link "General Website Feedback FEEDBACK 2 PogGamer •4d ago" [ref=e15]
+        - paragraph
+          - StaticText "General Website Feedback"
+        - StaticText "FEEDBACK"
+        - image
+        - StaticText "2"
+        - paragraph
+          - StaticText "PogGamer •4d ago"
+      - link "10/10 recomendation GENERAL 2 aura monster •4d ago" [ref=e16]
+        - paragraph
+          - StaticText "10/10 recomendation"
+        - StaticText "GENERAL"
+        - image
+        - StaticText "2"
+        - paragraph
+          - StaticText "aura monster •4d ago"
+      - link "Kiwi/uwu servers BUGS 1 Sstvnnn22 •4d ago" [ref=e17]
+        - paragraph
+          - StaticText "Kiwi/uwu servers"
+        - StaticText "BUGS"
+        - image
+        - StaticText "1"
+        - paragraph
+          - StaticText "Sstvnnn22 •4d ago"
+      - generic
+        - heading "Latest Comments" [level=2, ref=e21]
+        - generic
+          - link "That Time I Got Reincarnated as a Slime Season 4 Silver Silver Ep 10 • That Time I Got Reincarnated as a Slime Season 4 \"can&#39;t wait for next ep dayum son\" 0 • 2h ago" [ref=e58]
+            - image "That Time I Got Reincarnated as a Slime Season 4"
+            - image "Silver"
+            - StaticText "Silver"
+            - generic
+              - StaticText "Ep 10 • That Time I Got Reincarnated as a Slime Season 4"
+            - paragraph
+              - StaticText "\"can&#39;t wait for next ep dayum son\""
+            - StaticText "0"
+            - paragraph
+              - StaticText "•"
+            - StaticText "2h ago"
+          - link "Dr. STONE SCIENCE FUTURE Cour 3 neo neo Ep 11 • Dr. STONE SCIENCE FUTURE Cour 3 \"i hope why man looks cool. i have never read the manga so i have no idea what to expect on what it looks like\" 0 • 2h ago" [ref=e59]
+            - image "Dr. STONE SCIENCE FUTURE Cour 3"
+            - image "neo"
+            - StaticText "neo"
+            - generic
+              - StaticText "Ep 11 • Dr. STONE SCIENCE FUTURE Cour 3"
+            - paragraph
+              - StaticText "\"i hope why man looks cool. i have never read the manga so i have no idea what to expect on what it looks like\""
+            - StaticText "0"
+            - paragraph
+              - StaticText "•"
+            - StaticText "2h ago"
+          - link "Alya Sometimes Hides Her Feelings in Russian goyslopper4000 goyslopper4000 Ep 8 • Alya Sometimes Hides Her Feelings in Russian \"bro i wish i was born a cute highschool anime girl instead of a hood niqqa from the bronx...\" 0 • 3h ago" [ref=e60]
+            - image "Alya Sometimes Hides Her Feelings in Russian"
+            - image "goyslopper4000"
+            - StaticText "goyslopper4000"
+            - generic
+              - StaticText "Ep 8 • Alya Sometimes Hides Her Feelings in Russian"
+            - paragraph
+              - StaticText "\"bro i wish i was born a cute highschool anime girl instead of a hood niqqa from the bronx...\""
+            - StaticText "0"
+            - paragraph
+              - StaticText "•"
+            - StaticText "3h ago"
+          - link "86 EIGHTY-SIX Nichole Nichole Ep 11 • 86 EIGHTY-SIX \"this one hurt.\" 1 • 3h ago" [ref=e61]
+            - image "86 EIGHTY-SIX"
+            - image "Nichole"
+            - StaticText "Nichole"
+            - generic
+              - StaticText "Ep 11 • 86 EIGHTY-SIX"
+            - paragraph
+              - StaticText "\"this one hurt.\""
+            - StaticText "1"
+            - paragraph
+              - StaticText "•"
+            - StaticText "3h ago"
+          - link "Demon Slayer: Kimetsu no Yaiba nezuko nezuko Ep 24 • Demon Slayer: Kimetsu no Yaiba \"the crash out&#39;\" 0 • 5h ago" [ref=e62]
+            - image "Demon Slayer: Kimetsu no Yaiba"
+            - image "nezuko"
+            - StaticText "nezuko"
+            - generic
+              - StaticText "Ep 24 • Demon Slayer: Kimetsu no Yaiba"
+            - paragraph
+              - StaticText "\"the crash out&#39;\""
+            - StaticText "0"
+            - paragraph
+              - StaticText "•"
+            - StaticText "5h ago"
+      - generic
+        - heading "Coming Soon" [level=2, ref=e22]
+        - navigation
+          - button "Previous" [disabled, ref=e63]
+            - image
+          - button "Next" [ref=e64]
+            - image
+        - generic
+          - generic
+            - group "1 / 15"
+              - article
+                - link "View Mushoku Tensei: Jobless Reincarnation Season 3" [ref=e130]
+                  - generic
+                    - image "Mushoku Tensei: Jobless Reincarnation Season 3"
+                    - button "Add to watchlist" [ref=e280]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "Mushoku Tensei: Jobless Reincarnation Season 3" [level=3, ref=e205]
+            - group "2 / 15"
+              - article
+                - link "View Youjo Senki II" [ref=e131]
+                  - generic
+                    - button "Add to watchlist" [ref=e281]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "Youjo Senki II" [level=3, ref=e206]
+            - group "3 / 15"
+              - article
+                - link "View Smoking Behind the Supermarket with You" [ref=e132]
+                  - generic
+                    - button "Add to watchlist" [ref=e282]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "Smoking Behind the Supermarket with You" [level=3, ref=e207]
+            - group "4 / 15"
+              - article
+                - link "View Puella Magi Madoka Magica the Movie -Walpurgisnacht: Rising-" [ref=e133]
+                  - generic
+                    - image "Puella Magi Madoka Magica the Movie -Walpurgisnacht: Rising-"
+                    - button "Add to watchlist" [ref=e283]
+                  - StaticText "MOVIE"
+                  - StaticText "SOON"
+                  - heading "Puella Magi Madoka Magica the Movie -Walpurgisnacht: Rising-" [level=3, ref=e208]
+            - group "5 / 15"
+              - article
+                - link "View BLEACH: Thousand-Year Blood War - The Calamity" [ref=e134]
+                  - generic
+                    - image "BLEACH: Thousand-Year Blood War - The Calamity"
+                    - button "Add to watchlist" [ref=e284]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "BLEACH: Thousand-Year Blood War - The Calamity" [level=3, ref=e209]
+            - group "6 / 15"
+              - article
+                - link "View Kimi ga Shinu made Koi wo Shitai" [ref=e135]
+                  - generic
+                    - button "Add to watchlist" [ref=e285]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "Kimi ga Shinu made Koi wo Shitai" [level=3, ref=e210]
+            - group "7 / 15"
+              - article
+                - link "View Otomege Sekai wa Mob ni Kibishii Sekai desu 2" [ref=e136]
+                  - generic
+                    - button "Add to watchlist" [ref=e286]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "Otomege Sekai wa Mob ni Kibishii Sekai desu 2" [level=3, ref=e211]
+            - group "8 / 15"
+              - article
+                - link "View Sparks of Tomorrow" [ref=e137]
+                  - generic
+                    - button "Add to watchlist" [ref=e287]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "Sparks of Tomorrow" [level=3, ref=e212]
+            - group "9 / 15"
+              - article
+                - link "View Grand Blue Season 3" [ref=e138]
+                  - generic
+                    - button "Add to watchlist" [ref=e288]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "Grand Blue Season 3" [level=3, ref=e213]
+            - group "10 / 15"
+              - article
+                - link "View Skeleton Knight in Another World Season 2" [ref=e139]
+                  - generic
+                    - button "Add to watchlist" [ref=e289]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "Skeleton Knight in Another World Season 2" [level=3, ref=e214]
+            - group "11 / 15"
+              - article
+                - link "View Clevatess Season 2" [ref=e140]
+                  - generic
+                    - button "Add to watchlist" [ref=e290]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "Clevatess Season 2" [level=3, ref=e215]
+            - group "12 / 15"
+              - article
+                - link "View You and I Are Polar Opposites Season 2" [ref=e141]
+                  - generic
+                    - button "Add to watchlist" [ref=e291]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "You and I Are Polar Opposites Season 2" [level=3, ref=e216]
+            - group "13 / 15"
+              - article
+                - link "View THE GHOST IN THE SHELL" [ref=e142]
+                  - generic
+                    - button "Add to watchlist" [ref=e292]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "THE GHOST IN THE SHELL" [level=3, ref=e217]
+            - group "14 / 15"
+              - article
+                - link "View From Old Country Bumpkin to Master Swordsman Season 2" [ref=e143]
+                  - generic
+                    - button "Add to watchlist" [ref=e293]
+                  - StaticText "TV"
+                  - StaticText "SOON"
+                  - heading "From Old Country Bumpkin to Master Swordsman Season 2" [level=3, ref=e218]
+            - group "15 / 15"
+              - article
+                - link "View Kimi no Koto ga Dai Dai Dai Dai Daisuki na 100-nin no Kanojo 3rd Season" [ref=e144]
+                  - generic
+                    - button "Add to watchlist" [ref=e294]
+                  - heading "Kimi no Koto ga Dai Dai Dai Dai Daisuki na 100-nin no Kanojo 3rd Season" [level=3, ref=e219]
+      - sectionfooter
+        - link "AnimeX" [ref=e23]
+        - paragraph
+          - StaticText "Please note: AnimeX does not host any files itself but instead only displays content from 3rd party providers. Legal issues should be taken up with them."
+        - StaticText "Browse"
+        - link "This Season" [ref=e24]
+        - link "Upcoming" [ref=e25]
+        - link "Movies" [ref=e26]
+        - link "TV Shows" [ref=e27]
+        - StaticText "Resources"
+        - link "FAQ" [ref=e28]
+        - link "Contact" [ref=e29]
+        - link "Terms of use" [ref=e30]
+        - link "Privacy policy" [ref=e31]
+        - separator
+        - StaticText "© 2026 "
+        - link "AnimeX™" [ref=e32]
+        - StaticText " | Made by "
+        - StaticText "AnimeX Team"
+        - LabelText "Toggle title language" [ref=e33] clickable [cursor:pointer]
+          - checkbox "EN" [checked=true, ref=e65]
+        - link "Discord" [ref=e34]
+        - link "DMCA Policy" [ref=e35]
+        - link "Changelog" [ref=e36]
+    - button "Scroll to top" [ref=e2]
+  - dialog "Changelog"
+    - heading "Ads Enabled & AnimeX Revamp Incoming !" [level=2, ref=e3]
+    - link "Discord" [ref=e4]
+    - button "Got it!" [ref=e5]

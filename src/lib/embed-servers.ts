@@ -241,6 +241,20 @@ const anivexaServers: EmbedServer[] = ANIVEXA_PROVIDER_CONFIG.map((prov) => ({
 // Uses GraphQL for AniList ID → slug mapping
 // Then REST API for episodes/servers/sources
 // All streams proxied through /api/animex/proxy
+//
+// Provider (CB) mapping with correct headers:
+//   beep  — HLS, Default sub, CDN: bd.24stream.xyz
+//   mimi  — HLS PNG-TS, Default dub, CDN: hawk.24stream.xyz
+//   vee   — DASH, CDN: cdn.animeonsen.xyz
+//   yuki  — HLS .jpg-TS, CDN: s2.cinewave2.site
+//   miku  — HLS .txt, Best quality, CDN: sxic.oceancrestdigital.shop
+//   neko  — MP4, CDN: neko.yokai.cfd
+//   huzz  — HLS, CDN: s2.vidhosters.com
+//   mochi — MP4 token, CDN: tools.fast4speed.rsvp
+//   uwu   — HLS .txt, CDN: sxic.oceancrestdigital.shop
+//   koto  — HLS .txt, CDN: sxic.oceancrestdigital.shop
+//   kiwi  — HLS CF-protected, CDN: anidb.app
+//   kami  — HLS alt
 // =====================================================
 
 const animexServer: EmbedServer = {

@@ -8,49 +8,88 @@ export const dynamic = "force-dynamic";
  *
  * GET /api/animex/proxy?url={encoded_url}&provider={provider_id}&type={manifest|segment}
  *
- * ALL AnimeX providers go through this proxy because they need specific headers:
- *   - Kiwi:  Origin/Referer: anidb.app (Cloudflare protected)
- *   - Mimi:  Referer: animex.one (sub-playlists need it), segments PNG-wrapped TS
- *   - Yuki:  Referer: megaplay.buzz (Cloudflare bypass), TS disguised as .jpg
- *   - Mochi: Referer: animex.one (MP4 with expiring tokens)
- *   - Kami:  Referer: animex.one
+ * ALL AnimeX providers go through this proxy because they need specific headers.
+ * Complete provider (CB) mapping with headers and CDN patterns:
+ *
+ *   Provider  | Stream Format | CDN Domain                    | Required Headers
+ *   ----------|---------------|-------------------------------|-----------------------------------
+ *   beep      | HLS           | bd.24stream.xyz               | None (direct access)
+ *   mimi      | HLS (PNG-TS)  | hawk.24stream.xyz             | Origin/Referer: animex.one
+ *   vee       | DASH          | cdn.animeonsen.xyz            | Referer: animeonsen.xyz
+ *   yuki      | HLS (.jpg-TS) | s2.cinewave2.site             | Referer: megaplay.buzz
+ *   miku      | HLS (.txt)    | sxic.oceancrestdigital.shop   | Referer: allanime.uns.bio + Mobile UA
+ *   neko      | MP4           | neko.yokai.cfd                | Referer: animeverse.to + Firefox UA
+ *   huzz      | HLS           | s2.vidhosters.com             | Origin/Referer: kem.clvd.xyz + Firefox UA
+ *   mochi     | MP4 (token)   | tools.fast4speed.rsvp         | Referer: animex.one
+ *   uwu       | HLS (.txt)    | sxic.oceancrestdigital.shop   | Referer: allanime.uns.bio + Mobile UA
+ *   koto      | HLS (.txt)    | sxic.oceancrestdigital.shop   | Referer: allanime.uns.bio + Mobile UA
+ *   kiwi      | HLS (CF)      | anidb.app                     | Origin/Referer: anidb.app
+ *   kami      | HLS           | unknown                       | Origin/Referer: animex.one
  *
  * This proxy:
- *   1. Adds correct Origin/Referer headers per provider
+ *   1. Adds correct Origin/Referer/User-Agent headers per provider
  *   2. Rewrites m3u8 manifests so segment URLs go through proxy
  *   3. Strips PNG wrapper from mimi segments
  *   4. Detects TS data disguised as .jpg (yuki)
- *   5. Passes through MP4 for mochi
+ *   5. Passes through MP4 for mochi/neko
  */
 
 const PROVIDER_HEADERS: Record<string, Record<string, string>> = {
-  miku: {
-    Referer: "https://allanime.uns.bio",
-    "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36",
-  },
-  yuki: {
-    Referer: "https://megaplay.buzz/",
-  },
-  vee: {
-    Referer: "https://www.animeonsen.xyz/",
-  },
-  kiwi: {
-    Origin: "https://anidb.app",
-    Referer: "https://anidb.app/",
-  },
+  // beep — Default sub provider, multi-quality HLS, no special headers
+  beep: {},
+  // mimi — Default dub provider, PNG-wrapped TS segments
   mimi: {
     Origin: "https://animex.one",
     Referer: "https://animex.one/",
   },
+  // vee — Soft sub, DASH format
+  vee: {
+    Referer: "https://www.animeonsen.xyz/",
+  },
+  // yuki — Soft sub, TS disguised as .jpg
+  yuki: {
+    Referer: "https://megaplay.buzz/",
+  },
+  // miku — Hard sub, Best quality, .txt sub-playlists, needs mobile UA
+  miku: {
+    Referer: "https://allanime.uns.bio",
+    "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36",
+  },
+  // neko — Direct MP4, needs Firefox UA
+  neko: {
+    Referer: "https://animeverse.to/",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
+  },
+  // huzz — HLS, needs Firefox UA + kem.clvd.xyz origin
+  huzz: {
+    Origin: "https://kem.clvd.xyz",
+    Referer: "https://kem.clvd.xyz/",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
+  },
+  // mochi — MP4 with expiring token
   mochi: {
     Referer: "https://animex.one",
   },
+  // uwu — Same CDN as miku, needs mobile UA
+  uwu: {
+    Referer: "https://allanime.uns.bio",
+    "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36",
+  },
+  // koto — Same CDN as miku, needs mobile UA
+  koto: {
+    Referer: "https://allanime.uns.bio",
+    "User-Agent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Mobile Safari/537.36",
+  },
+  // kiwi — Cloudflare-protected
+  kiwi: {
+    Origin: "https://anidb.app",
+    Referer: "https://anidb.app/",
+  },
+  // kami — Alt provider
   kami: {
     Origin: "https://animex.one",
     Referer: "https://animex.one/",
   },
-  beep: {},
-  uwu: {},
 };
 
 // PNG header signature to detect and strip (mimi segments are PNG-wrapped TS)
@@ -212,7 +251,7 @@ export async function GET(request: NextRequest) {
     const upstreamContentType = res.headers.get("content-type") || "";
 
     // For Mimi provider: strip PNG wrapper from TS segments
-    // Segments on ibyteimg.com are served as image/png but contain MPEG-TS data
+    // Segments on ibyteimg.com / hawk.24stream.xyz are served as image/png but contain MPEG-TS data
     if (provider === "mimi" && data.length > 100) {
       if (
         data[0] === PNG_MAGIC[0] &&
@@ -228,6 +267,12 @@ export async function GET(request: NextRequest) {
     // The content-type will be image/jpeg etc but the data starts with 0x47 (TS sync)
     let responseContentType = upstreamContentType;
     if (provider === "yuki" && data.length > 4 && data[0] === 0x47) {
+      responseContentType = "video/mp2t";
+    }
+
+    // For uwu/koto/miku providers: same CDN as miku, segments may also be disguised
+    // Check for TS sync byte even if content-type says otherwise
+    if ((provider === "uwu" || provider === "koto" || provider === "miku") && data.length > 4 && data[0] === 0x47) {
       responseContentType = "video/mp2t";
     }
 
