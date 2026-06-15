@@ -309,7 +309,7 @@ export default function Navbar() {
               || item.id === "anime" && isAnimePage
               || item.id === "movies" && isMoviePage
               || item.id === "live" && isLivePage
-              || item.id === "search";
+              || item.id === "search" && page === "search";
             return (
               <button
                 key={item.id}

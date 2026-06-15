@@ -185,11 +185,10 @@ const NEG_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 export async function animexGetAnime(
   anilistId: number
 ): Promise<AnimexAnimeInfo | null> {
-  try {
-    anilistId = parseInt(String(anilistId));
-  } catch {
-    return null;
-  }
+  // parseInt never throws, returns NaN for non-numeric input
+  const parsed = parseInt(String(anilistId));
+  if (isNaN(parsed) || parsed <= 0) return null;
+  anilistId = parsed;
 
   // Check positive cache
   const cached = slugCache.get(anilistId);
@@ -410,7 +409,7 @@ export async function animexWatch(
 
     for (const s of sources) {
       const format = detectFormat(s.type, s.url);
-      const isM3U8 = format === "m3u8" || s.url.includes(".m3u8") || s.url.includes(".txt") && s.type.includes("mpegurl");
+      const isM3U8 = format === "m3u8" || s.url.includes(".m3u8") || (s.url.includes(".txt") && s.type?.includes("mpegurl"));
       const isMP4 = format === "mp4" || s.url.includes(".mp4");
       const isDASH = format === "mpd" || s.url.includes(".mpd");
 

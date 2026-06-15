@@ -1,8 +1,8 @@
 // Consumet API Client - Stable multi-provider anime streaming API
 // Supports subbed & dubbed content via GogoAnime, Zoro, AnimePahe providers
-// API: api.consumet.org (or self-hosted instances)
+// NOTE: Public api.consumet.org was shut down mid-2024. Use self-hosted instance or fallback to gogoanime-api.ts
 
-const CONSUMET_BASE = "https://api.consumet.org";
+const CONSUMET_BASE = process.env.CONSUMET_API_URL || "https://api.consumet.org";
 
 const HEADERS = {
   "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/121.0.0.0 Safari/537.36",

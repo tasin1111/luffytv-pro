@@ -256,7 +256,7 @@ export function parseHash(hash: string): Route {
   if (parts[0] === "search") return { page: "search", query: decodeURIComponent(parts[1] || "") };
   if (parts[0] === "anime" && parts[1]) return { page: "anime", id: parts[1] };
   if (parts[0] === "watch" && parts[1] && parts[2])
-    return { page: "watch", id: parts[1], episode: parseFloat(parts[2]) };
+    return { page: "watch", id: parts[1], episode: parseInt(parts[2], 10) || 1 };
   if (parts[0] === "genre" && parts[1]) return { page: "genre", genre: decodeURIComponent(parts[1]) };
   if (parts[0] === "bookmarks") return { page: "bookmarks" };
   if (parts[0] === "history") return { page: "history" };

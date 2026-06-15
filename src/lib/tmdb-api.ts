@@ -33,7 +33,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T
   return Promise.race([
     promise,
     new Promise<T>((_, rej) => setTimeout(() => rej(new Error("timeout")), ms))
-  ]).catch(() => fallback);
+  ]).catch((err) => {
+    if (err instanceof Error && err.message === "timeout") return fallback;
+    // Re-throw non-timeout errors so callers can handle them
+    throw err;
+  });
 }
 
 // ============================================================

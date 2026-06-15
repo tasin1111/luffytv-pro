@@ -183,13 +183,10 @@ export async function gogoStreamSources(
     const iframeMatch = html.match(/<iframe[^>]+src=["']([^"']*)["']/i) ||
       html.match(/data-iframe-src=["']([^"']*)["']/i);
     
-    if (!iframeMatch) {
-      // Try finding the play button data
-      const playMatch = html.match(/href=["']([^"']*streaming[^"']*)["']/i);
-      if (!playMatch) return [];
-    }
+    // Fallback: try finding the play button data
+    const playMatch = !iframeMatch ? html.match(/href=["']([^"']*streaming[^"']*)["']/i) : null;
 
-    const iframeUrl = iframeMatch ? iframeMatch[1] : "";
+    const iframeUrl = iframeMatch ? iframeMatch[1] : playMatch ? playMatch[1] : "";
     if (!iframeUrl) return [];
 
     // Step 3: Fetch the streaming page

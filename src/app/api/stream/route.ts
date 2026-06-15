@@ -32,7 +32,23 @@ const ALLOWED_HOSTS = [
   "amazonaws.com", "cloudfront.net",
   "consumet.org", "api.consumet.org",
   "aniwatch-api-one.vercel.app",
+  // AnimeX CDN hosts
+  "bd.24stream.xyz", "hawk.24stream.xyz", "cdn.animeonsen.xyz",
+  "s2.cinewave2.site", "sxic.oceancrestdigital.shop", "neko.yokai.cfd",
+  "s2.vidhosters.com", "tools.fast4speed.rsvp", "www.animegg.org",
+  "animeverse.to", "kem.clvd.xyz", "anidb.app", "allanime.uns.bio",
 ];
+
+function isHostAllowed(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname;
+    return ALLOWED_HOSTS.some(
+      (host) => hostname === host || hostname.endsWith("." + host)
+    );
+  } catch {
+    return false;
+  }
+}
 
 function getRefererForUrl(url: string): string {
   try {
@@ -103,27 +119,51 @@ export async function GET(request: NextRequest) {
     const customReferer = searchParams.get("referer");
 
     if (!url) {
-      return NextResponse.json({ error: "url parameter required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "url parameter required" },
+        { status: 400, headers: { "Access-Control-Allow-Origin": "*" } }
+      );
     }
 
-    const targetUrl = decodeURIComponent(url);
+    // searchParams.get() already decodes, no need for decodeURIComponent
+    const targetUrl = url;
+
+    // SSRF protection: validate host
+    if (!isHostAllowed(targetUrl)) {
+      return NextResponse.json(
+        { error: "Host not allowed" },
+        { status: 403, headers: { "Access-Control-Allow-Origin": "*" } }
+      );
+    }
+
     const referer = customReferer || getRefererForUrl(targetUrl);
     const range = request.headers.get("range");
+
+    // Safely extract origin from referer
+    let origin = "";
+    try { origin = new URL(referer).origin; } catch { /* invalid referer, skip origin */ }
 
     const headers: Record<string, string> = {
       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
       Accept: "*/*",
       "Accept-Encoding": "identity",
       Referer: referer,
-      Origin: new URL(referer).origin,
+      ...(origin ? { Origin: origin } : {}),
     };
 
     if (range) headers["Range"] = range;
 
-    const res = await fetch(targetUrl, { headers, redirect: "follow" });
+    // Fetch with timeout (15s)
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(targetUrl, { headers, redirect: "follow", signal: controller.signal });
+    clearTimeout(timeout);
 
     if (!res.ok) {
-      return NextResponse.json({ error: `Upstream ${res.status}` }, { status: res.status });
+      return NextResponse.json(
+        { error: `Upstream ${res.status}` },
+        { status: res.status, headers: { "Access-Control-Allow-Origin": "*" } }
+      );
     }
 
     const contentType = res.headers.get("content-type") || guessContentType(targetUrl);
@@ -156,6 +196,9 @@ export async function GET(request: NextRequest) {
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Stream proxy failed";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: 500, headers: { "Access-Control-Allow-Origin": "*" } }
+    );
   }
 }

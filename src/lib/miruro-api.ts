@@ -6,12 +6,12 @@
 // User's own deployed Miruro-API instance (primary)
 // Deploy from https://github.com/fahadulalim93-cloud/miruro-api
 const MIRURO_API = process.env.MIRURO_API_URL || "http://127.0.0.1:8001";
-// Backup API endpoints — tried in order if primary fails
-const MIRURO_BACKUP_APIS = [
+// Backup API endpoints — tried in order if primary fails (deduplicated)
+const MIRURO_BACKUP_APIS = [...new Set([
   MIRURO_API,  // User's own instance first
   "http://127.0.0.1:8001",
   "https://miruro-api.vercel.app",
-];
+])];
 
 // API key for user's own Miruro-API instance
 const MIRURO_API_KEY = process.env.MIRURO_API_KEY || "";
@@ -594,7 +594,7 @@ export type MiruroProvider = typeof PROVIDER_PRIORITY[number];
 export function getProviderDisplayName(provider: string): string {
   const names: Record<string, string> = {
     "zenith":  "Zenith",
-    "kiwi":    "Miku",
+    "kiwi":    "Kiwi",
     "ax-mimi": "Shinra",
     "ax-wave": "Nami",
     "ax-shiro":"Shiro",

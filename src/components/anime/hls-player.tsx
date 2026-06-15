@@ -60,10 +60,15 @@ export default function HLSPlayer({
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
       const resolveUrl = `/api/hls-resolve?url=${encodeURIComponent(src)}`;
       video.src = resolveUrl;
-      video.addEventListener("playing", handlePlaying);
-      video.addEventListener("error", () => handleError("Native HLS failed"));
+      const onPlay = () => handlePlaying();
+      const onError = () => handleError("Native HLS failed");
+      video.addEventListener("playing", onPlay);
+      video.addEventListener("error", onError);
       if (autoPlay) video.play().catch(() => {});
-      return;
+      return () => {
+        video.removeEventListener("playing", onPlay);
+        video.removeEventListener("error", onError);
+      };
     }
 
     // Chrome/Firefox — hls.js

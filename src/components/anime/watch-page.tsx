@@ -430,6 +430,22 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
             />
           )}
 
+          {/* MP4 Player — for mochi, neko, uwu MP4 sources */}
+          {streamData && streamData.source_type === "mp4" && streamData.video_link && (
+            <HLSPlayerNew
+              key={`mp4-${activeProvider}-${episodeNum}-${translation}`}
+              url={streamData.video_link}
+              animeId={animeId}
+              episodeNum={episodeNum}
+              sourceType="mp4"
+              intro={streamData.intro}
+              outro={streamData.outro}
+              onEnded={handleVideoEnded}
+              onProviderFailed={() => handleProviderFailed(activeProvider)}
+              autoplay={true}
+            />
+          )}
+
           {/* Embed Player (for Megaplay/Hindi embeds) */}
           {streamData && streamData.source_type === "embed" && streamData.video_link && (
             <iframe

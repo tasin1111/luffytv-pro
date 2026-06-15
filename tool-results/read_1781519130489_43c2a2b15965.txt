@@ -1,0 +1,999 @@
+     1→'use client';
+     2→
+     3→import {
+     4→  useEffect,
+     5→  useRef,
+     6→  useState,
+     7→  useCallback,
+     8→  type MouseEvent as ReactMouseEvent,
+     9→} from 'react';
+    10→import Hls from 'hls.js';
+    11→
+    12→// ─── Icons (inline SVG to stay self-contained) ──────────────────────────────
+    13→
+    14→function PlayIcon({ className = '' }: { className?: string }) {
+    15→  return (
+    16→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    17→      <path d="M8 5v14l11-7z" />
+    18→    </svg>
+    19→  );
+    20→}
+    21→
+    22→function PauseIcon({ className = '' }: { className?: string }) {
+    23→  return (
+    24→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    25→      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+    26→    </svg>
+    27→  );
+    28→}
+    29→
+    30→function VolumeUpIcon({ className = '' }: { className?: string }) {
+    31→  return (
+    32→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    33→      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+    34→    </svg>
+    35→  );
+    36→}
+    37→
+    38→function VolumeMuteIcon({ className = '' }: { className?: string }) {
+    39→  return (
+    40→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    41→      <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
+    42→    </svg>
+    43→  );
+    44→}
+    45→
+    46→function VolumeDownIcon({ className = '' }: { className?: string }) {
+    47→  return (
+    48→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    49→      <path d="M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z" />
+    50→    </svg>
+    51→  );
+    52→}
+    53→
+    54→function FullscreenIcon({ className = '' }: { className?: string }) {
+    55→  return (
+    56→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    57→      <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+    58→    </svg>
+    59→  );
+    60→}
+    61→
+    62→function FullscreenExitIcon({ className = '' }: { className?: string }) {
+    63→  return (
+    64→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    65→      <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
+    66→    </svg>
+    67→  );
+    68→}
+    69→
+    70→function SkipForwardIcon({ className = '' }: { className?: string }) {
+    71→  return (
+    72→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    73→      <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+    74→    </svg>
+    75→  );
+    76→}
+    77→
+    78→function SkipBackIcon({ className = '' }: { className?: string }) {
+    79→  return (
+    80→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    81→      <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+    82→    </svg>
+    83→  );
+    84→}
+    85→
+    86→function SettingsIcon({ className = '' }: { className?: string }) {
+    87→  return (
+    88→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    89→      <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z" />
+    90→    </svg>
+    91→  );
+    92→}
+    93→
+    94→function LoadingSpinner() {
+    95→  return (
+    96→    <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+    97→      <div
+    98→        className="w-12 h-12 border-4 border-white/20 border-t-[#8B5CF6] rounded-full animate-spin"
+    99→      />
+   100→    </div>
+   101→  );
+   102→}
+   103→
+   104→// ─── Helpers ────────────────────────────────────────────────────────────────
+   105→
+   106→function formatTime(seconds: number): string {
+   107→  if (!isFinite(seconds) || isNaN(seconds)) return '0:00';
+   108→  const s = Math.floor(seconds);
+   109→  const h = Math.floor(s / 3600);
+   110→  const m = Math.floor((s % 3600) / 60);
+   111→  const sec = s % 60;
+   112→  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+   113→  return `${m}:${sec.toString().padStart(2, '0')}`;
+   114→}
+   115→
+   116→function clamp(val: number, min: number, max: number): number {
+   117→  return Math.max(min, Math.min(max, val));
+   118→}
+   119→
+   120→// ─── Props ──────────────────────────────────────────────────────────────────
+   121→
+   122→interface HLSPlayerProps {
+   123→  url: string;
+   124→  animeId: string;
+   125→  episodeNum: number;
+   126→  sourceType?: 'hls' | 'embed' | 'mp4';
+   127→  intro?: { start: number; end: number } | null;
+   128→  outro?: { start: number; end: number } | null;
+   129→  allStreams?: Array<{ url: string; quality: string; label: string }>;
+   130→  onEnded?: () => void;
+   131→  onProgress?: (currentTime: number, duration: number) => void;
+   132→  onProviderFailed?: (provider: string) => void;
+   133→  autoplay?: boolean;
+   134→}
+   135→
+   136→// ─── Component ──────────────────────────────────────────────────────────────
+   137→
+   138→export default function HLSPlayerNew({
+   139→  url,
+   140→  animeId,
+   141→  episodeNum,
+   142→  sourceType = 'hls',
+   143→  intro = null,
+   144→  outro = null,
+   145→  allStreams,
+   146→  onEnded,
+   147→  onProgress,
+   148→  onProviderFailed,
+   149→  autoplay = true,
+   150→}: HLSPlayerProps) {
+   151→  // ── Refs ────────────────────────────────────────────────────────────────
+   152→  const containerRef = useRef<HTMLDivElement>(null);
+   153→  const videoRef = useRef<HTMLVideoElement>(null);
+   154→  const hlsRef = useRef<Hls | null>(null);
+   155→  const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+   156→  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+   157→  const doubleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+   158→  const tapCountRef = useRef(0);
+   159→  const seekAnimRef = useRef<{ side: 'left' | 'right'; timeout: ReturnType<typeof setTimeout> | null }>({ side: 'left', timeout: null });
+   160→  const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
+   161→
+   162→  // ── State ───────────────────────────────────────────────────────────────
+   163→  const [isPlaying, setIsPlaying] = useState(false);
+   164→  const [currentTime, setCurrentTime] = useState(0);
+   165→  const [duration, setDuration] = useState(0);
+   166→  const [buffered, setBuffered] = useState(0);
+   167→  const [volume, setVolume] = useState(1);
+   168→  const [isMuted, setIsMuted] = useState(false);
+   169→  const [showControls, setShowControls] = useState(true);
+   170→  const [isFullscreen, setIsFullscreen] = useState(false);
+   171→  const [isLoading, setIsLoading] = useState(true);
+   172→  const [playbackRate, setPlaybackRate] = useState(1);
+   173→  const [qualityLevels, setQualityLevels] = useState<any[]>([]);
+   174→  const [currentQuality, setCurrentQuality] = useState(-1); // -1 = auto
+   175→  const [showQualityMenu, setShowQualityMenu] = useState(false);
+   176→  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+   177→  const [showSkipIntro, setShowSkipIntro] = useState(false);
+   178→  const [showSkipOutro, setShowSkipOutro] = useState(false);
+   179→  const [seekAnimation, setSeekAnimation] = useState<{ side: 'left' | 'right'; visible: boolean }>({ side: 'left', visible: false });
+   180→
+   181→  // ── Resume key ──────────────────────────────────────────────────────────
+   182→  const resumeKey = `yumeResume_${animeId}_ep${episodeNum}`;
+   183→
+   184→  // ── Auto-hide controls ──────────────────────────────────────────────────
+   185→  const resetControlsTimer = useCallback(() => {
+   186→    setShowControls(true);
+   187→    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+   188→    controlsTimerRef.current = setTimeout(() => {
+   189→      if (videoRef.current && !videoRef.current.paused) {
+   190→        setShowControls(false);
+   191→        setShowQualityMenu(false);
+   192→        setShowSpeedMenu(false);
+   193→      }
+   194→    }, 3000);
+   195→  }, []);
+   196→
+   197→  // ── Save progress to localStorage ───────────────────────────────────────
+   198→  const saveProgress = useCallback(
+   199→    (time: number, dur: number) => {
+   200→      if (dur > 0 && time > 0) {
+   201→        localStorage.setItem(resumeKey, JSON.stringify({ time, dur, ts: Date.now() }));
+   202→      }
+   203→      onProgress?.(time, dur);
+   204→    },
+   205→    [resumeKey, onProgress],
+   206→  );
+   207→
+   208→  // ── HLS setup ───────────────────────────────────────────────────────────
+   209→  useEffect(() => {
+   210→    const video = videoRef.current;
+   211→    if (!video || !url) return;
+   212→
+   213→    // Cleanup previous
+   214→    if (hlsRef.current) {
+   215→      hlsRef.current.destroy();
+   216→      hlsRef.current = null;
+   217→    }
+   218→
+   219→    // Defer state resets to avoid synchronous setState in effect
+   220→    const resetState = () => {
+   221→      setIsLoading(true);
+   222→      setIsPlaying(false);
+   223→      setCurrentTime(0);
+   224→      setDuration(0);
+   225→      setBuffered(0);
+   226→      setQualityLevels([]);
+   227→      setCurrentQuality(-1);
+   228→    };
+   229→    requestAnimationFrame(resetState);
+   230→
+   231→    const handleFatalError = (details: string) => {
+   232→      // Try to recover if media error
+   233→      if (hlsRef.current) {
+   234→        hlsRef.current.recoverMediaError();
+   235→        // recoverMediaError returns void — schedule a check after a delay
+   236→        setTimeout(() => {
+   237→          if (videoRef.current?.error) {
+   238→            onProviderFailed?.(sourceType);
+   239→          }
+   240→        }, 2000);
+   241→      } else {
+   242→        onProviderFailed?.(sourceType);
+   243→      }
+   244→    };
+   245→
+   246→    // Direct MP4
+   247→    if (sourceType === 'mp4' || url.endsWith('.mp4')) {
+   248→      video.src = url;
+   249→      video.load();
+   250→      if (autoplay) video.play().catch(() => {});
+   251→      return;
+   252→    }
+   253→
+   254→    // Safari / native HLS
+   255→    if (video.canPlayType('application/vnd.apple.mpegurl') && sourceType === 'hls') {
+   256→      video.src = url;
+   257→      video.addEventListener('loadedmetadata', () => {
+   258→        setIsLoading(false);
+   259→        // Resume
+   260→        const saved = localStorage.getItem(resumeKey);
+   261→        if (saved) {
+   262→          try {
+   263→            const { time, dur } = JSON.parse(saved);
+   264→            if (dur > 0 && time > 0 && time < video.duration) {
+   265→              video.currentTime = time;
+   266→            }
+   267→          } catch {}
+   268→        }
+   269→      });
+   270→      if (autoplay) video.play().catch(() => {});
+   271→      return;
+   272→    }
+   273→
+   274→    // hls.js
+   275→    if (!Hls.isSupported()) {
+   276→      onProviderFailed?.(sourceType);
+   277→      return;
+   278→    }
+   279→
+   280→    const hls = new Hls({
+   281→      enableWorker: true,
+   282→      lowLatencyMode: false,
+   283→      progressive: true,
+   284→      startLevel: -1, // auto
+   285→      abrEwmaDefaultEstimate: 3000000,
+   286→      maxBufferLength: 30,
+   287→      maxMaxBufferLength: 60,
+   288→      maxBufferHole: 0.5,
+   289→      backBufferLength: 30,
+   290→    });
+   291→
+   292→    hlsRef.current = hls;
+   293→    hls.loadSource(url);
+   294→    hls.attachMedia(video);
+   295→
+   296→    hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
+   297→      setQualityLevels(data.levels);
+   298→      setIsLoading(false);
+   299→      // Resume from saved
+   300→      const saved = localStorage.getItem(resumeKey);
+   301→      if (saved) {
+   302→        try {
+   303→          const { time, dur } = JSON.parse(saved);
+   304→          if (dur > 0 && time > 0 && time < (video.duration || Infinity)) {
+   305→            video.currentTime = time;
+   306→          }
+   307→        } catch {}
+   308→      }
+   309→      if (autoplay) {
+   310→        video.play().catch(() => {
+   311→          video.muted = true;
+   312→          video.play().catch(() => {});
+   313→        });
+   314→      }
+   315→    });
+   316→
+   317→    hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
+   318→      setCurrentQuality(data.level);
+   319→    });
+   320→
+   321→    hls.on(Hls.Events.ERROR, (_e, data) => {
+   322→      if (data.fatal) {
+   323→        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+   324→          // Try to recover
+   325→          setTimeout(() => hls.startLoad(), 1500);
+   326→        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+   327→          hls.recoverMediaError();
+   328→        } else {
+   329→          handleFatalError(data.details);
+   330→          hls.destroy();
+   331→          hlsRef.current = null;
+   332→        }
+   333→      }
+   334→    });
+   335→
+   336→    return () => {
+   337→      hls.destroy();
+   338→      hlsRef.current = null;
+   339→    };
+   340→  }, [url, sourceType]);
+   341→
+   342→  // ── Video event listeners ───────────────────────────────────────────────
+   343→  useEffect(() => {
+   344→    const video = videoRef.current;
+   345→    if (!video) return;
+   346→
+   347→    const onPlay = () => { setIsPlaying(true); resetControlsTimer(); };
+   348→    const onPause = () => { setIsPlaying(false); setShowControls(true); };
+   349→    const onTimeUpdate = () => {
+   350→      setCurrentTime(video.currentTime);
+   351→      // Buffered
+   352→      if (video.buffered.length > 0) {
+   353→        setBuffered(video.buffered.end(video.buffered.length - 1));
+   354→      }
+   355→      // Intro / Outro skip buttons
+   356→      if (intro && video.currentTime >= intro.start && video.currentTime < intro.end) {
+   357→        setShowSkipIntro(true);
+   358→        // Auto-skip
+   359→        if (localStorage.getItem('yume_skip_intro') === 'true') {
+   360→          video.currentTime = intro.end;
+   361→          setShowSkipIntro(false);
+   362→        }
+   363→      } else {
+   364→        setShowSkipIntro(false);
+   365→      }
+   366→      if (outro && video.currentTime >= outro.start && video.currentTime < outro.end) {
+   367→        setShowSkipOutro(true);
+   368→      } else {
+   369→        setShowSkipOutro(false);
+   370→      }
+   371→    };
+   372→    const onDurationChange = () => setDuration(video.duration || 0);
+   373→    const onLoadedData = () => setIsLoading(false);
+   374→    const onWaiting = () => setIsLoading(true);
+   375→    const onCanPlay = () => setIsLoading(false);
+   376→    const onEnded = () => {
+   377→      setIsPlaying(false);
+   378→      // Clear resume data
+   379→      localStorage.removeItem(resumeKey);
+   380→      onEnded?.();
+   381→    };
+   382→    const onVolumeChange = () => {
+   383→      setVolume(video.volume);
+   384→      setIsMuted(video.muted);
+   385→    };
+   386→
+   387→    video.addEventListener('play', onPlay);
+   388→    video.addEventListener('pause', onPause);
+   389→    video.addEventListener('timeupdate', onTimeUpdate);
+   390→    video.addEventListener('durationchange', onDurationChange);
+   391→    video.addEventListener('loadeddata', onLoadedData);
+   392→    video.addEventListener('waiting', onWaiting);
+   393→    video.addEventListener('canplay', onCanPlay);
+   394→    video.addEventListener('ended', onEnded);
+   395→    video.addEventListener('volumechange', onVolumeChange);
+   396→
+   397→    return () => {
+   398→      video.removeEventListener('play', onPlay);
+   399→      video.removeEventListener('pause', onPause);
+   400→      video.removeEventListener('timeupdate', onTimeUpdate);
+   401→      video.removeEventListener('durationchange', onDurationChange);
+   402→      video.removeEventListener('loadeddata', onLoadedData);
+   403→      video.removeEventListener('waiting', onWaiting);
+   404→      video.removeEventListener('canplay', onCanPlay);
+   405→      video.removeEventListener('ended', onEnded);
+   406→      video.removeEventListener('volumechange', onVolumeChange);
+   407→    };
+   408→  }, [intro, outro, onEnded, resetControlsTimer, resumeKey]);
+   409→
+   410→  // ── Progress timer (save every 3s) ──────────────────────────────────────
+   411→  useEffect(() => {
+   412→    if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+   413→    progressTimerRef.current = setInterval(() => {
+   414→      const video = videoRef.current;
+   415→      if (video && !video.paused && video.currentTime > 0) {
+   416→        saveProgress(video.currentTime, video.duration || 0);
+   417→      }
+   418→    }, 3000);
+   419→    return () => {
+   420→      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+   421→    };
+   422→  }, [saveProgress]);
+   423→
+   424→  // ── Fullscreen change listener ──────────────────────────────────────────
+   425→  useEffect(() => {
+   426→    const onFsChange = () => {
+   427→      setIsFullscreen(!!document.fullscreenElement);
+   428→    };
+   429→    document.addEventListener('fullscreenchange', onFsChange);
+   430→    return () => document.removeEventListener('fullscreenchange', onFsChange);
+   431→  }, []);
+   432→
+   433→  // ── Click outside quality/speed menu ────────────────────────────────────
+   434→  useEffect(() => {
+   435→    const handleClick = (e: globalThis.MouseEvent) => {
+   436→      const target = e.target as HTMLElement;
+   437→      if (!target.closest('.quality-menu') && !target.closest('.quality-btn')) {
+   438→        setShowQualityMenu(false);
+   439→      }
+   440→      if (!target.closest('.speed-menu') && !target.closest('.speed-btn')) {
+   441→        setShowSpeedMenu(false);
+   442→      }
+   443→    };
+   444→    document.addEventListener('mousedown', handleClick);
+   445→    return () => document.removeEventListener('mousedown', handleClick);
+   446→  }, []);
+   447→
+   448→  // ── Handlers ────────────────────────────────────────────────────────────
+   449→  const togglePlay = useCallback(() => {
+   450→    const video = videoRef.current;
+   451→    if (!video) return;
+   452→    if (video.paused) {
+   453→      video.play().catch(() => {});
+   454→    } else {
+   455→      video.pause();
+   456→    }
+   457→    resetControlsTimer();
+   458→  }, [resetControlsTimer]);
+   459→
+   460→  const seek = useCallback((delta: number) => {
+   461→    const video = videoRef.current;
+   462→    if (!video) return;
+   463→    video.currentTime = clamp(video.currentTime + delta, 0, video.duration || 0);
+   464→    resetControlsTimer();
+   465→  }, [resetControlsTimer]);
+   466→
+   467→  const seekTo = useCallback(
+   468→    (time: number) => {
+   469→      const video = videoRef.current;
+   470→      if (!video) return;
+   471→      video.currentTime = clamp(time, 0, video.duration || 0);
+   472→      resetControlsTimer();
+   473→    },
+   474→    [resetControlsTimer],
+   475→  );
+   476→
+   477→  const toggleMute = useCallback(() => {
+   478→    const video = videoRef.current;
+   479→    if (!video) return;
+   480→    video.muted = !video.muted;
+   481→    resetControlsTimer();
+   482→  }, [resetControlsTimer]);
+   483→
+   484→  const changeVolume = useCallback(
+   485→    (v: number) => {
+   486→      const video = videoRef.current;
+   487→      if (!video) return;
+   488→      video.volume = clamp(v, 0, 1);
+   489→      if (video.muted && v > 0) video.muted = false;
+   490→      resetControlsTimer();
+   491→    },
+   492→    [resetControlsTimer],
+   493→  );
+   494→
+   495→  const changeSpeed = useCallback(
+   496→    (rate: number) => {
+   497→      const video = videoRef.current;
+   498→      if (!video) return;
+   499→      video.playbackRate = rate;
+   500→      setPlaybackRate(rate);
+   501→      setShowSpeedMenu(false);
+   502→      resetControlsTimer();
+   503→    },
+   504→    [resetControlsTimer],
+   505→  );
+   506→
+   507→  const changeQuality = useCallback(
+   508→    (level: number) => {
+   509→      if (!hlsRef.current) return;
+   510→      hlsRef.current.currentLevel = level;
+   511→      setCurrentQuality(level);
+   512→      setShowQualityMenu(false);
+   513→      resetControlsTimer();
+   514→    },
+   515→    [resetControlsTimer],
+   516→  );
+   517→
+   518→  const toggleFullscreen = useCallback(() => {
+   519→    const container = containerRef.current;
+   520→    if (!container) return;
+   521→    if (document.fullscreenElement) {
+   522→      document.exitFullscreen().catch(() => {});
+   523→    } else {
+   524→      container.requestFullscreen().catch(() => {});
+   525→    }
+   526→    resetControlsTimer();
+   527→  }, [resetControlsTimer]);
+   528→
+   529→  const skipIntro = useCallback(() => {
+   530→    if (intro) seekTo(intro.end);
+   531→  }, [intro, seekTo]);
+   532→
+   533→  const skipOutro = useCallback(() => {
+   534→    if (outro) seekTo(outro.end);
+   535→  }, [outro, seekTo]);
+   536→
+   537→  // ── Progress bar interaction ────────────────────────────────────────────
+   538→  const progressBarRef = useRef<HTMLDivElement>(null);
+   539→
+   540→  const handleProgressClick = useCallback(
+   541→    (e: ReactMouseEvent<HTMLDivElement>) => {
+   542→      const bar = progressBarRef.current;
+   543→      const video = videoRef.current;
+   544→      if (!bar || !video) return;
+   545→      const rect = bar.getBoundingClientRect();
+   546→      const ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+   547→      video.currentTime = ratio * (video.duration || 0);
+   548→      resetControlsTimer();
+   549→    },
+   550→    [resetControlsTimer],
+   551→  );
+   552→
+   553→  // ── Double-tap to seek (mobile) ─────────────────────────────────────────
+   554→  const handleVideoTap = useCallback(
+   555→    (e: ReactMouseEvent<HTMLDivElement>) => {
+   556→      const now = Date.now();
+   557→      const rect = containerRef.current?.getBoundingClientRect();
+   558→      if (!rect) return;
+   559→      const x = e.clientX - rect.left;
+   560→      const half = rect.width / 2;
+   561→      const side: 'left' | 'right' = x < half ? 'left' : 'right';
+   562→
+   563→      if (now - lastTapRef.current.time < 300) {
+   564→        // Double tap
+   565→        if (side === 'left') {
+   566→          seek(-10);
+   567→          setSeekAnimation({ side: 'left', visible: true });
+   568→        } else {
+   569→          seek(10);
+   570→          setSeekAnimation({ side: 'right', visible: true });
+   571→        }
+   572→        if (seekAnimRef.current.timeout) clearTimeout(seekAnimRef.current.timeout);
+   573→        seekAnimRef.current.timeout = setTimeout(() => {
+   574→          setSeekAnimation((prev) => ({ ...prev, visible: false }));
+   575→        }, 600);
+   576→        tapCountRef.current = 0;
+   577→        lastTapRef.current = { time: 0, x: 0 };
+   578→      } else {
+   579→        // First tap — wait for potential second tap
+   580→        lastTapRef.current = { time: now, x };
+   581→        tapCountRef.current = 1;
+   582→        if (doubleTapTimerRef.current) clearTimeout(doubleTapTimerRef.current);
+   583→        doubleTapTimerRef.current = setTimeout(() => {
+   584→          if (tapCountRef.current === 1) {
+   585→            togglePlay();
+   586→          }
+   587→          tapCountRef.current = 0;
+   588→        }, 300);
+   589→      }
+   590→    },
+   591→    [seek, togglePlay],
+   592→  );
+   593→
+   594→  // ── Right-click to skip 10s (desktop) ───────────────────────────────────
+   595→  const handleContextMenu = useCallback(
+   596→    (e: ReactMouseEvent<HTMLDivElement>) => {
+   597→      e.preventDefault();
+   598→      seek(10);
+   599→    },
+   600→    [seek],
+   601→  );
+   602→
+   603→  // ── Keyboard shortcuts ──────────────────────────────────────────────────
+   604→  useEffect(() => {
+   605→    const handleKey = (e: globalThis.KeyboardEvent) => {
+   606→      // Only handle if player is focused / visible
+   607→      if (!containerRef.current?.contains(document.activeElement) && document.activeElement !== document.body) return;
+   608→      switch (e.key) {
+   609→        case ' ':
+   610→        case 'k':
+   611→          e.preventDefault();
+   612→          togglePlay();
+   613→          break;
+   614→        case 'ArrowLeft':
+   615→          e.preventDefault();
+   616→          seek(-10);
+   617→          break;
+   618→        case 'ArrowRight':
+   619→          e.preventDefault();
+   620→          seek(10);
+   621→          break;
+   622→        case 'ArrowUp':
+   623→          e.preventDefault();
+   624→          changeVolume(volume + 0.1);
+   625→          break;
+   626→        case 'ArrowDown':
+   627→          e.preventDefault();
+   628→          changeVolume(volume - 0.1);
+   629→          break;
+   630→        case 'f':
+   631→          e.preventDefault();
+   632→          toggleFullscreen();
+   633→          break;
+   634→        case 'm':
+   635→          e.preventDefault();
+   636→          toggleMute();
+   637→          break;
+   638→      }
+   639→    };
+   640→    window.addEventListener('keydown', handleKey);
+   641→    return () => window.removeEventListener('keydown', handleKey);
+   642→  }, [togglePlay, seek, changeVolume, toggleFullscreen, toggleMute, volume]);
+   643→
+   644→  // ── Cleanup on unmount ──────────────────────────────────────────────────
+   645→  useEffect(() => {
+   646→    return () => {
+   647→      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+   648→      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+   649→      if (doubleTapTimerRef.current) clearTimeout(doubleTapTimerRef.current);
+   650→      if (seekAnimRef.current.timeout) clearTimeout(seekAnimRef.current.timeout);
+   651→    };
+   652→  }, []);
+   653→
+   654→  // ── Computed ────────────────────────────────────────────────────────────
+   655→  const progressRatio = duration > 0 ? currentTime / duration : 0;
+   656→  const bufferRatio = duration > 0 ? buffered / duration : 0;
+   657→  const introStart = intro && duration > 0 ? (intro.start / duration) * 100 : 0;
+   658→  const introEnd = intro && duration > 0 ? (intro.end / duration) * 100 : 0;
+   659→  const outroStart = outro && duration > 0 ? (outro.start / duration) * 100 : 0;
+   660→  const outroEnd = outro && duration > 0 ? (outro.end / duration) * 100 : 0;
+   661→  const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+   662→
+   663→  const volumeIcon =
+   664→    isMuted || volume === 0 ? (
+   665→      <VolumeMuteIcon className="w-5 h-5" />
+   666→    ) : volume < 0.5 ? (
+   667→      <VolumeDownIcon className="w-5 h-5" />
+   668→    ) : (
+   669→      <VolumeUpIcon className="w-5 h-5" />
+   670→    );
+   671→
+   672→  // ─── RENDER ─────────────────────────────────────────────────────────────
+   673→  return (
+   674→    <div
+   675→      ref={containerRef}
+   676→      className="relative w-full select-none overflow-hidden rounded-lg"
+   677→      style={{ background: '#0a0a0f', aspectRatio: '16 / 9' }}
+   678→      onMouseMove={resetControlsTimer}
+   679→      onMouseLeave={() => {
+   680→        if (isPlaying) setShowControls(false);
+   681→      }}
+   682→      onClick={handleVideoTap}
+   683→      onContextMenu={handleContextMenu}
+   684→      tabIndex={0}
+   685→    >
+   686→      {/* Video */}
+   687→      <video
+   688→        ref={videoRef}
+   689→        className="absolute inset-0 w-full h-full object-contain"
+   690→        style={{ background: '#0a0a0f' }}
+   691→        playsInline
+   692→        preload="metadata"
+   693→      />
+   694→
+   695→      {/* Loading spinner */}
+   696→      {isLoading && <LoadingSpinner />}
+   697→
+   698→      {/* Seek animation overlay (double-tap feedback) */}
+   699→      {seekAnimation.visible && (
+   700→        <div
+   701→          className="absolute top-0 bottom-0 w-1/3 flex items-center justify-center z-20 pointer-events-none"
+   702→          style={{
+   703→            left: seekAnimation.side === 'left' ? 0 : undefined,
+   704→            right: seekAnimation.side === 'right' ? 0 : undefined,
+   705→            background:
+   706→              seekAnimation.side === 'left'
+   707→                ? 'linear-gradient(to right, rgba(139,92,246,0.25), transparent)'
+   708→                : 'linear-gradient(to left, rgba(139,92,246,0.25), transparent)',
+   709→          }}
+   710→        >
+   711→          <div className="flex flex-col items-center">
+   712→            {seekAnimation.side === 'left' ? (
+   713→              <SkipBackIcon className="w-10 h-10 text-white" />
+   714→            ) : (
+   715→              <SkipForwardIcon className="w-10 h-10 text-white" />
+   716→            )}
+   717→            <span className="text-white text-sm font-medium mt-1">
+   718→              {seekAnimation.side === 'left' ? '-10s' : '+10s'}
+   719→            </span>
+   720→          </div>
+   721→        </div>
+   722→      )}
+   723→
+   724→      {/* Center play button (when paused) */}
+   725→      {!isPlaying && !isLoading && (
+   726→        <button
+   727→          className="absolute inset-0 flex items-center justify-center z-10 bg-black/30 cursor-pointer"
+   728→          onClick={(e) => {
+   729→            e.stopPropagation();
+   730→            togglePlay();
+   731→          }}
+   732→          aria-label="Play"
+   733→        >
+   734→          <div
+   735→            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center transition-transform duration-150 hover:scale-110"
+   736→            style={{ background: 'rgba(139, 92, 246, 0.85)' }}
+   737→          >
+   738→            <PlayIcon className="w-8 h-8 sm:w-10 sm:h-10 text-white ml-1" />
+   739→          </div>
+   740→        </button>
+   741→      )}
+   742→
+   743→      {/* Skip Intro / Outro button */}
+   744→      {(showSkipIntro || showSkipOutro) && (
+   745→        <button
+   746→          className="absolute bottom-20 sm:bottom-24 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-lg text-white font-semibold text-sm sm:text-base cursor-pointer transition-all duration-150 hover:scale-105 hover:brightness-110"
+   747→          style={{ background: '#8B5CF6' }}
+   748→          onClick={(e) => {
+   749→            e.stopPropagation();
+   750→            if (showSkipIntro) skipIntro();
+   751→            if (showSkipOutro) skipOutro();
+   752→          }}
+   753→        >
+   754→          {showSkipIntro ? 'Skip Intro' : 'Skip Outro'}
+   755→        </button>
+   756→      )}
+   757→
+   758→      {/* ─── CONTROLS ─────────────────────────────────────────────────────── */}
+   759→      <div
+   760→        className="absolute inset-x-0 bottom-0 z-20 transition-opacity duration-300"
+   761→        style={{
+   762→          opacity: showControls ? 1 : 0,
+   763→          pointerEvents: showControls ? 'auto' : 'none',
+   764→          background: 'linear-gradient(to top, rgba(10,10,15,0.92) 0%, rgba(10,10,15,0.6) 60%, transparent 100%)',
+   765→          backdropFilter: 'blur(4px)',
+   766→        }}
+   767→        onClick={(e) => e.stopPropagation()}
+   768→      >
+   769→        {/* Progress bar */}
+   770→        <div className="px-3 sm:px-4 pt-6 pb-1">
+   771→          <div
+   772→            ref={progressBarRef}
+   773→            className="relative w-full h-1.5 sm:h-2 rounded-full cursor-pointer group"
+   774→            style={{ background: 'rgba(255,255,255,0.15)' }}
+   775→            onClick={handleProgressClick}
+   776→          >
+   777→            {/* Intro segment marker */}
+   778→            {intro && duration > 0 && (
+   779→              <div
+   780→                className="absolute top-0 bottom-0 rounded-full"
+   781→                style={{
+   782→                  left: `${introStart}%`,
+   783→                  width: `${introEnd - introStart}%`,
+   784→                  background: 'rgba(251, 191, 36, 0.35)',
+   785→                }}
+   786→              />
+   787→            )}
+   788→            {/* Outro segment marker */}
+   789→            {outro && duration > 0 && (
+   790→              <div
+   791→                className="absolute top-0 bottom-0 rounded-full"
+   792→                style={{
+   793→                  left: `${outroStart}%`,
+   794→                  width: `${outroEnd - outroStart}%`,
+   795→                  background: 'rgba(239, 68, 68, 0.35)',
+   796→                }}
+   797→              />
+   798→            )}
+   799→            {/* Buffer */}
+   800→            <div
+   801→              className="absolute top-0 left-0 h-full rounded-full transition-[width] duration-150"
+   802→              style={{
+   803→                width: `${bufferRatio * 100}%`,
+   804→                background: 'rgba(139, 92, 246, 0.3)',
+   805→              }}
+   806→            />
+   807→            {/* Played */}
+   808→            <div
+   809→              className="absolute top-0 left-0 h-full rounded-full transition-[width] duration-150"
+   810→              style={{
+   811→                width: `${progressRatio * 100}%`,
+   812→                background: '#8B5CF6',
+   813→              }}
+   814→            />
+   815→            {/* Thumb */}
+   816→            <div
+   817→              className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none"
+   818→              style={{
+   819→                left: `${progressRatio * 100}%`,
+   820→                transform: `translate(-50%, -50%)`,
+   821→                background: '#8B5CF6',
+   822→                boxShadow: '0 0 6px rgba(139,92,246,0.6)',
+   823→              }}
+   824→            />
+   825→            {/* Hover time preview */}
+   826→          </div>
+   827→        </div>
+   828→
+   829→        {/* Bottom controls row */}
+   830→        <div className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 pb-3 pt-1">
+   831→          {/* Play/Pause */}
+   832→          <button
+   833→            className="p-1.5 sm:p-2 rounded-md text-white/90 hover:text-white transition-colors duration-150 cursor-pointer"
+   834→            onClick={togglePlay}
+   835→            aria-label={isPlaying ? 'Pause' : 'Play'}
+   836→          >
+   837→            {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
+   838→          </button>
+   839→
+   840→          {/* Skip back 10s */}
+   841→          <button
+   842→            className="p-1.5 sm:p-2 rounded-md text-white/70 hover:text-white transition-colors duration-150 cursor-pointer hidden sm:block"
+   843→            onClick={() => seek(-10)}
+   844→            aria-label="Skip back 10 seconds"
+   845→          >
+   846→            <SkipBackIcon className="w-5 h-5" />
+   847→          </button>
+   848→
+   849→          {/* Skip forward 10s */}
+   850→          <button
+   851→            className="p-1.5 sm:p-2 rounded-md text-white/70 hover:text-white transition-colors duration-150 cursor-pointer hidden sm:block"
+   852→            onClick={() => seek(10)}
+   853→            aria-label="Skip forward 10 seconds"
+   854→          >
+   855→            <SkipForwardIcon className="w-5 h-5" />
+   856→          </button>
+   857→
+   858→          {/* Volume */}
+   859→          <div className="flex items-center gap-1 group/vol">
+   860→            <button
+   861→              className="p-1.5 sm:p-2 rounded-md text-white/70 hover:text-white transition-colors duration-150 cursor-pointer"
+   862→              onClick={toggleMute}
+   863→              aria-label={isMuted ? 'Unmute' : 'Mute'}
+   864→            >
+   865→              {volumeIcon}
+   866→            </button>
+   867→            <div className="w-0 overflow-hidden group-hover/vol:w-20 transition-all duration-150 hidden sm:block">
+   868→              <input
+   869→                type="range"
+   870→                min={0}
+   871→                max={1}
+   872→                step={0.05}
+   873→                value={isMuted ? 0 : volume}
+   874→                onChange={(e) => changeVolume(parseFloat(e.target.value))}
+   875→                className="w-full h-1 appearance-none rounded-full cursor-pointer"
+   876→                style={{
+   877→                  background: `linear-gradient(to right, #8B5CF6 ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.2) ${(isMuted ? 0 : volume) * 100}%)`,
+   878→                }}
+   879→                aria-label="Volume"
+   880→              />
+   881→            </div>
+   882→          </div>
+   883→
+   884→          {/* Time */}
+   885→          <span className="text-xs sm:text-sm text-white/70 font-mono tabular-nums ml-1">
+   886→            {formatTime(currentTime)}{' '}
+   887→            <span className="text-white/40">/</span>{' '}
+   888→            {formatTime(duration)}
+   889→          </span>
+   890→
+   891→          {/* Spacer */}
+   892→          <div className="flex-1" />
+   893→
+   894→          {/* Speed */}
+   895→          <div className="relative">
+   896→            <button
+   897→              className="speed-btn p-1.5 sm:p-2 rounded-md text-white/70 hover:text-white transition-colors duration-150 cursor-pointer flex items-center gap-1"
+   898→              onClick={() => {
+   899→                setShowSpeedMenu((v) => !v);
+   900→                setShowQualityMenu(false);
+   901→              }}
+   902→              aria-label="Playback speed"
+   903→            >
+   904→              <span className="text-xs font-medium">{playbackRate}x</span>
+   905→            </button>
+   906→            {showSpeedMenu && (
+   907→              <div
+   908→                className="speed-menu absolute bottom-full right-0 mb-2 py-1 rounded-lg shadow-xl min-w-[100px] overflow-hidden"
+   909→                style={{ background: 'rgba(10, 10, 15, 0.95)', backdropFilter: 'blur(8px)' }}
+   910→              >
+   911→                {speeds.map((s) => (
+   912→                  <button
+   913→                    key={s}
+   914→                    className={`w-full px-4 py-2 text-left text-sm transition-colors duration-150 cursor-pointer ${
+   915→                      playbackRate === s ? 'text-white font-semibold' : 'text-white/60 hover:text-white/90'
+   916→                    }`}
+   917→                    style={playbackRate === s ? { background: 'rgba(139,92,246,0.2)' } : {}}
+   918→                    onClick={() => changeSpeed(s)}
+   919→                  >
+   920→                    {s}x
+   921→                  </button>
+   922→                ))}
+   923→              </div>
+   924→            )}
+   925→          </div>
+   926→
+   927→          {/* Quality */}
+   928→          {qualityLevels.length > 1 && (
+   929→            <div className="relative">
+   930→              <button
+   931→                className="quality-btn p-1.5 sm:p-2 rounded-md text-white/70 hover:text-white transition-colors duration-150 cursor-pointer"
+   932→                onClick={() => {
+   933→                  setShowQualityMenu((v) => !v);
+   934→                  setShowSpeedMenu(false);
+   935→                }}
+   936→                aria-label="Quality"
+   937→              >
+   938→                <SettingsIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+   939→              </button>
+   940→              {showQualityMenu && (
+   941→                <div
+   942→                  className="quality-menu absolute bottom-full right-0 mb-2 py-1 rounded-lg shadow-xl min-w-[140px] overflow-hidden"
+   943→                  style={{ background: 'rgba(10, 10, 15, 0.95)', backdropFilter: 'blur(8px)' }}
+   944→                >
+   945→                  <button
+   946→                    className={`w-full px-4 py-2 text-left text-sm transition-colors duration-150 cursor-pointer ${
+   947→                      currentQuality === -1 ? 'text-white font-semibold' : 'text-white/60 hover:text-white/90'
+   948→                    }`}
+   949→                    style={currentQuality === -1 ? { background: 'rgba(139,92,246,0.2)' } : {}}
+   950→                    onClick={() => changeQuality(-1)}
+   951→                  >
+   952→                    Auto
+   953→                  </button>
+   954→                  {qualityLevels.map((lvl, idx) => (
+   955→                    <button
+   956→                      key={idx}
+   957→                      className={`w-full px-4 py-2 text-left text-sm transition-colors duration-150 cursor-pointer ${
+   958→                        currentQuality === idx ? 'text-white font-semibold' : 'text-white/60 hover:text-white/90'
+   959→                      }`}
+   960→                      style={currentQuality === idx ? { background: 'rgba(139,92,246,0.2)' } : {}}
+   961→                      onClick={() => changeQuality(idx)}
+   962→                    >
+   963→                      {lvl.height}p
+   964→                      {lvl.bitrate ? ` (${Math.round(lvl.bitrate / 1000)}k)` : ''}
+   965→                    </button>
+   966→                  ))}
+   967→                </div>
+   968→              )}
+   969→            </div>
+   970→          )}
+   971→
+   972→          {/* Fullscreen */}
+   973→          <button
+   974→            className="p-1.5 sm:p-2 rounded-md text-white/70 hover:text-white transition-colors duration-150 cursor-pointer"
+   975→            onClick={toggleFullscreen}
+   976→            aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+   977→          >
+   978→            {isFullscreen ? (
+   979→              <FullscreenExitIcon className="w-5 h-5" />
+   980→            ) : (
+   981→              <FullscreenIcon className="w-5 h-5" />
+   982→            )}
+   983→          </button>
+   984→        </div>
+   985→      </div>
+   986→
+   987→      {/* Top gradient for skip intro/outro visibility */}
+   988→      {showControls && (
+   989→        <div
+   990→          className="absolute inset-x-0 top-0 h-16 z-10 pointer-events-none transition-opacity duration-300"
+   991→          style={{
+   992→            background: 'linear-gradient(to bottom, rgba(10,10,15,0.5), transparent)',
+   993→          }}
+   994→        />
+   995→      )}
+   996→    </div>
+   997→  );
+   998→}
+   999→

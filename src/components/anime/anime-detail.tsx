@@ -422,7 +422,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
   const description = alDesc || miruroDesc || allanimeDesc;
 
   const alScoreRaw = anilistMedia?.averageScore ?? anilistInfo?.averageScore ?? miruroInfo?.averageScore ?? null;
-  const anilistScore = alScoreRaw ? (alScoreRaw > 10 ? alScoreRaw / 10 : alScoreRaw) : null;
+  const anilistScore = alScoreRaw ? (alScoreRaw > 20 ? alScoreRaw / 10 : alScoreRaw) : null;
 
   const rawGenres: any[] = anilistMedia?.genres || anilistInfo?.genres || miruroInfo?.genres || anime?.genres || [];
   const allGenres: string[] = rawGenres.filter((g: any) => typeof g === "string").map((g: string) => g);

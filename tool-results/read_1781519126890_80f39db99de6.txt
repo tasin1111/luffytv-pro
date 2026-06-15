@@ -1,0 +1,999 @@
+     1→     1→'use client';
+     2→     2→
+     3→     3→import {
+     4→     4→  useEffect,
+     5→     5→  useRef,
+     6→     6→  useState,
+     7→     7→  useCallback,
+     8→     8→  type MouseEvent as ReactMouseEvent,
+     9→     9→} from 'react';
+    10→    10→import Hls from 'hls.js';
+    11→    11→
+    12→    12→// ─── Icons (inline SVG to stay self-contained) ──────────────────────────────
+    13→    13→
+    14→    14→function PlayIcon({ className = '' }: { className?: string }) {
+    15→    15→  return (
+    16→    16→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    17→    17→      <path d="M8 5v14l11-7z" />
+    18→    18→    </svg>
+    19→    19→  );
+    20→    20→}
+    21→    21→
+    22→    22→function PauseIcon({ className = '' }: { className?: string }) {
+    23→    23→  return (
+    24→    24→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    25→    25→      <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+    26→    26→    </svg>
+    27→    27→  );
+    28→    28→}
+    29→    29→
+    30→    30→function VolumeUpIcon({ className = '' }: { className?: string }) {
+    31→    31→  return (
+    32→    32→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    33→    33→      <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
+    34→    34→    </svg>
+    35→    35→  );
+    36→    36→}
+    37→    37→
+    38→    38→function VolumeMuteIcon({ className = '' }: { className?: string }) {
+    39→    39→  return (
+    40→    40→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    41→    41→      <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
+    42→    42→    </svg>
+    43→    43→  );
+    44→    44→}
+    45→    45→
+    46→    46→function VolumeDownIcon({ className = '' }: { className?: string }) {
+    47→    47→  return (
+    48→    48→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    49→    49→      <path d="M18.5 12c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM5 9v6h4l5 5V4L9 9H5z" />
+    50→    50→    </svg>
+    51→    51→  );
+    52→    52→}
+    53→    53→
+    54→    54→function FullscreenIcon({ className = '' }: { className?: string }) {
+    55→    55→  return (
+    56→    56→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    57→    57→      <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" />
+    58→    58→    </svg>
+    59→    59→  );
+    60→    60→}
+    61→    61→
+    62→    62→function FullscreenExitIcon({ className = '' }: { className?: string }) {
+    63→    63→  return (
+    64→    64→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    65→    65→      <path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" />
+    66→    66→    </svg>
+    67→    67→  );
+    68→    68→}
+    69→    69→
+    70→    70→function SkipForwardIcon({ className = '' }: { className?: string }) {
+    71→    71→  return (
+    72→    72→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    73→    73→      <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
+    74→    74→    </svg>
+    75→    75→  );
+    76→    76→}
+    77→    77→
+    78→    78→function SkipBackIcon({ className = '' }: { className?: string }) {
+    79→    79→  return (
+    80→    80→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    81→    81→      <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
+    82→    82→    </svg>
+    83→    83→  );
+    84→    84→}
+    85→    85→
+    86→    86→function SettingsIcon({ className = '' }: { className?: string }) {
+    87→    87→  return (
+    88→    88→    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+    89→    89→      <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 00.12-.61l-1.92-3.32a.49.49 0 00-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 00-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96a.49.49 0 00-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.07.62-.07.94s.02.64.07.94l-2.03 1.58a.49.49 0 00-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1112 8.4a3.6 3.6 0 010 7.2z" />
+    90→    90→    </svg>
+    91→    91→  );
+    92→    92→}
+    93→    93→
+    94→    94→function LoadingSpinner() {
+    95→    95→  return (
+    96→    96→    <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+    97→    97→      <div
+    98→    98→        className="w-12 h-12 border-4 border-white/20 border-t-[#8B5CF6] rounded-full animate-spin"
+    99→    99→      />
+   100→   100→    </div>
+   101→   101→  );
+   102→   102→}
+   103→   103→
+   104→   104→// ─── Helpers ────────────────────────────────────────────────────────────────
+   105→   105→
+   106→   106→function formatTime(seconds: number): string {
+   107→   107→  if (!isFinite(seconds) || isNaN(seconds)) return '0:00';
+   108→   108→  const s = Math.floor(seconds);
+   109→   109→  const h = Math.floor(s / 3600);
+   110→   110→  const m = Math.floor((s % 3600) / 60);
+   111→   111→  const sec = s % 60;
+   112→   112→  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${sec.toString().padStart(2, '0')}`;
+   113→   113→  return `${m}:${sec.toString().padStart(2, '0')}`;
+   114→   114→}
+   115→   115→
+   116→   116→function clamp(val: number, min: number, max: number): number {
+   117→   117→  return Math.max(min, Math.min(max, val));
+   118→   118→}
+   119→   119→
+   120→   120→// ─── Props ──────────────────────────────────────────────────────────────────
+   121→   121→
+   122→   122→interface HLSPlayerProps {
+   123→   123→  url: string;
+   124→   124→  animeId: string;
+   125→   125→  episodeNum: number;
+   126→   126→  sourceType?: 'hls' | 'embed' | 'mp4';
+   127→   127→  intro?: { start: number; end: number } | null;
+   128→   128→  outro?: { start: number; end: number } | null;
+   129→   129→  allStreams?: Array<{ url: string; quality: string; label: string }>;
+   130→   130→  onEnded?: () => void;
+   131→   131→  onProgress?: (currentTime: number, duration: number) => void;
+   132→   132→  onProviderFailed?: (provider: string) => void;
+   133→   133→  autoplay?: boolean;
+   134→   134→}
+   135→   135→
+   136→   136→// ─── Component ──────────────────────────────────────────────────────────────
+   137→   137→
+   138→   138→export default function HLSPlayerNew({
+   139→   139→  url,
+   140→   140→  animeId,
+   141→   141→  episodeNum,
+   142→   142→  sourceType = 'hls',
+   143→   143→  intro = null,
+   144→   144→  outro = null,
+   145→   145→  allStreams,
+   146→   146→  onEnded,
+   147→   147→  onProgress,
+   148→   148→  onProviderFailed,
+   149→   149→  autoplay = true,
+   150→   150→}: HLSPlayerProps) {
+   151→   151→  // ── Refs ────────────────────────────────────────────────────────────────
+   152→   152→  const containerRef = useRef<HTMLDivElement>(null);
+   153→   153→  const videoRef = useRef<HTMLVideoElement>(null);
+   154→   154→  const hlsRef = useRef<Hls | null>(null);
+   155→   155→  const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+   156→   156→  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+   157→   157→  const doubleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+   158→   158→  const tapCountRef = useRef(0);
+   159→   159→  const seekAnimRef = useRef<{ side: 'left' | 'right'; timeout: ReturnType<typeof setTimeout> | null }>({ side: 'left', timeout: null });
+   160→   160→  const lastTapRef = useRef<{ time: number; x: number }>({ time: 0, x: 0 });
+   161→   161→
+   162→   162→  // ── State ───────────────────────────────────────────────────────────────
+   163→   163→  const [isPlaying, setIsPlaying] = useState(false);
+   164→   164→  const [currentTime, setCurrentTime] = useState(0);
+   165→   165→  const [duration, setDuration] = useState(0);
+   166→   166→  const [buffered, setBuffered] = useState(0);
+   167→   167→  const [volume, setVolume] = useState(1);
+   168→   168→  const [isMuted, setIsMuted] = useState(false);
+   169→   169→  const [showControls, setShowControls] = useState(true);
+   170→   170→  const [isFullscreen, setIsFullscreen] = useState(false);
+   171→   171→  const [isLoading, setIsLoading] = useState(true);
+   172→   172→  const [playbackRate, setPlaybackRate] = useState(1);
+   173→   173→  const [qualityLevels, setQualityLevels] = useState<any[]>([]);
+   174→   174→  const [currentQuality, setCurrentQuality] = useState(-1); // -1 = auto
+   175→   175→  const [showQualityMenu, setShowQualityMenu] = useState(false);
+   176→   176→  const [showSpeedMenu, setShowSpeedMenu] = useState(false);
+   177→   177→  const [showSkipIntro, setShowSkipIntro] = useState(false);
+   178→   178→  const [showSkipOutro, setShowSkipOutro] = useState(false);
+   179→   179→  const [seekAnimation, setSeekAnimation] = useState<{ side: 'left' | 'right'; visible: boolean }>({ side: 'left', visible: false });
+   180→   180→
+   181→   181→  // ── Resume key ──────────────────────────────────────────────────────────
+   182→   182→  const resumeKey = `yumeResume_${animeId}_ep${episodeNum}`;
+   183→   183→
+   184→   184→  // ── Auto-hide controls ──────────────────────────────────────────────────
+   185→   185→  const resetControlsTimer = useCallback(() => {
+   186→   186→    setShowControls(true);
+   187→   187→    if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+   188→   188→    controlsTimerRef.current = setTimeout(() => {
+   189→   189→      if (videoRef.current && !videoRef.current.paused) {
+   190→   190→        setShowControls(false);
+   191→   191→        setShowQualityMenu(false);
+   192→   192→        setShowSpeedMenu(false);
+   193→   193→      }
+   194→   194→    }, 3000);
+   195→   195→  }, []);
+   196→   196→
+   197→   197→  // ── Save progress to localStorage ───────────────────────────────────────
+   198→   198→  const saveProgress = useCallback(
+   199→   199→    (time: number, dur: number) => {
+   200→   200→      if (dur > 0 && time > 0) {
+   201→   201→        localStorage.setItem(resumeKey, JSON.stringify({ time, dur, ts: Date.now() }));
+   202→   202→      }
+   203→   203→      onProgress?.(time, dur);
+   204→   204→    },
+   205→   205→    [resumeKey, onProgress],
+   206→   206→  );
+   207→   207→
+   208→   208→  // ── HLS setup ───────────────────────────────────────────────────────────
+   209→   209→  useEffect(() => {
+   210→   210→    const video = videoRef.current;
+   211→   211→    if (!video || !url) return;
+   212→   212→
+   213→   213→    // Cleanup previous
+   214→   214→    if (hlsRef.current) {
+   215→   215→      hlsRef.current.destroy();
+   216→   216→      hlsRef.current = null;
+   217→   217→    }
+   218→   218→
+   219→   219→    // Defer state resets to avoid synchronous setState in effect
+   220→   220→    const resetState = () => {
+   221→   221→      setIsLoading(true);
+   222→   222→      setIsPlaying(false);
+   223→   223→      setCurrentTime(0);
+   224→   224→      setDuration(0);
+   225→   225→      setBuffered(0);
+   226→   226→      setQualityLevels([]);
+   227→   227→      setCurrentQuality(-1);
+   228→   228→    };
+   229→   229→    requestAnimationFrame(resetState);
+   230→   230→
+   231→   231→    const handleFatalError = (details: string) => {
+   232→   232→      // Try to recover if media error
+   233→   233→      if (hlsRef.current) {
+   234→   234→        hlsRef.current.recoverMediaError();
+   235→   235→        // recoverMediaError returns void — schedule a check after a delay
+   236→   236→        setTimeout(() => {
+   237→   237→          if (videoRef.current?.error) {
+   238→   238→            onProviderFailed?.(sourceType);
+   239→   239→          }
+   240→   240→        }, 2000);
+   241→   241→      } else {
+   242→   242→        onProviderFailed?.(sourceType);
+   243→   243→      }
+   244→   244→    };
+   245→   245→
+   246→   246→    // Direct MP4
+   247→   247→    if (sourceType === 'mp4' || url.endsWith('.mp4')) {
+   248→   248→      video.src = url;
+   249→   249→      video.load();
+   250→   250→      if (autoplay) video.play().catch(() => {});
+   251→   251→      return;
+   252→   252→    }
+   253→   253→
+   254→   254→    // Safari / native HLS
+   255→   255→    if (video.canPlayType('application/vnd.apple.mpegurl') && sourceType === 'hls') {
+   256→   256→      video.src = url;
+   257→   257→      video.addEventListener('loadedmetadata', () => {
+   258→   258→        setIsLoading(false);
+   259→   259→        // Resume
+   260→   260→        const saved = localStorage.getItem(resumeKey);
+   261→   261→        if (saved) {
+   262→   262→          try {
+   263→   263→            const { time, dur } = JSON.parse(saved);
+   264→   264→            if (dur > 0 && time > 0 && time < video.duration) {
+   265→   265→              video.currentTime = time;
+   266→   266→            }
+   267→   267→          } catch {}
+   268→   268→        }
+   269→   269→      });
+   270→   270→      if (autoplay) video.play().catch(() => {});
+   271→   271→      return;
+   272→   272→    }
+   273→   273→
+   274→   274→    // hls.js
+   275→   275→    if (!Hls.isSupported()) {
+   276→   276→      onProviderFailed?.(sourceType);
+   277→   277→      return;
+   278→   278→    }
+   279→   279→
+   280→   280→    const hls = new Hls({
+   281→   281→      enableWorker: true,
+   282→   282→      lowLatencyMode: false,
+   283→   283→      progressive: true,
+   284→   284→      startLevel: -1, // auto
+   285→   285→      abrEwmaDefaultEstimate: 3000000,
+   286→   286→      maxBufferLength: 30,
+   287→   287→      maxMaxBufferLength: 60,
+   288→   288→      maxBufferHole: 0.5,
+   289→   289→      backBufferLength: 30,
+   290→   290→    });
+   291→   291→
+   292→   292→    hlsRef.current = hls;
+   293→   293→    hls.loadSource(url);
+   294→   294→    hls.attachMedia(video);
+   295→   295→
+   296→   296→    hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
+   297→   297→      setQualityLevels(data.levels);
+   298→   298→      setIsLoading(false);
+   299→   299→      // Resume from saved
+   300→   300→      const saved = localStorage.getItem(resumeKey);
+   301→   301→      if (saved) {
+   302→   302→        try {
+   303→   303→          const { time, dur } = JSON.parse(saved);
+   304→   304→          if (dur > 0 && time > 0 && time < (video.duration || Infinity)) {
+   305→   305→            video.currentTime = time;
+   306→   306→          }
+   307→   307→        } catch {}
+   308→   308→      }
+   309→   309→      if (autoplay) {
+   310→   310→        video.play().catch(() => {
+   311→   311→          video.muted = true;
+   312→   312→          video.play().catch(() => {});
+   313→   313→        });
+   314→   314→      }
+   315→   315→    });
+   316→   316→
+   317→   317→    hls.on(Hls.Events.LEVEL_SWITCHED, (_e, data) => {
+   318→   318→      setCurrentQuality(data.level);
+   319→   319→    });
+   320→   320→
+   321→   321→    hls.on(Hls.Events.ERROR, (_e, data) => {
+   322→   322→      if (data.fatal) {
+   323→   323→        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+   324→   324→          // Try to recover
+   325→   325→          setTimeout(() => hls.startLoad(), 1500);
+   326→   326→        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+   327→   327→          hls.recoverMediaError();
+   328→   328→        } else {
+   329→   329→          handleFatalError(data.details);
+   330→   330→          hls.destroy();
+   331→   331→          hlsRef.current = null;
+   332→   332→        }
+   333→   333→      }
+   334→   334→    });
+   335→   335→
+   336→   336→    return () => {
+   337→   337→      hls.destroy();
+   338→   338→      hlsRef.current = null;
+   339→   339→    };
+   340→   340→  }, [url, sourceType]);
+   341→   341→
+   342→   342→  // ── Video event listeners ───────────────────────────────────────────────
+   343→   343→  useEffect(() => {
+   344→   344→    const video = videoRef.current;
+   345→   345→    if (!video) return;
+   346→   346→
+   347→   347→    const onPlay = () => { setIsPlaying(true); resetControlsTimer(); };
+   348→   348→    const onPause = () => { setIsPlaying(false); setShowControls(true); };
+   349→   349→    const onTimeUpdate = () => {
+   350→   350→      setCurrentTime(video.currentTime);
+   351→   351→      // Buffered
+   352→   352→      if (video.buffered.length > 0) {
+   353→   353→        setBuffered(video.buffered.end(video.buffered.length - 1));
+   354→   354→      }
+   355→   355→      // Intro / Outro skip buttons
+   356→   356→      if (intro && video.currentTime >= intro.start && video.currentTime < intro.end) {
+   357→   357→        setShowSkipIntro(true);
+   358→   358→        // Auto-skip
+   359→   359→        if (localStorage.getItem('yume_skip_intro') === 'true') {
+   360→   360→          video.currentTime = intro.end;
+   361→   361→          setShowSkipIntro(false);
+   362→   362→        }
+   363→   363→      } else {
+   364→   364→        setShowSkipIntro(false);
+   365→   365→      }
+   366→   366→      if (outro && video.currentTime >= outro.start && video.currentTime < outro.end) {
+   367→   367→        setShowSkipOutro(true);
+   368→   368→      } else {
+   369→   369→        setShowSkipOutro(false);
+   370→   370→      }
+   371→   371→    };
+   372→   372→    const onDurationChange = () => setDuration(video.duration || 0);
+   373→   373→    const onLoadedData = () => setIsLoading(false);
+   374→   374→    const onWaiting = () => setIsLoading(true);
+   375→   375→    const onCanPlay = () => setIsLoading(false);
+   376→   376→    const onEnded = () => {
+   377→   377→      setIsPlaying(false);
+   378→   378→      // Clear resume data
+   379→   379→      localStorage.removeItem(resumeKey);
+   380→   380→      onEnded?.();
+   381→   381→    };
+   382→   382→    const onVolumeChange = () => {
+   383→   383→      setVolume(video.volume);
+   384→   384→      setIsMuted(video.muted);
+   385→   385→    };
+   386→   386→
+   387→   387→    video.addEventListener('play', onPlay);
+   388→   388→    video.addEventListener('pause', onPause);
+   389→   389→    video.addEventListener('timeupdate', onTimeUpdate);
+   390→   390→    video.addEventListener('durationchange', onDurationChange);
+   391→   391→    video.addEventListener('loadeddata', onLoadedData);
+   392→   392→    video.addEventListener('waiting', onWaiting);
+   393→   393→    video.addEventListener('canplay', onCanPlay);
+   394→   394→    video.addEventListener('ended', onEnded);
+   395→   395→    video.addEventListener('volumechange', onVolumeChange);
+   396→   396→
+   397→   397→    return () => {
+   398→   398→      video.removeEventListener('play', onPlay);
+   399→   399→      video.removeEventListener('pause', onPause);
+   400→   400→      video.removeEventListener('timeupdate', onTimeUpdate);
+   401→   401→      video.removeEventListener('durationchange', onDurationChange);
+   402→   402→      video.removeEventListener('loadeddata', onLoadedData);
+   403→   403→      video.removeEventListener('waiting', onWaiting);
+   404→   404→      video.removeEventListener('canplay', onCanPlay);
+   405→   405→      video.removeEventListener('ended', onEnded);
+   406→   406→      video.removeEventListener('volumechange', onVolumeChange);
+   407→   407→    };
+   408→   408→  }, [intro, outro, onEnded, resetControlsTimer, resumeKey]);
+   409→   409→
+   410→   410→  // ── Progress timer (save every 3s) ──────────────────────────────────────
+   411→   411→  useEffect(() => {
+   412→   412→    if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+   413→   413→    progressTimerRef.current = setInterval(() => {
+   414→   414→      const video = videoRef.current;
+   415→   415→      if (video && !video.paused && video.currentTime > 0) {
+   416→   416→        saveProgress(video.currentTime, video.duration || 0);
+   417→   417→      }
+   418→   418→    }, 3000);
+   419→   419→    return () => {
+   420→   420→      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+   421→   421→    };
+   422→   422→  }, [saveProgress]);
+   423→   423→
+   424→   424→  // ── Fullscreen change listener ──────────────────────────────────────────
+   425→   425→  useEffect(() => {
+   426→   426→    const onFsChange = () => {
+   427→   427→      setIsFullscreen(!!document.fullscreenElement);
+   428→   428→    };
+   429→   429→    document.addEventListener('fullscreenchange', onFsChange);
+   430→   430→    return () => document.removeEventListener('fullscreenchange', onFsChange);
+   431→   431→  }, []);
+   432→   432→
+   433→   433→  // ── Click outside quality/speed menu ────────────────────────────────────
+   434→   434→  useEffect(() => {
+   435→   435→    const handleClick = (e: globalThis.MouseEvent) => {
+   436→   436→      const target = e.target as HTMLElement;
+   437→   437→      if (!target.closest('.quality-menu') && !target.closest('.quality-btn')) {
+   438→   438→        setShowQualityMenu(false);
+   439→   439→      }
+   440→   440→      if (!target.closest('.speed-menu') && !target.closest('.speed-btn')) {
+   441→   441→        setShowSpeedMenu(false);
+   442→   442→      }
+   443→   443→    };
+   444→   444→    document.addEventListener('mousedown', handleClick);
+   445→   445→    return () => document.removeEventListener('mousedown', handleClick);
+   446→   446→  }, []);
+   447→   447→
+   448→   448→  // ── Handlers ────────────────────────────────────────────────────────────
+   449→   449→  const togglePlay = useCallback(() => {
+   450→   450→    const video = videoRef.current;
+   451→   451→    if (!video) return;
+   452→   452→    if (video.paused) {
+   453→   453→      video.play().catch(() => {});
+   454→   454→    } else {
+   455→   455→      video.pause();
+   456→   456→    }
+   457→   457→    resetControlsTimer();
+   458→   458→  }, [resetControlsTimer]);
+   459→   459→
+   460→   460→  const seek = useCallback((delta: number) => {
+   461→   461→    const video = videoRef.current;
+   462→   462→    if (!video) return;
+   463→   463→    video.currentTime = clamp(video.currentTime + delta, 0, video.duration || 0);
+   464→   464→    resetControlsTimer();
+   465→   465→  }, [resetControlsTimer]);
+   466→   466→
+   467→   467→  const seekTo = useCallback(
+   468→   468→    (time: number) => {
+   469→   469→      const video = videoRef.current;
+   470→   470→      if (!video) return;
+   471→   471→      video.currentTime = clamp(time, 0, video.duration || 0);
+   472→   472→      resetControlsTimer();
+   473→   473→    },
+   474→   474→    [resetControlsTimer],
+   475→   475→  );
+   476→   476→
+   477→   477→  const toggleMute = useCallback(() => {
+   478→   478→    const video = videoRef.current;
+   479→   479→    if (!video) return;
+   480→   480→    video.muted = !video.muted;
+   481→   481→    resetControlsTimer();
+   482→   482→  }, [resetControlsTimer]);
+   483→   483→
+   484→   484→  const changeVolume = useCallback(
+   485→   485→    (v: number) => {
+   486→   486→      const video = videoRef.current;
+   487→   487→      if (!video) return;
+   488→   488→      video.volume = clamp(v, 0, 1);
+   489→   489→      if (video.muted && v > 0) video.muted = false;
+   490→   490→      resetControlsTimer();
+   491→   491→    },
+   492→   492→    [resetControlsTimer],
+   493→   493→  );
+   494→   494→
+   495→   495→  const changeSpeed = useCallback(
+   496→   496→    (rate: number) => {
+   497→   497→      const video = videoRef.current;
+   498→   498→      if (!video) return;
+   499→   499→      video.playbackRate = rate;
+   500→   500→      setPlaybackRate(rate);
+   501→   501→      setShowSpeedMenu(false);
+   502→   502→      resetControlsTimer();
+   503→   503→    },
+   504→   504→    [resetControlsTimer],
+   505→   505→  );
+   506→   506→
+   507→   507→  const changeQuality = useCallback(
+   508→   508→    (level: number) => {
+   509→   509→      if (!hlsRef.current) return;
+   510→   510→      hlsRef.current.currentLevel = level;
+   511→   511→      setCurrentQuality(level);
+   512→   512→      setShowQualityMenu(false);
+   513→   513→      resetControlsTimer();
+   514→   514→    },
+   515→   515→    [resetControlsTimer],
+   516→   516→  );
+   517→   517→
+   518→   518→  const toggleFullscreen = useCallback(() => {
+   519→   519→    const container = containerRef.current;
+   520→   520→    if (!container) return;
+   521→   521→    if (document.fullscreenElement) {
+   522→   522→      document.exitFullscreen().catch(() => {});
+   523→   523→    } else {
+   524→   524→      container.requestFullscreen().catch(() => {});
+   525→   525→    }
+   526→   526→    resetControlsTimer();
+   527→   527→  }, [resetControlsTimer]);
+   528→   528→
+   529→   529→  const skipIntro = useCallback(() => {
+   530→   530→    if (intro) seekTo(intro.end);
+   531→   531→  }, [intro, seekTo]);
+   532→   532→
+   533→   533→  const skipOutro = useCallback(() => {
+   534→   534→    if (outro) seekTo(outro.end);
+   535→   535→  }, [outro, seekTo]);
+   536→   536→
+   537→   537→  // ── Progress bar interaction ────────────────────────────────────────────
+   538→   538→  const progressBarRef = useRef<HTMLDivElement>(null);
+   539→   539→
+   540→   540→  const handleProgressClick = useCallback(
+   541→   541→    (e: ReactMouseEvent<HTMLDivElement>) => {
+   542→   542→      const bar = progressBarRef.current;
+   543→   543→      const video = videoRef.current;
+   544→   544→      if (!bar || !video) return;
+   545→   545→      const rect = bar.getBoundingClientRect();
+   546→   546→      const ratio = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+   547→   547→      video.currentTime = ratio * (video.duration || 0);
+   548→   548→      resetControlsTimer();
+   549→   549→    },
+   550→   550→    [resetControlsTimer],
+   551→   551→  );
+   552→   552→
+   553→   553→  // ── Double-tap to seek (mobile) ─────────────────────────────────────────
+   554→   554→  const handleVideoTap = useCallback(
+   555→   555→    (e: ReactMouseEvent<HTMLDivElement>) => {
+   556→   556→      const now = Date.now();
+   557→   557→      const rect = containerRef.current?.getBoundingClientRect();
+   558→   558→      if (!rect) return;
+   559→   559→      const x = e.clientX - rect.left;
+   560→   560→      const half = rect.width / 2;
+   561→   561→      const side: 'left' | 'right' = x < half ? 'left' : 'right';
+   562→   562→
+   563→   563→      if (now - lastTapRef.current.time < 300) {
+   564→   564→        // Double tap
+   565→   565→        if (side === 'left') {
+   566→   566→          seek(-10);
+   567→   567→          setSeekAnimation({ side: 'left', visible: true });
+   568→   568→        } else {
+   569→   569→          seek(10);
+   570→   570→          setSeekAnimation({ side: 'right', visible: true });
+   571→   571→        }
+   572→   572→        if (seekAnimRef.current.timeout) clearTimeout(seekAnimRef.current.timeout);
+   573→   573→        seekAnimRef.current.timeout = setTimeout(() => {
+   574→   574→          setSeekAnimation((prev) => ({ ...prev, visible: false }));
+   575→   575→        }, 600);
+   576→   576→        tapCountRef.current = 0;
+   577→   577→        lastTapRef.current = { time: 0, x: 0 };
+   578→   578→      } else {
+   579→   579→        // First tap — wait for potential second tap
+   580→   580→        lastTapRef.current = { time: now, x };
+   581→   581→        tapCountRef.current = 1;
+   582→   582→        if (doubleTapTimerRef.current) clearTimeout(doubleTapTimerRef.current);
+   583→   583→        doubleTapTimerRef.current = setTimeout(() => {
+   584→   584→          if (tapCountRef.current === 1) {
+   585→   585→            togglePlay();
+   586→   586→          }
+   587→   587→          tapCountRef.current = 0;
+   588→   588→        }, 300);
+   589→   589→      }
+   590→   590→    },
+   591→   591→    [seek, togglePlay],
+   592→   592→  );
+   593→   593→
+   594→   594→  // ── Right-click to skip 10s (desktop) ───────────────────────────────────
+   595→   595→  const handleContextMenu = useCallback(
+   596→   596→    (e: ReactMouseEvent<HTMLDivElement>) => {
+   597→   597→      e.preventDefault();
+   598→   598→      seek(10);
+   599→   599→    },
+   600→   600→    [seek],
+   601→   601→  );
+   602→   602→
+   603→   603→  // ── Keyboard shortcuts ──────────────────────────────────────────────────
+   604→   604→  useEffect(() => {
+   605→   605→    const handleKey = (e: globalThis.KeyboardEvent) => {
+   606→   606→      // Only handle if player is focused / visible
+   607→   607→      if (!containerRef.current?.contains(document.activeElement) && document.activeElement !== document.body) return;
+   608→   608→      switch (e.key) {
+   609→   609→        case ' ':
+   610→   610→        case 'k':
+   611→   611→          e.preventDefault();
+   612→   612→          togglePlay();
+   613→   613→          break;
+   614→   614→        case 'ArrowLeft':
+   615→   615→          e.preventDefault();
+   616→   616→          seek(-10);
+   617→   617→          break;
+   618→   618→        case 'ArrowRight':
+   619→   619→          e.preventDefault();
+   620→   620→          seek(10);
+   621→   621→          break;
+   622→   622→        case 'ArrowUp':
+   623→   623→          e.preventDefault();
+   624→   624→          changeVolume(volume + 0.1);
+   625→   625→          break;
+   626→   626→        case 'ArrowDown':
+   627→   627→          e.preventDefault();
+   628→   628→          changeVolume(volume - 0.1);
+   629→   629→          break;
+   630→   630→        case 'f':
+   631→   631→          e.preventDefault();
+   632→   632→          toggleFullscreen();
+   633→   633→          break;
+   634→   634→        case 'm':
+   635→   635→          e.preventDefault();
+   636→   636→          toggleMute();
+   637→   637→          break;
+   638→   638→      }
+   639→   639→    };
+   640→   640→    window.addEventListener('keydown', handleKey);
+   641→   641→    return () => window.removeEventListener('keydown', handleKey);
+   642→   642→  }, [togglePlay, seek, changeVolume, toggleFullscreen, toggleMute, volume]);
+   643→   643→
+   644→   644→  // ── Cleanup on unmount ──────────────────────────────────────────────────
+   645→   645→  useEffect(() => {
+   646→   646→    return () => {
+   647→   647→      if (controlsTimerRef.current) clearTimeout(controlsTimerRef.current);
+   648→   648→      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+   649→   649→      if (doubleTapTimerRef.current) clearTimeout(doubleTapTimerRef.current);
+   650→   650→      if (seekAnimRef.current.timeout) clearTimeout(seekAnimRef.current.timeout);
+   651→   651→    };
+   652→   652→  }, []);
+   653→   653→
+   654→   654→  // ── Computed ────────────────────────────────────────────────────────────
+   655→   655→  const progressRatio = duration > 0 ? currentTime / duration : 0;
+   656→   656→  const bufferRatio = duration > 0 ? buffered / duration : 0;
+   657→   657→  const introStart = intro && duration > 0 ? (intro.start / duration) * 100 : 0;
+   658→   658→  const introEnd = intro && duration > 0 ? (intro.end / duration) * 100 : 0;
+   659→   659→  const outroStart = outro && duration > 0 ? (outro.start / duration) * 100 : 0;
+   660→   660→  const outroEnd = outro && duration > 0 ? (outro.end / duration) * 100 : 0;
+   661→   661→  const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+   662→   662→
+   663→   663→  const volumeIcon =
+   664→   664→    isMuted || volume === 0 ? (
+   665→   665→      <VolumeMuteIcon className="w-5 h-5" />
+   666→   666→    ) : volume < 0.5 ? (
+   667→   667→      <VolumeDownIcon className="w-5 h-5" />
+   668→   668→    ) : (
+   669→   669→      <VolumeUpIcon className="w-5 h-5" />
+   670→   670→    );
+   671→   671→
+   672→   672→  // ─── RENDER ─────────────────────────────────────────────────────────────
+   673→   673→  return (
+   674→   674→    <div
+   675→   675→      ref={containerRef}
+   676→   676→      className="relative w-full select-none overflow-hidden rounded-lg"
+   677→   677→      style={{ background: '#0a0a0f', aspectRatio: '16 / 9' }}
+   678→   678→      onMouseMove={resetControlsTimer}
+   679→   679→      onMouseLeave={() => {
+   680→   680→        if (isPlaying) setShowControls(false);
+   681→   681→      }}
+   682→   682→      onClick={handleVideoTap}
+   683→   683→      onContextMenu={handleContextMenu}
+   684→   684→      tabIndex={0}
+   685→   685→    >
+   686→   686→      {/* Video */}
+   687→   687→      <video
+   688→   688→        ref={videoRef}
+   689→   689→        className="absolute inset-0 w-full h-full object-contain"
+   690→   690→        style={{ background: '#0a0a0f' }}
+   691→   691→        playsInline
+   692→   692→        preload="metadata"
+   693→   693→      />
+   694→   694→
+   695→   695→      {/* Loading spinner */}
+   696→   696→      {isLoading && <LoadingSpinner />}
+   697→   697→
+   698→   698→      {/* Seek animation overlay (double-tap feedback) */}
+   699→   699→      {seekAnimation.visible && (
+   700→   700→        <div
+   701→   701→          className="absolute top-0 bottom-0 w-1/3 flex items-center justify-center z-20 pointer-events-none"
+   702→   702→          style={{
+   703→   703→            left: seekAnimation.side === 'left' ? 0 : undefined,
+   704→   704→            right: seekAnimation.side === 'right' ? 0 : undefined,
+   705→   705→            background:
+   706→   706→              seekAnimation.side === 'left'
+   707→   707→                ? 'linear-gradient(to right, rgba(139,92,246,0.25), transparent)'
+   708→   708→                : 'linear-gradient(to left, rgba(139,92,246,0.25), transparent)',
+   709→   709→          }}
+   710→   710→        >
+   711→   711→          <div className="flex flex-col items-center">
+   712→   712→            {seekAnimation.side === 'left' ? (
+   713→   713→              <SkipBackIcon className="w-10 h-10 text-white" />
+   714→   714→            ) : (
+   715→   715→              <SkipForwardIcon className="w-10 h-10 text-white" />
+   716→   716→            )}
+   717→   717→            <span className="text-white text-sm font-medium mt-1">
+   718→   718→              {seekAnimation.side === 'left' ? '-10s' : '+10s'}
+   719→   719→            </span>
+   720→   720→          </div>
+   721→   721→        </div>
+   722→   722→      )}
+   723→   723→
+   724→   724→      {/* Center play button (when paused) */}
+   725→   725→      {!isPlaying && !isLoading && (
+   726→   726→        <button
+   727→   727→          className="absolute inset-0 flex items-center justify-center z-10 bg-black/30 cursor-pointer"
+   728→   728→          onClick={(e) => {
+   729→   729→            e.stopPropagation();
+   730→   730→            togglePlay();
+   731→   731→          }}
+   732→   732→          aria-label="Play"
+   733→   733→        >
+   734→   734→          <div
+   735→   735→            className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center transition-transform duration-150 hover:scale-110"
+   736→   736→            style={{ background: 'rgba(139, 92, 246, 0.85)' }}
+   737→   737→          >
+   738→   738→            <PlayIcon className="w-8 h-8 sm:w-10 sm:h-10 text-white ml-1" />
+   739→   739→          </div>
+   740→   740→        </button>
+   741→   741→      )}
+   742→   742→
+   743→   743→      {/* Skip Intro / Outro button */}
+   744→   744→      {(showSkipIntro || showSkipOutro) && (
+   745→   745→        <button
+   746→   746→          className="absolute bottom-20 sm:bottom-24 left-1/2 -translate-x-1/2 z-30 px-5 py-2.5 rounded-lg text-white font-semibold text-sm sm:text-base cursor-pointer transition-all duration-150 hover:scale-105 hover:brightness-110"
+   747→   747→          style={{ background: '#8B5CF6' }}
+   748→   748→          onClick={(e) => {
+   749→   749→            e.stopPropagation();
+   750→   750→            if (showSkipIntro) skipIntro();
+   751→   751→            if (showSkipOutro) skipOutro();
+   752→   752→          }}
+   753→   753→        >
+   754→   754→          {showSkipIntro ? 'Skip Intro' : 'Skip Outro'}
+   755→   755→        </button>
+   756→   756→      )}
+   757→   757→
+   758→   758→      {/* ─── CONTROLS ─────────────────────────────────────────────────────── */}
+   759→   759→      <div
+   760→   760→        className="absolute inset-x-0 bottom-0 z-20 transition-opacity duration-300"
+   761→   761→        style={{
+   762→   762→          opacity: showControls ? 1 : 0,
+   763→   763→          pointerEvents: showControls ? 'auto' : 'none',
+   764→   764→          background: 'linear-gradient(to top, rgba(10,10,15,0.92) 0%, rgba(10,10,15,0.6) 60%, transparent 100%)',
+   765→   765→          backdropFilter: 'blur(4px)',
+   766→   766→        }}
+   767→   767→        onClick={(e) => e.stopPropagation()}
+   768→   768→      >
+   769→   769→        {/* Progress bar */}
+   770→   770→        <div className="px-3 sm:px-4 pt-6 pb-1">
+   771→   771→          <div
+   772→   772→            ref={progressBarRef}
+   773→   773→            className="relative w-full h-1.5 sm:h-2 rounded-full cursor-pointer group"
+   774→   774→            style={{ background: 'rgba(255,255,255,0.15)' }}
+   775→   775→            onClick={handleProgressClick}
+   776→   776→          >
+   777→   777→            {/* Intro segment marker */}
+   778→   778→            {intro && duration > 0 && (
+   779→   779→              <div
+   780→   780→                className="absolute top-0 bottom-0 rounded-full"
+   781→   781→                style={{
+   782→   782→                  left: `${introStart}%`,
+   783→   783→                  width: `${introEnd - introStart}%`,
+   784→   784→                  background: 'rgba(251, 191, 36, 0.35)',
+   785→   785→                }}
+   786→   786→              />
+   787→   787→            )}
+   788→   788→            {/* Outro segment marker */}
+   789→   789→            {outro && duration > 0 && (
+   790→   790→              <div
+   791→   791→                className="absolute top-0 bottom-0 rounded-full"
+   792→   792→                style={{
+   793→   793→                  left: `${outroStart}%`,
+   794→   794→                  width: `${outroEnd - outroStart}%`,
+   795→   795→                  background: 'rgba(239, 68, 68, 0.35)',
+   796→   796→                }}
+   797→   797→              />
+   798→   798→            )}
+   799→   799→            {/* Buffer */}
+   800→   800→            <div
+   801→   801→              className="absolute top-0 left-0 h-full rounded-full transition-[width] duration-150"
+   802→   802→              style={{
+   803→   803→                width: `${bufferRatio * 100}%`,
+   804→   804→                background: 'rgba(139, 92, 246, 0.3)',
+   805→   805→              }}
+   806→   806→            />
+   807→   807→            {/* Played */}
+   808→   808→            <div
+   809→   809→              className="absolute top-0 left-0 h-full rounded-full transition-[width] duration-150"
+   810→   810→              style={{
+   811→   811→                width: `${progressRatio * 100}%`,
+   812→   812→                background: '#8B5CF6',
+   813→   813→              }}
+   814→   814→            />
+   815→   815→            {/* Thumb */}
+   816→   816→            <div
+   817→   817→              className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none"
+   818→   818→              style={{
+   819→   819→                left: `${progressRatio * 100}%`,
+   820→   820→                transform: `translate(-50%, -50%)`,
+   821→   821→                background: '#8B5CF6',
+   822→   822→                boxShadow: '0 0 6px rgba(139,92,246,0.6)',
+   823→   823→              }}
+   824→   824→            />
+   825→   825→            {/* Hover time preview */}
+   826→   826→          </div>
+   827→   827→        </div>
+   828→   828→
+   829→   829→        {/* Bottom controls row */}
+   830→   830→        <div className="flex items-center gap-1 sm:gap-2 px-3 sm:px-4 pb-3 pt-1">
+   831→   831→          {/* Play/Pause */}
+   832→   832→          <button
+   833→   833→            className="p-1.5 sm:p-2 rounded-md text-white/90 hover:text-white transition-colors duration-150 cursor-pointer"
+   834→   834→            onClick={togglePlay}
+   835→   835→            aria-label={isPlaying ? 'Pause' : 'Play'}
+   836→   836→          >
+   837→   837→            {isPlaying ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
+   838→   838→          </button>
+   839→   839→
+   840→   840→          {/* Skip back 10s */}
+   841→   841→          <button
+   842→   842→            className="p-1.5 sm:p-2 rounded-md text-white/70 hover:text-white transition-colors duration-150 cursor-pointer hidden sm:block"
+   843→   843→            onClick={() => seek(-10)}
+   844→   844→            aria-label="Skip back 10 seconds"
+   845→   845→          >
+   846→   846→            <SkipBackIcon className="w-5 h-5" />
+   847→   847→          </button>
+   848→   848→
+   849→   849→          {/* Skip forward 10s */}
+   850→   850→          <button
+   851→   851→            className="p-1.5 sm:p-2 rounded-md text-white/70 hover:text-white transition-colors duration-150 cursor-pointer hidden sm:block"
+   852→   852→            onClick={() => seek(10)}
+   853→   853→            aria-label="Skip forward 10 seconds"
+   854→   854→          >
+   855→   855→            <SkipForwardIcon className="w-5 h-5" />
+   856→   856→          </button>
+   857→   857→
+   858→   858→          {/* Volume */}
+   859→   859→          <div className="flex items-center gap-1 group/vol">
+   860→   860→            <button
+   861→   861→              className="p-1.5 sm:p-2 rounded-md text-white/70 hover:text-white transition-colors duration-150 cursor-pointer"
+   862→   862→              onClick={toggleMute}
+   863→   863→              aria-label={isMuted ? 'Unmute' : 'Mute'}
+   864→   864→            >
+   865→   865→              {volumeIcon}
+   866→   866→            </button>
+   867→   867→            <div className="w-0 overflow-hidden group-hover/vol:w-20 transition-all duration-150 hidden sm:block">
+   868→   868→              <input
+   869→   869→                type="range"
+   870→   870→                min={0}
+   871→   871→                max={1}
+   872→   872→                step={0.05}
+   873→   873→                value={isMuted ? 0 : volume}
+   874→   874→                onChange={(e) => changeVolume(parseFloat(e.target.value))}
+   875→   875→                className="w-full h-1 appearance-none rounded-full cursor-pointer"
+   876→   876→                style={{
+   877→   877→                  background: `linear-gradient(to right, #8B5CF6 ${(isMuted ? 0 : volume) * 100}%, rgba(255,255,255,0.2) ${(isMuted ? 0 : volume) * 100}%)`,
+   878→   878→                }}
+   879→   879→                aria-label="Volume"
+   880→   880→              />
+   881→   881→            </div>
+   882→   882→          </div>
+   883→   883→
+   884→   884→          {/* Time */}
+   885→   885→          <span className="text-xs sm:text-sm text-white/70 font-mono tabular-nums ml-1">
+   886→   886→            {formatTime(currentTime)}{' '}
+   887→   887→            <span className="text-white/40">/</span>{' '}
+   888→   888→            {formatTime(duration)}
+   889→   889→          </span>
+   890→   890→
+   891→   891→          {/* Spacer */}
+   892→   892→          <div className="flex-1" />
+   893→   893→
+   894→   894→          {/* Speed */}
+   895→   895→          <div className="relative">
+   896→   896→            <button
+   897→   897→              className="speed-btn p-1.5 sm:p-2 rounded-md text-white/70 hover:text-white transition-colors duration-150 cursor-pointer flex items-center gap-1"
+   898→   898→              onClick={() => {
+   899→   899→                setShowSpeedMenu((v) => !v);
+   900→   900→                setShowQualityMenu(false);
+   901→   901→              }}
+   902→   902→              aria-label="Playback speed"
+   903→   903→            >
+   904→   904→              <span className="text-xs font-medium">{playbackRate}x</span>
+   905→   905→            </button>
+   906→   906→            {showSpeedMenu && (
+   907→   907→              <div
+   908→   908→                className="speed-menu absolute bottom-full right-0 mb-2 py-1 rounded-lg shadow-xl min-w-[100px] overflow-hidden"
+   909→   909→                style={{ background: 'rgba(10, 10, 15, 0.95)', backdropFilter: 'blur(8px)' }}
+   910→   910→              >
+   911→   911→                {speeds.map((s) => (
+   912→   912→                  <button
+   913→   913→                    key={s}
+   914→   914→                    className={`w-full px-4 py-2 text-left text-sm transition-colors duration-150 cursor-pointer ${
+   915→   915→                      playbackRate === s ? 'text-white font-semibold' : 'text-white/60 hover:text-white/90'
+   916→   916→                    }`}
+   917→   917→                    style={playbackRate === s ? { background: 'rgba(139,92,246,0.2)' } : {}}
+   918→   918→                    onClick={() => changeSpeed(s)}
+   919→   919→                  >
+   920→   920→                    {s}x
+   921→   921→                  </button>
+   922→   922→                ))}
+   923→   923→              </div>
+   924→   924→            )}
+   925→   925→          </div>
+   926→   926→
+   927→   927→          {/* Quality */}
+   928→   928→          {qualityLevels.length > 1 && (
+   929→   929→            <div className="relative">
+   930→   930→              <button
+   931→   931→                className="quality-btn p-1.5 sm:p-2 rounded-md text-white/70 hover:text-white transition-colors duration-150 cursor-pointer"
+   932→   932→                onClick={() => {
+   933→   933→                  setShowQualityMenu((v) => !v);
+   934→   934→                  setShowSpeedMenu(false);
+   935→   935→                }}
+   936→   936→                aria-label="Quality"
+   937→   937→              >
+   938→   938→                <SettingsIcon className="w-4 h-4 sm:w-5 sm:h-5" />
+   939→   939→              </button>
+   940→   940→              {showQualityMenu && (
+   941→   941→                <div
+   942→   942→                  className="quality-menu absolute bottom-full right-0 mb-2 py-1 rounded-lg shadow-xl min-w-[140px] overflow-hidden"
+   943→   943→                  style={{ background: 'rgba(10, 10, 15, 0.95)', backdropFilter: 'blur(8px)' }}
+   944→   944→                >
+   945→   945→                  <button
+   946→   946→                    className={`w-full px-4 py-2 text-left text-sm transition-colors duration-150 cursor-pointer ${
+   947→   947→                      currentQuality === -1 ? 'text-white font-semibold' : 'text-white/60 hover:text-white/90'
+   948→   948→                    }`}
+   949→   949→                    style={currentQuality === -1 ? { background: 'rgba(139,92,246,0.2)' } : {}}
+   950→   950→                    onClick={() => changeQuality(-1)}
+   951→   951→                  >
+   952→   952→                    Auto
+   953→   953→                  </button>
+   954→   954→                  {qualityLevels.map((lvl, idx) => (
+   955→   955→                    <button
+   956→   956→                      key={idx}
+   957→   957→                      className={`w-full px-4 py-2 text-left text-sm transition-colors duration-150 cursor-pointer ${
+   958→   958→                        currentQuality === idx ? 'text-white font-semibold' : 'text-white/60 hover:text-white/90'
+   959→   959→                      }`}
+   960→   960→                      style={currentQuality === idx ? { background: 'rgba(139,92,246,0.2)' } : {}}
+   961→   961→                      onClick={() => changeQuality(idx)}
+   962→   962→                    >
+   963→   963→                      {lvl.height}p
+   964→   964→                      {lvl.bitrate ? ` (${Math.round(lvl.bitrate / 1000)}k)` : ''}
+   965→   965→                    </button>
+   966→   966→                  ))}
+   967→   967→                </div>
+   968→   968→              )}
+   969→   969→            </div>
+   970→   970→          )}
+   971→   971→
+   972→   972→          {/* Fullscreen */}
+   973→   973→          <button
+   974→   974→            className="p-1.5 sm:p-2 rounded-md text-white/70 hover:text-white transition-colors duration-150 cursor-pointer"
+   975→   975→            onClick={toggleFullscreen}
+   976→   976→            aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+   977→   977→          >
+   978→   978→            {isFullscreen ? (
+   979→   979→              <FullscreenExitIcon className="w-5 h-5" />
+   980→   980→            ) : (
+   981→   981→              <FullscreenIcon className="w-5 h-5" />
+   982→   982→            )}
+   983→   983→          </button>
+   984→   984→        </div>
+   985→   985→      </div>
+   986→   986→
+   987→   987→      {/* Top gradient for skip intro/outro visibility */}
+   988→   988→      {showControls && (
+   989→   989→        <div
+   990→   990→          className="absolute inset-x-0 top-0 h-16 z-10 pointer-events-none transition-opacity duration-300"
+   991→   991→          style={{
+   992→   992→            background: 'linear-gradient(to bottom, rgba(10,10,15,0.5), transparent)',
+   993→   993→          }}
+   994→   994→        />
+   995→   995→      )}
+   996→   996→    </div>
+   997→   997→  );
+   998→   998→}
+   999→   999→

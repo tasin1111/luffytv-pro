@@ -184,8 +184,9 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      trending: [],
-      recent: [],
+      trending: trendingData,
+      popular: popularData,
+      recent: recentData,
       miruroTrending: trendingData,
       miruroPopular: popularData,
       miruroRecent: recentData,
@@ -199,6 +200,7 @@ export async function GET(request: NextRequest) {
     console.error("[home] Error:", error);
     return NextResponse.json({
       trending: [],
+      popular: [],
       recent: [],
       miruroTrending: [],
       miruroPopular: [],

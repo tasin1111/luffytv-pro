@@ -152,6 +152,7 @@ export default function HLSPlayerNew({
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const controlsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const doubleTapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -233,7 +234,7 @@ export default function HLSPlayerNew({
       if (hlsRef.current) {
         hlsRef.current.recoverMediaError();
         // recoverMediaError returns void — schedule a check after a delay
-        setTimeout(() => {
+        retryTimeoutRef.current = setTimeout(() => {
           if (videoRef.current?.error) {
             onProviderFailed?.(sourceType);
           }
@@ -322,7 +323,7 @@ export default function HLSPlayerNew({
       if (data.fatal) {
         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
           // Try to recover
-          setTimeout(() => hls.startLoad(), 1500);
+          retryTimeoutRef.current = setTimeout(() => hls.startLoad(), 1500);
         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
           hls.recoverMediaError();
         } else {
@@ -334,6 +335,7 @@ export default function HLSPlayerNew({
     });
 
     return () => {
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
       hls.destroy();
       hlsRef.current = null;
     };

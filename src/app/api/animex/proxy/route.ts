@@ -224,7 +224,7 @@ export async function GET(request: NextRequest) {
       if (text.includes("<!DOCTYPE") || text.includes("<html")) {
         return NextResponse.json(
           { error: "Got HTML instead of m3u8 — upstream blocked", url: targetUrl },
-          { status: 502 }
+          { status: 502, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*" } }
         );
       }
 
@@ -242,10 +242,28 @@ export async function GET(request: NextRequest) {
           },
         });
       }
-      // Not HLS text — fall through to segment handling below
+      // Not HLS text — convert text back to buffer for segment handling below
+      // (body was already consumed by res.text(), so we reuse the text content)
+      let data: Buffer = Buffer.from(text, "utf-8") as Buffer;
+      const upstreamContentType = res.headers.get("content-type") || "";
+      // Detect TS data
+      let responseContentType = upstreamContentType;
+      if (data.length > 4 && data[0] === 0x47) {
+        responseContentType = "video/mp2t";
+      } else {
+        responseContentType = "video/mp2t"; // fallback
+      }
+      return new NextResponse(new Uint8Array(data), {
+        headers: {
+          "Content-Type": responseContentType,
+          "Cache-Control": "public, max-age=300",
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Headers": "*",
+        },
+      });
     }
 
-    // For segments (TS data) or MP4 (mochi)
+    // For segments (TS data) or MP4 (mochi/neko)
     const arrayBuf = await res.arrayBuffer();
     let data: Buffer = Buffer.from(arrayBuf) as Buffer;
     const upstreamContentType = res.headers.get("content-type") || "";
@@ -284,13 +302,9 @@ export async function GET(request: NextRequest) {
     else if (responseContentType.includes("mpegurl") || responseContentType.includes("mpeg")) {
       responseContentType = "video/mp2t";
     }
-    // Default to TS if still ambiguous
+    // Default to TS for ambiguous content
     if (!responseContentType.includes("mp4") && !responseContentType.includes("mp2t") && !responseContentType.includes("mpeg")) {
-      if (data.length > 4 && data[0] === 0x47) {
-        responseContentType = "video/mp2t";
-      } else {
-        responseContentType = "video/mp2t";
-      }
+      responseContentType = "video/mp2t";
     }
 
     return new NextResponse(new Uint8Array(data), {

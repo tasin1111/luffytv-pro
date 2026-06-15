@@ -276,7 +276,7 @@ export async function getAtsuChapterImages(mangaId: string, chapterId: string): 
       .map((page: any, i: number) => {
         const img = page?.image;
         if (!img) return null;
-        const url = img.startsWith("/") ? `${ATSU_BASE}${img}` : `${ATSU_BASE}/${img}`;
+        const url = img.startsWith("http") ? img : img.startsWith("/") ? `${ATSU_BASE}${img}` : `${ATSU_BASE}/${img}`;
         return { index: i, url };
       })
       .filter(Boolean) as AtsuChapterPage[];
