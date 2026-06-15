@@ -64,24 +64,8 @@ export async function GET(req: NextRequest) {
     const epData = await miruroEpisodes(anilistId);
     const providersMap = epData.providersMap || {};
 
-    // Step 2: Handle Zoro/Megaplay specially (YumeZone approach)
-    // Zoro uses direct embed: megaplay.buzz/stream/ani/{anilistId}/{ep}/{lang}
-    if (provider === "zoro") {
-      const lang = translationType === "dub" ? "dub" : "sub";
-      const embedUrl = `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNum}/${lang}`;
-      return NextResponse.json({
-        video_link: embedUrl,
-        source_type: "embed",
-        embed_sources: [{ url: embedUrl, quality: "default", label: "Megaplay (Embed)", type: "embed" }],
-        hls_sources: [],
-        video_sources: [],
-        subtitle_tracks: [],
-        intro: null,
-        outro: null,
-        provider: "zoro",
-        available_qualities: [],
-      });
-    }
+    // Step 2: Skip Zoro/Megaplay — embeds are unreliable (frequent 410 Gone errors)
+    // Instead, try the next available HLS provider
 
     // Step 3: Determine which provider to use
     let activeProvider = provider;
@@ -179,22 +163,24 @@ export async function GET(req: NextRequest) {
     }
 
     if (!result || result.sources.length === 0) {
-      // All HLS providers exhausted — try Zoro/Megaplay embed as last resort
-      const lang = translationType === "dub" ? "dub" : "sub";
-      const embedUrl = `https://megaplay.buzz/stream/ani/${anilistId}/${episodeNum}/${lang}`;
+      // All providers failed — return error instead of unreliable Megaplay embed
+      // (Megaplay embeds frequently return 410 Gone)
       return NextResponse.json({
-        video_link: embedUrl,
-        source_type: "embed",
-        embed_sources: [{ url: embedUrl, quality: "default", label: "Megaplay (Embed)", type: "embed" }],
+        error: "No working stream found for this episode. Try a different server.",
+        video_link: "",
+        source_type: "hls",
         hls_sources: [],
+        embed_sources: [],
         video_sources: [],
         subtitle_tracks: [],
         intro: null,
         outro: null,
-        provider: "zoro",
+        provider: activeProvider,
         available_qualities: [],
+        tried_providers: triedProviders,
+        all_providers: Object.keys(providersMap),
         _fallback: true,
-      });
+      }, { status: 404 });
     }
 
     // Step 5: Separate sources into HLS and embed, route through proxy (YumeZone logic)

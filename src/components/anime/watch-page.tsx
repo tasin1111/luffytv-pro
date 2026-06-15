@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAppStore } from "./store";
 import HLSPlayerNew from "./hls-player-new";
 import { getProviderDisplayName } from "@/lib/miruro-api";
@@ -74,6 +74,137 @@ interface RelationAnime {
 
 type ContentTab = "episodes" | "info" | "relations";
 type EpisodeSortOrder = "asc" | "desc";
+
+// ── Embed Player with auto-fallback on 410/dead links ──
+// If the embed source returns a dead page (410 Gone, etc.), shows a "switch server" overlay
+function EmbedPlayerWithFallback({
+  src,
+  animeTitle,
+  episodeNum,
+  provider,
+  providersForCurrentEp,
+  failedProviders,
+  onProviderFailed,
+  onProviderSelect,
+  getProviderDisplayName,
+}: {
+  src: string;
+  animeTitle: string;
+  episodeNum: number;
+  provider: string;
+  providersForCurrentEp: string[];
+  failedProviders: Set<string>;
+  onProviderFailed: (p: string) => void;
+  onProviderSelect: (p: string) => void;
+  getProviderDisplayName: (p: string) => string;
+}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [embedFailed, setEmbedFailed] = useState(false);
+  const [showServerOverlay, setShowServerOverlay] = useState(false);
+
+  // Detect iframe load failure — embed sources often return 410 Gone
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      // After 8 seconds, if iframe loaded but content might be dead,
+      // show the switch server button as a floating hint
+      setShowServerOverlay(true);
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [src]);
+
+  const handleIframeLoad = useCallback(() => {
+    // We can't read iframe content due to cross-origin, but we can
+    // check if the URL might be a dead embed by doing a HEAD request
+    try {
+      fetch(src, { method: "HEAD", mode: "no-cors" }).catch(() => {});
+    } catch {}
+  }, [src]);
+
+  const handleEmbedError = useCallback(() => {
+    setEmbedFailed(true);
+    onProviderFailed(provider);
+  }, [provider, onProviderFailed]);
+
+  const otherProviders = providersForCurrentEp.filter(
+    p => p !== provider && !failedProviders.has(p)
+  );
+
+  if (embedFailed) {
+    return (
+      <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0f] z-20">
+        <div className="text-center space-y-4 max-w-sm px-6">
+          <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
+            <svg className="w-6 h-6 text-red-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <p className="text-zinc-300 text-sm">This embed source is unavailable (410 Gone)</p>
+          {otherProviders.length > 0 ? (
+            <div className="flex flex-wrap gap-2 justify-center">
+              {otherProviders.map(p => (
+                <button
+                  key={p}
+                  onClick={() => onProviderSelect(p)}
+                  className="px-3 py-1.5 rounded-lg bg-[#D4A017] text-black text-xs font-bold hover:bg-[#c49515] transition-colors"
+                >
+                  Try {getProviderDisplayName(p)}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button
+              onClick={() => window.location.reload()}
+              className="px-5 py-2 rounded-lg bg-[#D4A017] text-black text-sm font-bold hover:bg-[#c49515] transition-colors"
+            >
+              Refresh Page
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="absolute inset-0">
+      <iframe
+        ref={iframeRef}
+        src={src}
+        className="w-full h-full border-0"
+        allowFullScreen
+        allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+        referrerPolicy="no-referrer"
+        title={`${animeTitle} - Episode ${episodeNum}`}
+        onLoad={handleIframeLoad}
+        onError={handleEmbedError}
+      />
+      {/* Floating "embed dead?" overlay — shows after 8s so user can switch servers */}
+      {showServerOverlay && otherProviders.length > 0 && (
+        <div className="absolute top-3 right-3 z-30">
+          <div className="flex items-center gap-2 bg-black/80 backdrop-blur-md rounded-lg border border-white/[0.08] px-3 py-2 shadow-xl">
+            <span className="text-[10px] text-zinc-400">Embed not working?</span>
+            {otherProviders.slice(0, 3).map(p => (
+              <button
+                key={p}
+                onClick={() => onProviderSelect(p)}
+                className="px-2.5 py-1 rounded-md bg-[#D4A017] text-black text-[10px] font-bold hover:bg-[#c49515] transition-colors"
+              >
+                {getProviderDisplayName(p)}
+              </button>
+            ))}
+            <button
+              onClick={() => setShowServerOverlay(false)}
+              className="p-1 text-zinc-500 hover:text-white transition-colors"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const PROVIDER_PRIORITY = [
   "zenith", "kiwi", "ax-mimi", "ax-wave", "ax-shiro", "ax-yuki", "ax-zen", "ax-beep",
@@ -447,14 +578,17 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
           {/* Embed Player (for Megaplay/Hindi embeds) */}
           {streamData && streamData.source_type === "embed" && streamData.video_link && (
-            <iframe
+            <EmbedPlayerWithFallback
               key={`embed-${activeProvider}-${episodeNum}-${translation}`}
               src={streamData.video_link}
-              className="absolute inset-0 w-full h-full border-0"
-              allowFullScreen
-              allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-              referrerPolicy="no-referrer"
-              title={`${animeTitle} - Episode ${episodeNum}`}
+              animeTitle={animeTitle}
+              episodeNum={episodeNum}
+              provider={activeProvider}
+              providersForCurrentEp={providersForCurrentEp}
+              failedProviders={failedProviders}
+              onProviderFailed={handleProviderFailed}
+              onProviderSelect={handleProviderSelect}
+              getProviderDisplayName={getProviderDisplayName}
             />
           )}
 
