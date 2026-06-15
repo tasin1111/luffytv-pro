@@ -3,13 +3,12 @@
 // If one provider fails, automatically tries the next one
 // Also includes alternative API endpoints for reliability
 
-// User's own deployed Miruro-API instance (primary)
+// Deployed Miruro-API instance — use Vercel URL as default (localhost only works in dev)
 // Deploy from https://github.com/fahadulalim93-cloud/miruro-api
-const MIRURO_API = process.env.MIRURO_API_URL || "http://127.0.0.1:8001";
+const MIRURO_API = process.env.MIRURO_API_URL || "https://miruro-api.vercel.app";
 // Backup API endpoints — tried in order if primary fails (deduplicated)
 const MIRURO_BACKUP_APIS = [...new Set([
-  MIRURO_API,  // User's own instance first
-  "http://127.0.0.1:8001",
+  MIRURO_API,  // Configured instance first
   "https://miruro-api.vercel.app",
 ])];
 
@@ -56,64 +55,81 @@ const PROVIDER_CAPABILITIES: Record<string, { hls: boolean; embed: boolean; mp4?
 // Cache for working API base URL
 let workingApiBase: string | null = null;
 let lastApiCheck = 0;
-const API_CHECK_INTERVAL = 5 * 60 * 1000; // 5 min
 
-async function fetchWithRetry(url: string, options: RequestInit, retries = 2): Promise<Response> {
+async function fetchWithRetry(url: string, options: RequestInit, retries = 1): Promise<Response> {
   for (let i = 0; i <= retries; i++) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // Reduced from 15s to 10s
+      const timeout = setTimeout(() => controller.abort(), 6000); // 6s timeout — fast fail
       const res = await fetch(url, { ...options, signal: controller.signal });
       clearTimeout(timeout);
       if (res.ok) return res;
       if (res.status === 429 || res.status >= 500) {
         if (i < retries) {
-          await new Promise(r => setTimeout(r, 800 * (i + 1))); // Reduced wait time
+          await new Promise(r => setTimeout(r, 500 * (i + 1)));
           continue;
         }
       }
       return res;
     } catch (err) {
       if (i === retries) throw err;
-      await new Promise(r => setTimeout(r, 800 * (i + 1)));
+      await new Promise(r => setTimeout(r, 500 * (i + 1)));
     }
   }
   throw new Error("Max retries exceeded");
 }
 
-// Try multiple API base URLs for reliability
+// Try multiple API base URLs for reliability — uses RACING for speed
 async function fetchWithBaseUrlFallback(path: string, options: RequestInit): Promise<Response> {
-  // Try the known working base first
+  // Try the known working base first (fast path)
   const basesToTry = workingApiBase
     ? [workingApiBase, ...MIRURO_BACKUP_APIS.filter(b => b !== workingApiBase)]
     : [...MIRURO_BACKUP_APIS];
 
-  let lastError: Error | null = null;
-
-  for (const base of basesToTry) {
+  // If we have a cached working base, try it first with a short timeout
+  if (workingApiBase) {
     try {
-      const url = `${base}${path}`;
-      const res = await fetchWithRetry(url, options);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const url = `${workingApiBase}${path}`;
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      clearTimeout(timeout);
       if (res.ok) {
-        // Cache the working base URL
-        workingApiBase = base;
         lastApiCheck = Date.now();
         return res;
       }
-      // If 404, this API exists but doesn't have the data — no point trying other bases
       if (res.status === 404) return res;
-      // For other errors, try next base
-      lastError = new Error(`API ${base} returned ${res.status}`);
-    } catch (err: any) {
-      lastError = err;
-      // Try next base URL
-      continue;
+    } catch {
+      // Cached base failed, try all bases
+    }
+  }
+
+  // Race all bases — first one to respond wins
+  const controller = new AbortController();
+  const results = await Promise.allSettled(
+    basesToTry.map(async (base, idx) => {
+      // Stagger requests slightly to avoid thundering herd
+      if (idx > 0) await new Promise(r => setTimeout(r, 200 * idx));
+      const url = `${base}${path}`;
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      if (!res.ok && res.status !== 404) throw new Error(`API ${base} returned ${res.status}`);
+      return { res, base };
+    })
+  );
+
+  for (const result of results) {
+    if (result.status === "fulfilled") {
+      const { res, base } = result.value;
+      controller.abort(); // Cancel remaining requests
+      workingApiBase = base;
+      lastApiCheck = Date.now();
+      return res;
     }
   }
 
   // All bases failed — reset cached base
   workingApiBase = null;
-  throw lastError || new Error("All Miruro API bases failed");
+  throw new Error("All Miruro API bases failed");
 }
 
 // ---- Types ----

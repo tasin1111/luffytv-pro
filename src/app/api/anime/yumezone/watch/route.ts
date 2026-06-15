@@ -147,25 +147,33 @@ export async function GET(req: NextRequest) {
       console.log(`[YumeZone Watch] Provider ${activeProvider} failed:`, e);
     }
 
-    // Auto-fallback to other providers if primary fails (YumeZone's _PROVIDER_PRIORITY)
+    // Auto-fallback to other providers if primary fails — race top 3 in parallel for speed
     if (!result || result.sources.length === 0) {
-      const allProviders = getAvailableProvidersForEpisode(providersMap, episodeNum, translationType);
-      for (const fallbackProvider of allProviders) {
-        if (fallbackProvider === activeProvider) continue;
-        const fallbackSlug = getEpisodeSlugForProvider(providersMap, fallbackProvider, episodeNum, translationType);
-        if (!fallbackSlug) continue;
+      const allProviders = getAvailableProvidersForEpisode(providersMap, episodeNum, translationType)
+        .filter(p => p !== activeProvider);
 
-        triedProviders.push(fallbackProvider);
-        try {
-          const fallbackResult = await miruroWatchProvider(fallbackProvider, anilistId, translationType, fallbackSlug);
-          if (fallbackResult && fallbackResult.sources.length > 0) {
-            result = fallbackResult;
-            activeProvider = fallbackProvider;
-            episodeSlug = fallbackSlug;
+      // Race top 3 fallback providers simultaneously
+      const topFallbacks = allProviders.slice(0, 3);
+      if (topFallbacks.length > 0) {
+        const raceResults = await Promise.allSettled(
+          topFallbacks.map(async (fallbackProvider) => {
+            const fallbackSlug = getEpisodeSlugForProvider(providersMap, fallbackProvider, episodeNum, translationType);
+            if (!fallbackSlug) throw new Error(`No slug for ${fallbackProvider}`);
+            triedProviders.push(fallbackProvider);
+            const fallbackResult = await miruroWatchProvider(fallbackProvider, anilistId, translationType, fallbackSlug);
+            if (!fallbackResult || fallbackResult.sources.length === 0) throw new Error(`No sources from ${fallbackProvider}`);
+            return { result: fallbackResult, provider: fallbackProvider, slug: fallbackSlug };
+          })
+        );
+
+        for (const raceResult of raceResults) {
+          if (raceResult.status === "fulfilled") {
+            const { result: fbResult, provider: fbProvider, slug: fbSlug } = raceResult.value;
+            result = fbResult;
+            activeProvider = fbProvider;
+            episodeSlug = fbSlug;
             break;
           }
-        } catch {
-          continue;
         }
       }
     }
@@ -281,37 +289,9 @@ export async function GET(req: NextRequest) {
       videoLink = activeStream.url;
     }
 
-    // Scavenge intro/outro from other providers if missing (YumeZone's _scavenge_intro_outro)
+    // Use intro/outro from current provider result only (skip scavenging — too slow)
     let intro = result.intro || null;
     let outro = result.outro || null;
-
-    if (!intro && !outro) {
-      const otherProviders = Object.keys(providersMap)
-        .filter(p => p !== activeProvider && p !== "zoro" && p !== "anixtv")
-        .sort((a, b) => {
-          // Prioritize arc (consistently provides metadata)
-          if (a === "arc") return -1;
-          if (b === "arc") return 1;
-          if (a.startsWith("ax-")) return -1;
-          if (b.startsWith("ax-")) return 1;
-          return 0;
-        });
-
-      for (const otherP of otherProviders.slice(0, 3)) {
-        const otherSlug = getEpisodeSlugForProvider(providersMap, otherP, episodeNum, translationType);
-        if (!otherSlug) continue;
-        try {
-          const mResult = await miruroWatchProvider(otherP, anilistId, translationType, otherSlug);
-          if (mResult?.intro || mResult?.outro) {
-            intro = mResult.intro || intro;
-            outro = mResult.outro || outro;
-            break;
-          }
-        } catch {
-          continue;
-        }
-      }
-    }
 
     return NextResponse.json({
       video_link: videoLink,

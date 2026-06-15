@@ -22,42 +22,6 @@ const SEASONS = [
   { label: "Spring 2025", season: "SPRING", year: 2025 },
 ];
 
-// Map AniList media to MiruroAnimeResult format for compatibility with AnimeCard
-function mapAniListToMiruro(items: any[]): MiruroAnimeResult[] {
-  return items.map(item => {
-    if (!item) return { id: 0, title: { romaji: "Unknown" } };
-    return {
-      id: item.id || 0,
-      title: {
-        romaji: typeof item.title?.romaji === "string" ? item.title.romaji : undefined,
-        english: typeof item.title?.english === "string" ? item.title.english : undefined,
-        native: typeof item.title?.native === "string" ? item.title.native : undefined,
-      },
-      coverImage: item.coverImage ? {
-        extraLarge: typeof item.coverImage.extraLarge === "string" ? item.coverImage.extraLarge : undefined,
-        large: typeof item.coverImage.large === "string" ? item.coverImage.large : undefined,
-        medium: typeof item.coverImage.medium === "string" ? item.coverImage.medium : undefined,
-        color: typeof item.coverImage.color === "string" ? item.coverImage.color : undefined,
-      } : undefined,
-      bannerImage: typeof item.bannerImage === "string" ? item.bannerImage : undefined,
-      type: typeof item.type === "string" ? item.type : undefined,
-      format: typeof item.format === "string" ? item.format : undefined,
-      status: typeof item.status === "string" ? item.status : undefined,
-      description: typeof item.description === "string" ? item.description : undefined,
-      season: typeof item.season === "string" ? item.season : undefined,
-      seasonYear: typeof item.seasonYear === "number" ? item.seasonYear : undefined,
-      episodes: typeof item.episodes === "number" ? item.episodes : undefined,
-      duration: typeof item.duration === "number" ? item.duration : undefined,
-      genres: Array.isArray(item.genres) ? item.genres.filter((g: any) => typeof g === "string") : undefined,
-      averageScore: typeof item.averageScore === "number" ? item.averageScore : undefined,
-      popularity: typeof item.popularity === "number" ? item.popularity : undefined,
-      trending: typeof item.trending === "number" ? item.trending : undefined,
-      countryOfOrigin: typeof item.countryOfOrigin === "string" ? item.countryOfOrigin : undefined,
-      isAdult: !!item.isAdult,
-    };
-  });
-}
-
 // Normalize any anime result to MiruroAnimeResult format
 // Handles both AniList format and already-Miruro format
 // CRITICAL: Ensures all fields are safe for React rendering (no objects as children)
@@ -241,67 +205,44 @@ export default function AnimeHomePage() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
-  // Load main data with 3-LAYER FALLBACK: AniList → Miruro → Official MAL API
+  // Load main data — single API call with parallel 3-layer racing built in
   useEffect(() => {
     async function load() {
       setLoading(true);
       try {
-        // Fetch from both endpoints — both now have 3-layer fallback built in
-        const [alRes, homeRes] = await Promise.all([
-          fetch("/api/anime/anilist-trending").catch(() => null),
-          fetch("/api/anime/home").catch(() => null),
-        ]);
+        // Single endpoint that races all sources in parallel — much faster than double-fetch
+        const homeRes = await fetch("/api/anime/home");
 
-        // Parse anilist-trending data (trending, popular, topRated with 3-layer fallback)
-        let alData: any = null;
-        if (alRes?.ok) {
-          try { alData = await alRes.json(); } catch { alData = null; }
-        }
-
-        // Parse home data (miruroTrending, miruroPopular, miruroRecent with 3-layer fallback)
         let homeData: any = null;
-        if (homeRes?.ok) {
+        if (homeRes.ok) {
           try { homeData = await homeRes.json(); } catch { homeData = null; }
         }
 
-        // ---- TRENDING: Combine from both sources ----
-        const alTrending = alData?.trending || [];
-        const homeTrending = homeData?.miruroTrending || [];
+        if (homeData) {
+          // Trending
+          const t = homeData.trending || homeData.miruroTrending || [];
+          if (t.length > 0) setTrending(t.map(normalizeAnimeItem));
 
-        if (alTrending.length > 0) {
-          setTrending(mapAniListToMiruro(alTrending));
-        } else if (homeTrending.length > 0) {
-          setTrending(homeTrending.map(normalizeAnimeItem));
+          // Popular
+          const p = homeData.popular || homeData.miruroPopular || [];
+          if (p.length > 0) setPopular(p.map(normalizeAnimeItem));
+
+          // Top Rated
+          const tr = homeData.topRated || [];
+          if (tr.length > 0) {
+            setTopRated(tr.map(normalizeAnimeItem));
+          } else if (p.length > 0) {
+            setTopRated(p.map(normalizeAnimeItem));
+          }
+
+          // Recent
+          const r = homeData.recent || homeData.miruroRecent || [];
+          if (r.length > 0) {
+            setRecent(r.map(normalizeAnimeItem));
+          } else if (t.length > 0) {
+            setRecent(t.slice(0, 10));
+          }
         }
-
-        // ---- POPULAR: Combine from both sources ----
-        const alPopular = alData?.popular || [];
-        const homePopular = homeData?.miruroPopular || [];
-
-        if (alPopular.length > 0) {
-          setPopular(mapAniListToMiruro(alPopular));
-        } else if (homePopular.length > 0) {
-          setPopular(homePopular.map(normalizeAnimeItem));
-        }
-
-        // ---- TOP RATED: From anilist-trending (has 3-layer fallback) ----
-        const alTopRated = alData?.topRated || [];
-        if (alTopRated.length > 0) {
-          setTopRated(mapAniListToMiruro(alTopRated));
-        } else if (homePopular.length > 0) {
-          // Fallback: use popular as top rated proxy
-          setTopRated(homePopular.map(normalizeAnimeItem));
-        }
-
-        // ---- RECENT: From home data (Miruro primary, Official MAL API airing backup) ----
-        const homeRecent = homeData?.miruroRecent || [];
-        if (homeRecent.length > 0) {
-          setRecent(homeRecent.map(normalizeAnimeItem));
-        } else if (alTrending.length > 0) {
-          // Last resort: use trending as recent proxy
-          setRecent(mapAniListToMiruro(alTrending).slice(0, 10));
-        }
-
       } catch (err) {
         console.error("[AnimeHome] Load error:", err);
       }
@@ -337,7 +278,7 @@ export default function AnimeHomePage() {
     loadGenre();
   }, [activeGenre]);
 
-  // Load season anime — use AniList API directly with Official MAL API fallback
+  // Load season anime — single API call with parallel racing
   useEffect(() => {
     if (!activeSeason) { return; }
     async function loadSeason() {
@@ -348,17 +289,7 @@ export default function AnimeHomePage() {
         if (res.ok) {
           const data = await res.json();
           if (data.season?.length > 0) {
-            setSeasonResults(mapAniListToMiruro(data.season));
-          } else {
-            // Try Miruro trending and filter
-            const mRes = await fetch(`/api/anime/home`);
-            if (mRes.ok) {
-              const mData = await mRes.json();
-              const all = mData.miruroTrending || [];
-              setSeasonResults(all.filter((a: MiruroAnimeResult) =>
-                a.season?.toUpperCase() === seasonData.season && a.seasonYear === seasonData.year
-              ));
-            }
+            setSeasonResults(data.season.map(normalizeAnimeItem));
           }
         }
       } catch { /* ignore */ }

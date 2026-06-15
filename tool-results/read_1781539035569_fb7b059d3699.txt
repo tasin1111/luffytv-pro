@@ -1,0 +1,1047 @@
+     1→"use client";
+     2→
+     3→import { useState, useEffect, useCallback } from "react";
+     4→import { useAppStore } from "./store";
+     5→import HLSPlayerNew from "./hls-player-new";
+     6→import { getProviderDisplayName } from "@/lib/miruro-api";
+     7→
+     8→// ============================================================
+     9→// WATCH PAGE — YumeZone-style native HLS.js player
+    10→// Replaces iframe embeds with native HLS streaming + provider fallback
+    11→// ============================================================
+    12→
+    13→interface WatchPageProps {
+    14→  animeId: string;
+    15→  episodeNum: number;
+    16→}
+    17→
+    18→interface StreamData {
+    19→  video_link: string;
+    20→  source_type: "hls" | "embed" | "mp4";
+    21→  hls_sources: Array<{
+    22→    url: string;
+    23→    quality: string;
+    24→    label: string;
+    25→    isM3U8: boolean;
+    26→    width?: number;
+    27→    height?: number;
+    28→  }>;
+    29→  embed_sources: Array<{
+    30→    url: string;
+    31→    quality: string;
+    32→    label: string;
+    33→    type: string;
+    34→  }>;
+    35→  subtitle_tracks: Array<{
+    36→    url: string;
+    37→    label: string;
+    38→    kind: "subtitles";
+    39→  }>;
+    40→  intro: { start: number; end: number } | null;
+    41→  outro: { start: number; end: number } | null;
+    42→  provider: string;
+    43→  available_qualities: string[];
+    44→  tried_providers?: string[];
+    45→  all_providers?: string[];
+    46→  _fallback?: boolean;
+    47→}
+    48→
+    49→interface EpisodeItem {
+    50→  number: number;
+    51→  title: string;
+    52→  filler: boolean;
+    53→  id: string;
+    54→}
+    55→
+    56→interface ProviderEpisodes {
+    57→  meta: { title: string };
+    58→  episodes: {
+    59→    sub: EpisodeItem[];
+    60→    dub: EpisodeItem[];
+    61→  };
+    62→}
+    63→
+    64→interface RelationAnime {
+    65→  id: number;
+    66→  title: { english?: string; romaji?: string; native?: string };
+    67→  coverImage?: { extraLarge?: string; large?: string; medium?: string };
+    68→  relationType?: string;
+    69→  type?: string;
+    70→  format?: string;
+    71→  episodes?: number;
+    72→  status?: string;
+    73→}
+    74→
+    75→type ContentTab = "episodes" | "info" | "relations";
+    76→type EpisodeSortOrder = "asc" | "desc";
+    77→
+    78→const PROVIDER_PRIORITY = [
+    79→  "zenith", "kiwi", "ax-mimi", "ax-wave", "ax-shiro", "ax-yuki", "ax-zen", "ax-beep",
+    80→  "bee", "miku", "zoro", "arc", "jet",
+    81→];
+    82→
+    83→export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
+    84→  const navigate = useAppStore(s => s.navigate);
+    85→
+    86→  // ── AniList ID ──
+    87→  const parsedId = (() => {
+    88→    const cleanId = animeId.replace(/^miruro_/, "").replace(/^mal_/, "");
+    89→    if (/^\d+$/.test(cleanId)) return parseInt(cleanId);
+    90→    return null;
+    91→  })();
+    92→  const [anilistId, setAnilistId] = useState<number | null>(parsedId);
+    93→
+    94→  // ── Stream State ──
+    95→  const [streamData, setStreamData] = useState<StreamData | null>(null);
+    96→  const [activeProvider, setActiveProvider] = useState("kiwi");
+    97→  const [translation, setTranslation] = useState<"sub" | "dub">("sub");
+    98→  const [availableProviders, setAvailableProviders] = useState<string[]>([]);
+    99→  const [failedProviders, setFailedProviders] = useState<Set<string>>(new Set());
+   100→  const [dubAvailable, setDubAvailable] = useState(false);
+   101→  const [streamLoading, setStreamLoading] = useState(true);
+   102→  const [streamError, setStreamError] = useState<string | null>(null);
+   103→
+   104→  // ── Anime Data ──
+   105→  const [episodeList, setEpisodeList] = useState<EpisodeItem[]>([]);
+   106→  const [animeTitle, setAnimeTitle] = useState("");
+   107→  const [animeImage, setAnimeImage] = useState("");
+   108→  const [animeDescription, setAnimeDescription] = useState("");
+   109→  const [animeStatus, setAnimeStatus] = useState("");
+   110→  const [animeType, setAnimeType] = useState("");
+   111→  const [animeSeason, setAnimeSeason] = useState("");
+   112→  const [animeEpisodes, setAnimeEpisodes] = useState<number | null>(null);
+   113→  const [animeDuration, setAnimeDuration] = useState<number | null>(null);
+   114→  const [animeStudios, setAnimeStudios] = useState<string[]>([]);
+   115→  const [animeGenres, setAnimeGenres] = useState<string[]>([]);
+   116→  const [animeScore, setAnimeScore] = useState<number | null>(null);
+   117→  const [animeNextAiring, setAnimeNextAiring] = useState<{ episode: number; airingAt: number } | null>(null);
+   118→
+   119→  // ── Providers Map ──
+   120→  const [providersMap, setProvidersMap] = useState<Record<string, ProviderEpisodes>>({});
+   121→
+   122→  // ── UI State ──
+   123→  const [activeTab, setActiveTab] = useState<ContentTab>("episodes");
+   124→  const [epSortOrder, setEpSortOrder] = useState<EpisodeSortOrder>("asc");
+   125→  const [epSearch, setEpSearch] = useState("");
+   126→  const [synopsisExpanded, setSynopsisExpanded] = useState(false);
+   127→  const [autoNext, setAutoNext] = useState(true);
+   128→  const [showShortcuts, setShowShortcuts] = useState(false);
+   129→  const [showUpNext, setShowUpNext] = useState(true);
+   130→  const [jumpToEp, setJumpToEp] = useState("");
+   131→  const [countdown, setCountdown] = useState("");
+   132→
+   133→  // ── Relations ──
+   134→  const [relations, setRelations] = useState<RelationAnime[]>([]);
+   135→
+   136→  // ── Callbacks (declared BEFORE effects that reference them) ──
+   137→
+   138→  const switchEpisode = useCallback((epNum: number) => {
+   139→    navigate({ page: "watch", id: animeId, episode: epNum, title: animeTitle, image: animeImage });
+   140→  }, [navigate, animeId, animeTitle, animeImage]);
+   141→
+   142→  const handleProviderFailed = useCallback((provider: string) => {
+   143→    setFailedProviders(prev => {
+   144→      const next = new Set(prev);
+   145→      next.add(provider);
+   146→      const nextProvider = availableProviders.find(p => !next.has(p) && p !== provider);
+   147→      if (nextProvider) {
+   148→        setActiveProvider(nextProvider);
+   149→      } else {
+   150→        setStreamError("All providers failed. Try refreshing the page.");
+   151→        setStreamLoading(false);
+   152→      }
+   153→      return next;
+   154→    });
+   155→  }, [availableProviders]);
+   156→
+   157→  const handleProviderSelect = useCallback((provider: string) => {
+   158→    if (provider === activeProvider) return;
+   159→    setActiveProvider(provider);
+   160→    setFailedProviders(new Set());
+   161→    setStreamError(null);
+   162→  }, [activeProvider]);
+   163→
+   164→  const handleTranslationChange = useCallback((t: "sub" | "dub") => {
+   165→    if (t === translation) return;
+   166→    setTranslation(t);
+   167→    setFailedProviders(new Set());
+   168→    setStreamError(null);
+   169→  }, [translation]);
+   170→
+   171→  const handleVideoEnded = useCallback(() => {
+   172→    if (autoNext) {
+   173→      const nextEpNum = episodeNum + 1;
+   174→      if (episodeList.some(ep => ep.number === nextEpNum)) {
+   175→        switchEpisode(nextEpNum);
+   176→      }
+   177→    }
+   178→  }, [autoNext, episodeNum, episodeList, switchEpisode]);
+   179→
+   180→
+   181→
+   182→  // ── Load anime info ──
+   183→  useEffect(() => {
+   184→    let cancelled = false;
+   185→    async function loadInfo() {
+   186→      try {
+   187→        const res = await fetch(`/api/anime/info?id=${encodeURIComponent(animeId)}`);
+   188→        if (cancelled) return;
+   189→        if (res.ok) {
+   190→          const data = await res.json();
+   191→          const info = data.anilistInfo;
+   192→
+   193→          if (info) {
+   194→            setAnimeTitle(
+   195→              info.title?.english || info.title?.romaji || ""
+   196→            );
+   197→            setAnimeImage(
+   198→              info.coverImage?.extraLarge || info.coverImage?.large || ""
+   199→            );
+   200→            setAnimeDescription(
+   201→              info.description?.replace(/<[^>]*>/g, "") || ""
+   202→            );
+   203→            if (info.id && !anilistId) setAnilistId(info.id);
+   204→            if (info.status) setAnimeStatus(info.status);
+   205→            if (info.format) setAnimeType(info.format);
+   206→            if (info.season && info.seasonYear) setAnimeSeason(`${info.season} ${info.seasonYear}`);
+   207→            if (info.episodes) setAnimeEpisodes(info.episodes);
+   208→            if (info.duration) setAnimeDuration(info.duration);
+   209→            if (info.averageScore) setAnimeScore(info.averageScore);
+   210→            if (info.genres) setAnimeGenres(info.genres);
+   211→            if (info.studios?.nodes) {
+   212→              setAnimeStudios(
+   213→                info.studios.nodes
+   214→                  .filter((s: any) => s.isAnimationStudio)
+   215→                  .map((s: any) => s.name)
+   216→              );
+   217→            } else if (Array.isArray(info.studios) && info.studios[0]?.name) {
+   218→              setAnimeStudios(
+   219→                info.studios
+   220→                  .filter((s: any) => s.isAnimationStudio)
+   221→                  .map((s: any) => s.name)
+   222→              );
+   223→            }
+   224→            if (info.nextAiringEpisode) setAnimeNextAiring(info.nextAiringEpisode);
+   225→            if (data.nextAiringEpisode) setAnimeNextAiring(data.nextAiringEpisode);
+   226→
+   227→            // Relations
+   228→            if (info.relations) {
+   229→              const relsRaw = Array.isArray(info.relations) && info.relations[0]?.relationType
+   230→                ? info.relations
+   231→                : (info.relations?.edges || []);
+   232→              if (relsRaw.length > 0) {
+   233→                setRelations(relsRaw.map((edge: any) => {
+   234→                  const node = edge.node || edge;
+   235→                  return {
+   236→                    relationType: edge.relationType,
+   237→                    id: node.id,
+   238→                    title: node.title,
+   239→                    coverImage: node.coverImage,
+   240→                    type: node.type,
+   241→                    format: node.format,
+   242→                    episodes: node.episodes,
+   243→                    status: node.status,
+   244→                  };
+   245→                }));
+   246→              }
+   247→            }
+   248→          }
+   249→        }
+   250→      } catch { /* ignore */ }
+   251→    }
+   252→    loadInfo();
+   253→    return () => { cancelled = true; };
+   254→  }, [animeId, anilistId]);
+   255→
+   256→  // ── Load episodes from YumeZone API ──
+   257→  useEffect(() => {
+   258→    if (!anilistId) return;
+   259→    let cancelled = false;
+   260→    async function loadEpisodes() {
+   261→      try {
+   262→        const res = await fetch(`/api/anime/yumezone/episodes?anilistId=${anilistId}`);
+   263→        if (cancelled) return;
+   264→        if (res.ok) {
+   265→          const data = await res.json();
+   266→          if (data.episodes?.length) {
+   267→            setEpisodeList(data.episodes);
+   268→          }
+   269→          if (data.providersMap) {
+   270→            setProvidersMap(data.providersMap);
+   271→          }
+   272→          if (data.sortedProviders?.length) {
+   273→            setAvailableProviders(data.sortedProviders);
+   274→          } else if (data.allProviders?.length) {
+   275→            setAvailableProviders(data.allProviders);
+   276→          }
+   277→          if (data.defaultProvider) {
+   278→            setActiveProvider(data.defaultProvider);
+   279→          }
+   280→          setDubAvailable(data.dubAvailable || false);
+   281→        }
+   282→      } catch { /* ignore */ }
+   283→    }
+   284→    loadEpisodes();
+   285→    return () => { cancelled = true; };
+   286→  }, [anilistId]);
+   287→
+   288→  // ── Fetch stream data when provider/episode/translation changes ──
+   289→  useEffect(() => {
+   290→    if (!anilistId) return;
+   291→    let cancelled = false;
+   292→    requestAnimationFrame(() => {
+   293→      setStreamLoading(true);
+   294→      setStreamError(null);
+   295→      setStreamData(null);
+   296→    });
+   297→
+   298→    async function fetchStream() {
+   299→      try {
+   300→        const res = await fetch(
+   301→          `/api/anime/yumezone/watch?anilistId=${anilistId}&episode=${episodeNum}&provider=${activeProvider}&type=${translation}`
+   302→        );
+   303→        if (cancelled) return;
+   304→        if (res.ok) {
+   305→          const data: StreamData = await res.json();
+   306→          if ((data as any).error) {
+   307→            handleProviderFailed(activeProvider);
+   308→            return;
+   309→          }
+   310→          if (data.video_link || data.hls_sources?.length || data.embed_sources?.length) {
+   311→            setStreamData(data);
+   312→            setStreamLoading(false);
+   313→          } else {
+   314→            handleProviderFailed(activeProvider);
+   315→          }
+   316→        } else {
+   317→          handleProviderFailed(activeProvider);
+   318→        }
+   319→      } catch {
+   320→        if (!cancelled) {
+   321→          handleProviderFailed(activeProvider);
+   322→        }
+   323→      }
+   324→    }
+   325→    fetchStream();
+   326→    return () => { cancelled = true; };
+   327→  }, [anilistId, episodeNum, activeProvider, translation, handleProviderFailed]);
+   328→
+   329→  // ── Next airing countdown ──
+   330→  useEffect(() => {
+   331→    if (!animeNextAiring) return;
+   332→    function update() {
+   333→      const now = Math.floor(Date.now() / 1000);
+   334→      const diff = (animeNextAiring as { episode: number; airingAt: number }).airingAt - now;
+   335→      if (diff <= 0) { setCountdown(""); return; }
+   336→      const d = Math.floor(diff / 86400);
+   337→      const h = Math.floor((diff % 86400) / 3600);
+   338→      const m = Math.floor((diff % 3600) / 60);
+   339→      const s = diff % 60;
+   340→      setCountdown(`${d}d ${h}h ${m}m ${s}s`);
+   341→    }
+   342→    update();
+   343→    const interval = setInterval(update, 1000);
+   344→    return () => clearInterval(interval);
+   345→  }, [animeNextAiring]);
+   346→
+   347→  // ── Keyboard shortcuts ──
+   348→  useEffect(() => {
+   349→    function handleKey(e: KeyboardEvent) {
+   350→      const target = e.target as HTMLElement;
+   351→      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+   352→
+   353→      if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
+   354→        e.preventDefault();
+   355→        setShowShortcuts(prev => !prev);
+   356→      }
+   357→      if (e.key === "Escape") setShowShortcuts(false);
+   358→
+   359→      if (e.key === "n" && !e.ctrlKey && !e.metaKey) {
+   360→        const nextEpNum = episodeNum + 1;
+   361→        if (episodeList.some(ep => ep.number === nextEpNum)) {
+   362→          switchEpisode(nextEpNum);
+   363→        }
+   364→      }
+   365→      if (e.key === "p" && !e.ctrlKey && !e.metaKey) {
+   366→        if (episodeNum > 1) switchEpisode(episodeNum - 1);
+   367→      }
+   368→    }
+   369→    window.addEventListener("keydown", handleKey);
+   370→    return () => window.removeEventListener("keydown", handleKey);
+   371→  }, [episodeNum, episodeList, switchEpisode]);
+   372→
+   373→  // ── Computed ──
+   374→  const prevEp = episodeNum > 1 ? episodeNum - 1 : null;
+   375→  const nextEp = episodeList.some(e => e.number === episodeNum + 1) ? episodeNum + 1 : null;
+   376→
+   377→  const searchLower = epSearch.toLowerCase();
+   378→  const filteredEps = episodeList
+   379→    .filter(ep => !epSearch || String(ep.number).includes(searchLower))
+   380→    .sort((a, b) => epSortOrder === "asc" ? a.number - b.number : b.number - a.number);
+   381→
+   382→  const statusLabel = (s: string) => {
+   383→    if (s === "RELEASING") return "Airing";
+   384→    if (s === "FINISHED") return "Complete";
+   385→    if (s === "NOT_YET_RELEASED") return "Upcoming";
+   386→    return s;
+   387→  };
+   388→
+   389→  const statusColor = (s: string) => {
+   390→    if (s === "RELEASING") return "text-[#10B981]";
+   391→    if (s === "FINISHED") return "text-[#6366F1]";
+   392→    if (s === "NOT_YET_RELEASED") return "text-[#F59E0B]";
+   393→    return "text-[#64748B]";
+   394→  };
+   395→
+   396→  // ── Get providers that have current episode ──
+   397→  const providersForCurrentEp = availableProviders.filter(p => {
+   398→    const pData = providersMap[p];
+   399→    if (!pData?.episodes) return false;
+   400→    const eps = translation === "dub" ? pData.episodes.dub : pData.episodes.sub;
+   401→    return eps.some(e => e.number === episodeNum);
+   402→  });
+   403→
+   404→  // ── RENDER ──
+   405→  return (
+   406→    <div className="min-h-screen bg-[#0F1219]">
+   407→
+   408→      {/* ─── PLAYER ZONE ─── */}
+   409→      <div className="w-full" style={{ maxWidth: "100vw" }}>
+   410→        <div className="relative w-full bg-black" style={{ aspectRatio: "16 / 9" }}>
+   411→
+   412→          {/* HLS Native Player */}
+   413→          {streamData && streamData.source_type === "hls" && streamData.video_link && (
+   414→            <HLSPlayerNew
+   415→              key={`${activeProvider}-${episodeNum}-${translation}`}
+   416→              url={streamData.video_link}
+   417→              animeId={animeId}
+   418→              episodeNum={episodeNum}
+   419→              sourceType="hls"
+   420→              intro={streamData.intro}
+   421→              outro={streamData.outro}
+   422→              allStreams={streamData.hls_sources.map(s => ({
+   423→                url: s.url,
+   424→                quality: s.quality || "Auto",
+   425→                label: s.label || s.quality || "Auto",
+   426→              }))}
+   427→              onEnded={handleVideoEnded}
+   428→              onProviderFailed={() => handleProviderFailed(activeProvider)}
+   429→              autoplay={true}
+   430→            />
+   431→          )}
+   432→
+   433→          {/* MP4 Player — for mochi, neko, uwu MP4 sources */}
+   434→          {streamData && streamData.source_type === "mp4" && streamData.video_link && (
+   435→            <HLSPlayerNew
+   436→              key={`mp4-${activeProvider}-${episodeNum}-${translation}`}
+   437→              url={streamData.video_link}
+   438→              animeId={animeId}
+   439→              episodeNum={episodeNum}
+   440→              sourceType="mp4"
+   441→              intro={streamData.intro}
+   442→              outro={streamData.outro}
+   443→              onEnded={handleVideoEnded}
+   444→              onProviderFailed={() => handleProviderFailed(activeProvider)}
+   445→              autoplay={true}
+   446→            />
+   447→          )}
+   448→
+   449→          {/* Embed Player (for Megaplay/Hindi embeds) */}
+   450→          {streamData && streamData.source_type === "embed" && streamData.video_link && (
+   451→            <iframe
+   452→              key={`embed-${activeProvider}-${episodeNum}-${translation}`}
+   453→              src={streamData.video_link}
+   454→              className="absolute inset-0 w-full h-full border-0"
+   455→              allowFullScreen
+   456→              allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+   457→              referrerPolicy="no-referrer"
+   458→              title={`${animeTitle} - Episode ${episodeNum}`}
+   459→            />
+   460→          )}
+   461→
+   462→          {/* Loading state */}
+   463→          {streamLoading && (
+   464→            <div className="absolute inset-0 flex items-center justify-center bg-[#0F1219] z-20">
+   465→              <div className="text-center space-y-4">
+   466→                <div className="w-12 h-12 border-[3px] border-white/10 border-t-[#8B5CF6] rounded-full animate-spin mx-auto" />
+   467→                <p className="text-[#94A3B8] text-xs font-medium tracking-wide">
+   468→                  Loading from <span className="text-[#8B5CF6]">{getProviderDisplayName(activeProvider)}</span>...
+   469→                </p>
+   470→              </div>
+   471→            </div>
+   472→          )}
+   473→
+   474→          {/* Error state */}
+   475→          {streamError && !streamLoading && (
+   476→            <div className="absolute inset-0 flex items-center justify-center bg-[#0F1219] z-20">
+   477→              <div className="text-center space-y-4 max-w-sm px-6">
+   478→                <div className="w-14 h-14 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 flex items-center justify-center mx-auto">
+   479→                  <svg className="w-7 h-7 text-[#EF4444]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+   480→                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+   481→                  </svg>
+   482→                </div>
+   483→                <p className="text-[#E2E8F0] text-sm">{streamError}</p>
+   484→                <button
+   485→                  onClick={() => {
+   486→                    setFailedProviders(new Set());
+   487→                    setStreamError(null);
+   488→                    setActiveProvider(providersForCurrentEp[0] || availableProviders[0] || "kiwi");
+   489→                  }}
+   490→                  className="px-5 py-2 rounded-lg bg-[#8B5CF6] text-white text-sm font-medium hover:bg-[#7C3AED] transition-colors"
+   491→                >
+   492→                  Retry
+   493→                </button>
+   494→              </div>
+   495→            </div>
+   496→          )}
+   497→        </div>
+   498→      </div>
+   499→
+   500→      {/* ─── CONTENT AREA ─── */}
+   501→      <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-12">
+   502→
+   503→        {/* ─── TITLE BAR ─── */}
+   504→        <div className="py-4 border-b border-white/[0.06]">
+   505→          <div className="flex items-start justify-between gap-4">
+   506→            <div className="flex-1 min-w-0">
+   507→              <div className="flex items-center gap-2 mb-1">
+   508→                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8B5CF6]">
+   509→                  <span className="w-1.5 h-1.5 rounded-full bg-[#8B5CF6] animate-pulse" />
+   510→                  Now Playing
+   511→                </span>
+   512→                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+   513→                  translation === "sub"
+   514→                    ? "bg-[#8B5CF6]/15 text-[#8B5CF6]"
+   515→                    : "bg-[#EF4444]/15 text-[#EF4444]"
+   516→                }`}>
+   517→                  {translation.toUpperCase()}
+   518→                </span>
+   519→                {streamData && (
+   520→                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.05] text-[#94A3B8]">
+   521→                    {getProviderDisplayName(streamData.provider)}
+   522→                  </span>
+   523→                )}
+   524→              </div>
+   525→              <h1 className="text-lg sm:text-xl font-bold text-[#E2E8F0] truncate">{animeTitle}</h1>
+   526→              <p className="text-sm text-[#94A3B8] mt-0.5">
+   527→                Episode {episodeNum}{animeEpisodes ? ` of ${animeEpisodes}` : ""}
+   528→                {animeDuration && ` - ${animeDuration}min`}
+   529→                {animeStatus === "RELEASING" && (
+   530→                  <span className="inline-flex items-center gap-1.5 ml-3">
+   531→                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+   532→                    <span className="text-[#10B981]">Airing</span>
+   533→                  </span>
+   534→                )}
+   535→              </p>
+   536→            </div>
+   537→
+   538→            {/* Quick Actions */}
+   539→            <div className="flex items-center gap-1.5 shrink-0">
+   540→              {prevEp && (
+   541→                <button
+   542→                  onClick={() => switchEpisode(prevEp)}
+   543→                  className="p-2 rounded-lg bg-white/[0.05] text-[#94A3B8] hover:bg-white/[0.08] hover:text-white transition-colors"
+   544→                  title="Previous Episode (P)"
+   545→                >
+   546→                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   547→                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+   548→                  </svg>
+   549→                </button>
+   550→              )}
+   551→              {nextEp && (
+   552→                <button
+   553→                  onClick={() => switchEpisode(nextEp)}
+   554→                  className="p-2 rounded-lg bg-white/[0.05] text-[#94A3B8] hover:bg-white/[0.08] hover:text-white transition-colors"
+   555→                  title="Next Episode (N)"
+   556→                >
+   557→                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   558→                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+   559→                  </svg>
+   560→                </button>
+   561→              )}
+   562→              <div className="w-px h-5 bg-white/[0.06] mx-1" />
+   563→              <button
+   564→                onClick={() => setAutoNext(!autoNext)}
+   565→                className={`p-2 rounded-lg transition-colors ${
+   566→                  autoNext
+   567→                    ? "bg-[#8B5CF6]/15 text-[#8B5CF6]"
+   568→                    : "bg-white/[0.05] text-[#64748B] hover:text-[#94A3B8]"
+   569→                }`}
+   570→                title={`Auto Next: ${autoNext ? "ON" : "OFF"}`}
+   571→              >
+   572→                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   573→                  <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+   574→                </svg>
+   575→              </button>
+   576→              <button
+   577→                onClick={() => setShowShortcuts(!showShortcuts)}
+   578→                className="p-2 rounded-lg bg-white/[0.05] text-[#64748B] hover:bg-white/[0.08] hover:text-[#94A3B8] transition-colors"
+   579→                title="Keyboard Shortcuts (?)"
+   580→              >
+   581→                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   582→                  <rect x="2" y="6" width="20" height="12" rx="2" />
+   583→                  <path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8" />
+   584→                </svg>
+   585→              </button>
+   586→            </div>
+   587→          </div>
+   588→        </div>
+   589→
+   590→        {/* ─── UP NEXT CARD ─── */}
+   591→        {showUpNext && nextEp && animeTitle && (
+   592→          <div className="mt-3 flex items-center justify-between gap-3 p-3 rounded-lg bg-[#161B26] border border-[rgba(139,92,246,0.12)]">
+   593→            <div className="flex items-center gap-3 min-w-0">
+   594→              <div className="w-9 h-9 rounded-lg bg-[#8B5CF6]/10 flex items-center justify-center shrink-0">
+   595→                <svg className="w-4 h-4 text-[#8B5CF6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   596→                  <path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+   597→                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+   598→                </svg>
+   599→              </div>
+   600→              <div className="min-w-0">
+   601→                <p className="text-xs font-semibold text-[#E2E8F0] truncate">Up Next: Episode {nextEp}</p>
+   602→                <p className="text-[10px] text-[#64748B] truncate">{animeTitle}</p>
+   603→              </div>
+   604→            </div>
+   605→            <div className="flex items-center gap-2 shrink-0">
+   606→              <button
+   607→                onClick={() => switchEpisode(nextEp)}
+   608→                className="px-3 py-1.5 rounded-md bg-[#8B5CF6] text-white text-xs font-semibold hover:bg-[#7C3AED] transition-colors"
+   609→              >
+   610→                Play
+   611→              </button>
+   612→              <button
+   613→                onClick={() => setShowUpNext(false)}
+   614→                className="p-1 rounded text-[#64748B] hover:text-[#94A3B8] transition-colors"
+   615→              >
+   616→                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+   617→                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+   618→                </svg>
+   619→              </button>
+   620→            </div>
+   621→          </div>
+   622→        )}
+   623→
+   624→        {/* ─── SERVER SELECTOR ─── */}
+   625→        <div className="mt-4 flex flex-col gap-3">
+   626→          {/* SUB/DUB Toggle */}
+   627→          <div className="flex items-center gap-2">
+   628→            <div className="flex rounded-lg overflow-hidden border border-[rgba(139,92,246,0.12)]">
+   629→              <button
+   630→                onClick={() => handleTranslationChange("sub")}
+   631→                className={`px-4 py-1.5 text-xs font-bold transition-colors ${
+   632→                  translation === "sub"
+   633→                    ? "bg-[#8B5CF6] text-white"
+   634→                    : "bg-[#161B26] text-[#94A3B8] hover:text-[#E2E8F0]"
+   635→                }`}
+   636→              >
+   637→                SUB
+   638→              </button>
+   639→              <button
+   640→                onClick={() => handleTranslationChange("dub")}
+   641→                className={`px-4 py-1.5 text-xs font-bold transition-colors ${
+   642→                  translation === "dub"
+   643→                    ? "bg-[#8B5CF6] text-white"
+   644→                    : "bg-[#161B26] text-[#94A3B8] hover:text-[#E2E8F0]"
+   645→                } ${!dubAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
+   646→                disabled={!dubAvailable}
+   647→              >
+   648→                DUB
+   649→              </button>
+   650→            </div>
+   651→          </div>
+   652→
+   653→          {/* Provider Pills */}
+   654→          {providersForCurrentEp.length > 0 && (
+   655→            <div className="flex items-center gap-2 flex-wrap">
+   656→              <span className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mr-1">Server</span>
+   657→              {providersForCurrentEp.map(p => (
+   658→                <button
+   659→                  key={p}
+   660→                  onClick={() => handleProviderSelect(p)}
+   661→                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+   662→                    activeProvider === p
+   663→                      ? "bg-[#8B5CF6] text-white"
+   664→                      : failedProviders.has(p)
+   665→                        ? "bg-white/[0.03] text-[#64748B]/50 line-through cursor-not-allowed"
+   666→                        : "bg-white/[0.05] text-[#94A3B8] hover:bg-white/[0.08] hover:text-white"
+   667→                  }`}
+   668→                  disabled={failedProviders.has(p)}
+   669→                >
+   670→                  {getProviderDisplayName(p)}
+   671→                </button>
+   672→              ))}
+   673→            </div>
+   674→          )}
+   675→        </div>
+   676→
+   677→        {/* ─── NEXT AIRING COUNTDOWN ─── */}
+   678→        {animeNextAiring && countdown && (
+   679→          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#F59E0B]/5 border border-[#F59E0B]/10">
+   680→            <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] animate-pulse" />
+   681→            <span className="text-xs text-[#F59E0B]/80 font-semibold">
+   682→              Episode {animeNextAiring.episode} airs in
+   683→            </span>
+   684→            <span className="text-xs font-extrabold text-[#F59E0B] tracking-wide font-mono">
+   685→              {countdown}
+   686→            </span>
+   687→          </div>
+   688→        )}
+   689→
+   690→        {/* ─── TABBED CONTENT ─── */}
+   691→        <div className="mt-6">
+   692→          {/* Tab Bar */}
+   693→          <div className="flex items-center gap-1 border-b border-white/[0.06] mb-4">
+   694→            {(["episodes", "info", "relations"] as const).map(tab => (
+   695→              <button
+   696→                key={tab}
+   697→                onClick={() => setActiveTab(tab)}
+   698→                className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${
+   699→                  activeTab === tab
+   700→                    ? "text-[#8B5CF6]"
+   701→                    : "text-[#64748B] hover:text-[#94A3B8]"
+   702→                }`}
+   703→              >
+   704→                {tab === "episodes" && (
+   705→                  <span className="flex items-center gap-1.5">
+   706→                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   707→                      <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+   708→                    </svg>
+   709→                    Episodes
+   710→                    {episodeList.length > 0 && (
+   711→                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-[#64748B]">
+   712→                        {episodeList.length}
+   713→                      </span>
+   714→                    )}
+   715→                  </span>
+   716→                )}
+   717→                {tab === "info" && (
+   718→                  <span className="flex items-center gap-1.5">
+   719→                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   720→                      <circle cx="12" cy="12" r="10" /><path d="M12 16v-4m0-4h.01" />
+   721→                    </svg>
+   722→                    Info
+   723→                  </span>
+   724→                )}
+   725→                {tab === "relations" && (
+   726→                  <span className="flex items-center gap-1.5">
+   727→                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   728→                      <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
+   729→                      <path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+   730→                    </svg>
+   731→                    Relations
+   732→                    {relations.length > 0 && (
+   733→                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-[#64748B]">
+   734→                        {relations.length}
+   735→                      </span>
+   736→                    )}
+   737→                  </span>
+   738→                )}
+   739→                {activeTab === tab && (
+   740→                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#8B5CF6] rounded-full" />
+   741→                )}
+   742→              </button>
+   743→            ))}
+   744→          </div>
+   745→
+   746→          {/* ─── EPISODES TAB ─── */}
+   747→          {activeTab === "episodes" && (
+   748→            <div>
+   749→              {/* Controls */}
+   750→              <div className="flex items-center gap-2 mb-4 flex-wrap">
+   751→                {/* Search */}
+   752→                <div className="relative flex-1 max-w-[200px]">
+   753→                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   754→                    <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+   755→                  </svg>
+   756→                  <input
+   757→                    type="text"
+   758→                    value={epSearch}
+   759→                    onChange={e => setEpSearch(e.target.value)}
+   760→                    placeholder="Search ep..."
+   761→                    className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#161B26] border border-[rgba(139,92,246,0.12)] text-xs text-[#E2E8F0] placeholder-[#64748B] focus:outline-none focus:border-[#8B5CF6]/30"
+   762→                  />
+   763→                </div>
+   764→
+   765→                {/* Jump to episode */}
+   766→                <div className="flex items-center gap-1.5">
+   767→                  <input
+   768→                    type="number"
+   769→                    min={1}
+   770→                    max={animeEpisodes || episodeList.length || 999}
+   771→                    value={jumpToEp}
+   772→                    onChange={e => setJumpToEp(e.target.value)}
+   773→                    onKeyDown={e => {
+   774→                      if (e.key === "Enter" && jumpToEp) {
+   775→                        const epNum = parseInt(jumpToEp);
+   776→                        if (episodeList.some(ep => ep.number === epNum)) {
+   777→                          switchEpisode(epNum);
+   778→                          setJumpToEp("");
+   779→                        }
+   780→                      }
+   781→                    }}
+   782→                    placeholder="Go to ep"
+   783→                    className="w-20 px-2 py-1.5 rounded-lg bg-[#161B26] border border-[rgba(139,92,246,0.12)] text-xs text-[#E2E8F0] placeholder-[#64748B] focus:outline-none focus:border-[#8B5CF6]/30"
+   784→                  />
+   785→                  <button
+   786→                    onClick={() => {
+   787→                      if (jumpToEp) {
+   788→                        const epNum = parseInt(jumpToEp);
+   789→                        if (episodeList.some(ep => ep.number === epNum)) {
+   790→                          switchEpisode(epNum);
+   791→                          setJumpToEp("");
+   792→                        }
+   793→                      }
+   794→                    }}
+   795→                    className="px-2.5 py-1.5 rounded-lg bg-[#8B5CF6] text-white text-xs font-medium hover:bg-[#7C3AED] transition-colors"
+   796→                  >
+   797→                    Go
+   798→                  </button>
+   799→                </div>
+   800→
+   801→                {/* Sort */}
+   802→                <button
+   803→                  onClick={() => setEpSortOrder(prev => prev === "asc" ? "desc" : "asc")}
+   804→                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161B26] border border-[rgba(139,92,246,0.12)] text-xs text-[#94A3B8] hover:text-white transition-colors"
+   805→                >
+   806→                  <svg className={`w-3.5 h-3.5 transition-transform ${epSortOrder === "desc" ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+   807→                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+   808→                  </svg>
+   809→                  {epSortOrder === "asc" ? "1 -> 24" : "24 -> 1"}
+   810→                </button>
+   811→              </div>
+   812→
+   813→              {/* Episode Grid */}
+   814→              {filteredEps.length > 0 ? (
+   815→                <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1.5">
+   816→                  {filteredEps.map(ep => {
+   817→                    const isActive = ep.number === episodeNum;
+   818→                    return (
+   819→                      <button
+   820→                        key={ep.number}
+   821→                        onClick={() => switchEpisode(ep.number)}
+   822→                        className={`relative px-2 py-2 rounded-lg text-xs font-medium transition-colors text-center ${
+   823→                          isActive
+   824→                            ? "bg-[#8B5CF6] text-white shadow-lg shadow-[#8B5CF6]/20"
+   825→                            : ep.filler
+   826→                              ? "bg-[#F59E0B]/5 text-[#F59E0B]/70 border border-[#F59E0B]/10 hover:bg-[#F59E0B]/10"
+   827→                              : "bg-[#161B26] text-[#94A3B8] border border-[rgba(139,92,246,0.08)] hover:bg-white/[0.08] hover:text-white"
+   828→                        }`}
+   829→                        title={ep.filler ? `Ep ${ep.number} (Filler)` : `Episode ${ep.number}`}
+   830→                      >
+   831→                        {ep.number}
+   832→                        {ep.filler && (
+   833→                          <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-[#F59E0B]/50" />
+   834→                        )}
+   835→                      </button>
+   836→                    );
+   837→                  })}
+   838→                </div>
+   839→              ) : (
+   840→                <div className="py-12 text-center">
+   841→                  <p className="text-[#64748B] text-sm">
+   842→                    {episodeList.length === 0 ? "Loading episodes..." : "No episodes found"}
+   843→                  </p>
+   844→                </div>
+   845→              )}
+   846→            </div>
+   847→          )}
+   848→
+   849→          {/* ─── INFO TAB ─── */}
+   850→          {activeTab === "info" && (
+   851→            <div className="space-y-5">
+   852→              {/* Cover + Info */}
+   853→              <div className="flex gap-4 sm:gap-6">
+   854→                {animeImage && (
+   855→                  <div className="shrink-0 w-28 sm:w-36 rounded-lg overflow-hidden border border-[rgba(139,92,246,0.12)]">
+   856→                    <img
+   857→                      src={animeImage}
+   858→                      alt={animeTitle}
+   859→                      className="w-full h-auto object-cover"
+   860→                      loading="lazy"
+   861→                    />
+   862→                  </div>
+   863→                )}
+   864→                <div className="flex-1 min-w-0 space-y-3">
+   865→                  <h2 className="text-lg font-bold text-[#E2E8F0]">{animeTitle}</h2>
+   866→
+   867→                  {/* Metadata pills */}
+   868→                  <div className="flex flex-wrap gap-2">
+   869→                    {animeStatus && (
+   870→                      <span className={`px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white/[0.05] ${statusColor(animeStatus)}`}>
+   871→                        {statusLabel(animeStatus)}
+   872→                      </span>
+   873→                    )}
+   874→                    {animeType && (
+   875→                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-[#94A3B8]">
+   876→                        {animeType}
+   877→                      </span>
+   878→                    )}
+   879→                    {animeSeason && (
+   880→                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-[#94A3B8]">
+   881→                        {animeSeason}
+   882→                      </span>
+   883→                    )}
+   884→                    {animeEpisodes && (
+   885→                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-[#94A3B8]">
+   886→                        {animeEpisodes} Episodes
+   887→                      </span>
+   888→                    )}
+   889→                    {animeDuration && (
+   890→                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-[#94A3B8]">
+   891→                        {animeDuration} min/ep
+   892→                      </span>
+   893→                    )}
+   894→                    {animeScore && (
+   895→                      <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#8B5CF6]/10 text-[#8B5CF6]">
+   896→                        {animeScore > 10 ? Math.round(animeScore) : animeScore}%
+   897→                      </span>
+   898→                    )}
+   899→                  </div>
+   900→
+   901→                  {/* Studios */}
+   902→                  {animeStudios.length > 0 && (
+   903→                    <div className="flex items-center gap-2">
+   904→                      <span className="text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">Studio</span>
+   905→                      <span className="text-sm text-[#94A3B8]">{animeStudios.join(", ")}</span>
+   906→                    </div>
+   907→                  )}
+   908→
+   909→                  {/* Genres */}
+   910→                  {animeGenres.length > 0 && (
+   911→                    <div className="flex flex-wrap gap-1.5">
+   912→                      {animeGenres.map(g => (
+   913→                        <span key={g} className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-white/[0.05] text-[#94A3B8] border border-white/[0.05]">
+   914→                          {g}
+   915→                        </span>
+   916→                      ))}
+   917→                    </div>
+   918→                  )}
+   919→                </div>
+   920→              </div>
+   921→
+   922→              {/* Synopsis */}
+   923→              {animeDescription && (
+   924→                <div>
+   925→                  <h3 className="text-sm font-semibold text-[#E2E8F0] mb-2">Synopsis</h3>
+   926→                  <p className={`text-sm text-[#94A3B8] leading-relaxed ${!synopsisExpanded ? "line-clamp-4" : ""}`}>
+   927→                    {animeDescription}
+   928→                  </p>
+   929→                  {animeDescription.length > 200 && (
+   930→                    <button
+   931→                      onClick={() => setSynopsisExpanded(!synopsisExpanded)}
+   932→                      className="mt-1 text-xs font-medium text-[#8B5CF6] hover:text-[#7C3AED] transition-colors"
+   933→                    >
+   934→                      {synopsisExpanded ? "Show less" : "Read more"}
+   935→                    </button>
+   936→                  )}
+   937→                </div>
+   938→              )}
+   939→            </div>
+   940→          )}
+   941→
+   942→          {/* ─── RELATIONS TAB ─── */}
+   943→          {activeTab === "relations" && (
+   944→            <div>
+   945→              {relations.length > 0 ? (
+   946→                <div className="space-y-2">
+   947→                  {relations.map((rel, idx) => {
+   948→                    const relTitle = rel.title?.english || rel.title?.romaji || rel.title?.native || "Unknown";
+   949→                    const relImage = rel.coverImage?.extraLarge || rel.coverImage?.large || rel.coverImage?.medium || "";
+   950→                    return (
+   951→                      <button
+   952→                        key={`${rel.id}-${idx}`}
+   953→                        onClick={() => navigate({ page: "anime", id: String(rel.id) })}
+   954→                        className="flex items-center gap-3 w-full p-3 rounded-lg bg-[#161B26] border border-[rgba(139,92,246,0.08)] hover:bg-white/[0.06] transition-colors text-left"
+   955→                      >
+   956→                        {relImage ? (
+   957→                          <img
+   958→                            src={relImage}
+   959→                            alt={relTitle}
+   960→                            className="w-12 h-16 rounded object-cover shrink-0"
+   961→                            loading="lazy"
+   962→                          />
+   963→                        ) : (
+   964→                          <div className="w-12 h-16 rounded bg-white/[0.05] shrink-0" />
+   965→                        )}
+   966→                        <div className="flex-1 min-w-0">
+   967→                          <p className="text-sm font-medium text-[#E2E8F0] truncate">{relTitle}</p>
+   968→                          <div className="flex items-center gap-2 mt-1">
+   969→                            {rel.relationType && (
+   970→                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#8B5CF6]/10 text-[#8B5CF6]">
+   971→                                {rel.relationType}
+   972→                              </span>
+   973→                            )}
+   974→                            {rel.format && (
+   975→                              <span className="text-[11px] text-[#64748B]">{rel.format}</span>
+   976→                            )}
+   977→                            {rel.episodes && (
+   978→                              <span className="text-[11px] text-[#64748B]">{rel.episodes} eps</span>
+   979→                            )}
+   980→                            {rel.status && (
+   981→                              <span className={`text-[11px] ${statusColor(rel.status)}`}>
+   982→                                {statusLabel(rel.status)}
+   983→                              </span>
+   984→                            )}
+   985→                          </div>
+   986→                        </div>
+   987→                      </button>
+   988→                    );
+   989→                  })}
+   990→                </div>
+   991→              ) : (
+   992→                <div className="py-12 text-center">
+   993→                  <p className="text-[#64748B] text-sm">No relations found</p>
+   994→                </div>
+   995→              )}
+   996→            </div>
+   997→          )}
+   998→        </div>
+   999→      </div>
+  1000→
+  1001→      {/* ─── KEYBOARD SHORTCUTS PANEL ─── */}
+  1002→      {showShortcuts && (
+  1003→        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowShortcuts(false)}>
+  1004→          <div
+  1005→            className="w-full max-w-sm mx-4 rounded-xl bg-[#161B26] border border-[rgba(139,92,246,0.12)] shadow-2xl overflow-hidden"
+  1006→            onClick={e => e.stopPropagation()}
+  1007→          >
+  1008→            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+  1009→              <h3 className="text-sm font-bold text-[#E2E8F0]">Keyboard Shortcuts</h3>
+  1010→              <button
+  1011→                onClick={() => setShowShortcuts(false)}
+  1012→                className="p-1 rounded text-[#64748B] hover:text-white transition-colors"
+  1013→              >
+  1014→                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+  1015→                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+  1016→                </svg>
+  1017→              </button>
+  1018→            </div>
+  1019→            <div className="p-5 space-y-3">
+  1020→              {[
+  1021→                { key: "N", desc: "Next episode" },
+  1022→                { key: "P", desc: "Previous episode" },
+  1023→                { key: "Space / K", desc: "Play / Pause" },
+  1024→                { key: "F", desc: "Fullscreen" },
+  1025→                { key: "M", desc: "Mute / Unmute" },
+  1026→                { key: "Left Arrow", desc: "Seek -10s" },
+  1027→                { key: "Right Arrow", desc: "Seek +10s" },
+  1028→                { key: "Up Arrow", desc: "Volume up" },
+  1029→                { key: "Down Arrow", desc: "Volume down" },
+  1030→                { key: "?", desc: "Toggle this panel" },
+  1031→                { key: "Esc", desc: "Close this panel" },
+  1032→              ].map(s => (
+  1033→                <div key={s.key} className="flex items-center justify-between">
+  1034→                  <span className="text-xs text-[#94A3B8]">{s.desc}</span>
+  1035→                  <kbd className="px-2 py-0.5 rounded bg-white/[0.08] text-[10px] font-mono font-bold text-[#E2E8F0] border border-white/[0.06]">
+  1036→                    {s.key}
+  1037→                  </kbd>
+  1038→                </div>
+  1039→              ))}
+  1040→            </div>
+  1041→          </div>
+  1042→        </div>
+  1043→      )}
+  1044→    </div>
+  1045→  );
+  1046→}
+  1047→

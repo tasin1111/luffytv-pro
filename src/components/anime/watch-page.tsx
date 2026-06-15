@@ -6,8 +6,8 @@ import HLSPlayerNew from "./hls-player-new";
 import { getProviderDisplayName } from "@/lib/miruro-api";
 
 // ============================================================
-// WATCH PAGE — YumeZone-style native HLS.js player
-// Replaces iframe embeds with native HLS streaming + provider fallback
+// WATCH PAGE — Redesigned layout
+// Player → Title/Nav → Tabs (Episodes/Info/Relations) → Servers
 // ============================================================
 
 interface WatchPageProps {
@@ -126,7 +126,6 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const [synopsisExpanded, setSynopsisExpanded] = useState(false);
   const [autoNext, setAutoNext] = useState(true);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [showUpNext, setShowUpNext] = useState(true);
   const [jumpToEp, setJumpToEp] = useState("");
   const [countdown, setCountdown] = useState("");
 
@@ -403,7 +402,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
   // ── RENDER ──
   return (
-    <div className="min-h-screen bg-[#0F1219]">
+    <div className="min-h-screen bg-[#0a0a0f]">
 
       {/* ─── PLAYER ZONE ─── */}
       <div className="w-full" style={{ maxWidth: "100vw" }}>
@@ -461,11 +460,11 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
           {/* Loading state */}
           {streamLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#0F1219] z-20">
-              <div className="text-center space-y-4">
-                <div className="w-12 h-12 border-[3px] border-white/10 border-t-[#8B5CF6] rounded-full animate-spin mx-auto" />
-                <p className="text-[#94A3B8] text-xs font-medium tracking-wide">
-                  Loading from <span className="text-[#8B5CF6]">{getProviderDisplayName(activeProvider)}</span>...
+            <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0f] z-20">
+              <div className="text-center space-y-3">
+                <div className="w-10 h-10 border-[3px] border-white/10 border-t-[#D4A017] rounded-full animate-spin mx-auto" />
+                <p className="text-zinc-500 text-xs font-medium">
+                  Loading from <span className="text-[#D4A017]">{getProviderDisplayName(activeProvider)}</span>...
                 </p>
               </div>
             </div>
@@ -473,21 +472,21 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
           {/* Error state */}
           {streamError && !streamLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#0F1219] z-20">
+            <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0f] z-20">
               <div className="text-center space-y-4 max-w-sm px-6">
-                <div className="w-14 h-14 rounded-xl bg-[#EF4444]/10 border border-[#EF4444]/20 flex items-center justify-center mx-auto">
-                  <svg className="w-7 h-7 text-[#EF4444]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
+                  <svg className="w-6 h-6 text-red-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                 </div>
-                <p className="text-[#E2E8F0] text-sm">{streamError}</p>
+                <p className="text-zinc-300 text-sm">{streamError}</p>
                 <button
                   onClick={() => {
                     setFailedProviders(new Set());
                     setStreamError(null);
                     setActiveProvider(providersForCurrentEp[0] || availableProviders[0] || "kiwi");
                   }}
-                  className="px-5 py-2 rounded-lg bg-[#8B5CF6] text-white text-sm font-medium hover:bg-[#7C3AED] transition-colors"
+                  className="px-5 py-2 rounded-lg bg-[#D4A017] text-black text-sm font-bold hover:bg-[#c49515] transition-colors"
                 >
                   Retry
                 </button>
@@ -504,43 +503,39 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         <div className="py-4 border-b border-white/[0.06]">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8B5CF6]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#8B5CF6] animate-pulse" />
-                  Now Playing
+              <h1 className="text-lg sm:text-xl font-bold text-white truncate">{animeTitle}</h1>
+              <div className="flex items-center gap-2 mt-1 flex-wrap">
+                <span className="text-sm text-zinc-400">
+                  Episode {episodeNum}{animeEpisodes ? ` of ${animeEpisodes}` : ""}
+                  {animeDuration && ` · ${animeDuration}min`}
                 </span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                   translation === "sub"
-                    ? "bg-[#8B5CF6]/15 text-[#8B5CF6]"
-                    : "bg-[#EF4444]/15 text-[#EF4444]"
+                    ? "bg-[#D4A017]/15 text-[#D4A017]"
+                    : "bg-red-500/15 text-red-400"
                 }`}>
                   {translation.toUpperCase()}
                 </span>
                 {streamData && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.05] text-[#94A3B8]">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.05] text-zinc-400">
                     {getProviderDisplayName(streamData.provider)}
                   </span>
                 )}
-              </div>
-              <h1 className="text-lg sm:text-xl font-bold text-[#E2E8F0] truncate">{animeTitle}</h1>
-              <p className="text-sm text-[#94A3B8] mt-0.5">
-                Episode {episodeNum}{animeEpisodes ? ` of ${animeEpisodes}` : ""}
-                {animeDuration && ` - ${animeDuration}min`}
                 {animeStatus === "RELEASING" && (
-                  <span className="inline-flex items-center gap-1.5 ml-3">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
-                    <span className="text-[#10B981]">Airing</span>
+                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    Airing
                   </span>
                 )}
-              </p>
+              </div>
             </div>
 
-            {/* Quick Actions */}
+            {/* Quick Nav */}
             <div className="flex items-center gap-1.5 shrink-0">
               {prevEp && (
                 <button
                   onClick={() => switchEpisode(prevEp)}
-                  className="p-2 rounded-lg bg-white/[0.05] text-[#94A3B8] hover:bg-white/[0.08] hover:text-white transition-colors"
+                  className="p-2 rounded-lg bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] hover:text-white transition-colors"
                   title="Previous Episode (P)"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -551,7 +546,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               {nextEp && (
                 <button
                   onClick={() => switchEpisode(nextEp)}
-                  className="p-2 rounded-lg bg-white/[0.05] text-[#94A3B8] hover:bg-white/[0.08] hover:text-white transition-colors"
+                  className="p-2 rounded-lg bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] hover:text-white transition-colors"
                   title="Next Episode (N)"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -559,13 +554,12 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   </svg>
                 </button>
               )}
-              <div className="w-px h-5 bg-white/[0.06] mx-1" />
               <button
                 onClick={() => setAutoNext(!autoNext)}
                 className={`p-2 rounded-lg transition-colors ${
                   autoNext
-                    ? "bg-[#8B5CF6]/15 text-[#8B5CF6]"
-                    : "bg-white/[0.05] text-[#64748B] hover:text-[#94A3B8]"
+                    ? "bg-[#D4A017]/15 text-[#D4A017]"
+                    : "bg-white/[0.05] text-zinc-500 hover:text-zinc-300"
                 }`}
                 title={`Auto Next: ${autoNext ? "ON" : "OFF"}`}
               >
@@ -573,115 +567,18 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   <path d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </button>
-              <button
-                onClick={() => setShowShortcuts(!showShortcuts)}
-                className="p-2 rounded-lg bg-white/[0.05] text-[#64748B] hover:bg-white/[0.08] hover:text-[#94A3B8] transition-colors"
-                title="Keyboard Shortcuts (?)"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <rect x="2" y="6" width="20" height="12" rx="2" />
-                  <path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01M8 16h8" />
-                </svg>
-              </button>
             </div>
           </div>
-        </div>
-
-        {/* ─── UP NEXT CARD ─── */}
-        {showUpNext && nextEp && animeTitle && (
-          <div className="mt-3 flex items-center justify-between gap-3 p-3 rounded-lg bg-[#161B26] border border-[rgba(139,92,246,0.12)]">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-9 h-9 rounded-lg bg-[#8B5CF6]/10 flex items-center justify-center shrink-0">
-                <svg className="w-4 h-4 text-[#8B5CF6]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-[#E2E8F0] truncate">Up Next: Episode {nextEp}</p>
-                <p className="text-[10px] text-[#64748B] truncate">{animeTitle}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                onClick={() => switchEpisode(nextEp)}
-                className="px-3 py-1.5 rounded-md bg-[#8B5CF6] text-white text-xs font-semibold hover:bg-[#7C3AED] transition-colors"
-              >
-                Play
-              </button>
-              <button
-                onClick={() => setShowUpNext(false)}
-                className="p-1 rounded text-[#64748B] hover:text-[#94A3B8] transition-colors"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ─── SERVER SELECTOR ─── */}
-        <div className="mt-4 flex flex-col gap-3">
-          {/* SUB/DUB Toggle */}
-          <div className="flex items-center gap-2">
-            <div className="flex rounded-lg overflow-hidden border border-[rgba(139,92,246,0.12)]">
-              <button
-                onClick={() => handleTranslationChange("sub")}
-                className={`px-4 py-1.5 text-xs font-bold transition-colors ${
-                  translation === "sub"
-                    ? "bg-[#8B5CF6] text-white"
-                    : "bg-[#161B26] text-[#94A3B8] hover:text-[#E2E8F0]"
-                }`}
-              >
-                SUB
-              </button>
-              <button
-                onClick={() => handleTranslationChange("dub")}
-                className={`px-4 py-1.5 text-xs font-bold transition-colors ${
-                  translation === "dub"
-                    ? "bg-[#8B5CF6] text-white"
-                    : "bg-[#161B26] text-[#94A3B8] hover:text-[#E2E8F0]"
-                } ${!dubAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
-                disabled={!dubAvailable}
-              >
-                DUB
-              </button>
-            </div>
-          </div>
-
-          {/* Provider Pills */}
-          {providersForCurrentEp.length > 0 && (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-semibold text-[#64748B] uppercase tracking-wider mr-1">Server</span>
-              {providersForCurrentEp.map(p => (
-                <button
-                  key={p}
-                  onClick={() => handleProviderSelect(p)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                    activeProvider === p
-                      ? "bg-[#8B5CF6] text-white"
-                      : failedProviders.has(p)
-                        ? "bg-white/[0.03] text-[#64748B]/50 line-through cursor-not-allowed"
-                        : "bg-white/[0.05] text-[#94A3B8] hover:bg-white/[0.08] hover:text-white"
-                  }`}
-                  disabled={failedProviders.has(p)}
-                >
-                  {getProviderDisplayName(p)}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* ─── NEXT AIRING COUNTDOWN ─── */}
         {animeNextAiring && countdown && (
-          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#F59E0B]/5 border border-[#F59E0B]/10">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B] animate-pulse" />
-            <span className="text-xs text-[#F59E0B]/80 font-semibold">
+          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-xs text-amber-400/80 font-semibold">
               Episode {animeNextAiring.episode} airs in
             </span>
-            <span className="text-xs font-extrabold text-[#F59E0B] tracking-wide font-mono">
+            <span className="text-xs font-extrabold text-amber-400 tracking-wide font-mono">
               {countdown}
             </span>
           </div>
@@ -697,8 +594,8 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 onClick={() => setActiveTab(tab)}
                 className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${
                   activeTab === tab
-                    ? "text-[#8B5CF6]"
-                    : "text-[#64748B] hover:text-[#94A3B8]"
+                    ? "text-[#D4A017]"
+                    : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
                 {tab === "episodes" && (
@@ -708,7 +605,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                     </svg>
                     Episodes
                     {episodeList.length > 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-[#64748B]">
+                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-zinc-500">
                         {episodeList.length}
                       </span>
                     )}
@@ -730,14 +627,14 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                     </svg>
                     Relations
                     {relations.length > 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-[#64748B]">
+                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-zinc-500">
                         {relations.length}
                       </span>
                     )}
                   </span>
                 )}
                 {activeTab === tab && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#8B5CF6] rounded-full" />
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#D4A017] rounded-full" />
                 )}
               </button>
             ))}
@@ -750,7 +647,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               <div className="flex items-center gap-2 mb-4 flex-wrap">
                 {/* Search */}
                 <div className="relative flex-1 max-w-[200px]">
-                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#64748B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
                   </svg>
                   <input
@@ -758,7 +655,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                     value={epSearch}
                     onChange={e => setEpSearch(e.target.value)}
                     placeholder="Search ep..."
-                    className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#161B26] border border-[rgba(139,92,246,0.12)] text-xs text-[#E2E8F0] placeholder-[#64748B] focus:outline-none focus:border-[#8B5CF6]/30"
+                    className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#111118] border border-white/[0.06] text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#D4A017]/30"
                   />
                 </div>
 
@@ -780,7 +677,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                       }
                     }}
                     placeholder="Go to ep"
-                    className="w-20 px-2 py-1.5 rounded-lg bg-[#161B26] border border-[rgba(139,92,246,0.12)] text-xs text-[#E2E8F0] placeholder-[#64748B] focus:outline-none focus:border-[#8B5CF6]/30"
+                    className="w-20 px-2 py-1.5 rounded-lg bg-[#111118] border border-white/[0.06] text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#D4A017]/30"
                   />
                   <button
                     onClick={() => {
@@ -792,7 +689,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                         }
                       }
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#8B5CF6] text-white text-xs font-medium hover:bg-[#7C3AED] transition-colors"
+                    className="px-2.5 py-1.5 rounded-lg bg-[#D4A017] text-black text-xs font-bold hover:bg-[#c49515] transition-colors"
                   >
                     Go
                   </button>
@@ -801,12 +698,12 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 {/* Sort */}
                 <button
                   onClick={() => setEpSortOrder(prev => prev === "asc" ? "desc" : "asc")}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#161B26] border border-[rgba(139,92,246,0.12)] text-xs text-[#94A3B8] hover:text-white transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#111118] border border-white/[0.06] text-xs text-zinc-400 hover:text-white transition-colors"
                 >
                   <svg className={`w-3.5 h-3.5 transition-transform ${epSortOrder === "desc" ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
                   </svg>
-                  {epSortOrder === "asc" ? "1 -> 24" : "24 -> 1"}
+                  {epSortOrder === "asc" ? "1 → 24" : "24 → 1"}
                 </button>
               </div>
 
@@ -821,16 +718,16 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                         onClick={() => switchEpisode(ep.number)}
                         className={`relative px-2 py-2 rounded-lg text-xs font-medium transition-colors text-center ${
                           isActive
-                            ? "bg-[#8B5CF6] text-white shadow-lg shadow-[#8B5CF6]/20"
+                            ? "bg-[#D4A017] text-black shadow-lg shadow-[#D4A017]/20"
                             : ep.filler
-                              ? "bg-[#F59E0B]/5 text-[#F59E0B]/70 border border-[#F59E0B]/10 hover:bg-[#F59E0B]/10"
-                              : "bg-[#161B26] text-[#94A3B8] border border-[rgba(139,92,246,0.08)] hover:bg-white/[0.08] hover:text-white"
+                              ? "bg-amber-500/5 text-amber-400/70 border border-amber-500/10 hover:bg-amber-500/10"
+                              : "bg-[#111118] text-zinc-400 border border-white/[0.04] hover:bg-white/[0.06] hover:text-white"
                         }`}
                         title={ep.filler ? `Ep ${ep.number} (Filler)` : `Episode ${ep.number}`}
                       >
                         {ep.number}
                         {ep.filler && (
-                          <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-[#F59E0B]/50" />
+                          <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400/50" />
                         )}
                       </button>
                     );
@@ -838,7 +735,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 </div>
               ) : (
                 <div className="py-12 text-center">
-                  <p className="text-[#64748B] text-sm">
+                  <p className="text-zinc-500 text-sm">
                     {episodeList.length === 0 ? "Loading episodes..." : "No episodes found"}
                   </p>
                 </div>
@@ -852,7 +749,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               {/* Cover + Info */}
               <div className="flex gap-4 sm:gap-6">
                 {animeImage && (
-                  <div className="shrink-0 w-28 sm:w-36 rounded-lg overflow-hidden border border-[rgba(139,92,246,0.12)]">
+                  <div className="shrink-0 w-28 sm:w-36 rounded-lg overflow-hidden border border-white/[0.06]">
                     <img
                       src={animeImage}
                       alt={animeTitle}
@@ -862,7 +759,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   </div>
                 )}
                 <div className="flex-1 min-w-0 space-y-3">
-                  <h2 className="text-lg font-bold text-[#E2E8F0]">{animeTitle}</h2>
+                  <h2 className="text-lg font-bold text-white">{animeTitle}</h2>
 
                   {/* Metadata pills */}
                   <div className="flex flex-wrap gap-2">
@@ -872,27 +769,27 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                       </span>
                     )}
                     {animeType && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-[#94A3B8]">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-zinc-400">
                         {animeType}
                       </span>
                     )}
                     {animeSeason && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-[#94A3B8]">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-zinc-400">
                         {animeSeason}
                       </span>
                     )}
                     {animeEpisodes && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-[#94A3B8]">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-zinc-400">
                         {animeEpisodes} Episodes
                       </span>
                     )}
                     {animeDuration && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-[#94A3B8]">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-zinc-400">
                         {animeDuration} min/ep
                       </span>
                     )}
                     {animeScore && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#8B5CF6]/10 text-[#8B5CF6]">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#D4A017]/10 text-[#D4A017]">
                         {animeScore > 10 ? Math.round(animeScore) : animeScore}%
                       </span>
                     )}
@@ -901,8 +798,8 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   {/* Studios */}
                   {animeStudios.length > 0 && (
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-semibold text-[#64748B] uppercase tracking-wider">Studio</span>
-                      <span className="text-sm text-[#94A3B8]">{animeStudios.join(", ")}</span>
+                      <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Studio</span>
+                      <span className="text-sm text-zinc-400">{animeStudios.join(", ")}</span>
                     </div>
                   )}
 
@@ -910,7 +807,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   {animeGenres.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {animeGenres.map(g => (
-                        <span key={g} className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-white/[0.05] text-[#94A3B8] border border-white/[0.05]">
+                        <span key={g} className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-white/[0.05] text-zinc-400 border border-white/[0.04]">
                           {g}
                         </span>
                       ))}
@@ -922,14 +819,14 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               {/* Synopsis */}
               {animeDescription && (
                 <div>
-                  <h3 className="text-sm font-semibold text-[#E2E8F0] mb-2">Synopsis</h3>
-                  <p className={`text-sm text-[#94A3B8] leading-relaxed ${!synopsisExpanded ? "line-clamp-4" : ""}`}>
+                  <h3 className="text-sm font-semibold text-white mb-2">Synopsis</h3>
+                  <p className={`text-sm text-zinc-400 leading-relaxed ${!synopsisExpanded ? "line-clamp-4" : ""}`}>
                     {animeDescription}
                   </p>
                   {animeDescription.length > 200 && (
                     <button
                       onClick={() => setSynopsisExpanded(!synopsisExpanded)}
-                      className="mt-1 text-xs font-medium text-[#8B5CF6] hover:text-[#7C3AED] transition-colors"
+                      className="mt-1 text-xs font-medium text-[#D4A017] hover:text-[#c49515] transition-colors"
                     >
                       {synopsisExpanded ? "Show less" : "Read more"}
                     </button>
@@ -951,7 +848,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                       <button
                         key={`${rel.id}-${idx}`}
                         onClick={() => navigate({ page: "anime", id: String(rel.id) })}
-                        className="flex items-center gap-3 w-full p-3 rounded-lg bg-[#161B26] border border-[rgba(139,92,246,0.08)] hover:bg-white/[0.06] transition-colors text-left"
+                        className="flex items-center gap-3 w-full p-3 rounded-lg bg-[#111118] border border-white/[0.04] hover:bg-white/[0.06] transition-colors text-left"
                       >
                         {relImage ? (
                           <img
@@ -961,21 +858,21 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                             loading="lazy"
                           />
                         ) : (
-                          <div className="w-12 h-16 rounded bg-white/[0.05] shrink-0" />
+                          <div className="w-12 h-16 rounded bg-white/[0.03] shrink-0" />
                         )}
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-[#E2E8F0] truncate">{relTitle}</p>
+                          <p className="text-sm font-medium text-white truncate">{relTitle}</p>
                           <div className="flex items-center gap-2 mt-1">
                             {rel.relationType && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#8B5CF6]/10 text-[#8B5CF6]">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#D4A017]/10 text-[#D4A017]">
                                 {rel.relationType}
                               </span>
                             )}
                             {rel.format && (
-                              <span className="text-[11px] text-[#64748B]">{rel.format}</span>
+                              <span className="text-[11px] text-zinc-500">{rel.format}</span>
                             )}
                             {rel.episodes && (
-                              <span className="text-[11px] text-[#64748B]">{rel.episodes} eps</span>
+                              <span className="text-[11px] text-zinc-500">{rel.episodes} eps</span>
                             )}
                             {rel.status && (
                               <span className={`text-[11px] ${statusColor(rel.status)}`}>
@@ -990,57 +887,135 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 </div>
               ) : (
                 <div className="py-12 text-center">
-                  <p className="text-[#64748B] text-sm">No relations found</p>
+                  <p className="text-zinc-500 text-sm">No relations found</p>
                 </div>
               )}
             </div>
           )}
         </div>
-      </div>
 
-      {/* ─── KEYBOARD SHORTCUTS PANEL ─── */}
-      {showShortcuts && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowShortcuts(false)}>
-          <div
-            className="w-full max-w-sm mx-4 rounded-xl bg-[#161B26] border border-[rgba(139,92,246,0.12)] shadow-2xl overflow-hidden"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-              <h3 className="text-sm font-bold text-[#E2E8F0]">Keyboard Shortcuts</h3>
-              <button
-                onClick={() => setShowShortcuts(false)}
-                className="p-1 rounded text-[#64748B] hover:text-white transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* ─── SERVER SELECTOR (BOTTOM) ─── */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <div className="mt-8 pt-6 border-t border-white/[0.06]">
+          <div className="space-y-4">
+
+            {/* Section header */}
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-[#D4A017]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
+              </svg>
+              <h3 className="text-sm font-bold text-white">Servers</h3>
             </div>
-            <div className="p-5 space-y-3">
-              {[
-                { key: "N", desc: "Next episode" },
-                { key: "P", desc: "Previous episode" },
-                { key: "Space / K", desc: "Play / Pause" },
-                { key: "F", desc: "Fullscreen" },
-                { key: "M", desc: "Mute / Unmute" },
-                { key: "Left Arrow", desc: "Seek -10s" },
-                { key: "Right Arrow", desc: "Seek +10s" },
-                { key: "Up Arrow", desc: "Volume up" },
-                { key: "Down Arrow", desc: "Volume down" },
-                { key: "?", desc: "Toggle this panel" },
-                { key: "Esc", desc: "Close this panel" },
-              ].map(s => (
-                <div key={s.key} className="flex items-center justify-between">
-                  <span className="text-xs text-[#94A3B8]">{s.desc}</span>
-                  <kbd className="px-2 py-0.5 rounded bg-white/[0.08] text-[10px] font-mono font-bold text-[#E2E8F0] border border-white/[0.06]">
-                    {s.key}
-                  </kbd>
-                </div>
-              ))}
+
+            {/* SUB/DUB Toggle */}
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Audio</span>
+              <div className="flex rounded-lg overflow-hidden border border-white/[0.06]">
+                <button
+                  onClick={() => handleTranslationChange("sub")}
+                  className={`px-4 py-1.5 text-xs font-bold transition-colors ${
+                    translation === "sub"
+                      ? "bg-[#D4A017] text-black"
+                      : "bg-[#111118] text-zinc-400 hover:text-white"
+                  }`}
+                >
+                  SUB
+                </button>
+                <button
+                  onClick={() => handleTranslationChange("dub")}
+                  className={`px-4 py-1.5 text-xs font-bold transition-colors ${
+                    translation === "dub"
+                      ? "bg-[#D4A017] text-black"
+                      : "bg-[#111118] text-zinc-400 hover:text-white"
+                  } ${!dubAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
+                  disabled={!dubAvailable}
+                >
+                  DUB
+                </button>
+              </div>
+              {!dubAvailable && (
+                <span className="text-[10px] text-zinc-600">No dub available</span>
+              )}
             </div>
+
+            {/* Provider Pills */}
+            {providersForCurrentEp.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Server</span>
+                {providersForCurrentEp.map(p => (
+                  <button
+                    key={p}
+                    onClick={() => handleProviderSelect(p)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      activeProvider === p
+                        ? "bg-[#D4A017] text-black shadow-md shadow-[#D4A017]/20"
+                        : failedProviders.has(p)
+                          ? "bg-white/[0.02] text-zinc-600 line-through cursor-not-allowed"
+                          : "bg-[#111118] text-zinc-400 border border-white/[0.04] hover:bg-white/[0.06] hover:text-white hover:border-[#D4A017]/20"
+                    }`}
+                    disabled={failedProviders.has(p)}
+                  >
+                    {getProviderDisplayName(p)}
+                    {failedProviders.has(p) && " ✗"}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* No providers available */}
+            {providersForCurrentEp.length === 0 && availableProviders.length === 0 && !streamLoading && (
+              <div className="text-center py-4">
+                <p className="text-zinc-500 text-xs">Loading servers...</p>
+              </div>
+            )}
           </div>
         </div>
-      )}
+
+        {/* ─── KEYBOARD SHORTCUTS PANEL ─── */}
+        {showShortcuts && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowShortcuts(false)}>
+            <div
+              className="w-full max-w-sm mx-4 rounded-xl bg-[#111118] border border-white/[0.06] shadow-2xl overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+                <h3 className="text-sm font-bold text-white">Keyboard Shortcuts</h3>
+                <button
+                  onClick={() => setShowShortcuts(false)}
+                  className="p-1 rounded text-zinc-500 hover:text-white transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-5 space-y-3">
+                {[
+                  { key: "N", desc: "Next episode" },
+                  { key: "P", desc: "Previous episode" },
+                  { key: "Space / K", desc: "Play / Pause" },
+                  { key: "F", desc: "Fullscreen" },
+                  { key: "M", desc: "Mute / Unmute" },
+                  { key: "Left Arrow", desc: "Seek -10s" },
+                  { key: "Right Arrow", desc: "Seek +10s" },
+                  { key: "Up Arrow", desc: "Volume up" },
+                  { key: "Down Arrow", desc: "Volume down" },
+                  { key: "?", desc: "Toggle this panel" },
+                  { key: "Esc", desc: "Close this panel" },
+                ].map(s => (
+                  <div key={s.key} className="flex items-center justify-between">
+                    <span className="text-xs text-zinc-400">{s.desc}</span>
+                    <kbd className="px-2 py-0.5 rounded bg-white/[0.06] text-[10px] font-mono font-bold text-white border border-white/[0.06]">
+                      {s.key}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
