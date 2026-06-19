@@ -139,6 +139,7 @@ export default function Navbar() {
   // ── Main/Home page nav links ──
   const homeNavLinks: FloatingNavLink[] = [
     { id: "home", label: "Home", onClick: () => navigate({ page: "home" }), active: page === "home" },
+    { id: "scraper", label: "Unified Scraper", onClick: () => navigate({ page: "scraper" }), active: page === "scraper" || page === "scraper-anime" || page === "scraper-watch" },
     { id: "features", label: "Features", onClick: () => navigate({ page: "features" }), active: page === "features" },
     { id: "contact", label: "Contact", onClick: () => navigate({ page: "contact" }), active: page === "contact" },
     { id: "watchnow", label: "Watch Now", onClick: () => navigate({ page: "watchnow" }), active: page === "watchnow" },

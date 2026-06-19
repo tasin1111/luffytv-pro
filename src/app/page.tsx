@@ -30,6 +30,9 @@ import NovelPage from "@/components/anime/novel-page";
 import NovelDetailPage from "@/components/anime/novel-detail-page";
 import NovelReaderPage from "@/components/anime/novel-reader-page";
 import SignInPage from "@/components/anime/signin-page";
+import ScraperPage from "@/components/anime/scraper-page";
+import ScraperAnimePage from "@/components/anime/scraper-anime-page";
+import ScraperWatchPage from "@/components/anime/scraper-watch-page";
 
 // Features page wrapper — scrolls to features section after mount
 function FeaturesScrollPage() {
@@ -208,7 +211,7 @@ export default function MainPage() {
     );
   }
 
-  const isWatchPage = route.page === "watch" || route.page === "movie-watch" || route.page === "tv-watch" || route.page === "live-watch" || route.page === "live-tv-watch";
+  const isWatchPage = route.page === "watch" || route.page === "movie-watch" || route.page === "tv-watch" || route.page === "live-watch" || route.page === "live-tv-watch" || route.page === "scraper-watch";
   const isMangaReader = route.page === "manga-read" || route.page === "novel-read";
   const isFullWidth = route.page === "home" || route.page === "watchnow" || route.page === "live" || route.page === "signin" || route.page === "signup" || route.page === "dub" || route.page === "anime";
 
@@ -247,6 +250,9 @@ export default function MainPage() {
       case "novel-read": return <NovelReaderPage novelId={route.novelId} novelTitle={route.novelTitle} chapterId={route.chapterId} chapterNum={route.chapterNum} chapterTitle={route.chapterTitle} totalChapters={route.totalChapters} novelSource={route.novelSource} />;
       case "signin": return <SignInPage />;
       case "signup": return <SignInPage />;
+      case "scraper": return <ScraperPage />;
+      case "scraper-anime": return <ScraperAnimePage anilistId={route.id} />;
+      case "scraper-watch": return <ScraperWatchPage anilistId={route.id} episodeId={route.episode} site={route.site} />;
       case "features":
         return <FeaturesScrollPage />;
       default: return <HomePage />;

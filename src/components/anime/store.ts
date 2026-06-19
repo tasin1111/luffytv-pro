@@ -121,7 +121,10 @@ type Route =
   | { page: "novel-detail"; novelId: string; novelTitle: string; novelCover: string; novelAuthor: string; novelSource: string }
   | { page: "novel-read"; novelId: string; novelTitle: string; chapterId: string; chapterNum: number; chapterTitle: string; totalChapters: number; novelSource: string }
   | { page: "signin" }
-  | { page: "signup" };
+  | { page: "signup" }
+  | { page: "scraper" }
+  | { page: "scraper-anime"; id: string }
+  | { page: "scraper-watch"; id: string; episode: string; site: string };
 
 // ============================================================
 // App Store
@@ -191,6 +194,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       else if (route.page === "novel-read") window.location.hash = `read-novel/${encodeURIComponent(route.novelId)}/${route.chapterNum}`;
       else if (route.page === "signin") window.location.hash = "signin";
       else if (route.page === "signup") window.location.hash = "signup";
+      else if (route.page === "scraper") window.location.hash = "scraper";
+      else if (route.page === "scraper-anime") window.location.hash = `scraper/anime/${route.id}`;
+      else if (route.page === "scraper-watch") window.location.hash = `scraper/watch/${route.site}/${route.id}/${encodeURIComponent(route.episode)}`;
       window.scrollTo(0, 0);
     }
   },
@@ -284,6 +290,11 @@ export function parseHash(hash: string): Route {
   if (parts[0] === "read-novel" && parts[1] && parts[2]) return { page: "novel-read", novelId: decodeURIComponent(parts[1]), novelTitle: "", chapterId: `chapter-${parts[2]}`, chapterNum: parseInt(parts[2]), chapterTitle: "", totalChapters: 0, novelSource: "readlightnovel" };
   if (parts[0] === "signin") return { page: "signin" };
   if (parts[0] === "signup") return { page: "signup" };
+  if (parts[0] === "scraper" && parts[1] === "anime" && parts[2])
+    return { page: "scraper-anime", id: parts[2] };
+  if (parts[0] === "scraper" && parts[1] === "watch" && parts[2] && parts[3] && parts[4])
+    return { page: "scraper-watch", site: parts[2], id: parts[3], episode: decodeURIComponent(parts[4]) };
+  if (parts[0] === "scraper") return { page: "scraper" };
   return { page: "home" };
 }
 
