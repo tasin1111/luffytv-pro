@@ -89,12 +89,24 @@ export async function GET(req: NextRequest) {
   const provider = url.searchParams.get("provider") || "";
   const subProvider = url.searchParams.get("subProvider") || undefined;
   const mode = url.searchParams.get("mode") || "manifest";
+  // Allow caller to override the Referer header (some Miruro CDNs need kwik.cx referer)
+  const refererOverride = url.searchParams.get("referer") || undefined;
 
   if (!targetUrl) {
     return NextResponse.json({ error: "Missing 'url' parameter" }, { status: 400 });
   }
 
-  const headers = getHeaders(provider, subProvider);
+  // Build headers — per-stream referer override takes priority, then per-provider defaults
+  let headers: Record<string, string>;
+  if (refererOverride) {
+    // Use the caller-provided referer (e.g., https://kwik.cx/ for uwucdn.top)
+    headers = { "User-Agent": DEFAULT_UA, Referer: refererOverride };
+    try {
+      headers["Origin"] = new URL(refererOverride).origin;
+    } catch {}
+  } else {
+    headers = getHeaders(provider, subProvider);
+  }
 
   try {
     const upstream = await fetch(targetUrl, {
@@ -122,7 +134,7 @@ export async function GET(req: NextRequest) {
       const text = await upstream.text();
       const proxyBase = `/api/anime/scraper/stream?provider=${encodeURIComponent(provider)}${
         subProvider ? `&subProvider=${encodeURIComponent(subProvider)}` : ""
-      }&mode=segment&url=`;
+      }${refererOverride ? `&referer=${encodeURIComponent(refererOverride)}` : ""}&mode=segment&url=`;
 
       const rewritten = text
         .split("\n")

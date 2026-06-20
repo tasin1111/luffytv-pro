@@ -559,6 +559,10 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   }, [anilistId]);
 
   // ── Fetch stream data when provider/episode/translation changes ──
+  // We fire BOTH the YumeZone request AND the Miruro-direct scrape in parallel.
+  // Whichever returns a playable source first wins — usually Miruro-direct
+  // is much faster because it hits www.miruro.tv/api/secure/pipe directly
+  // (no dependency on the user's deployed miruro-api.vercel.app).
   useEffect(() => {
     if (!anilistId) return;
     let cancelled = false;
@@ -569,31 +573,97 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     });
 
     async function fetchStream() {
-      try {
-        const res = await fetch(
-          `/api/anime/yumezone/watch?anilistId=${anilistId}&episode=${episodeNum}&provider=${activeProvider}&type=${translation}`
-        );
-        if (cancelled) return;
-        if (res.ok) {
-          const data: StreamData = await res.json();
-          if ((data as any).error) {
-            handleProviderFailed(activeProvider);
-            return;
+      // Race YumeZone vs Miruro-direct in parallel
+      const yumezonePromise = (async () => {
+        try {
+          const res = await fetch(
+            `/api/anime/yumezone/watch?anilistId=${anilistId}&episode=${episodeNum}&provider=${activeProvider}&type=${translation}`
+          );
+          if (cancelled) return null;
+          if (res.ok) {
+            const data: StreamData = await res.json();
+            if ((data as any).error) return null;
+            if (data.video_link || data.hls_sources?.length || data.embed_sources?.length) {
+              return { kind: "yumezone" as const, data };
+            }
           }
-          if (data.video_link || data.hls_sources?.length || data.embed_sources?.length) {
-            setStreamData(data);
-            setStreamLoading(false);
-          } else {
-            handleProviderFailed(activeProvider);
+          return null;
+        } catch {
+          return null;
+        }
+      })();
+
+      const miruroDirectPromise = (async () => {
+        try {
+          const res = await fetch(
+            `/api/anime/scraper/miruro-direct/${anilistId}/${episodeNum}?type=${translation}`
+          );
+          if (cancelled) return null;
+          if (res.ok) {
+            const data = await res.json();
+            if (data.url) {
+              // Build a StreamData-compatible object that the existing
+              // HLSPlayerNew component can play.
+              const streamData: StreamData = {
+                video_link: data.url,                // already wrapped through /api/anime/scraper/stream
+                source_type: data.sourceType === "mp4" ? "mp4" : "hls",
+                hls_sources: [
+                  {
+                    url: data.url,
+                    quality: data.quality || "Auto",
+                    label: `Miruro ${data.provider} ${data.quality || ""}`.trim(),
+                    isM3U8: data.isM3U8 ?? true,
+                  },
+                ],
+                embed_sources: [],
+                subtitle_tracks: (data.subtitles || []).map((s: any) => ({
+                  url: s.url,
+                  label: s.language || s.lang || "English",
+                  kind: "subtitles" as const,
+                })),
+                intro: data.intro || null,
+                outro: data.outro || null,
+                provider: data.provider,
+                available_qualities: [data.quality || "Auto"],
+                tried_providers: data.triedProviders,
+                all_providers: data.triedProviders,
+                _fallback: true,
+              };
+              return { kind: "miruro-direct" as const, data: streamData };
+            }
           }
-        } else {
-          handleProviderFailed(activeProvider);
+          return null;
+        } catch {
+          return null;
         }
-      } catch {
-        if (!cancelled) {
-          handleProviderFailed(activeProvider);
-        }
+      })();
+
+      // First successful result wins
+      const results = await Promise.all([yumezonePromise, miruroDirectPromise]);
+      if (cancelled) return;
+
+      // Prefer Miruro-direct if it returned a stream (instant play)
+      const miruroResult = results.find(r => r?.kind === "miruro-direct");
+      if (miruroResult) {
+        console.log("[WatchPage] Using Miruro direct source");
+        setStreamData(miruroResult.data);
+        setStreamLoading(false);
+        return;
       }
+
+      const yumezoneResult = results.find(r => r?.kind === "yumezone");
+      if (yumezoneResult) {
+        console.log("[WatchPage] Using YumeZone source");
+        setStreamData(yumezoneResult.data);
+        setStreamLoading(false);
+        return;
+      }
+
+      // Both failed — kick off scraper fallback (Animex/Lunar)
+      console.log("[WatchPage] Both YumeZone + Miruro direct failed — trying scraper fallback");
+      setStreamError("All providers failed. Trying scraper sources...");
+      setStreamLoading(true);
+      setScraperFallbackToken(t => t + 1);
     }
     fetchStream();
     return () => { cancelled = true; };
