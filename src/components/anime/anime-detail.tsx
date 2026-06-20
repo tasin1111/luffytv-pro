@@ -302,20 +302,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
       // Show the page NOW — info is loaded
       if (!cancelled) setLoading(false);
 
-      // Step 2: Load episodes in background (page is already visible)
-      try {
-        const epRes = await fetch(`/api/anime/episodes?id=${encodeURIComponent(animeId)}`);
-        if (epRes.ok && !cancelled) {
-          const epData = await epRes.json();
-          setEpisodes(epData.episodes || []);
-          setMiruroEps(epData.miruroEpisodes || { sub: [], dub: [] });
-          const epTotal = epData.totalEpisodes ?? epData.episodes?.length ?? null;
-          if (epTotal != null && epTotal > 0) setTotalEpisodes(epTotal);
-        }
-      } catch { /* episodes load failed */ }
-
-      // Step 3: If episodes still empty, fall back to Animex scraper
-      // Animex has reliable episode lists for any anime with an AniList ID
+      // Step 2: Load episodes DIRECTLY from miruro.tv (no external API)
       try {
         // Resolve anilistId if not yet known
         let aid = anilistId;
@@ -330,33 +317,45 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
           } catch { /* ignore */ }
         }
         if (aid && !cancelled) {
-          // Check current episodes state — only fetch if empty
-          setEpisodes(prev => {
-            if (prev.length > 0) return prev;
-            // Fire and forget — fetch from scraper
-            fetch(`/api/anime/scraper/episodes/animex/${aid}`)
-              .then(r => r.ok ? r.json() : null)
-              .then(d => {
-                if (cancelled || !d?.episodes?.length) return;
-                const mapped: EpisodeData[] = d.episodes.map((e: any) => ({
-                  episodeIdNum: Number(e.number),
-                  title: e.title || `Episode ${e.number}`,
-                  thumbnail: e.thumbnail || null,
-                  description: e.description || null,
-                  source: "animex",
-                  // Store the scraper episode ID for the watch page to use
-                  subSlug: e.id,
-                }));
-                setEpisodes(p => p.length > 0 ? p : mapped);
-                if (d.totalEpisodes && !cancelled) {
-                  setTotalEpisodes(prev => prev ?? d.totalEpisodes);
-                }
-              })
-              .catch(() => {});
-            return prev;
-          });
+          const epRes = await fetch(`/api/anime/miruro-direct/episodes/${aid}`);
+          if (epRes.ok && !cancelled) {
+            const data = await epRes.json();
+            // Merge sub + dub episodes
+            const subEps = data.sub || [];
+            const dubEps = data.dub || [];
+            const all = new Map<number, EpisodeData>();
+            for (const ep of subEps) {
+              all.set(Number(ep.number), {
+                episodeIdNum: Number(ep.number),
+                title: ep.title || `Episode ${ep.number}`,
+                thumbnail: ep.thumbnail || ep.image || null,
+                description: ep.description || null,
+                source: "miruro",
+                subSlug: ep.id || ep.slug || String(ep.number),
+              });
+            }
+            for (const ep of dubEps) {
+              const num = Number(ep.number);
+              if (!all.has(num)) {
+                all.set(num, {
+                  episodeIdNum: num,
+                  title: ep.title || `Episode ${ep.number}`,
+                  thumbnail: ep.thumbnail || ep.image || null,
+                  description: ep.description || null,
+                  source: "miruro",
+                  subSlug: ep.id || ep.slug || String(ep.number),
+                });
+              }
+            }
+            const episodes = Array.from(all.values()).sort((a, b) => a.episodeIdNum - b.episodeIdNum);
+            if (episodes.length > 0) {
+              setEpisodes(episodes);
+            }
+            const epTotal = data.totalEpisodes ?? episodes.length;
+            if (epTotal && !cancelled) setTotalEpisodes(epTotal);
+          }
         }
-      } catch { /* scraper fallback failed */ }
+      } catch { /* episodes load failed */ }
     }
     load();
     return () => { cancelled = true; };

@@ -269,134 +269,73 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     navigate({ page: "watch", id: animeId, episode: epNum, title: animeTitle, image: animeImage });
   }, [navigate, animeId, animeTitle, animeImage]);
 
-  // ── Scraper fallback state ──
-  // When all YumeZone providers fail, we fall back to our unified scraper
-  // (Miruro → Animex → Lunar in order) to find a working stream.
+  // ── Scraper fallback state (now used as a simple retry token) ──
   const [scraperFallbackToken, setScraperFallbackToken] = useState(0);
   const [scraperSitesTried, setScraperSitesTried] = useState<string[]>([]);
 
-  const handleProviderFailed = useCallback((provider: string) => {
-    // Guard: if we're already showing scraper-sourced streams, don't re-trigger fallback loop
-    if (streamData?._fallback) {
-      setStreamError("Scraper source also failed. Try refreshing the page.");
-      setStreamLoading(false);
-      return;
-    }
-    setFailedProviders(prev => {
-      const next = new Set(prev);
-      next.add(provider);
-      const nextProvider = availableProviders.find(p => !next.has(p) && p !== provider);
-      if (nextProvider) {
-        setActiveProvider(nextProvider);
-      } else {
-        // All YumeZone providers failed — kick off scraper fallback
-        setStreamError("All providers failed. Trying scraper sources...");
-        setStreamLoading(true);
-        // Trigger scraper fallback effect
-        setScraperFallbackToken(t => t + 1);
-      }
-      return next;
-    });
-  }, [availableProviders, streamData]);
+  const handleProviderFailed = useCallback((_provider: string) => {
+    // Simple retry — re-fetch from Miruro direct
+    // (miruro-direct tries all 12 providers internally, so a retry may pick a different one)
+    setStreamError("Stream failed. Retrying...");
+    setStreamLoading(true);
+    setScraperFallbackToken(t => t + 1);
+  }, []);
 
-  // ── Scraper fallback effect: fires when all YumeZone providers fail ──
-  // Tries Miruro → Animex → Lunar in order, picks first that returns sources.
+  // ── Scraper retry effect: fires when handleProviderFailed triggers ──
   useEffect(() => {
     if (!scraperFallbackToken || !anilistId) return;
     let cancelled = false;
 
-    async function tryScraperFallback() {
-      const sites = ["miruro", "animex", "lunar"];
-      for (const site of sites) {
+    async function retryStream() {
+      try {
+        const res = await fetch(
+          `/api/anime/scraper/miruro-direct/${anilistId}/${episodeNum}?type=${translation}`
+        );
         if (cancelled) return;
-        try {
-          // Step 1: Get episode list from this scraper site to find the episode ID
-          const epsRes = await fetch(`/api/anime/scraper/episodes/${site}/${anilistId}`);
-          if (!epsRes.ok) continue;
-          const epsData = await epsRes.json();
-          const eps = epsData.episodes || [];
-          // Find the episode matching episodeNum
-          const ep = eps.find((e: any) => Number(e.number) === Number(episodeNum))
-                  || eps.find((e: any) => Math.abs(Number(e.number) - Number(episodeNum)) < 0.5);
-          if (!ep || !ep.id) {
-            setScraperSitesTried(prev => prev.includes(site) ? prev : [...prev, site]);
-            continue;
+        if (res.ok) {
+          const data = await res.json();
+          if (data.url) {
+            const streamData: StreamData = {
+              video_link: data.url,
+              source_type: data.sourceType === "mp4" ? "mp4" : "hls",
+              hls_sources: [{
+                url: data.url,
+                quality: data.quality || "Auto",
+                label: `Miruro ${data.provider} ${data.quality || ""}`.trim(),
+                isM3U8: data.isM3U8 ?? true,
+              }],
+              embed_sources: [],
+              subtitle_tracks: (data.subtitles || []).map((s: any) => ({
+                url: s.url,
+                label: s.language || s.lang || "English",
+                kind: "subtitles" as const,
+              })),
+              intro: data.intro || null,
+              outro: data.outro || null,
+              provider: data.provider,
+              available_qualities: [data.quality || "Auto"],
+              tried_providers: data.triedProviders,
+              all_providers: data.triedProviders,
+            };
+            setStreamData(streamData);
+            setStreamLoading(false);
+            setStreamError(null);
+            return;
           }
-
-          // Step 2: Filter by variant if possible (sub/dub)
-          const wantedVariant = translation === "dub" ? "dub" : "sub";
-          const hasVariant = (ep.variants || []).includes(wantedVariant)
-                          || (ep.variants || []).includes("hardsub")
-                          || (ep.variants || []).length === 0;
-          if (!hasVariant) {
-            setScraperSitesTried(prev => prev.includes(site) ? prev : [...prev, site]);
-            continue;
-          }
-
-          // Step 3: Fetch stream sources
-          const srcRes = await fetch(`/api/anime/scraper/sources/${site}/${encodeURIComponent(ep.id)}`);
-          if (!srcRes.ok) continue;
-          const srcData = await srcRes.json();
-          const sources = srcData.sources || [];
-          if (sources.length === 0) {
-            setScraperSitesTried(prev => prev.includes(site) ? prev : [...prev, site]);
-            continue;
-          }
-
-          // Step 4: Pick best source — prefer HLS m3u8, prefer matching variant
-          const matching = sources.filter((s: any) =>
-            (s.variant === wantedVariant || s.variant === "hardsub" || s.variant === "harddub")
-            && s.isM3U8
-          );
-          const pool = matching.length > 0 ? matching : sources.filter((s: any) => s.isM3U8);
-          const picked = (pool.length > 0 ? pool : sources)[0];
-          if (!picked) continue;
-
-          // Step 5: Route through universal stream proxy
-          const proxyUrl = `/api/anime/scraper/stream?provider=${encodeURIComponent(picked.provider)}&subProvider=${encodeURIComponent(picked.subProvider)}&mode=manifest&url=${encodeURIComponent(picked.url)}`;
-
-          if (cancelled) return;
-          // Build a StreamData-compatible object
-          const streamData: StreamData = {
-            video_link: proxyUrl,
-            source_type: picked.format === "mp4" ? "mp4" : "hls",
-            hls_sources: sources.filter((s: any) => s.isM3U8).map((s: any) => ({
-              url: `/api/anime/scraper/stream?provider=${encodeURIComponent(s.provider)}&subProvider=${encodeURIComponent(s.subProvider)}&mode=manifest&url=${encodeURIComponent(s.url)}`,
-              quality: s.quality || "auto",
-              label: `${s.subProvider} ${s.variant} ${s.quality || ""}`.trim(),
-              isM3U8: true,
-            })),
-            embed_sources: [],
-            subtitle_tracks: (srcData.subtitles || []).map((t: any) => ({
-              url: t.url,
-              label: t.label || t.lang || "English",
-              kind: "subtitles" as const,
-            })),
-            intro: srcData.intro || null,
-            outro: srcData.outro || null,
-            provider: `${site}:${picked.subProvider}`,
-            available_qualities: sources.map((s: any) => s.quality || "auto"),
-            tried_providers: [site],
-            all_providers: sites,
-            _fallback: true,
-          };
-          setStreamData(streamData);
-          setStreamLoading(false);
-          setStreamError(null);
-          return; // Success — stop trying other sites
-        } catch (e) {
-          console.error(`[Scraper fallback] ${site} failed:`, e);
-          setScraperSitesTried(prev => prev.includes(site) ? prev : [...prev, site]);
         }
-      }
-      // All scraper sites failed too
-      if (!cancelled) {
-        setStreamError("All providers failed. Try refreshing the page.");
-        setStreamLoading(false);
+        if (!cancelled) {
+          setStreamError("No stream available from Miruro. Try another episode.");
+          setStreamLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setStreamError("Failed to load stream. Try refreshing the page.");
+          setStreamLoading(false);
+        }
       }
     }
 
-    tryScraperFallback();
+    retryStream();
     return () => { cancelled = true; };
   }, [scraperFallbackToken, anilistId, episodeNum, translation]);
 
@@ -499,70 +438,63 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     return () => { cancelled = true; };
   }, [animeId, anilistId]);
 
-  // ── Load episodes from YumeZone API (with scraper fallback) ──
+  // ── Load episodes DIRECTLY from miruro.tv (no external API) ──
+  // Hits www.miruro.tv/api/secure/pipe via our /api/anime/miruro-direct/episodes route.
+  // Returns sub + dub episode lists from all 12 Miruro providers (kiwi, bee, bonk, etc.)
   useEffect(() => {
     if (!anilistId) return;
     let cancelled = false;
     async function loadEpisodes() {
       try {
-        const res = await fetch(`/api/anime/yumezone/episodes?anilistId=${anilistId}`);
+        const res = await fetch(`/api/anime/miruro-direct/episodes/${anilistId}`);
         if (cancelled) return;
         if (res.ok) {
           const data = await res.json();
-          if (data.episodes?.length) {
-            setEpisodeList(data.episodes);
+          // Merge sub + dub into a unified episode list
+          const subEps = data.sub || [];
+          const dubEps = data.dub || [];
+          const all = new Map<number, EpisodeItem>();
+          for (const ep of subEps) {
+            all.set(Number(ep.number), {
+              number: Number(ep.number),
+              title: ep.title || `Episode ${ep.number}`,
+              filler: !!ep.isFiller || !!ep.filler,
+              id: ep.id || ep.slug || String(ep.number),
+            });
           }
-          if (data.providersMap) {
-            setProvidersMap(data.providersMap);
+          for (const ep of dubEps) {
+            const num = Number(ep.number);
+            if (!all.has(num)) {
+              all.set(num, {
+                number: num,
+                title: ep.title || `Episode ${ep.number}`,
+                filler: !!ep.isFiller || !!ep.filler,
+                id: ep.id || ep.slug || String(ep.number),
+              });
+            }
           }
-          if (data.sortedProviders?.length) {
-            setAvailableProviders(data.sortedProviders);
-          } else if (data.allProviders?.length) {
-            setAvailableProviders(data.allProviders);
+          const episodes = Array.from(all.values()).sort((a, b) => a.number - b.number);
+          if (episodes.length > 0) {
+            setEpisodeList(episodes);
+          }
+          if (data.providers?.length) {
+            setAvailableProviders(data.providers);
           }
           if (data.defaultProvider) {
             setActiveProvider(data.defaultProvider);
           }
-          setDubAvailable(data.dubAvailable || false);
+          setDubAvailable(dubEps.length > 0);
         }
       } catch { /* ignore */ }
-
-      // Fallback: if YumeZone returned no episodes, try Animex scraper
-      // (Animex has the most reliable episode list — 1166 for One Piece etc.)
-      if (!cancelled) {
-        try {
-          // Only fetch if episodeList is still empty (check current state via setter callback)
-          setEpisodeList(prev => {
-            if (prev.length > 0) return prev;
-            // Fire and forget — fetch from scraper
-            fetch(`/api/anime/scraper/episodes/animex/${anilistId}`)
-              .then(r => r.ok ? r.json() : null)
-              .then(d => {
-                if (cancelled || !d?.episodes?.length) return;
-                const mapped: EpisodeItem[] = d.episodes.map((e: any) => ({
-                  number: Number(e.number),
-                  title: e.title || `Episode ${e.number}`,
-                  filler: !!e.isFiller,
-                  id: e.id || String(e.number),
-                }));
-                // Only set if still empty
-                setEpisodeList(p => p.length > 0 ? p : mapped);
-              })
-              .catch(() => {});
-            return prev;
-          });
-        } catch { /* ignore */ }
-      }
     }
     loadEpisodes();
     return () => { cancelled = true; };
   }, [anilistId]);
 
-  // ── Fetch stream data when provider/episode/translation changes ──
-  // We fire BOTH the YumeZone request AND the Miruro-direct scrape in parallel.
-  // Whichever returns a playable source first wins — usually Miruro-direct
-  // is much faster because it hits www.miruro.tv/api/secure/pipe directly
-  // (no dependency on the user's deployed miruro-api.vercel.app).
+  // ── Fetch stream DIRECTLY from miruro.tv (no external API, no fallback chain) ──
+  // Single source of truth: /api/anime/scraper/miruro-direct/{anilistId}/{episode}
+  // This hits www.miruro.tv/api/secure/pipe, tries all 12 providers (kiwi, bee, bonk...),
+  // and returns the first playable m3u8 wrapped through our stream proxy.
   useEffect(() => {
     if (!anilistId) return;
     let cancelled = false;
@@ -573,101 +505,61 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     });
 
     async function fetchStream() {
-      // Race YumeZone vs Miruro-direct in parallel
-      const yumezonePromise = (async () => {
-        try {
-          const res = await fetch(
-            `/api/anime/yumezone/watch?anilistId=${anilistId}&episode=${episodeNum}&provider=${activeProvider}&type=${translation}`
-          );
-          if (cancelled) return null;
-          if (res.ok) {
-            const data: StreamData = await res.json();
-            if ((data as any).error) return null;
-            if (data.video_link || data.hls_sources?.length || data.embed_sources?.length) {
-              return { kind: "yumezone" as const, data };
-            }
+      try {
+        const res = await fetch(
+          `/api/anime/scraper/miruro-direct/${anilistId}/${episodeNum}?type=${translation}`
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          const data = await res.json();
+          if (data.url) {
+            // Build a StreamData-compatible object for the HLS player
+            const streamData: StreamData = {
+              video_link: data.url,                // already wrapped through /api/anime/scraper/stream
+              source_type: data.sourceType === "mp4" ? "mp4" : "hls",
+              hls_sources: [
+                {
+                  url: data.url,
+                  quality: data.quality || "Auto",
+                  label: `Miruro ${data.provider} ${data.quality || ""}`.trim(),
+                  isM3U8: data.isM3U8 ?? true,
+                },
+              ],
+              embed_sources: [],
+              subtitle_tracks: (data.subtitles || []).map((s: any) => ({
+                url: s.url,
+                label: s.language || s.lang || "English",
+                kind: "subtitles" as const,
+              })),
+              intro: data.intro || null,
+              outro: data.outro || null,
+              provider: data.provider,
+              available_qualities: [data.quality || "Auto"],
+              tried_providers: data.triedProviders,
+              all_providers: data.triedProviders,
+            };
+            console.log(`[WatchPage] Playing via Miruro direct: ${data.provider}`);
+            setStreamData(streamData);
+            setStreamLoading(false);
+            return;
           }
-          return null;
-        } catch {
-          return null;
         }
-      })();
-
-      const miruroDirectPromise = (async () => {
-        try {
-          const res = await fetch(
-            `/api/anime/scraper/miruro-direct/${anilistId}/${episodeNum}?type=${translation}`
-          );
-          if (cancelled) return null;
-          if (res.ok) {
-            const data = await res.json();
-            if (data.url) {
-              // Build a StreamData-compatible object that the existing
-              // HLSPlayerNew component can play.
-              const streamData: StreamData = {
-                video_link: data.url,                // already wrapped through /api/anime/scraper/stream
-                source_type: data.sourceType === "mp4" ? "mp4" : "hls",
-                hls_sources: [
-                  {
-                    url: data.url,
-                    quality: data.quality || "Auto",
-                    label: `Miruro ${data.provider} ${data.quality || ""}`.trim(),
-                    isM3U8: data.isM3U8 ?? true,
-                  },
-                ],
-                embed_sources: [],
-                subtitle_tracks: (data.subtitles || []).map((s: any) => ({
-                  url: s.url,
-                  label: s.language || s.lang || "English",
-                  kind: "subtitles" as const,
-                })),
-                intro: data.intro || null,
-                outro: data.outro || null,
-                provider: data.provider,
-                available_qualities: [data.quality || "Auto"],
-                tried_providers: data.triedProviders,
-                all_providers: data.triedProviders,
-                _fallback: true,
-              };
-              return { kind: "miruro-direct" as const, data: streamData };
-            }
-          }
-          return null;
-        } catch {
-          return null;
+        // Miruro direct returned no playable source
+        if (!cancelled) {
+          setStreamError("No stream available from Miruro. Try another episode.");
+          setStreamLoading(false);
         }
-      })();
-
-      // First successful result wins
-      const results = await Promise.all([yumezonePromise, miruroDirectPromise]);
-      if (cancelled) return;
-
-      // Prefer Miruro-direct if it returned a stream (instant play)
-      const miruroResult = results.find(r => r?.kind === "miruro-direct");
-      if (miruroResult) {
-        console.log("[WatchPage] Using Miruro direct source");
-        setStreamData(miruroResult.data);
-        setStreamLoading(false);
-        return;
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error("[WatchPage] Miruro direct failed:", err);
+          setStreamError("Failed to load stream. Check your connection.");
+          setStreamLoading(false);
+        }
       }
-
-      const yumezoneResult = results.find(r => r?.kind === "yumezone");
-      if (yumezoneResult) {
-        console.log("[WatchPage] Using YumeZone source");
-        setStreamData(yumezoneResult.data);
-        setStreamLoading(false);
-        return;
-      }
-
-      // Both failed — kick off scraper fallback (Animex/Lunar)
-      console.log("[WatchPage] Both YumeZone + Miruro direct failed — trying scraper fallback");
-      setStreamError("All providers failed. Trying scraper sources...");
-      setStreamLoading(true);
-      setScraperFallbackToken(t => t + 1);
     }
     fetchStream();
     return () => { cancelled = true; };
-  }, [anilistId, episodeNum, activeProvider, translation, handleProviderFailed]);
+  }, [anilistId, episodeNum, translation]);
 
   // ── Next airing countdown ──
   useEffect(() => {
@@ -827,36 +719,16 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   </svg>
                 </div>
                 <p className="text-zinc-300 text-sm">{streamError}</p>
-                {scraperSitesTried.length > 0 && (
-                  <p className="text-[10px] text-zinc-500">
-                    Scraper sites tried: {scraperSitesTried.join(", ")}
-                  </p>
-                )}
-                <div className="flex items-center justify-center gap-2 flex-wrap">
-                  <button
-                    onClick={() => {
-                      setFailedProviders(new Set());
-                      setScraperSitesTried([]);
-                      setStreamError(null);
-                      setActiveProvider(providersForCurrentEp[0] || availableProviders[0] || "kiwi");
-                    }}
-                    className="px-5 py-2 rounded-lg bg-[#D4A017] text-black text-sm font-bold hover:bg-[#c49515] transition-colors"
-                  >
-                    Retry
-                  </button>
-                  <button
-                    onClick={() => {
-                      setFailedProviders(new Set());
-                      setScraperSitesTried([]);
-                      setStreamError("Trying scraper sources...");
-                      setStreamLoading(true);
-                      setScraperFallbackToken(t => t + 1);
-                    }}
-                    className="px-5 py-2 rounded-lg bg-[#E63946] text-white text-sm font-bold hover:bg-[#c02e3a] transition-colors"
-                  >
-                    Try Scraper Sources
-                  </button>
-                </div>
+                <button
+                  onClick={() => {
+                    setStreamError(null);
+                    setStreamLoading(true);
+                    setScraperFallbackToken(t => t + 1);
+                  }}
+                  className="px-5 py-2 rounded-lg bg-[#7c3aed] text-white text-sm font-bold hover:bg-[#6d28d9] transition-colors"
+                >
+                  Retry
+                </button>
               </div>
             </div>
           )}
