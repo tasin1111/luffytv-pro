@@ -269,7 +269,19 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     navigate({ page: "watch", id: animeId, episode: epNum, title: animeTitle, image: animeImage });
   }, [navigate, animeId, animeTitle, animeImage]);
 
+  // ── Scraper fallback state ──
+  // When all YumeZone providers fail, we fall back to our unified scraper
+  // (Miruro → Animex → Lunar in order) to find a working stream.
+  const [scraperFallbackToken, setScraperFallbackToken] = useState(0);
+  const [scraperSitesTried, setScraperSitesTried] = useState<string[]>([]);
+
   const handleProviderFailed = useCallback((provider: string) => {
+    // Guard: if we're already showing scraper-sourced streams, don't re-trigger fallback loop
+    if (streamData?._fallback) {
+      setStreamError("Scraper source also failed. Try refreshing the page.");
+      setStreamLoading(false);
+      return;
+    }
     setFailedProviders(prev => {
       const next = new Set(prev);
       next.add(provider);
@@ -277,12 +289,116 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
       if (nextProvider) {
         setActiveProvider(nextProvider);
       } else {
-        setStreamError("All providers failed. Try refreshing the page.");
-        setStreamLoading(false);
+        // All YumeZone providers failed — kick off scraper fallback
+        setStreamError("All providers failed. Trying scraper sources...");
+        setStreamLoading(true);
+        // Trigger scraper fallback effect
+        setScraperFallbackToken(t => t + 1);
       }
       return next;
     });
-  }, [availableProviders]);
+  }, [availableProviders, streamData]);
+
+  // ── Scraper fallback effect: fires when all YumeZone providers fail ──
+  // Tries Miruro → Animex → Lunar in order, picks first that returns sources.
+  useEffect(() => {
+    if (!scraperFallbackToken || !anilistId) return;
+    let cancelled = false;
+
+    async function tryScraperFallback() {
+      const sites = ["miruro", "animex", "lunar"];
+      for (const site of sites) {
+        if (cancelled) return;
+        try {
+          // Step 1: Get episode list from this scraper site to find the episode ID
+          const epsRes = await fetch(`/api/anime/scraper/episodes/${site}/${anilistId}`);
+          if (!epsRes.ok) continue;
+          const epsData = await epsRes.json();
+          const eps = epsData.episodes || [];
+          // Find the episode matching episodeNum
+          const ep = eps.find((e: any) => Number(e.number) === Number(episodeNum))
+                  || eps.find((e: any) => Math.abs(Number(e.number) - Number(episodeNum)) < 0.5);
+          if (!ep || !ep.id) {
+            setScraperSitesTried(prev => prev.includes(site) ? prev : [...prev, site]);
+            continue;
+          }
+
+          // Step 2: Filter by variant if possible (sub/dub)
+          const wantedVariant = translation === "dub" ? "dub" : "sub";
+          const hasVariant = (ep.variants || []).includes(wantedVariant)
+                          || (ep.variants || []).includes("hardsub")
+                          || (ep.variants || []).length === 0;
+          if (!hasVariant) {
+            setScraperSitesTried(prev => prev.includes(site) ? prev : [...prev, site]);
+            continue;
+          }
+
+          // Step 3: Fetch stream sources
+          const srcRes = await fetch(`/api/anime/scraper/sources/${site}/${encodeURIComponent(ep.id)}`);
+          if (!srcRes.ok) continue;
+          const srcData = await srcRes.json();
+          const sources = srcData.sources || [];
+          if (sources.length === 0) {
+            setScraperSitesTried(prev => prev.includes(site) ? prev : [...prev, site]);
+            continue;
+          }
+
+          // Step 4: Pick best source — prefer HLS m3u8, prefer matching variant
+          const matching = sources.filter((s: any) =>
+            (s.variant === wantedVariant || s.variant === "hardsub" || s.variant === "harddub")
+            && s.isM3U8
+          );
+          const pool = matching.length > 0 ? matching : sources.filter((s: any) => s.isM3U8);
+          const picked = (pool.length > 0 ? pool : sources)[0];
+          if (!picked) continue;
+
+          // Step 5: Route through universal stream proxy
+          const proxyUrl = `/api/anime/scraper/stream?provider=${encodeURIComponent(picked.provider)}&subProvider=${encodeURIComponent(picked.subProvider)}&mode=manifest&url=${encodeURIComponent(picked.url)}`;
+
+          if (cancelled) return;
+          // Build a StreamData-compatible object
+          const streamData: StreamData = {
+            video_link: proxyUrl,
+            source_type: picked.format === "mp4" ? "mp4" : "hls",
+            hls_sources: sources.filter((s: any) => s.isM3U8).map((s: any) => ({
+              url: `/api/anime/scraper/stream?provider=${encodeURIComponent(s.provider)}&subProvider=${encodeURIComponent(s.subProvider)}&mode=manifest&url=${encodeURIComponent(s.url)}`,
+              quality: s.quality || "auto",
+              label: `${s.subProvider} ${s.variant} ${s.quality || ""}`.trim(),
+              isM3U8: true,
+            })),
+            embed_sources: [],
+            subtitle_tracks: (srcData.subtitles || []).map((t: any) => ({
+              url: t.url,
+              label: t.label || t.lang || "English",
+              kind: "subtitles" as const,
+            })),
+            intro: srcData.intro || null,
+            outro: srcData.outro || null,
+            provider: `${site}:${picked.subProvider}`,
+            available_qualities: sources.map((s: any) => s.quality || "auto"),
+            tried_providers: [site],
+            all_providers: sites,
+            _fallback: true,
+          };
+          setStreamData(streamData);
+          setStreamLoading(false);
+          setStreamError(null);
+          return; // Success — stop trying other sites
+        } catch (e) {
+          console.error(`[Scraper fallback] ${site} failed:`, e);
+          setScraperSitesTried(prev => prev.includes(site) ? prev : [...prev, site]);
+        }
+      }
+      // All scraper sites failed too
+      if (!cancelled) {
+        setStreamError("All providers failed. Try refreshing the page.");
+        setStreamLoading(false);
+      }
+    }
+
+    tryScraperFallback();
+    return () => { cancelled = true; };
+  }, [scraperFallbackToken, anilistId, episodeNum, translation]);
 
   const handleProviderSelect = useCallback((provider: string) => {
     if (provider === activeProvider) return;
@@ -383,7 +499,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     return () => { cancelled = true; };
   }, [animeId, anilistId]);
 
-  // ── Load episodes from YumeZone API ──
+  // ── Load episodes from YumeZone API (with scraper fallback) ──
   useEffect(() => {
     if (!anilistId) return;
     let cancelled = false;
@@ -410,6 +526,33 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           setDubAvailable(data.dubAvailable || false);
         }
       } catch { /* ignore */ }
+
+      // Fallback: if YumeZone returned no episodes, try Animex scraper
+      // (Animex has the most reliable episode list — 1166 for One Piece etc.)
+      if (!cancelled) {
+        try {
+          // Only fetch if episodeList is still empty (check current state via setter callback)
+          setEpisodeList(prev => {
+            if (prev.length > 0) return prev;
+            // Fire and forget — fetch from scraper
+            fetch(`/api/anime/scraper/episodes/animex/${anilistId}`)
+              .then(r => r.ok ? r.json() : null)
+              .then(d => {
+                if (cancelled || !d?.episodes?.length) return;
+                const mapped: EpisodeItem[] = d.episodes.map((e: any) => ({
+                  number: Number(e.number),
+                  title: e.title || `Episode ${e.number}`,
+                  filler: !!e.isFiller,
+                  id: e.id || String(e.number),
+                }));
+                // Only set if still empty
+                setEpisodeList(p => p.length > 0 ? p : mapped);
+              })
+              .catch(() => {});
+            return prev;
+          });
+        } catch { /* ignore */ }
+      }
     }
     loadEpisodes();
     return () => { cancelled = true; };
@@ -614,16 +757,36 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   </svg>
                 </div>
                 <p className="text-zinc-300 text-sm">{streamError}</p>
-                <button
-                  onClick={() => {
-                    setFailedProviders(new Set());
-                    setStreamError(null);
-                    setActiveProvider(providersForCurrentEp[0] || availableProviders[0] || "kiwi");
-                  }}
-                  className="px-5 py-2 rounded-lg bg-[#D4A017] text-black text-sm font-bold hover:bg-[#c49515] transition-colors"
-                >
-                  Retry
-                </button>
+                {scraperSitesTried.length > 0 && (
+                  <p className="text-[10px] text-zinc-500">
+                    Scraper sites tried: {scraperSitesTried.join(", ")}
+                  </p>
+                )}
+                <div className="flex items-center justify-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => {
+                      setFailedProviders(new Set());
+                      setScraperSitesTried([]);
+                      setStreamError(null);
+                      setActiveProvider(providersForCurrentEp[0] || availableProviders[0] || "kiwi");
+                    }}
+                    className="px-5 py-2 rounded-lg bg-[#D4A017] text-black text-sm font-bold hover:bg-[#c49515] transition-colors"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    onClick={() => {
+                      setFailedProviders(new Set());
+                      setScraperSitesTried([]);
+                      setStreamError("Trying scraper sources...");
+                      setStreamLoading(true);
+                      setScraperFallbackToken(t => t + 1);
+                    }}
+                    className="px-5 py-2 rounded-lg bg-[#E63946] text-white text-sm font-bold hover:bg-[#c02e3a] transition-colors"
+                  >
+                    Try Scraper Sources
+                  </button>
+                </div>
               </div>
             </div>
           )}

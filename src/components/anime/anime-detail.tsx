@@ -313,6 +313,50 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
           if (epTotal != null && epTotal > 0) setTotalEpisodes(epTotal);
         }
       } catch { /* episodes load failed */ }
+
+      // Step 3: If episodes still empty, fall back to Animex scraper
+      // Animex has reliable episode lists for any anime with an AniList ID
+      try {
+        // Resolve anilistId if not yet known
+        let aid = anilistId;
+        if (!aid) {
+          try {
+            const infoRes = await fetch(`/api/anime/info?id=${encodeURIComponent(animeId)}`);
+            if (infoRes.ok) {
+              const info = await infoRes.json();
+              aid = info?.anilistInfo?.id ? Number(info.anilistInfo.id) : null;
+              if (aid && !cancelled) setAnilistId(aid);
+            }
+          } catch { /* ignore */ }
+        }
+        if (aid && !cancelled) {
+          // Check current episodes state — only fetch if empty
+          setEpisodes(prev => {
+            if (prev.length > 0) return prev;
+            // Fire and forget — fetch from scraper
+            fetch(`/api/anime/scraper/episodes/animex/${aid}`)
+              .then(r => r.ok ? r.json() : null)
+              .then(d => {
+                if (cancelled || !d?.episodes?.length) return;
+                const mapped: EpisodeData[] = d.episodes.map((e: any) => ({
+                  episodeIdNum: Number(e.number),
+                  title: e.title || `Episode ${e.number}`,
+                  thumbnail: e.thumbnail || null,
+                  description: e.description || null,
+                  source: "animex",
+                  // Store the scraper episode ID for the watch page to use
+                  subSlug: e.id,
+                }));
+                setEpisodes(p => p.length > 0 ? p : mapped);
+                if (d.totalEpisodes && !cancelled) {
+                  setTotalEpisodes(prev => prev ?? d.totalEpisodes);
+                }
+              })
+              .catch(() => {});
+            return prev;
+          });
+        }
+      } catch { /* scraper fallback failed */ }
     }
     load();
     return () => { cancelled = true; };
