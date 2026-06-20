@@ -232,6 +232,17 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const [streamLoading, setStreamLoading] = useState(true);
   const [streamError, setStreamError] = useState<string | null>(null);
 
+  // ── Server List (Miruro + Animex combined) ──
+  interface ServerEntry {
+    id: string;
+    name: string;
+    source: "miruro" | "animex";
+    provider: string;
+    type: "sub" | "dub";
+  }
+  const [serverList, setServerList] = useState<ServerEntry[]>([]);
+  const [selectedServer, setSelectedServer] = useState<string>(""); // server id
+
   // ── Anime Data ──
   const [episodeList, setEpisodeList] = useState<EpisodeItem[]>([]);
   const [animeTitle, setAnimeTitle] = useState("");
@@ -560,6 +571,114 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     fetchStream();
     return () => { cancelled = true; };
   }, [anilistId, episodeNum, translation]);
+
+  // ── Fetch server list (Miruro + Animex combined) ──────────────────
+  useEffect(() => {
+    if (!anilistId) return;
+    let cancelled = false;
+    setServerList([]);
+    setSelectedServer("");
+    fetch(`/api/anime/servers/${anilistId}/${episodeNum}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data?.servers?.length) return;
+        setServerList(data.servers);
+        // Check if dub is available
+        const hasDub = data.servers.some((s: ServerEntry) => s.type === "dub");
+        setDubAvailable(hasDub);
+        // Auto-select first sub server if none selected
+        if (!selectedServer) {
+          const firstSub = data.servers.find((s: ServerEntry) => s.type === translation);
+          if (firstSub) {
+            setSelectedServer(firstSub.id);
+          }
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [anilistId, episodeNum, translation]);
+
+  // ── Fetch stream when server or episode changes ───────────────────
+  useEffect(() => {
+    if (!anilistId || !selectedServer) return;
+    let cancelled = false;
+    requestAnimationFrame(() => {
+      setStreamLoading(true);
+      setStreamError(null);
+      setStreamData(null);
+    });
+
+    async function fetchStreamFromServer() {
+      const server = serverList.find(s => s.id === selectedServer);
+      if (!server) return;
+
+      try {
+        let data;
+        if (server.source === "miruro") {
+          // Fetch from Miruro direct with specific provider
+          const res = await fetch(
+            `/api/anime/scraper/miruro-direct/${anilistId}/${episodeNum}?type=${server.type}&provider=${encodeURIComponent(server.provider)}`
+          );
+          if (cancelled) return;
+          if (res.ok) {
+            data = await res.json();
+          }
+        } else if (server.source === "animex") {
+          // Fetch from Animex direct with specific provider
+          const res = await fetch(
+            `/api/anime/animex-direct/${anilistId}/${episodeNum}?type=${server.type}&provider=${encodeURIComponent(server.provider)}`
+          );
+          if (cancelled) return;
+          if (res.ok) {
+            data = await res.json();
+          }
+        }
+
+        if (cancelled) return;
+
+        if (data?.url) {
+          const streamData: StreamData = {
+            video_link: data.url,
+            source_type: data.sourceType === "mp4" ? "mp4" : "hls",
+            hls_sources: [{
+              url: data.url,
+              quality: data.quality || "Auto",
+              label: `${server.source} ${server.provider} ${data.quality || ""}`.trim(),
+              isM3U8: data.isM3U8 ?? true,
+            }],
+            embed_sources: [],
+            subtitle_tracks: (data.subtitles || []).map((s: any) => ({
+              url: s.url,
+              label: s.language || s.lang || "English",
+              kind: "subtitles" as const,
+            })),
+            intro: data.intro || null,
+            outro: data.outro || null,
+            provider: `${server.source}:${server.provider}`,
+            available_qualities: [data.quality || "Auto"],
+          };
+          console.log(`[WatchPage] Playing via ${server.source}:${server.provider}`);
+          setStreamData(streamData);
+          setStreamLoading(false);
+          return;
+        }
+
+        // Stream not available from this server
+        if (!cancelled) {
+          setStreamError(`${server.name} returned no stream. Try another server.`);
+          setStreamLoading(false);
+        }
+      } catch (err: any) {
+        if (!cancelled) {
+          console.error(`[WatchPage] ${server.source}:${server.provider} failed:`, err);
+          setStreamError(`Failed to load from ${server.name}. Try another server.`);
+          setStreamLoading(false);
+        }
+      }
+    }
+    fetchStreamFromServer();
+    return () => { cancelled = true; };
+  }, [anilistId, episodeNum, selectedServer, serverList]);
 
   // ── Next airing countdown ──
   useEffect(() => {
@@ -1178,32 +1297,33 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               )}
             </div>
 
-            {/* Provider Pills */}
-            {providersForCurrentEp.length > 0 && (
+            {/* Provider Pills — Unified Miruro + Animex servers */}
+            {serverList.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Server</span>
-                {providersForCurrentEp.map(p => (
-                  <button
-                    key={p}
-                    onClick={() => handleProviderSelect(p)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      activeProvider === p
-                        ? "bg-[#D4A017] text-black shadow-md shadow-[#D4A017]/20"
-                        : failedProviders.has(p)
-                          ? "bg-white/[0.02] text-zinc-600 line-through cursor-not-allowed"
-                          : "bg-[#111118] text-zinc-400 border border-white/[0.04] hover:bg-white/[0.06] hover:text-white hover:border-[#D4A017]/20"
-                    }`}
-                    disabled={failedProviders.has(p)}
-                  >
-                    {getProviderDisplayName(p)}
-                    {failedProviders.has(p) && " ✗"}
-                  </button>
-                ))}
+                {serverList
+                  .filter(s => s.type === translation)
+                  .map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => {
+                        setSelectedServer(s.id);
+                        setStreamError(null);
+                      }}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                        selectedServer === s.id
+                          ? "bg-[#7c3aed] text-white shadow-md shadow-[#7c3aed]/30"
+                          : "bg-[#111118] text-zinc-400 border border-white/[0.04] hover:bg-white/[0.06] hover:text-white hover:border-[#7c3aed]/30"
+                      }`}
+                    >
+                      {s.name}
+                    </button>
+                  ))}
               </div>
             )}
 
-            {/* No providers available */}
-            {providersForCurrentEp.length === 0 && availableProviders.length === 0 && !streamLoading && (
+            {/* No servers available */}
+            {serverList.length === 0 && !streamLoading && (
               <div className="text-center py-4">
                 <p className="text-zinc-500 text-xs">Loading servers...</p>
               </div>

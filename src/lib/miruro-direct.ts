@@ -319,6 +319,113 @@ export async function getSources(
 }
 
 /**
+ * List ALL available Miruro servers for a given episode.
+ * Returns provider names that have this episode (sub or dub).
+ * Fast — only 1 API call to the pipe.
+ */
+export function getAvailableMiruroServers(
+  rawData: MiruroDirectEpisodesResult,
+  episodeNum: number,
+  category: "sub" | "dub" = "sub"
+): Array<{ provider: string; episodeId: string }> {
+  if (!rawData?.providers) return [];
+  const result: Array<{ provider: string; episodeId: string }> = [];
+  for (const [provName, p] of Object.entries(rawData.providers)) {
+    if (!p?.episodes) continue;
+    const eps = category === "dub" ? p.episodes.dub : p.episodes.sub;
+    if (!eps?.length) continue;
+    const ep = eps.find(e => Number(e.number) === Number(episodeNum));
+    if (ep?.id) {
+      result.push({ provider: provName, episodeId: ep.id });
+    }
+  }
+  return result;
+}
+
+/**
+ * Fetch stream sources for a SPECIFIC provider (not auto-pick).
+ * Returns the first playable m3u8 from that provider.
+ */
+export async function getSourceFromProvider(
+  anilistId: number,
+  episodeNum: number,
+  category: "sub" | "dub" = "sub",
+  requestedProvider: string
+): Promise<{
+  url: string;
+  quality: string;
+  isM3U8: boolean;
+  provider: string;
+  subtitles: Array<{ url: string; lang: string; language?: string }>;
+  intro?: { start: number; end: number };
+  outro?: { start: number; end: number };
+  headers: Record<string, string>;
+  streamReferer?: string;
+  allSources?: MiruroDirectSource[];
+} | null> {
+  const data = await fetchRawEpisodes(anilistId);
+  if (!data?.providers) return null;
+
+  const p = data.providers[requestedProvider];
+  if (!p?.episodes) return null;
+  const eps = category === "dub" ? p.episodes.dub : p.episodes.sub;
+  if (!eps?.length) return null;
+  const ep = eps.find(e => Number(e.number) === Number(episodeNum));
+  if (!ep?.id) return null;
+
+  try {
+    const result = await getSources(ep.id, requestedProvider, anilistId, category);
+    const allStreams = (result?.streams || result?.sources || []) as MiruroDirectSource[];
+    if (!allStreams.length) return null;
+
+    const m3u8Streams = allStreams.filter(s =>
+      s.url && (s.isM3U8 || s.url.includes(".m3u8") || s.type === "hls")
+    );
+    if (m3u8Streams.length === 0) return null;
+
+    const picked = m3u8Streams.find(s => s.isActive) || m3u8Streams[0];
+
+    const subtitles: Array<{ url: string; lang: string; language?: string }> = [];
+    const rawTracks: any[] = (result?.tracks || result?.subtitles || []) as any[];
+    for (const t of rawTracks) {
+      if (!t?.url) continue;
+      subtitles.push({
+        url: t.url,
+        lang: t.lang || "en",
+        language: t.label || t.language || t.lang || "English",
+      });
+    }
+
+    const streamReferer = picked.referer || "https://www.miruro.tv/";
+    const headers: Record<string, string> = {
+      Referer: streamReferer,
+      "User-Agent": HEADERS["User-Agent"],
+    };
+    if (streamReferer && streamReferer !== "https://www.miruro.tv/") {
+      try { headers["Origin"] = new URL(streamReferer).origin; } catch {}
+    } else {
+      headers["Origin"] = "https://www.miruro.tv";
+    }
+
+    return {
+      url: picked.url,
+      quality: picked.quality || "auto",
+      isM3U8: true,
+      provider: requestedProvider,
+      subtitles,
+      intro: result?.intro || undefined,
+      outro: result?.outro || undefined,
+      headers,
+      streamReferer,
+      allSources: allStreams,
+    };
+  } catch (e) {
+    console.error(`[MiruroDirect] getSourceFromProvider ${requestedProvider} failed:`, e);
+    return null;
+  }
+}
+
+/**
  * One-shot "give me a playable m3u8 for this episode" function.
  * Tries providers in priority order, returns the first that yields a playable m3u8.
  *
