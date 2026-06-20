@@ -41,135 +41,167 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --color-primary-rgb: 230, 57, 70;
-  --color-accent-cyan: #4CC9F0;
-  --color-accent-purple: #E63946;
-  --color-accent-rose: #F43F5E;
+  --color-primary-rgb: 124, 58, 237;
+  --color-accent-cyan: #67e8f9;
+  --color-accent-purple: #7c3aed;
+  --color-accent-rose: #be185d;
   --color-accent-amber: #F59E0B;
   --color-accent-emerald: #10B981;
-  --color-surface-0: #000000;
-  --color-surface-1: #050505;
-  --color-surface-2: #0a0a0a;
-  --color-surface-3: #111111;
-  --color-surface-4: #1a1a1a;
+  --color-surface-0: #080808;
+  --color-surface-1: #0d0d0d;
+  --color-surface-2: #111111;
+  --color-surface-3: #1a1a1a;
+  --color-surface-4: #222222;
 }
 
 :root {
   --radius: 0.75rem;
-  --background: #0A0A0A;
-  --foreground: #e2e8f0;
-  --card: #111111;
-  --card-foreground: #e2e8f0;
+  --background: #080808;
+  --foreground: #ffffff;
+  --card: #0f0f0f;
+  --card-foreground: #ffffff;
   --popover: #111111;
-  --popover-foreground: #e2e8f0;
-  --primary: #E63946;
+  --popover-foreground: #ffffff;
+  --primary: #7c3aed;
   --primary-foreground: #ffffff;
-  --secondary: #080808;
-  --secondary-foreground: #e2e8f0;
-  --muted: #080808;
-  --muted-foreground: #94a3b8;
-  --accent: #111111;
-  --accent-foreground: #e2e8f0;
-  --destructive: #F43F5E;
-  --border: rgba(255, 255, 255, 0.08);
+  --secondary: #0d0d0d;
+  --secondary-foreground: #ffffff;
+  --muted: #0d0d0d;
+  --muted-foreground: #777790;
+  --accent: #7c3aed;
+  --accent-foreground: #ffffff;
+  --destructive: #be185d;
+  --border: rgba(255, 255, 255, 0.07);
   --input: rgba(255, 255, 255, 0.06);
-  --ring: #E63946;
-  --chart-1: #E63946;
-  --chart-2: #6D5DFC;
-  --chart-3: #F43F5E;
-  --chart-4: #F59E0B;
+  --ring: #7c3aed;
+  --chart-1: #7c3aed;
+  --chart-2: #9d6ef8;
+  --chart-3: #c4b5fd;
+  --chart-4: #5b21b6;
   --chart-5: #10B981;
-  --sidebar: #0A0A0A;
-  --sidebar-foreground: #e2e8f0;
-  --sidebar-primary: #E63946;
+  --sidebar: #080808;
+  --sidebar-foreground: #ffffff;
+  --sidebar-primary: #7c3aed;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #080808;
-  --sidebar-accent-foreground: #e2e8f0;
+  --sidebar-accent: #0d0d0d;
+  --sidebar-accent-foreground: #ffffff;
   --sidebar-border: rgba(255, 255, 255, 0.06);
-  --sidebar-ring: #E63946;
+  --sidebar-ring: #7c3aed;
 
   /* ═══════════════════════════════════════════════════════════════
-     ANIKAGE + OTAKUTSU DESIGN SYSTEM — Premium Dark Theme
+     ANIVEXA DESIGN SYSTEM — Kurovexa-inspired Premium Dark Theme
+     Ported from https://github.com/walterwhite-69/Anivexa
      ═══════════════════════════════════════════════════════════════ */
 
-  /* Backgrounds */
-  --bg-app: #0D0D0D;
-  --bg-surface: #111111;
-  --bg-surface-2: #1A1A1A;
-  --bg-surface-3: #222222;
-  --bg-elevated: #2A2A2A;
+  /* Backgrounds — Anivexa deep blacks */
+  --bg-app: #080808;
+  --bg-surface: #0d0d0d;
+  --bg-surface-2: #111111;
+  --bg-surface-3: #1a1a1a;
+  --bg-elevated: #0f0f0f;
 
-  /* Glass effects — Anikage extreme glassmorphism */
-  --glass-bg: rgba(255, 255, 255, 0.03);
+  /* Glass effects — Anivexa glassmorphism */
+  --glass-bg: rgba(8, 8, 8, 0.85);
   --glass-bg-hover: rgba(255, 255, 255, 0.08);
   --glass-border: rgba(255, 255, 255, 0.06);
-  --glass-border-hover: rgba(255, 255, 255, 0.12);
-  --glass-pill-bg: rgba(0, 0, 0, 0.50);
+  --glass-border-hover: rgba(124, 58, 237, 0.5);
+  --glass-pill-bg: rgba(8, 8, 8, 0.50);
   --glass-pill-border: rgba(255, 255, 255, 0.10);
 
-  /* Accent — Otakutsu brand red + LuffyTV heritage */
-  --accent-red: #E63946;
-  --accent-red-hover: #D32F3F;
-  --accent-red-muted: rgba(230, 57, 70, 0.15);
-  --accent-red-glow: rgba(230, 57, 70, 0.30);
+  /* Accent — Anivexa violet + rose primary button */
+  --accent-violet: #7c3aed;
+  --accent-violet-light: #9d6ef8;
+  --accent-violet-dark: #5b21b6;
+  --accent-violet-pale: #c4b5fd;
+  --accent-red: #7c3aed;
+  --accent-red-hover: #6d28d9;
+  --accent-red-muted: rgba(124, 58, 237, 0.18);
+  --accent-red-glow: rgba(124, 58, 237, 0.35);
 
-  /* Secondary accents — Anikage per-item rainbow */
-  --accent-gold: #E4C993;
+  /* Primary button — Anivexa rose gradient */
+  --btn-primary-grad: linear-gradient(135deg, #e11d48, #881337);
+  --btn-primary-glow: rgba(225, 29, 72, 0.35);
+  --btn-primary-glow-hover: rgba(225, 29, 72, 0.55);
+
+  /* Gradient accents — Anivexa signature */
+  --grad-accent: linear-gradient(135deg, #7c3aed, #4c1d95);
+  --grad-card: linear-gradient(180deg, transparent 35%, rgba(8, 8, 8, 0.99) 100%);
+  --grad-hero: linear-gradient(0deg, rgba(8, 8, 8, 0.95) 0%, rgba(8, 8, 8, 0.3) 50%, transparent 100%);
+
+  /* Secondary accents — Anivexa palette */
+  --accent-gold: #FFB800;
   --accent-silver: #A8B4C0;
   --accent-bronze: #CD7F32;
-  --accent-teal: #00D4AA;
+  --accent-teal: #06b6d4;
   --accent-amber: #F59E0B;
   --accent-indigo: #6366F1;
-  --accent-lime: #bbf1a1;
+  --accent-lime: #22c55e;
   --accent-orange: #FF6B00;
-  --accent-pink: #e45d86;
+  --accent-pink: #be185d;
   --accent-blue: #4A90E2;
-  --accent-light-blue: #5dbbe4;
+  --accent-light-blue: #67e8f9;
   --accent-gold-score: #FFB800;
+  --accent-green: #22c55e;
 
-  /* Text — Otakutsu zinc scale */
-  --text: #FFFFFF;
-  --text-secondary: #A1A1AA;
-  --text-muted: #71717A;
+  /* Text — Anivexa zinc scale */
+  --text: #ffffff;
+  --text-secondary: #777790;
+  --text-muted: #404050;
   --text-faint: #52525B;
 
-  /* Borders */
-  --border-subtle: rgba(255, 255, 255, 0.06);
+  /* Borders — Anivexa subtle + violet-bright */
+  --border-subtle: rgba(255, 255, 255, 0.07);
   --border-medium: rgba(255, 255, 255, 0.10);
   --border-strong: rgba(255, 255, 255, 0.15);
+  --border-violet: rgba(124, 58, 237, 0.5);
 
   /* Status colors */
-  --status-airing: #00D4AA;
+  --status-airing: #22c55e;
   --status-finished: #6366F1;
   --status-upcoming: #F59E0B;
 
   /* Overlays */
   --overlay-light: rgba(0, 0, 0, 0.55);
   --overlay-heavy: rgba(0, 0, 0, 0.80);
-  --overlay-blur: rgba(0, 0, 0, 0.55);
+  --overlay-blur: rgba(8, 8, 8, 0.85);
 
-  /* Transitions — Otakutsu cubic-bezier */
+  /* Transitions — Anivexa cubic-bezier */
   --t-fast: 150ms;
-  --t-normal: 200ms;
-  --t-slow: 300ms;
-  --t-spring: 500ms cubic-bezier(0.2, 0, 0, 1);
+  --t-normal: 220ms;
+  --t-slow: 450ms;
+  --t-spring: 500ms cubic-bezier(0.4, 0, 0.2, 1);
+  --t-cubic: all 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  --t-cubic-slow: all 0.45s cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* Shadows */
+  /* Shadows — Anivexa card + violet hover glow */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.4);
-  --shadow-glow: 0 0 20px rgba(230, 57, 70, 0.15);
+  --shadow-card: 0 4px 32px rgba(0, 0, 0, 0.8);
+  --shadow-hover: 0 8px 40px rgba(124, 58, 237, 0.35);
+  --shadow-glow: 0 0 22px rgba(225, 29, 72, 0.35);
+  --shadow-glow-violet: 0 0 22px rgba(124, 58, 237, 0.35);
+
+  /* Radius — Anivexa */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* Layout — Anivexa */
+  --header-h: 62px;
+  --max-w: 1380px;
 
   /* Legacy compatibility */
-  --bg-color: #0D0D0D;
-  --surface-color: #111111;
-  --primary-color: #E63946;
-  --primary-hover: #D32F3F;
+  --bg-color: #080808;
+  --surface-color: #0f0f0f;
+  --primary-color: #7c3aed;
+  --primary-hover: #6d28d9;
   --text-color: #ffffff;
-  --text-muted: #94a3b8;
-  --success: #10b981;
-  --card-bg: #111111;
-  --episode-bg: #0D0D0D;
+  --text-muted: #777790;
+  --success: #22c55e;
+  --card-bg: #0f0f0f;
+  --episode-bg: #0d0d0d;
 }
 
 @layer base {
@@ -6235,4 +6267,475 @@ video::-webkit-media-controls { border-radius: 8px; }
   align-items: center;
   justify-content: center;
   padding: 30px 20px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   ANIVEXA DESIGN SYSTEM — Component Classes
+   Ported from https://github.com/walterwhite-69/Anivexa
+   Note: Outfit font is loaded via Next.js font optimization in layout.tsx
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ─── Wordmark (Kurovexa-style letter logo) ─── */
+.anivexa-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  font-family: 'Outfit', sans-serif;
+  font-weight: 900;
+  font-size: 1.1rem;
+  letter-spacing: 0.04em;
+}
+.anivexa-wordmark .l {
+  display: inline-block;
+  transition: var(--t-cubic);
+}
+.anivexa-wordmark .l:hover {
+  color: var(--accent-violet-light);
+  transform: translateY(-2px);
+}
+.anivexa-wordmark .l-mirror {
+  transform: scaleX(-1);
+  display: inline-block;
+}
+
+/* ─── Buttons (Anivexa pill style) ─── */
+.anivexa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 24px;
+  border-radius: var(--radius-pill);
+  font-family: 'Outfit', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: var(--t-cubic);
+  white-space: nowrap;
+  cursor: pointer;
+  border: none;
+}
+.anivexa-btn-primary {
+  background: linear-gradient(135deg, #e11d48, #881337);
+  color: #fff;
+  box-shadow: 0 0 22px rgba(225, 29, 72, 0.35);
+}
+.anivexa-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 30px rgba(225, 29, 72, 0.55);
+}
+.anivexa-btn-ghost {
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--text);
+  border: 1px solid var(--border-subtle);
+  backdrop-filter: blur(8px);
+}
+.anivexa-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: var(--border-violet);
+}
+.anivexa-btn-violet {
+  background: var(--grad-accent);
+  color: #fff;
+  box-shadow: 0 0 22px rgba(124, 58, 237, 0.35);
+}
+.anivexa-btn-violet:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 30px rgba(124, 58, 237, 0.55);
+}
+.anivexa-btn-sm {
+  padding: 7px 16px;
+  font-size: 0.82rem;
+}
+.anivexa-btn-icon {
+  padding: 10px;
+  border-radius: 50%;
+}
+
+/* ─── Badges (Anivexa pill badges) ─── */
+.anivexa-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.anivexa-badge-accent {
+  background: rgba(139, 92, 246, 0.18);
+  color: #a78bfa;
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+.anivexa-badge-cyan {
+  background: rgba(6, 182, 212, 0.15);
+  color: #67e8f9;
+  border: 1px solid rgba(6, 182, 212, 0.3);
+}
+.anivexa-badge-score {
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  border: 1px solid rgba(16, 185, 129, 0.25);
+}
+.anivexa-badge-pink {
+  background: rgba(236, 72, 153, 0.15);
+  color: #f9a8d4;
+  border: 1px solid rgba(236, 72, 153, 0.3);
+}
+.anivexa-badge-rose {
+  background: rgba(225, 29, 72, 0.15);
+  color: #fda4af;
+  border: 1px solid rgba(225, 29, 72, 0.3);
+}
+
+/* ─── Glass (Anivexa glassmorphism) ─── */
+.anivexa-glass {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+/* ─── Section Header (Anivexa content section) ─── */
+.anivexa-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+.anivexa-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+  font-family: 'Outfit', sans-serif;
+}
+.anivexa-section-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  transition: var(--t-cubic);
+}
+.anivexa-section-link:hover {
+  color: var(--accent-violet-light);
+}
+
+/* ─── Scroll Row (Anivexa horizontal carousel) ─── */
+.anivexa-scroll-row {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  padding-bottom: 8px;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.anivexa-scroll-row::-webkit-scrollbar { display: none; }
+.anivexa-scroll-row > * {
+  scroll-snap-align: start;
+  flex-shrink: 0;
+}
+
+/* ─── Card (Anivexa anime card) ─── */
+.anivexa-card {
+  position: relative;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--bg-elevated);
+  cursor: pointer;
+  transition: var(--t-cubic);
+  border: 1px solid var(--border-subtle);
+}
+.anivexa-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--border-violet);
+  box-shadow: var(--shadow-hover);
+}
+.anivexa-card-poster {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: var(--bg-surface);
+}
+.anivexa-card-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: var(--t-cubic-slow);
+}
+.anivexa-card:hover .anivexa-card-poster img {
+  transform: scale(1.05);
+}
+.anivexa-card-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--grad-card);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 12px;
+  pointer-events: none;
+}
+.anivexa-card-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.anivexa-card-meta {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+
+/* ─── Hero (Anivexa hero section) ─── */
+.anivexa-hero {
+  position: relative;
+  height: 70vh;
+  min-height: 480px;
+  max-height: 720px;
+  overflow: hidden;
+}
+.anivexa-hero-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+}
+.anivexa-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: var(--grad-hero);
+}
+.anivexa-hero-content {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 40px 28px 60px;
+  z-index: 2;
+}
+.anivexa-hero-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: clamp(2rem, 5vw, 4rem);
+  font-weight: 900;
+  color: #fff;
+  line-height: 1.05;
+  margin-bottom: 12px;
+  max-width: 800px;
+}
+.anivexa-hero-desc {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.75);
+  max-width: 600px;
+  margin-bottom: 20px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ─── Genre Bar (Anivexa horizontal genre chips) ─── */
+.anivexa-genre-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scroll-behavior: smooth;
+  padding: 4px 0;
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.anivexa-genre-bar::-webkit-scrollbar { display: none; }
+.anivexa-genre-chip {
+  padding: 7px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: var(--t-cubic);
+}
+.anivexa-genre-chip:hover {
+  background: rgba(124, 58, 237, 0.15);
+  border-color: var(--border-violet);
+  color: var(--accent-violet-light);
+}
+.anivexa-genre-chip.active {
+  background: var(--grad-accent);
+  color: #fff;
+  border-color: transparent;
+}
+
+/* ─── Container (Anivexa max-width wrapper) ─── */
+.anivexa-container {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 28px;
+}
+@media (max-width: 768px) {
+  .anivexa-container { padding: 0 16px; }
+  .anivexa-hero-content { padding: 24px 16px 40px; }
+}
+
+/* ─── Header (Anivexa navbar) ─── */
+.anivexa-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: var(--header-h);
+  background: var(--glass-bg);
+  border-bottom: 1px solid var(--border-subtle);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+.anivexa-header-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 28px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.anivexa-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.anivexa-nav a {
+  padding: 8px 14px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-radius: var(--radius-pill);
+  transition: var(--t-cubic);
+}
+.anivexa-nav a:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
+.anivexa-nav a.active {
+  color: var(--text);
+  background: rgba(124, 58, 237, 0.15);
+}
+.anivexa-search {
+  position: relative;
+  flex: 1;
+  max-width: 400px;
+}
+.anivexa-search input {
+  width: 100%;
+  padding: 10px 14px 10px 40px;
+  font-size: 0.88rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  outline: none;
+  transition: var(--t-cubic);
+  font-family: inherit;
+}
+.anivexa-search input::placeholder { color: var(--text-muted); }
+.anivexa-search input:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-violet);
+  box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.15);
+}
+.anivexa-search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+/* ─── Player (Anivexa video player wrapper) ─── */
+.anivexa-player-wrap {
+  position: relative;
+  width: 100%;
+  background: #000;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+}
+.anivexa-player-wrap video {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* ─── Provider Pills (Anivexa stream source selector) ─── */
+.anivexa-provider-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.anivexa-provider-pill {
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: var(--t-cubic);
+}
+.anivexa-provider-pill:hover {
+  background: rgba(124, 58, 237, 0.15);
+  border-color: var(--border-violet);
+  color: var(--accent-violet-light);
+}
+.anivexa-provider-pill.active {
+  background: var(--grad-accent);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 0 16px rgba(124, 58, 237, 0.4);
+}
+
+/* ─── Loading Skeleton (Anivexa) ─── */
+.anivexa-skeleton {
+  background: linear-gradient(90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.08) 50%,
+    rgba(255, 255, 255, 0.04) 100%);
+  background-size: 200% 100%;
+  animation: anivexa-skeleton-shimmer 1.5s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+@keyframes anivexa-skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ─── Stats Card (Anivexa detail page) ─── */
+.anivexa-stat-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.anivexa-stat-card .stat-value {
+  color: var(--text);
+  font-weight: 700;
 }
