@@ -572,7 +572,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     return () => { cancelled = true; };
   }, [anilistId, episodeNum, translation]);
 
-  // ── Fetch server list (Miruro + Animex combined) ──────────────────
+  // ── Fetch server list (VERIFIED — only servers with working streams) ──
   useEffect(() => {
     if (!anilistId) return;
     let cancelled = false;
@@ -586,99 +586,58 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         // Check if dub is available
         const hasDub = data.servers.some((s: ServerEntry) => s.type === "dub");
         setDubAvailable(hasDub);
-        // Auto-select first sub server if none selected
-        if (!selectedServer) {
-          const firstSub = data.servers.find((s: ServerEntry) => s.type === translation);
-          if (firstSub) {
-            setSelectedServer(firstSub.id);
-          }
+        // Auto-select first sub server
+        const firstSub = data.servers.find((s: ServerEntry) => s.type === translation);
+        if (firstSub) {
+          setSelectedServer(firstSub.id);
         }
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [anilistId, episodeNum, translation]);
+  }, [anilistId, episodeNum]);
 
-  // ── Fetch stream when server or episode changes ───────────────────
+  // ── Play stream when server is selected ───────────────────────────
+  // The server list already contains the verified streamUrl — no need for
+  // a second API call. Just set it as the stream data.
   useEffect(() => {
     if (!anilistId || !selectedServer) return;
-    let cancelled = false;
-    requestAnimationFrame(() => {
-      setStreamLoading(true);
-      setStreamError(null);
-      setStreamData(null);
-    });
 
-    async function fetchStreamFromServer() {
-      const server = serverList.find(s => s.id === selectedServer);
-      if (!server) return;
+    const server = serverList.find(s => s.id === selectedServer);
+    if (!server) return;
 
-      try {
-        let data;
-        if (server.source === "miruro") {
-          // Fetch from Miruro direct with specific provider
-          const res = await fetch(
-            `/api/anime/scraper/miruro-direct/${anilistId}/${episodeNum}?type=${server.type}&provider=${encodeURIComponent(server.provider)}`
-          );
-          if (cancelled) return;
-          if (res.ok) {
-            data = await res.json();
-          }
-        } else if (server.source === "animex") {
-          // Fetch from Animex direct with specific provider
-          const res = await fetch(
-            `/api/anime/animex-direct/${anilistId}/${episodeNum}?type=${server.type}&provider=${encodeURIComponent(server.provider)}`
-          );
-          if (cancelled) return;
-          if (res.ok) {
-            data = await res.json();
-          }
-        }
-
-        if (cancelled) return;
-
-        if (data?.url) {
-          const streamData: StreamData = {
-            video_link: data.url,
-            source_type: data.sourceType === "mp4" ? "mp4" : "hls",
-            hls_sources: [{
-              url: data.url,
-              quality: data.quality || "Auto",
-              label: `${server.source} ${server.provider} ${data.quality || ""}`.trim(),
-              isM3U8: data.isM3U8 ?? true,
-            }],
-            embed_sources: [],
-            subtitle_tracks: (data.subtitles || []).map((s: any) => ({
-              url: s.url,
-              label: s.language || s.lang || "English",
-              kind: "subtitles" as const,
-            })),
-            intro: data.intro || null,
-            outro: data.outro || null,
-            provider: `${server.source}:${server.provider}`,
-            available_qualities: [data.quality || "Auto"],
-          };
-          console.log(`[WatchPage] Playing via ${server.source}:${server.provider}`);
-          setStreamData(streamData);
-          setStreamLoading(false);
-          return;
-        }
-
-        // Stream not available from this server
-        if (!cancelled) {
-          setStreamError(`${server.name} returned no stream. Try another server.`);
-          setStreamLoading(false);
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          console.error(`[WatchPage] ${server.source}:${server.provider} failed:`, err);
-          setStreamError(`Failed to load from ${server.name}. Try another server.`);
-          setStreamLoading(false);
-        }
-      }
+    // The streamUrl is already verified and wrapped through the proxy
+    const streamUrl = (server as any).streamUrl;
+    if (!streamUrl) {
+      setStreamError(`${server.name} has no stream URL. Try another server.`);
+      setStreamLoading(false);
+      return;
     }
-    fetchStreamFromServer();
-    return () => { cancelled = true; };
-  }, [anilistId, episodeNum, selectedServer, serverList]);
+
+    const quality = (server as any).quality || "Auto";
+    const isM3U8 = (server as any).isM3U8 !== false;
+
+    const newStreamData: StreamData = {
+      video_link: streamUrl,
+      source_type: isM3U8 ? "hls" : "mp4",
+      hls_sources: [{
+        url: streamUrl,
+        quality,
+        label: `${server.name} ${quality}`.trim(),
+        isM3U8,
+      }],
+      embed_sources: [],
+      subtitle_tracks: [],
+      intro: null,
+      outro: null,
+      provider: `${server.source}:${server.provider}`,
+      available_qualities: [quality],
+    };
+
+    console.log(`[WatchPage] Playing via ${server.source}:${server.provider} (${quality})`);
+    setStreamData(newStreamData);
+    setStreamLoading(false);
+    setStreamError(null);
+  }, [selectedServer, serverList, anilistId]);
 
   // ── Next airing countdown ──
   useEffect(() => {
