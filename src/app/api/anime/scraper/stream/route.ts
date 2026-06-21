@@ -91,17 +91,59 @@ async function rewriteHlsPlaylist(text: string, sourceUrl: string, proxyBase: st
           if (keyStatus === 200 && keyData && keyData.length > 0 && keyData.length <= 64) {
             const keyBase64 = keyData.toString("base64");
             newLine = line.replace(/URI="[^"]+"/, `URI="data:application/octet-stream;base64,${keyBase64}"`);
-            console.log(`[StreamProxy] AES key embedded as data URI (${keyData.length} bytes)`);
+            console.log(`[StreamProxy] AES key embedded via curl (${keyData.length} bytes)`);
           } else {
-            throw new Error(`key fetch returned ${keyStatus}`);
+            throw new Error(`curl key fetch returned ${keyStatus}`);
           }
-        } catch (e) {
-          // Fallback: rewrite through proxy (may 403 on Vercel, but works on some networks)
-          newLine = line.replace(/URI="([^"]+)"/, (_m, uri) => {
-            const absolute = new URL(uri, base).toString();
-            return `URI="${buildProxyUrl(proxyBase, absolute, ref)}"`;
-          });
-          console.error(`[StreamProxy] AES key fetch failed, falling back to proxy URL`);
+        } catch (curlErr) {
+          // Fallback 2: cf-bypass pattern — Node https.request with explicit Host header
+          // (from https://github.com/Shineii86/cf-bypass-server)
+          // May work on Vercel's servers even if it fails locally (different IP)
+          try {
+            const keyUrlObj = new URL(keyUrl);
+            const https = await import("node:https");
+            const keyData2 = await new Promise<Buffer>((resolve, reject) => {
+              const proxyReq = https.request({
+                hostname: keyUrlObj.hostname,
+                port: 443,
+                path: keyUrlObj.pathname + keyUrlObj.search,
+                method: "GET",
+                headers: {
+                  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+                  "Accept": "*/*",
+                  "Accept-Encoding": "identity",
+                  "Host": keyUrlObj.hostname,
+                  ...(ref ? { Referer: ref } : {}),
+                },
+              }, (proxyRes) => {
+                if (proxyRes.statusCode !== 200) {
+                  reject(new Error(`https.request returned ${proxyRes.statusCode}`));
+                  return;
+                }
+                const chunks: Buffer[] = [];
+                proxyRes.on("data", (c) => chunks.push(c));
+                proxyRes.on("end", () => resolve(Buffer.concat(chunks)));
+              });
+              proxyReq.on("error", reject);
+              proxyReq.setTimeout(10000, () => { proxyReq.destroy(); reject(new Error("timeout")); });
+              proxyReq.end();
+            });
+
+            if (keyData2.length > 0 && keyData2.length <= 64) {
+              const keyBase64 = keyData2.toString("base64");
+              newLine = line.replace(/URI="[^"]+"/, `URI="data:application/octet-stream;base64,${keyBase64}"`);
+              console.log(`[StreamProxy] AES key embedded via https.request (${keyData2.length} bytes)`);
+            } else {
+              throw new Error("invalid key size");
+            }
+          } catch (httpsErr) {
+            // Fallback 3: rewrite key URL through our proxy (may 403, but doesn't break manifest)
+            newLine = line.replace(/URI="([^"]+)"/, (_m, uri) => {
+              const absolute = new URL(uri, base).toString();
+              return `URI="${buildProxyUrl(proxyBase, absolute, ref)}"`;
+            });
+            console.error(`[StreamProxy] AES key: curl + https.request both failed, using proxy URL fallback`);
+          }
         }
       }
       rewritten.push(newLine);
