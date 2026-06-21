@@ -25,7 +25,10 @@ export const maxDuration = 30;
 
 const ANIVAULT_API = "https://anivault-scraper.up.railway.app/api/watch/animeheaven";
 const ANIVEXA_API = "https://anivexa-api-tawny.vercel.app";
-const ANIVAULT_SENSHI = "https://anivault-scraper.up.railway.app/api/watch/senshi";
+const ANIVAULT_SENSHI = "https://anivault-scraper.up.railway.app/api/watch/senshi"; // broken — CF blocks
+
+// AniVexa providers that work (tested)
+const ANIVEXA_PROVIDERS = ["animegg", "allmanga", "anikoto", "anineko"] as const;
 
 /**
  * Build a proxy URL using provider-native proxies discovered from
@@ -147,8 +150,8 @@ export async function GET(
     candidates.push({ id: "anivault:animeheaven:dub", name: "AnimeHeaven (Dub)", source: "anivault", provider: "AnimeHeaven", type: "dub" });
   }
 
-  // AniVexa (animegg, allmanga, anikoto)
-  for (const prov of ["animegg", "allmanga", "anikoto"] as const) {
+  // AniVexa (animegg, allmanga, anikoto, anineko)
+  for (const prov of ANIVEXA_PROVIDERS) {
     for (const cat of ["sub", "dub"] as const) {
       candidates.push({
         id: `anivexa:${prov}:${cat}`,
@@ -158,13 +161,10 @@ export async function GET(
     }
   }
 
-  // Senshi (via AniVault scraper — handles CF bypass)
-  if (senshiSub.status === "fulfilled" && senshiSub.value?.hlsProxyUrl) {
-    candidates.push({ id: "senshi:sub", name: "Senshi", source: "senshi", provider: "senshi", type: "sub" });
-  }
-  if (senshiDub.status === "fulfilled" && senshiDub.value?.hlsProxyUrl) {
-    candidates.push({ id: "senshi:dub", name: "Senshi (Dub)", source: "senshi", provider: "senshi", type: "dub" });
-  }
+  // Senshi via AniVault (broken — CF blocks. Skip for now.)
+  // if (senshiSub.status === "fulfilled" && senshiSub.value?.hlsProxyUrl) {
+  //   candidates.push({ id: "senshi:sub", name: "Senshi", source: "senshi", provider: "senshi", type: "sub" });
+  // }
 
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
 
@@ -260,34 +260,22 @@ export async function GET(
               }
             }
           } else if (c.provider === "anikoto") {
-            // Anikoto returns multiple HLS streams from different servers
-            // (Megaplay via streamzone1.site, VidWish via watching.onl)
-            // Try each HLS stream until one works
+            // Anikoto returns ssub.streams[] / sdub.streams[]
             const key = c.type === "dub" ? "sdub" : "ssub";
             const streams = (res[key]?.streams || []).filter((s: any) => s.type === "hls" && s.url);
-            for (const s of streams) {
-              // Quick check if the HLS URL is reachable with the correct referer
-              try {
-                const checkRes = await Promise.race([
-                  fetch(s.url, { method: "HEAD", headers: { Referer: s.referer || "https://megaplay.buzz/" }, cache: "no-store" }),
-                  new Promise<Response | null>(r => setTimeout(() => r(null), 3000)),
-                ]);
-                if (checkRes && checkRes.ok) {
-                  streamUrl = s.url;
-                  streamReferer = s.referer || "https://megaplay.buzz/";
-                  quality = s.server || "auto";
-                  isM3U8 = true;
-                  isMP4 = false;
-                  break;
-                }
-              } catch {
-                // try next stream
-              }
-            }
-            // Fallback: if no HLS stream passed HEAD check, use the first one anyway
-            if (!streamUrl && streams.length > 0) {
+            if (streams.length > 0) {
               streamUrl = streams[0].url;
               streamReferer = streams[0].referer || "https://megaplay.buzz/";
+              quality = streams[0].server || "auto";
+              isM3U8 = true;
+              isMP4 = false;
+            }
+          } else if (c.provider === "anineko") {
+            // AniNeko returns streams[] directly (same as animegg shape)
+            const streams = (res.streams || []).filter((s: any) => s.type === "hls" && s.url);
+            if (streams.length > 0) {
+              streamUrl = streams[0].url;
+              streamReferer = streams[0].referer || "https://vibeplayer.site/";
               quality = streams[0].server || "auto";
               isM3U8 = true;
               isMP4 = false;
