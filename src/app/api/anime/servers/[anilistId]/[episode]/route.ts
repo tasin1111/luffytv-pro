@@ -191,8 +191,31 @@ export async function GET(
           if (p?.url) {
             const ref = ANIMEX_REFERERS[c.provider] || "https://animex.one/";
             const isM3U8 = p.url.includes(".m3u8") || p.type?.includes("mpegurl");
+            const proxyUrl = buildProxyUrl(p.url, ref, !isM3U8);
+            // VERIFY the stream actually returns valid content (not Google Cloud HTML)
+            try {
+              const checkRes = await Promise.race([
+                fetch(proxyUrl, { cache: "no-store" }),
+                new Promise<Response | null>(r => setTimeout(() => r(null), 3000)),
+              ]);
+              if (checkRes && checkRes.ok) {
+                const ct = checkRes.headers.get("content-type") || "";
+                const text = await checkRes.text();
+                // Reject if it's HTML (Google Cloud error page) or not a valid m3u8/mp4
+                if (text.includes("<!doctype html>") || text.includes("<html")) {
+                  console.log(`[Servers] ${c.id}: REJECTED — CDN returned HTML, not m3u8`);
+                  return null;
+                }
+                if (isM3U8 && !text.trim().startsWith("#EXTM3U")) {
+                  console.log(`[Servers] ${c.id}: REJECTED — not a valid m3u8`);
+                  return null;
+                }
+              }
+            } catch {
+              // If verification fails, still include it (might work from browser)
+            }
             return { ...c, quality: p.quality || "auto",
-              streamUrl: buildProxyUrl(p.url, ref, !isM3U8),
+              streamUrl: proxyUrl,
               isM3U8, isMP4: !isM3U8 };
           }
         }
