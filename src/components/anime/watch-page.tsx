@@ -232,11 +232,11 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const [streamLoading, setStreamLoading] = useState(true);
   const [streamError, setStreamError] = useState<string | null>(null);
 
-  // ── Server List (Miruro + Animex + AniVault — ALL verified) ──
+  // ── Server List (Miruro + Animex + AniVault + AniVexa — ALL verified) ──
   interface ServerEntry {
     id: string;
     name: string;
-    source: "miruro" | "animex" | "anivault";
+    source: "miruro" | "animex" | "anivault" | "anivexa";
     provider: string;
     type: "sub" | "dub";
     quality?: string;

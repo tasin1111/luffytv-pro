@@ -8,6 +8,7 @@
  *   - Miruro (kiwi, pewe, bee, bonk, moo, ally, hop) — HLS m3u8
  *   - Animex (miku, yuki, beep, mimi, mochi, uwu, etc.) — HLS m3u8
  *   - AniVault (AnimeHeaven) — MP4 direct
+ *   - AniVexa (animegg, allmanga, anikoto) — HLS m3u8 + MP4
  *
  * Each server includes a ready-to-play `streamUrl`.
  */
@@ -23,6 +24,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 const ANIVAULT_API = "https://anivault-scraper.up.railway.app/api/watch/animeheaven";
+const ANIVEXA_API = "https://anivexa-api-tawny.vercel.app";
 
 const ANIMEX_REFERERS: Record<string, string> = {
   beep: "https://animex.one/", mimi: "https://animex.one/",
@@ -37,7 +39,7 @@ const ANIMEX_REFERERS: Record<string, string> = {
 interface VerifiedServer {
   id: string;
   name: string;
-  source: "miruro" | "animex" | "anivault";
+  source: "miruro" | "animex" | "anivault" | "anivexa";
   provider: string;
   type: "sub" | "dub";
   quality: string;
@@ -60,7 +62,7 @@ export async function GET(
   // ─── Gather all candidate servers in parallel ─────────────────────
   interface Candidate {
     id: string; name: string;
-    source: "miruro" | "animex" | "anivault";
+    source: "miruro" | "animex" | "anivault" | "anivexa";
     provider: string; type: "sub" | "dub";
   }
   const candidates: Candidate[] = [];
@@ -113,6 +115,17 @@ export async function GET(
     candidates.push({ id: "anivault:animeheaven:dub", name: "AnimeHeaven (Dub)", source: "anivault", provider: "AnimeHeaven", type: "dub" });
   }
 
+  // AniVexa (animegg, allmanga, anikoto)
+  for (const prov of ["animegg", "allmanga", "anikoto"] as const) {
+    for (const cat of ["sub", "dub"] as const) {
+      candidates.push({
+        id: `anivexa:${prov}:${cat}`,
+        name: `${prov[0].toUpperCase() + prov.slice(1)}${cat === "dub" ? " (Dub)" : ""}`,
+        source: "anivexa", provider: prov, type: cat,
+      });
+    }
+  }
+
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
 
   // ─── Verify ALL in parallel (4s timeout each) ─────────────────────
@@ -153,6 +166,73 @@ export async function GET(
         const data = c.type === "dub" ? (anivaultDub.status === "fulfilled" ? anivaultDub.value : null) : (anivaultSub.status === "fulfilled" ? anivaultSub.value : null);
         if (data?.streamUrl) {
           return { ...c, quality: "MP4", streamUrl: data.streamUrl, isM3U8: !!data.m3u8, isMP4: !!data.mp4 };
+        }
+      }
+      if (c.source === "anivexa") {
+        // Fetch from AniVexa API — the anivexa-direct endpoint handles all the
+        // stream resolution (clock.json for allmanga, ssub/sdub for anikoto, etc.)
+        const res = await Promise.race([
+          fetch(`${ANIVEXA_API}/watch/${c.provider}/${id}/${c.type}/${c.provider}-${epNum}`).then(r => r.ok ? r.json() : null),
+          new Promise<null>(r => setTimeout(() => r(null), 5000)),
+        ]);
+        if (res) {
+          let streamUrl: string | null = null;
+          let streamReferer: string = "https://allmanga.to/";
+          let quality: string = "auto";
+          let isM3U8 = true;
+          let isMP4 = false;
+
+          if (c.provider === "animegg") {
+            const streams = res.streams || [];
+            const playable = streams.find((s: any) => s.isActive && s.url && (s.type === "mp4" || s.type === "hls"))
+                          || streams.find((s: any) => s.url && (s.type === "mp4" || s.type === "hls"));
+            if (playable) {
+              streamUrl = playable.url;
+              streamReferer = playable.referer || "https://www.animegg.org/";
+              quality = playable.quality || "auto";
+              isMP4 = playable.type === "mp4";
+              isM3U8 = playable.type === "hls" || playable.url.includes(".m3u8");
+            }
+          } else if (c.provider === "allmanga") {
+            const sources = res.sources || [];
+            const clockSource = sources.find((s: any) => s.url && s.url.includes("clock.json"));
+            if (clockSource) {
+              const ref = clockSource.headers?.Referer || "https://allmanga.to";
+              const ua = clockSource.headers?.["User-Agent"] || "Mozilla/5.0";
+              const clockRes = await Promise.race([
+                fetch(clockSource.url, { headers: { Referer: ref, "User-Agent": ua }, cache: "no-store" }).then(r => r.ok ? r.json() : null),
+                new Promise<null>(r => setTimeout(() => r(null), 3000)),
+              ]);
+              if (clockRes?.links?.length) {
+                const hlsLink = clockRes.links.find((l: any) => l.hls) || clockRes.links[0];
+                if (hlsLink?.link) {
+                  streamUrl = hlsLink.link;
+                  streamReferer = ref;
+                  quality = hlsLink.resolutionStr || "auto";
+                  isM3U8 = true;
+                  isMP4 = false;
+                }
+              }
+            }
+          } else if (c.provider === "anikoto") {
+            const key = c.type === "dub" ? "sdub" : "ssub";
+            const streams = res[key]?.streams || [];
+            const hlsStream = streams.find((s: any) => s.type === "hls" && s.url)
+                           || streams.find((s: any) => s.url && !s.type?.includes("embed"));
+            if (hlsStream) {
+              streamUrl = hlsStream.url;
+              streamReferer = hlsStream.referer || "https://megaplay.buzz/";
+              quality = "auto";
+              isM3U8 = true;
+              isMP4 = false;
+            }
+          }
+
+          if (streamUrl) {
+            return { ...c, quality,
+              streamUrl: `/api/anime/scraper/stream?provider=${encodeURIComponent(c.provider)}&subProvider=${encodeURIComponent(c.provider)}&referer=${encodeURIComponent(streamReferer)}&mode=manifest&url=${encodeURIComponent(streamUrl)}`,
+              isM3U8, isMP4 };
+          }
         }
       }
     } catch (e) { console.error(`[Servers] ${c.id} failed:`, e); }
