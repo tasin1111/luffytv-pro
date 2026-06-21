@@ -25,6 +25,14 @@ export const maxDuration = 30;
 
 const ANIVAULT_API = "https://anivault-scraper.up.railway.app/api/watch/animeheaven";
 const ANIVEXA_API = "https://anivexa-api-tawny.vercel.app";
+const PROXY_BASE = "https://anivault-scraper.up.railway.app/api/proxy/hls";
+
+/** Build a proxy URL using the AniVault HLS proxy — handles m3u8 rewriting,
+ *  AES key proxying, segment rewriting, and MP4 passthrough with correct
+ *  referer headers. Works for ALL providers. */
+function buildProxyUrl(streamUrl: string, referer: string): string {
+  return `${PROXY_BASE}?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(referer)}`;
+}
 
 const ANIMEX_REFERERS: Record<string, string> = {
   beep: "https://animex.one/", mimi: "https://animex.one/",
@@ -139,7 +147,7 @@ export async function GET(
         if (result?.url) {
           const ref = result.streamReferer || "";
           return { ...c, quality: result.quality || "auto",
-            streamUrl: `/api/anime/scraper/stream?provider=miruro&subProvider=${encodeURIComponent(c.provider)}&mode=manifest&url=${encodeURIComponent(result.url)}${ref ? `&referer=${encodeURIComponent(ref)}` : ""}`,
+            streamUrl: buildProxyUrl(result.url, ref || "https://www.miruro.tv/"),
             isM3U8: result.isM3U8, isMP4: !result.isM3U8 };
         }
       }
@@ -157,7 +165,7 @@ export async function GET(
             const ref = ANIMEX_REFERERS[c.provider] || "https://animex.one/";
             const isM3U8 = p.url.includes(".m3u8") || p.type?.includes("mpegurl");
             return { ...c, quality: p.quality || "auto",
-              streamUrl: `/api/anime/scraper/stream?provider=animex&subProvider=${encodeURIComponent(c.provider)}&referer=${encodeURIComponent(ref)}&mode=manifest&url=${encodeURIComponent(p.url)}`,
+              streamUrl: buildProxyUrl(p.url, ref),
               isM3U8, isMP4: !isM3U8 };
           }
         }
@@ -259,7 +267,7 @@ export async function GET(
             // For HLS, use mode=manifest (needs URL rewriting)
             const mode = isMP4 ? "segment" : "manifest";
             return { ...c, quality,
-              streamUrl: `/api/anime/scraper/stream?provider=${encodeURIComponent(c.provider)}&subProvider=${encodeURIComponent(c.provider)}&referer=${encodeURIComponent(streamReferer)}&mode=${mode}&url=${encodeURIComponent(streamUrl)}`,
+              streamUrl: buildProxyUrl(streamUrl, streamReferer),
               isM3U8, isMP4 };
           }
         }

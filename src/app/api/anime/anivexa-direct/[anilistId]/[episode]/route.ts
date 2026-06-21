@@ -161,7 +161,7 @@ export async function GET(
     // For MP4: use mode=segment (no manifest rewriting — MP4 is a direct file)
     // For HLS: use mode=manifest (needs URL rewriting for segments + AES keys)
     const mode = isMP4 ? "segment" : "manifest";
-    const proxyUrl = `/api/anime/scraper/stream?provider=${encodeURIComponent(provider)}&subProvider=${encodeURIComponent(provider)}&referer=${encodeURIComponent(streamReferer)}&mode=${mode}&url=${encodeURIComponent(streamUrl)}`;
+    const proxyUrl = `https://anivault-scraper.up.railway.app/api/proxy/hls?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(streamReferer)}`;
 
     return NextResponse.json({
       url: proxyUrl,
