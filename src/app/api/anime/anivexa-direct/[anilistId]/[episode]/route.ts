@@ -59,17 +59,20 @@ export async function GET(
     let isMP4: boolean = false;
 
     if (provider === "animegg") {
-      // Response: { streams: [{ url, type, quality, referer, server, isActive }] }
-      const streams = data.streams || [];
-      // Find first mp4 or hls stream
-      const playable = streams.find((s: any) => s.isActive && s.url && (s.type === "mp4" || s.type === "hls"))
-                    || streams.find((s: any) => s.url && (s.type === "mp4" || s.type === "hls"));
+      // Animegg returns MP4 in multiple qualities (360p, 480p, 720p, 1080p)
+      // Pick highest quality available
+      const streams = (data.streams || []).filter((s: any) => s.type === "mp4" && s.url);
+      const playable = streams.find((s: any) => s.quality === "1080p")
+                    || streams.find((s: any) => s.quality === "720p")
+                    || streams.find((s: any) => s.quality === "480p")
+                    || streams.find((s: any) => s.quality === "360p")
+                    || streams[0];
       if (playable) {
         streamUrl = playable.url;
         streamReferer = playable.referer || "https://www.animegg.org/";
         quality = playable.quality || "auto";
-        isMP4 = playable.type === "mp4";
-        isM3U8 = playable.type === "hls" || playable.url.includes(".m3u8");
+        isMP4 = true;
+        isM3U8 = false;
       }
     }
 
@@ -117,15 +120,31 @@ export async function GET(
     else if (provider === "anikoto") {
       // Response: { ssub: { streams: [{ url, type, referer, server, default }] } }
       // For dub: key is sdub
+      // Anikoto has multiple HLS servers: Megaplay (streamzone1.site), VidWish (watching.onl)
       const key = type === "dub" ? "sdub" : "ssub";
-      const streams = data[key]?.streams || [];
-      // Find first HLS stream
-      const hlsStream = streams.find((s: any) => s.type === "hls" && s.url)
-                     || streams.find((s: any) => s.url && !s.type?.includes("embed"));
-      if (hlsStream) {
-        streamUrl = hlsStream.url;
-        streamReferer = hlsStream.referer || "https://megaplay.buzz/";
-        quality = "auto";
+      const streams = (data[key]?.streams || []).filter((s: any) => s.type === "hls" && s.url);
+      // Try each HLS stream with a HEAD check
+      for (const s of streams) {
+        try {
+          const checkRes = await Promise.race([
+            fetch(s.url, { method: "HEAD", headers: { Referer: s.referer || "https://megaplay.buzz/" }, cache: "no-store" }),
+            new Promise<Response | null>(r => setTimeout(() => r(null), 3000)),
+          ]);
+          if (checkRes && checkRes.ok) {
+            streamUrl = s.url;
+            streamReferer = s.referer || "https://megaplay.buzz/";
+            quality = s.server || "auto";
+            isM3U8 = true;
+            isMP4 = false;
+            break;
+          }
+        } catch { /* try next */ }
+      }
+      // Fallback: use first HLS stream even if HEAD failed
+      if (!streamUrl && streams.length > 0) {
+        streamUrl = streams[0].url;
+        streamReferer = streams[0].referer || "https://megaplay.buzz/";
+        quality = streams[0].server || "auto";
         isM3U8 = true;
         isMP4 = false;
       }
@@ -139,7 +158,10 @@ export async function GET(
     }
 
     // ─── Build proxy URL with correct referer ────────────────────────
-    const proxyUrl = `/api/anime/scraper/stream?provider=${encodeURIComponent(provider)}&subProvider=${encodeURIComponent(provider)}&referer=${encodeURIComponent(streamReferer)}&mode=manifest&url=${encodeURIComponent(streamUrl)}`;
+    // For MP4: use mode=segment (no manifest rewriting — MP4 is a direct file)
+    // For HLS: use mode=manifest (needs URL rewriting for segments + AES keys)
+    const mode = isMP4 ? "segment" : "manifest";
+    const proxyUrl = `/api/anime/scraper/stream?provider=${encodeURIComponent(provider)}&subProvider=${encodeURIComponent(provider)}&referer=${encodeURIComponent(streamReferer)}&mode=${mode}&url=${encodeURIComponent(streamUrl)}`;
 
     return NextResponse.json({
       url: proxyUrl,

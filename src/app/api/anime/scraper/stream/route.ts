@@ -304,17 +304,24 @@ export async function GET(req: NextRequest) {
     // (disguise) — must override to video/MP2T or some players reject.
     let responseContentType = upstreamContentType;
     const lowerUrl = targetUrl.toLowerCase();
-    if (lowerUrl.endsWith(".key") || mode === "segment" && lowerUrl.includes("/mon.key")) {
+    if (lowerUrl.includes(".key") || (mode === "segment" && lowerUrl.includes("/mon.key"))) {
       // AES-128 key — must be application/octet-stream
       responseContentType = "application/octet-stream";
-    } else if (lowerUrl.endsWith(".ts") || lowerUrl.endsWith(".jpg") || lowerUrl.endsWith(".png")) {
+    } else if (lowerUrl.includes(".mp4") || lowerUrl.includes("video.mp4")) {
+      // MP4 (animegg returns video.mp4?for=...) — must be video/mp4
+      responseContentType = "video/mp4";
+    } else if (lowerUrl.includes(".ts") || lowerUrl.includes(".jpg") || lowerUrl.includes(".png")) {
       // TS segments (uwucdn disguises as .jpg/.png) — must be video/MP2T
       responseContentType = "video/MP2T";
-    } else if (lowerUrl.endsWith(".mp4") || lowerUrl.endsWith(".m4s")) {
+    } else if (lowerUrl.includes(".m4s")) {
       responseContentType = "video/mp4";
     } else if (mode === "segment") {
-      // Default for unknown segment types
-      responseContentType = "video/MP2T";
+      // Default for unknown segment types — check upstream content-type
+      if (upstreamContentType.includes("mp4") || upstreamContentType.includes("video")) {
+        responseContentType = "video/mp4";
+      } else {
+        responseContentType = "video/MP2T";
+      }
     }
 
     // Return raw bytes (segment / key / mp4)

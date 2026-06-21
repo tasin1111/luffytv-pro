@@ -169,8 +169,7 @@ export async function GET(
         }
       }
       if (c.source === "anivexa") {
-        // Fetch from AniVexa API — the anivexa-direct endpoint handles all the
-        // stream resolution (clock.json for allmanga, ssub/sdub for anikoto, etc.)
+        // Fetch from AniVexa API
         const res = await Promise.race([
           fetch(`${ANIVEXA_API}/watch/${c.provider}/${id}/${c.type}/${c.provider}-${epNum}`).then(r => r.ok ? r.json() : null),
           new Promise<null>(r => setTimeout(() => r(null), 5000)),
@@ -183,15 +182,21 @@ export async function GET(
           let isMP4 = false;
 
           if (c.provider === "animegg") {
-            const streams = res.streams || [];
-            const playable = streams.find((s: any) => s.isActive && s.url && (s.type === "mp4" || s.type === "hls"))
-                          || streams.find((s: any) => s.url && (s.type === "mp4" || s.type === "hls"));
+            // Animegg returns MP4 streams in multiple qualities (360p, 480p, 720p, 1080p)
+            // Pick the highest quality MP4 available
+            const streams = (res.streams || []).filter((s: any) => s.type === "mp4" && s.url);
+            // Prefer 1080p, then 720p, then 480p, then 360p, then first
+            const qualityOrder = ["1080p", "720p", "480p", "360p"];
+            const playable = streams.find((s: any) => s.quality === "1080p")
+                          || streams.find((s: any) => s.quality === "720p")
+                          || streams.find((s: any) => qualityOrder.includes(s.quality))
+                          || streams[0];
             if (playable) {
               streamUrl = playable.url;
               streamReferer = playable.referer || "https://www.animegg.org/";
               quality = playable.quality || "auto";
-              isMP4 = playable.type === "mp4";
-              isM3U8 = playable.type === "hls" || playable.url.includes(".m3u8");
+              isMP4 = true;
+              isM3U8 = false;
             }
           } else if (c.provider === "allmanga") {
             const sources = res.sources || [];
@@ -215,22 +220,46 @@ export async function GET(
               }
             }
           } else if (c.provider === "anikoto") {
+            // Anikoto returns multiple HLS streams from different servers
+            // (Megaplay via streamzone1.site, VidWish via watching.onl)
+            // Try each HLS stream until one works
             const key = c.type === "dub" ? "sdub" : "ssub";
-            const streams = res[key]?.streams || [];
-            const hlsStream = streams.find((s: any) => s.type === "hls" && s.url)
-                           || streams.find((s: any) => s.url && !s.type?.includes("embed"));
-            if (hlsStream) {
-              streamUrl = hlsStream.url;
-              streamReferer = hlsStream.referer || "https://megaplay.buzz/";
-              quality = "auto";
+            const streams = (res[key]?.streams || []).filter((s: any) => s.type === "hls" && s.url);
+            for (const s of streams) {
+              // Quick check if the HLS URL is reachable with the correct referer
+              try {
+                const checkRes = await Promise.race([
+                  fetch(s.url, { method: "HEAD", headers: { Referer: s.referer || "https://megaplay.buzz/" }, cache: "no-store" }),
+                  new Promise<Response | null>(r => setTimeout(() => r(null), 3000)),
+                ]);
+                if (checkRes && checkRes.ok) {
+                  streamUrl = s.url;
+                  streamReferer = s.referer || "https://megaplay.buzz/";
+                  quality = s.server || "auto";
+                  isM3U8 = true;
+                  isMP4 = false;
+                  break;
+                }
+              } catch {
+                // try next stream
+              }
+            }
+            // Fallback: if no HLS stream passed HEAD check, use the first one anyway
+            if (!streamUrl && streams.length > 0) {
+              streamUrl = streams[0].url;
+              streamReferer = streams[0].referer || "https://megaplay.buzz/";
+              quality = streams[0].server || "auto";
               isM3U8 = true;
               isMP4 = false;
             }
           }
 
           if (streamUrl) {
+            // For MP4, use mode=segment (no manifest rewriting needed)
+            // For HLS, use mode=manifest (needs URL rewriting)
+            const mode = isMP4 ? "segment" : "manifest";
             return { ...c, quality,
-              streamUrl: `/api/anime/scraper/stream?provider=${encodeURIComponent(c.provider)}&subProvider=${encodeURIComponent(c.provider)}&referer=${encodeURIComponent(streamReferer)}&mode=manifest&url=${encodeURIComponent(streamUrl)}`,
+              streamUrl: `/api/anime/scraper/stream?provider=${encodeURIComponent(c.provider)}&subProvider=${encodeURIComponent(c.provider)}&referer=${encodeURIComponent(streamReferer)}&mode=${mode}&url=${encodeURIComponent(streamUrl)}`,
               isM3U8, isMP4 };
           }
         }
