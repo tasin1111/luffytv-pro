@@ -506,75 +506,10 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     return () => { cancelled = true; };
   }, [anilistId]);
 
-  // ── Fetch stream DIRECTLY from miruro.tv (no external API, no fallback chain) ──
-  // Single source of truth: /api/anime/scraper/miruro-direct/{anilistId}/{episode}
-  // This hits www.miruro.tv/api/secure/pipe, tries all 12 providers (kiwi, bee, bonk...),
-  // and returns the first playable m3u8 wrapped through our stream proxy.
-  useEffect(() => {
-    if (!anilistId) return;
-    let cancelled = false;
-    requestAnimationFrame(() => {
-      setStreamLoading(true);
-      setStreamError(null);
-      setStreamData(null);
-    });
-
-    async function fetchStream() {
-      try {
-        const res = await fetch(
-          `/api/anime/scraper/miruro-direct/${anilistId}/${episodeNum}?type=${translation}`
-        );
-        if (cancelled) return;
-        if (res.ok) {
-          const data = await res.json();
-          if (data.url) {
-            // Build a StreamData-compatible object for the HLS player
-            const streamData: StreamData = {
-              video_link: data.url,                // already wrapped through /api/anime/scraper/stream
-              source_type: data.sourceType === "mp4" ? "mp4" : "hls",
-              hls_sources: [
-                {
-                  url: data.url,
-                  quality: data.quality || "Auto",
-                  label: `Miruro ${data.provider} ${data.quality || ""}`.trim(),
-                  isM3U8: data.isM3U8 ?? true,
-                },
-              ],
-              embed_sources: [],
-              subtitle_tracks: (data.subtitles || []).map((s: any) => ({
-                url: s.url,
-                label: s.language || s.lang || "English",
-                kind: "subtitles" as const,
-              })),
-              intro: data.intro || null,
-              outro: data.outro || null,
-              provider: data.provider,
-              available_qualities: [data.quality || "Auto"],
-              tried_providers: data.triedProviders,
-              all_providers: data.triedProviders,
-            };
-            console.log(`[WatchPage] Playing via Miruro direct: ${data.provider}`);
-            setStreamData(streamData);
-            setStreamLoading(false);
-            return;
-          }
-        }
-        // Miruro direct returned no playable source
-        if (!cancelled) {
-          setStreamError("No stream available from Miruro. Try another episode.");
-          setStreamLoading(false);
-        }
-      } catch (err: any) {
-        if (!cancelled) {
-          console.error("[WatchPage] Miruro direct failed:", err);
-          setStreamError("Failed to load stream. Check your connection.");
-          setStreamLoading(false);
-        }
-      }
-    }
-    fetchStream();
-    return () => { cancelled = true; };
-  }, [anilistId, episodeNum, translation]);
+  // NOTE: The old fetchStream effect that called /api/anime/scraper/miruro-direct
+  // has been REMOVED. Stream loading is now handled by the server selector
+  // effect below (line ~575) which uses the verified streamUrl from /api/anime/servers.
+  // The old effect was competing with the new one and overriding the stream data.
 
   // ── Fetch VERIFIED server list (all streams checked in parallel) ──
   // Takes ~4s but every server shown WILL play. No dead servers.
