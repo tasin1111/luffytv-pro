@@ -11,6 +11,7 @@ interface HLSPlayerProps {
   intro?: { start: number; end: number } | null;
   outro?: { start: number; end: number } | null;
   allStreams?: Array<{ url: string; quality: string; label: string }>;
+  subtitleTracks?: Array<{ url: string; lang: string; label: string }>;
   onEnded?: () => void;
   onProviderFailed?: () => void;
   autoplay?: boolean;
@@ -18,7 +19,7 @@ interface HLSPlayerProps {
 
 export default function HLSPlayerNew({
   url, animeId, episodeNum, sourceType = 'hls',
-  intro, outro, allStreams, onEnded, onProviderFailed, autoplay = true,
+  intro, outro, allStreams, subtitleTracks, onEnded, onProviderFailed, autoplay = true,
 }: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -36,6 +37,9 @@ export default function HLSPlayerNew({
   const [qualities, setQualities] = useState<any[]>([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
   const [showQualityMenu, setShowQualityMenu] = useState(false);
+  const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
+  const [currentSubtitle, setCurrentSubtitle] = useState(-1); // -1 = off, 0+ = track index
+  const [hlsSubtitles, setHlsSubtitles] = useState<any[]>([]);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCountRef = useRef(0);
 
@@ -68,10 +72,18 @@ export default function HLSPlayerNew({
         lowLatencyMode: false,
         backBufferLength: 30,
         maxBufferLength: 30,
+        // Start at highest quality (not auto-ABR which picks low quality initially)
+        startLevel: -1,
+        abrEwmaDefaultEstimate: 5000000, // Assume 5Mbps bandwidth (prevents quality drop)
+        abrBandWidthFactor: 0.95,
+        abrBandWidthUpFactor: 0.7,
+        maxStarvationDelay: 4,
         manifestLoadingTimeOut: 10000,
         manifestLoadingMaxRetry: 2,
         levelLoadingTimeOut: 10000,
         fragLoadingTimeOut: 20000,
+        // Enable subtitle tracks from manifest
+        enableWebVTT: true,
       });
       hlsRef.current = hls;
       hls.loadSource(url);
@@ -80,11 +92,25 @@ export default function HLSPlayerNew({
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
         setQualities(data.levels);
         setLoading(false);
+        // Start at highest quality level
+        if (data.levels.length > 0) {
+          hls.currentLevel = data.levels.length - 1; // Highest quality
+          setCurrentQuality(data.levels.length - 1);
+        }
         if (autoplay) {
           video.play().catch(() => {
             video.muted = true;
             video.play().catch(() => {});
           });
+        }
+      });
+
+      hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, (_e, data) => {
+        setHlsSubtitles(data.subtitleTracks || []);
+        // Auto-enable first subtitle track if available
+        if (data.subtitleTracks.length > 0 && hls.subtitleTrack === -1) {
+          hls.subtitleTrack = 0;
+          setCurrentSubtitle(0);
         }
       });
 
@@ -236,6 +262,14 @@ export default function HLSPlayerNew({
       setCurrentQuality(level);
     }
     setShowQualityMenu(false);
+  };
+
+  const changeSubtitle = (track: number) => {
+    if (hlsRef.current) {
+      hlsRef.current.subtitleTrack = track;
+      setCurrentSubtitle(track);
+    }
+    setShowSubtitleMenu(false);
   };
 
   const skipTime = (seconds: number) => {
@@ -395,6 +429,37 @@ export default function HLSPlayerNew({
                       className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 ${currentQuality === i ? 'text-[#7c3aed] font-bold' : 'text-white/70'}`}
                     >
                       {q.height}p
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Subtitle selector */}
+          {hlsSubtitles.length > 0 && (
+            <div className="relative">
+              <button
+                onClick={() => setShowSubtitleMenu(!showSubtitleMenu)}
+                className="text-xs font-semibold text-white/70 hover:text-white px-2 py-1 rounded hover:bg-white/10 transition-colors"
+              >
+                CC
+              </button>
+              {showSubtitleMenu && (
+                <div className="absolute bottom-full right-0 mb-2 bg-black/95 border border-white/10 rounded-lg overflow-hidden min-w-[80px]">
+                  <button
+                    onClick={() => changeSubtitle(-1)}
+                    className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 ${currentSubtitle === -1 ? 'text-[#7c3aed] font-bold' : 'text-white/70'}`}
+                  >
+                    Off
+                  </button>
+                  {hlsSubtitles.map((sub, i) => (
+                    <button
+                      key={i}
+                      onClick={() => changeSubtitle(i)}
+                      className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 ${currentSubtitle === i ? 'text-[#7c3aed] font-bold' : 'text-white/70'}`}
+                    >
+                      {sub.name || sub.lang || `Track ${i + 1}`}
                     </button>
                   ))}
                 </div>

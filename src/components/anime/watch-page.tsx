@@ -681,7 +681,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           {/* HLS Native Player */}
           {streamData && streamData.source_type === "hls" && streamData.video_link && (
             <HLSPlayerNew
-              key={`${activeProvider}-${episodeNum}-${translation}`}
+              key={selectedServer}
               url={streamData.video_link}
               animeId={animeId}
               episodeNum={episodeNum}
@@ -693,16 +693,17 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 quality: s.quality || "Auto",
                 label: s.label || s.quality || "Auto",
               }))}
+              subtitleTracks={(streamData.subtitle_tracks || []).map(s => ({ url: s.url, lang: s.label || "en", label: s.label || "English" }))}
               onEnded={handleVideoEnded}
               onProviderFailed={() => handleProviderFailed(activeProvider)}
               autoplay={true}
             />
           )}
 
-          {/* MP4 Player — for mochi, neko, uwu MP4 sources */}
+          {/* MP4 Player */}
           {streamData && streamData.source_type === "mp4" && streamData.video_link && (
             <HLSPlayerNew
-              key={`mp4-${activeProvider}-${episodeNum}-${translation}`}
+              key={`mp4-${selectedServer}`}
               url={streamData.video_link}
               animeId={animeId}
               episodeNum={episodeNum}
