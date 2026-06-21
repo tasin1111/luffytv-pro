@@ -160,8 +160,9 @@ export async function GET(
     // ─── Build proxy URL with correct referer ────────────────────────
     // For MP4: use mode=segment (no manifest rewriting — MP4 is a direct file)
     // For HLS: use mode=manifest (needs URL rewriting for segments + AES keys)
-    const mode = isMP4 ? "segment" : "manifest";
-    const proxyUrl = `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(streamReferer)}`;
+    const proxyUrl = isMP4
+      ? `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(streamReferer)}`
+      : `https://proxy.anikuro.to/${Buffer.from(`${streamUrl}|${streamReferer}`).toString("base64")}.m3u8`;
 
     return NextResponse.json({
       url: proxyUrl,

@@ -26,11 +26,32 @@ export const maxDuration = 30;
 const ANIVAULT_API = "https://anivault-scraper.up.railway.app/api/watch/animeheaven";
 const ANIVEXA_API = "https://anivexa-api-tawny.vercel.app";
 
-/** Build a proxy URL using OUR OWN stream proxy — handles m3u8 rewriting,
- *  AES key proxying, segment rewriting, and MP4 passthrough with correct
- *  referer headers. Uses axios (not fetch) to bypass Cloudflare TLS fingerprinting. */
-function buildProxyUrl(streamUrl: string, referer: string): string {
-  return `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(referer)}`;
+/**
+ * Build a proxy URL using provider-native proxies discovered from
+ * https://github.com/walterwhite-69/Proxify-Streams
+ *
+ * These are the streaming sites' OWN proxy servers — they handle:
+ *   - m3u8 manifest rewriting (segments + AES keys + sub-playlists)
+ *   - Correct referer/origin headers
+ *   - Cloudflare bypass (they're on the same network as the CDNs)
+ *   - CORS headers for browser playback
+ *
+ * Two working proxies:
+ *   1. Anikuro (proxy.anikuro.to) — base64(url|referer).m3u8 — works for ALL HLS
+ *   2. Animanga (upcloud.animanga.fun) — url + JSON headers — works for ALL HLS
+ *
+ * We use Anikuro as primary (simpler URL, handles everything).
+ * For MP4, we use our own /api/anime/scraper/stream proxy.
+ */
+function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = false): string {
+  if (isMP4) {
+    // MP4 doesn't need m3u8 rewriting — use our own proxy
+    return `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(referer)}`;
+  }
+  // HLS — use the Anikuro proxy (handles m3u8 + AES key + segment rewriting)
+  const b64 = Buffer.from(`${streamUrl}|${referer}`).toString("base64");
+  const ext = streamUrl.toLowerCase().includes(".m3u8") ? ".m3u8" : ".m3u8";
+  return `https://proxy.anikuro.to/${b64}${ext}`;
 }
 
 const ANIMEX_REFERERS: Record<string, string> = {
@@ -146,7 +167,7 @@ export async function GET(
         if (result?.url) {
           const ref = result.streamReferer || "";
           return { ...c, quality: result.quality || "auto",
-            streamUrl: buildProxyUrl(result.url, ref || "https://www.miruro.tv/"),
+            streamUrl: buildProxyUrl(result.url, ref || "https://www.miruro.tv/", !result.isM3U8),
             isM3U8: result.isM3U8, isMP4: !result.isM3U8 };
         }
       }
@@ -164,7 +185,7 @@ export async function GET(
             const ref = ANIMEX_REFERERS[c.provider] || "https://animex.one/";
             const isM3U8 = p.url.includes(".m3u8") || p.type?.includes("mpegurl");
             return { ...c, quality: p.quality || "auto",
-              streamUrl: buildProxyUrl(p.url, ref),
+              streamUrl: buildProxyUrl(p.url, ref, !isM3U8),
               isM3U8, isMP4: !isM3U8 };
           }
         }
@@ -266,7 +287,7 @@ export async function GET(
             // For HLS, use mode=manifest (needs URL rewriting)
             const mode = isMP4 ? "segment" : "manifest";
             return { ...c, quality,
-              streamUrl: buildProxyUrl(streamUrl, streamReferer),
+              streamUrl: buildProxyUrl(streamUrl, streamReferer, isMP4),
               isM3U8, isMP4 };
           }
         }

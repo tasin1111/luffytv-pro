@@ -262,7 +262,10 @@ export async function miruroWatchProvider(
     const result = await getSourceFromProvider(anilistId, epNum, translationType, provider);
     if (!result?.url) return null;
     const ref = result.streamReferer || "";
-    const proxyUrl = `/api/anime/scraper/stream?url=${encodeURIComponent(result.url)}&ref=${encodeURIComponent(ref || "https://www.miruro.tv/")}`;
+    const isMP4 = !result.isM3U8;
+    const proxyUrl = isMP4
+      ? `/api/anime/scraper/stream?url=${encodeURIComponent(result.url)}&ref=${encodeURIComponent(ref || "https://www.miruro.tv/")}`
+      : `https://proxy.anikuro.to/${Buffer.from(`${result.url}|${ref || "https://www.miruro.tv/"}`).toString("base64")}.m3u8`;
     return {
       sources: [{
         url: proxyUrl,
@@ -319,7 +322,10 @@ export async function miruroWatch(
         ];
         // Wrap through stream proxy with correct referer
         const ref = result.streamReferer || "";
-        const proxyUrl = `/api/anime/scraper/stream?url=${encodeURIComponent(result.url)}&ref=${encodeURIComponent(ref || "https://www.miruro.tv/")}`;
+        const isMP4 = !result.isM3U8;
+    const proxyUrl = isMP4
+      ? `/api/anime/scraper/stream?url=${encodeURIComponent(result.url)}&ref=${encodeURIComponent(ref || "https://www.miruro.tv/")}`
+      : `https://proxy.anikuro.to/${Buffer.from(`${result.url}|${ref || "https://www.miruro.tv/"}`).toString("base64")}.m3u8`;
         sources[0].url = proxyUrl;
 
         return {
