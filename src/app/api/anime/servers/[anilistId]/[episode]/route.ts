@@ -48,13 +48,11 @@ const ANIVEXA_PROVIDERS = ["animegg", "allmanga", "anikoto", "anineko"] as const
  * For MP4, we use our own /api/anime/scraper/stream proxy.
  */
 function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = false): string {
-  if (isMP4) {
-    // MP4 doesn't need m3u8 rewriting — use our own proxy
-    return `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(referer)}`;
-  }
-  // HLS — use the Anikuro proxy (handles m3u8 + AES key + segment rewriting)
+  // Use Anikuro proxy for EVERYTHING (HLS + MP4) — it handles both:
+  //   - HLS: rewrites m3u8 manifest + AES keys + segments
+  //   - MP4: passthrough with correct content-type + referer
   const b64 = Buffer.from(`${streamUrl}|${referer}`).toString("base64");
-  const ext = streamUrl.toLowerCase().includes(".m3u8") ? ".m3u8" : ".m3u8";
+  const ext = isMP4 ? ".mp4" : ".m3u8";
   return `https://proxy.anikuro.to/${b64}${ext}`;
 }
 
@@ -99,7 +97,7 @@ export async function GET(
   }
   const candidates: Candidate[] = [];
 
-  const [miruroRaw, animexData, anivaultSub, anivaultDub, senshiSub, senshiDub] = await Promise.allSettled([
+  const [miruroRaw, animexData, anivaultSub, anivaultDub] = await Promise.allSettled([
     fetchRawEpisodes(id),
     (async () => {
       const anime = await animexGetAnime(id);
@@ -108,9 +106,6 @@ export async function GET(
     })(),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/sub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/dub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
-    // Senshi via AniVault scraper (handles CF bypass)
-    fetch(`${ANIVAULT_SENSHI}/${id}/${epNum}/sub`).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch(`${ANIVAULT_SENSHI}/${id}/${epNum}/dub`).then(r => r.ok ? r.json() : null).catch(() => null),
   ]);
 
   // Miruro
@@ -161,18 +156,10 @@ export async function GET(
     }
   }
 
-  // Senshi via AniVault (CF blocks direct access, but AniVault's anikoto source works)
-  // AniVault's anikoto source has multiple servers: VidPlay-1, HD-1, Vidstream-2, VidCloud-1
-  const SENSHI_SERVERS = [
-    { id: "VidPlay-1", name: "Senshi VidPlay" },
-    { id: "HD-1", name: "Senshi HD" },
-    { id: "Vidstream-2", name: "Senshi Vidstream" },
-    { id: "VidCloud-1", name: "Senshi VidCloud" },
-  ];
-  for (const sv of SENSHI_SERVERS) {
-    candidates.push({ id: `senshi:${sv.id}:sub`, name: sv.name, source: "senshi", provider: sv.id, type: "sub" });
-    candidates.push({ id: `senshi:${sv.id}:dub`, name: `${sv.name} (Dub)`, source: "senshi", provider: sv.id, type: "dub" });
-  }
+  // Senshi via AniVault anikoto source (CF bypass)
+  // Only add 2 servers (sub + dub) to keep verification fast
+  candidates.push({ id: "senshi:VidPlay-1:sub", name: "Senshi", source: "senshi", provider: "VidPlay-1", type: "sub" });
+  candidates.push({ id: "senshi:VidPlay-1:dub", name: "Senshi (Dub)", source: "senshi", provider: "VidPlay-1", type: "dub" });
 
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
 
@@ -306,7 +293,7 @@ export async function GET(
         const serverParam = c.provider; // e.g. "VidPlay-1"
         const res = await Promise.race([
           fetch(`${ANIVAULT_SENSHI.replace('/senshi', '/anikoto')}/${id}/${epNum}/${c.type}?server=${encodeURIComponent(serverParam)}`).then(r => r.ok ? r.json() : null),
-          new Promise<null>(r => setTimeout(() => r(null), 5000)),
+          new Promise<null>(r => setTimeout(() => r(null), 3000)),
         ]);
         if (res?.hlsProxyUrl) {
           // AniVault already provides a proxied HLS URL — use it directly
