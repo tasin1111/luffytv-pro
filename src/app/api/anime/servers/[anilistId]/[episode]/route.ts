@@ -161,10 +161,18 @@ export async function GET(
     }
   }
 
-  // Senshi via AniVault (broken — CF blocks. Skip for now.)
-  // if (senshiSub.status === "fulfilled" && senshiSub.value?.hlsProxyUrl) {
-  //   candidates.push({ id: "senshi:sub", name: "Senshi", source: "senshi", provider: "senshi", type: "sub" });
-  // }
+  // Senshi via AniVault (CF blocks direct access, but AniVault's anikoto source works)
+  // AniVault's anikoto source has multiple servers: VidPlay-1, HD-1, Vidstream-2, VidCloud-1
+  const SENSHI_SERVERS = [
+    { id: "VidPlay-1", name: "Senshi VidPlay" },
+    { id: "HD-1", name: "Senshi HD" },
+    { id: "Vidstream-2", name: "Senshi Vidstream" },
+    { id: "VidCloud-1", name: "Senshi VidCloud" },
+  ];
+  for (const sv of SENSHI_SERVERS) {
+    candidates.push({ id: `senshi:${sv.id}:sub`, name: sv.name, source: "senshi", provider: sv.id, type: "sub" });
+    candidates.push({ id: `senshi:${sv.id}:dub`, name: `${sv.name} (Dub)`, source: "senshi", provider: sv.id, type: "dub" });
+  }
 
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
 
@@ -293,28 +301,25 @@ export async function GET(
         }
       }
       if (c.source === "senshi") {
-        // Senshi via AniVault scraper — returns hlsProxyUrl or mp4ProxyUrl
-        const data = c.type === "dub"
-          ? (senshiDub.status === "fulfilled" ? senshiDub.value : null)
-          : (senshiSub.status === "fulfilled" ? senshiSub.value : null);
-        if (data?.hlsProxyUrl) {
+        // Use AniVault's anikoto source (which scrapes senshi.live with CF bypass)
+        // Endpoint: /api/watch/anikoto/{anilistId}/{ep}/{type}?server={serverId}
+        const serverParam = c.provider; // e.g. "VidPlay-1"
+        const res = await Promise.race([
+          fetch(`${ANIVAULT_SENSHI.replace('/senshi', '/anikoto')}/${id}/${epNum}/${c.type}?server=${encodeURIComponent(serverParam)}`).then(r => r.ok ? r.json() : null),
+          new Promise<null>(r => setTimeout(() => r(null), 5000)),
+        ]);
+        if (res?.hlsProxyUrl) {
           // AniVault already provides a proxied HLS URL — use it directly
-          return { ...c, quality: "auto",
-            streamUrl: data.hlsProxyUrl,
+          return { ...c, quality: res.server || "auto",
+            streamUrl: res.hlsProxyUrl,
             isM3U8: true, isMP4: false };
         }
-        if (data?.m3u8) {
+        if (res?.m3u8) {
           // Raw m3u8 — wrap through Anikuro proxy
-          const ref = data.referer || "https://senshi.live/";
-          return { ...c, quality: "auto",
-            streamUrl: buildProxyUrl(data.m3u8, ref, false),
+          const ref = res.embedUrl ? new URL(res.embedUrl).origin + "/" : "https://senshi.live/";
+          return { ...c, quality: res.server || "auto",
+            streamUrl: buildProxyUrl(res.m3u8, ref, false),
             isM3U8: true, isMP4: false };
-        }
-        if (data?.mp4) {
-          // MP4 — use AniVault's proxy
-          return { ...c, quality: "MP4",
-            streamUrl: data.mp4ProxyUrl || data.mp4,
-            isM3U8: false, isMP4: true };
         }
       }
     } catch (e) { console.error(`[Servers] ${c.id} failed:`, e); }
