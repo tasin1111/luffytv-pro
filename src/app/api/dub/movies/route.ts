@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
     }
 
     // Fallback: Search Miruro for anime movies
-    const miruroResults = await miruroSearch("movie", page, "ANIME").catch(() => null);
+    const miruroResults = await miruroSearch("movie", page).catch(() => null);
     const results = (miruroResults?.results || [])
       .filter((item: any) => item.format === "MOVIE" || item.type === "MOVIE")
       .map(convertMiruroToDubItem);

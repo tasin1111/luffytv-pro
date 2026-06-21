@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const data = await miruroSearch(q, page, type);
+    const data = await miruroSearch(q, page);
     return NextResponse.json({ success: true, ...data });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

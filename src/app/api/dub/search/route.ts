@@ -16,7 +16,7 @@ export async function GET(req: NextRequest) {
     const hasResults = toonData.results && toonData.results.length > 0;
 
     // Also search Miruro (for dub episodes with multiple audio tracks)
-    const miruroData = await miruroSearch(s, 1, "ANIME").catch(() => null);
+    const miruroData = await miruroSearch(s, 1).catch(() => null);
     const miruroResults = (miruroData?.results || []).map(convertMiruroToDubItem);
 
     // Merge results, prioritize toonstream for Hindi dubs
