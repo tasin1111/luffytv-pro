@@ -262,7 +262,7 @@ export async function miruroWatchProvider(
     const result = await getSourceFromProvider(anilistId, epNum, translationType, provider);
     if (!result?.url) return null;
     const ref = result.streamReferer || "";
-    const proxyUrl = `https://anivault-scraper.up.railway.app/api/proxy/hls?url=${encodeURIComponent(result.url)}&ref=${encodeURIComponent(ref || "https://www.miruro.tv/")}`;
+    const proxyUrl = `/api/anime/scraper/stream?url=${encodeURIComponent(result.url)}&ref=${encodeURIComponent(ref || "https://www.miruro.tv/")}`;
     return {
       sources: [{
         url: proxyUrl,
@@ -319,7 +319,7 @@ export async function miruroWatch(
         ];
         // Wrap through stream proxy with correct referer
         const ref = result.streamReferer || "";
-        const proxyUrl = `https://anivault-scraper.up.railway.app/api/proxy/hls?url=${encodeURIComponent(result.url)}&ref=${encodeURIComponent(ref || "https://www.miruro.tv/")}`;
+        const proxyUrl = `/api/anime/scraper/stream?url=${encodeURIComponent(result.url)}&ref=${encodeURIComponent(ref || "https://www.miruro.tv/")}`;
         sources[0].url = proxyUrl;
 
         return {

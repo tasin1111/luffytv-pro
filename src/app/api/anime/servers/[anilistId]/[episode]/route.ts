@@ -25,13 +25,12 @@ export const maxDuration = 30;
 
 const ANIVAULT_API = "https://anivault-scraper.up.railway.app/api/watch/animeheaven";
 const ANIVEXA_API = "https://anivexa-api-tawny.vercel.app";
-const PROXY_BASE = "https://anivault-scraper.up.railway.app/api/proxy/hls";
 
-/** Build a proxy URL using the AniVault HLS proxy — handles m3u8 rewriting,
+/** Build a proxy URL using OUR OWN stream proxy — handles m3u8 rewriting,
  *  AES key proxying, segment rewriting, and MP4 passthrough with correct
- *  referer headers. Works for ALL providers. */
+ *  referer headers. Uses axios (not fetch) to bypass Cloudflare TLS fingerprinting. */
 function buildProxyUrl(streamUrl: string, referer: string): string {
-  return `${PROXY_BASE}?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(referer)}`;
+  return `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(referer)}`;
 }
 
 const ANIMEX_REFERERS: Record<string, string> = {
