@@ -25,6 +25,7 @@ export const maxDuration = 30;
 
 const ANIVAULT_API = "https://anivault-scraper.up.railway.app/api/watch/animeheaven";
 const ANIVEXA_API = "https://anivexa-api-tawny.vercel.app";
+const ANIVAULT_SENSHI = "https://anivault-scraper.up.railway.app/api/watch/senshi";
 
 /**
  * Build a proxy URL using provider-native proxies discovered from
@@ -67,7 +68,7 @@ const ANIMEX_REFERERS: Record<string, string> = {
 interface VerifiedServer {
   id: string;
   name: string;
-  source: "miruro" | "animex" | "anivault" | "anivexa";
+  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi";
   provider: string;
   type: "sub" | "dub";
   quality: string;
@@ -90,12 +91,12 @@ export async function GET(
   // ─── Gather all candidate servers in parallel ─────────────────────
   interface Candidate {
     id: string; name: string;
-    source: "miruro" | "animex" | "anivault" | "anivexa";
+    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi";
     provider: string; type: "sub" | "dub";
   }
   const candidates: Candidate[] = [];
 
-  const [miruroRaw, animexData, anivaultSub, anivaultDub] = await Promise.allSettled([
+  const [miruroRaw, animexData, anivaultSub, anivaultDub, senshiSub, senshiDub] = await Promise.allSettled([
     fetchRawEpisodes(id),
     (async () => {
       const anime = await animexGetAnime(id);
@@ -104,6 +105,9 @@ export async function GET(
     })(),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/sub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/dub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
+    // Senshi via AniVault scraper (handles CF bypass)
+    fetch(`${ANIVAULT_SENSHI}/${id}/${epNum}/sub`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(`${ANIVAULT_SENSHI}/${id}/${epNum}/dub`).then(r => r.ok ? r.json() : null).catch(() => null),
   ]);
 
   // Miruro
@@ -152,6 +156,14 @@ export async function GET(
         source: "anivexa", provider: prov, type: cat,
       });
     }
+  }
+
+  // Senshi (via AniVault scraper — handles CF bypass)
+  if (senshiSub.status === "fulfilled" && senshiSub.value?.hlsProxyUrl) {
+    candidates.push({ id: "senshi:sub", name: "Senshi", source: "senshi", provider: "senshi", type: "sub" });
+  }
+  if (senshiDub.status === "fulfilled" && senshiDub.value?.hlsProxyUrl) {
+    candidates.push({ id: "senshi:dub", name: "Senshi (Dub)", source: "senshi", provider: "senshi", type: "dub" });
   }
 
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
@@ -290,6 +302,31 @@ export async function GET(
               streamUrl: buildProxyUrl(streamUrl, streamReferer, isMP4),
               isM3U8, isMP4 };
           }
+        }
+      }
+      if (c.source === "senshi") {
+        // Senshi via AniVault scraper — returns hlsProxyUrl or mp4ProxyUrl
+        const data = c.type === "dub"
+          ? (senshiDub.status === "fulfilled" ? senshiDub.value : null)
+          : (senshiSub.status === "fulfilled" ? senshiSub.value : null);
+        if (data?.hlsProxyUrl) {
+          // AniVault already provides a proxied HLS URL — use it directly
+          return { ...c, quality: "auto",
+            streamUrl: data.hlsProxyUrl,
+            isM3U8: true, isMP4: false };
+        }
+        if (data?.m3u8) {
+          // Raw m3u8 — wrap through Anikuro proxy
+          const ref = data.referer || "https://senshi.live/";
+          return { ...c, quality: "auto",
+            streamUrl: buildProxyUrl(data.m3u8, ref, false),
+            isM3U8: true, isMP4: false };
+        }
+        if (data?.mp4) {
+          // MP4 — use AniVault's proxy
+          return { ...c, quality: "MP4",
+            streamUrl: data.mp4ProxyUrl || data.mp4,
+            isM3U8: false, isMP4: true };
         }
       }
     } catch (e) { console.error(`[Servers] ${c.id} failed:`, e); }
