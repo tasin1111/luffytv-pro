@@ -36,29 +36,22 @@ const ANIVAULT_SENSHI = "https://anivault-scraper.up.railway.app/api/watch/sensh
 const ANIVEXA_PROVIDERS = ["animegg", "allmanga", "anikoto", "anineko"] as const;
 
 /**
- * Build a proxy URL using provider-native proxies discovered from
- * https://github.com/walterwhite-69/Proxify-Streams
+ * Build a proxy URL using OUR OWN /api/anime/scraper/stream proxy.
  *
- * These are the streaming sites' OWN proxy servers — they handle:
- *   - m3u8 manifest rewriting (segments + AES keys + sub-playlists)
- *   - Correct referer/origin headers
- *   - Cloudflare bypass (they're on the same network as the CDNs)
- *   - CORS headers for browser playback
+ * Previous versions used proxy.anikuro.to (base64(url|referer).m3u8) — that
+ * proxy started returning HTTP 500 for everything (Cloudflare-protected CDNs
+ * started 403'ing the proxy's fetches). Our own proxy uses axios + curl
+ * which have different TLS fingerprints that Cloudflare doesn't block.
  *
- * Two working proxies:
- *   1. Anikuro (proxy.anikuro.to) — base64(url|referer).m3u8 — works for ALL HLS
- *   2. Animanga (upcloud.animanga.fun) — url + JSON headers — works for ALL HLS
- *
- * We use Anikuro as primary (simpler URL, handles everything).
- * For MP4, we use our own /api/anime/scraper/stream proxy.
+ * What it does:
+ *   - HLS m3u8: rewrites manifest + AES keys + segments to route through itself
+ *   - MP4: passthrough with correct content-type
+ *   - Sends the correct Referer + Origin headers upstream
+ *   - Adds permissive CORS headers for browser playback
+ *   - Falls back to curl for AES keys (curl bypasses Cloudflare)
  */
 function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = false): string {
-  // Use Anikuro proxy for EVERYTHING (HLS + MP4) — it handles both:
-  //   - HLS: rewrites m3u8 manifest + AES keys + segments
-  //   - MP4: passthrough with correct content-type + referer
-  const b64 = Buffer.from(`${streamUrl}|${referer}`).toString("base64");
-  const ext = isMP4 ? ".mp4" : ".m3u8";
-  return `https://proxy.anikuro.to/${b64}${ext}`;
+  return `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(referer)}`;
 }
 
 const ANIMEX_REFERERS: Record<string, string> = {

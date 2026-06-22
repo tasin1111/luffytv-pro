@@ -245,7 +245,7 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // ─── Segment / Key / MP4 passthrough ──────────────────────────
+    // ─── Segment / Key / MP4 / VTT passthrough ──────────────────────
     // Force correct content-type based on URL, not upstream header
     // (uwucdn returns image/jpeg for TS segments, etc.)
     let responseContentType = contentType;
@@ -253,6 +253,9 @@ export async function GET(req: NextRequest) {
 
     if (lowerUrl.includes(".key") || lowerUrl.includes("mon.key")) {
       responseContentType = "application/octet-stream"; // AES-128 key
+    } else if (lowerUrl.includes(".vtt") || lowerUrl.includes("subtitles/")) {
+      // WebVTT subtitle files (AniDap serves them from 1oe.lostproject.club)
+      responseContentType = "text/vtt; charset=utf-8";
     } else if (lowerUrl.includes(".mp4") || lowerUrl.includes("video.mp4")) {
       responseContentType = "video/mp4";
     } else if (lowerUrl.includes(".ts") || lowerUrl.includes(".jpg") || lowerUrl.includes(".png")) {
@@ -261,6 +264,9 @@ export async function GET(req: NextRequest) {
       responseContentType = "video/mp4";
     } else if (contentType.includes("mp4") || contentType.includes("video")) {
       responseContentType = "video/mp4";
+    } else if (contentType.includes("vtt") || contentType.includes("text")) {
+      // Fallback: upstream says it's text/VTT — preserve it
+      responseContentType = contentType;
     } else if (!contentType || contentType.includes("octet-stream")) {
       responseContentType = "video/MP2T"; // default for segments
     }

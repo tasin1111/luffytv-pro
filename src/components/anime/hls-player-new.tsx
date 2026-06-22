@@ -302,20 +302,29 @@ export default function HLSPlayerNew({
       onClick={(e) => { if (e.target === e.currentTarget || e.target === videoRef.current) togglePlay(); }}
     >
       <video ref={videoRef} className="w-full h-full object-contain" playsInline onClick={togglePlay} crossOrigin="anonymous">
-        {/* External WebVTT subtitle tracks (from AniDap) — routed through prox.animex.one
-            because the source URLs (1oe.lostproject.club) are Cloudflare-protected. */}
-        {(subtitleTracks || []).map((t, i) => (
-          <track
-            key={`ext-sub-${i}`}
-            kind="subtitles"
-            src={t.url.includes('prox.animex.one') || t.url.startsWith('blob:') || t.url.startsWith('data:')
-              ? t.url
-              : `https://prox.animex.one/fetch?url=${encodeURIComponent(t.url)}`}
-            srcLang={t.lang || 'en'}
-            label={t.label || t.lang || 'English'}
-            default={i === 0 && hlsSubtitles.length === 0}
-          />
-        ))}
+        {/* External WebVTT subtitle tracks (from AniDap) — routed through our
+            own /api/anime/scraper/stream proxy because the source URLs
+            (1oe.lostproject.club) are Cloudflare-protected. */}
+        {(subtitleTracks || []).map((t, i) => {
+          // Determine proxy URL — only proxy if the URL is on a CF-protected
+          // host. Already-proxied / data: / blob: URLs pass through unchanged.
+          let trackSrc = t.url;
+          if (!t.url.startsWith('blob:') && !t.url.startsWith('data:') && !t.url.startsWith('/')) {
+            // External URL — route through our scraper stream proxy with
+            // Origin: https://animex.one (what AniDap's player uses).
+            trackSrc = `/api/anime/scraper/stream?url=${encodeURIComponent(t.url)}&ref=${encodeURIComponent('https://animex.one/')}`;
+          }
+          return (
+            <track
+              key={`ext-sub-${i}`}
+              kind="subtitles"
+              src={trackSrc}
+              srcLang={t.lang || 'en'}
+              label={t.label || t.lang || 'English'}
+              default={i === 0 && hlsSubtitles.length === 0}
+            />
+          );
+        })}
       </video>
 
       {/* Loading */}
