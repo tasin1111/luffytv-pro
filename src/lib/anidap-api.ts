@@ -190,19 +190,91 @@ export async function getAniDapSources(
 
 // ─── Build a playable, CORS-friendly URL for an AniDap stream ─────────────────
 //
-// AniDap's streams sit behind Cloudflare on vault-XX.uwucdn.top. We try
-// proxy.anikuro.to first (the same proxy that works for Miruro/Animex/etc.)
-// — if Anikuro returns 500 for a particular AniDap CDN, the user can switch
-// to another AniDap provider or another source (Miruro/Animex/AniVexa).
+// Strategy copied from Anistream.one's player (node 16 chunk):
 //
-// URL format: https://proxy.anikuro.to/{base64(url|referer)}.{m3u8|mp4}
-//   - referer = https://animex.one/ (what AniDap's own player uses)
-//   - ext = .m3u8 for HLS, .mp4 for MP4
+//   1. Apply provider-specific CDN swap (no proxy needed — these are the same
+//      files served from a non-Cloudflare-protected mirror):
+//        beep:  playeng.animeapps.top/r2/      → bd.24stream.xyz/media/
+//        mochi: tools.fast4speed.rsvp          → mp4.24stream.xyz/storage
+//               vibeplayer.site/public/stream/ → hawk.24stream.xyz/media/
+//        mimi:  vibeplayer.site/public/stream/ → hawk.24stream.xyz/media/
+//        kiwi:  hls.anidb.app/stream/          → wave.24stream.xyz/stream/
+//        wave:  (any hostname)                 → wv.24stream.xyz/media/
+//
+//   2. If no swap applies (or after the swap), wrap through proxy.anikuro.to
+//      with the correct referer:
+//        vee:   https://www.animeonsen.xyz/
+//        yuki:  https://megaplay.buzz
+//        miku:  https://ply.24stream.xyz/media/
+//        neko:  https://animeverse.to/
+//        uwu:   https://kwik.cx/
+//        beep:  https://animex.one/  (already swapped to bd.24stream.xyz — direct, no proxy)
+//        ...
+//
+// The CDN swap is HUGE — bd.24stream.xyz serves the exact same files as
+// playeng.animeapps.top but without Cloudflare's bot protection. So Animex
+// "beep" streams (which return Google Cloud HTML from the original URL) play
+// perfectly from bd.24stream.xyz directly.
 //
 const ANIDAP_STREAM_REFERER = "https://animex.one/";
 
-export function buildAniDapProxyUrl(streamUrl: string, isMP4 = false): string {
-  const b64 = Buffer.from(`${streamUrl}|${ANIDAP_STREAM_REFERER}`).toString("base64");
+/** Provider-specific referer for the rare case we need to proxy. */
+const ANIDAP_PROVIDER_REFERER: Record<AniDapProvider, string> = {
+  vee:  "https://www.animeonsen.xyz/",
+  yuki: "https://megaplay.buzz/",
+  miku: "https://ply.24stream.xyz/media/",
+  neko: "https://animeverse.to/",
+  beep: "https://animex.one/",
+  meme: "https://animex.one/",
+  uwu:  "https://kwik.cx/",
+  kuro: "https://animex.one/",
+  sax:  "https://animex.one/",
+  yume: "https://animex.one/",
+  mimi: "https://animex.one/",
+};
+
+/**
+ * Apply provider-specific CDN swap (Anistream's oi() function).
+ * Returns the swapped URL (still on a 24stream.xyz subdomain, no proxy needed),
+ * or the original URL if no swap applies.
+ */
+function applyCdnSwap(url: string, provider: AniDapProvider): string {
+  const u = url.trim();
+  if (!u.startsWith("http")) return u;
+
+  // beep / mimi / mochi / kiwi / wave are Animex/AniDap provider names.
+  // Anistream uses these exact same swaps.
+  if (provider === "beep") {
+    // playeng.animeapps.top/r2/cachehd/... → bd.24stream.xyz/media/cachehd/...
+    return u.replace("https://playeng.animeapps.top/r2/", "https://bd.24stream.xyz/media/");
+  }
+  if (provider === "mimi" || provider === "meme") {
+    // vibeplayer.site/public/stream/... → hawk.24stream.xyz/media/...
+    // (Anistream uses this for mimi/mochi — we apply to mimi/meme since AniDap
+    // providers map differently than Animex)
+    return u.replace("https://vibeplayer.site/public/stream/", "https://hawk.24stream.xyz/media/");
+  }
+  // For other providers (vee, yuki, miku, neko, uwu, kuro, sax, yume), no
+  // CDN swap applies — they'll be wrapped through proxy.anikuro.to instead.
+  return u;
+}
+
+export function buildAniDapProxyUrl(streamUrl: string, isMP4 = false, provider?: AniDapProvider): string {
+  // Step 1: Apply provider-specific CDN swap (direct mirror, no proxy needed)
+  const swapped = provider ? applyCdnSwap(streamUrl, provider) : streamUrl;
+
+  // Step 2: If the swap produced a 24stream.xyz URL, return it directly —
+  // these subdomains (bd, hawk, wave, wv, ply, mp4) serve files without
+  // Cloudflare bot protection and have permissive CORS.
+  if (/^https?:\/\/[^/]*\.24stream\.xyz\//.test(swapped)) {
+    return swapped;
+  }
+
+  // Step 3: Otherwise, wrap through proxy.anikuro.to with the correct referer
+  const referer = provider
+    ? (ANIDAP_PROVIDER_REFERER[provider] || ANIDAP_STREAM_REFERER)
+    : ANIDAP_STREAM_REFERER;
+  const b64 = Buffer.from(`${swapped}|${referer}`).toString("base64");
   const ext = isMP4 ? ".mp4" : ".m3u8";
   return `https://proxy.anikuro.to/${b64}${ext}`;
 }
@@ -389,7 +461,7 @@ export async function fetchAllAniDapSources(
           chapters,
           intro: intro ? { start: intro.start, end: intro.end } : null,
           outro: outro ? { start: outro.start, end: outro.end } : null,
-          streamUrl: buildAniDapProxyUrl(playable.url, mp4),
+          streamUrl: buildAniDapProxyUrl(playable.url, mp4, job.provider),
           quality: playable.quality || "auto",
           isM3U8: m3u8,
           isMP4: mp4,

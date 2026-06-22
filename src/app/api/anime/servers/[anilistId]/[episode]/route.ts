@@ -227,7 +227,23 @@ export async function GET(
           if (p?.url) {
             const ref = ANIMEX_REFERERS[c.provider] || "https://animex.one/";
             const isM3U8 = p.url.includes(".m3u8") || p.type?.includes("mpegurl");
-            const proxyUrl = buildProxyUrl(p.url, ref, !isM3U8);
+
+            // Apply Anistream.one's CDN swap strategy — swap Cloudflare-protected
+            // CDNs to their non-CF-protected mirrors on 24stream.xyz.
+            // This makes beep/mimi/mochi/kiwi streams play DIRECTLY (no proxy
+            // needed) — bd.24stream.xyz serves the same files as
+            // playeng.animeapps.top but without Cloudflare bot protection.
+            let streamUrl = p.url;
+            streamUrl = streamUrl.replace("https://playeng.animeapps.top/r2/", "https://bd.24stream.xyz/media/");
+            streamUrl = streamUrl.replace("https://vibeplayer.site/public/stream/", "https://hawk.24stream.xyz/media/");
+            streamUrl = streamUrl.replace("https://hls.anidb.app/stream/", "https://wave.24stream.xyz/stream/");
+            streamUrl = streamUrl.replace("https://tools.fast4speed.rsvp", "https://mp4.24stream.xyz/storage");
+
+            // If the URL is now on 24stream.xyz, use it directly (no proxy needed).
+            // Otherwise, wrap through Anikuro proxy with the provider's referer.
+            const isSwapped = /^https?:\/\/[^/]*\.24stream\.xyz\//.test(streamUrl);
+            const proxyUrl = isSwapped ? streamUrl : buildProxyUrl(streamUrl, ref, !isM3U8);
+
             // NOTE: We intentionally DO NOT verify Animex streams by fetching
             // them server-side. Reasons:
             //   1. The verification fetch goes through proxy.anikuro.to, which
