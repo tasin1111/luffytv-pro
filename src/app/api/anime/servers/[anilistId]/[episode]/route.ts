@@ -257,24 +257,32 @@ export async function GET(
               isM3U8 = false;
             }
           } else if (c.provider === "allmanga") {
+            // AllManga returns 7 sources — 3 are clock.json resolvers (→ HLS m3u8),
+            // 4 are iframe embeds (streamsb, mp4upload, ok.ru, streamlare — skip).
+            // Resolve ALL clock.json sources and pick the first that returns HLS.
             const sources = res.sources || [];
-            const clockSource = sources.find((s: any) => s.url && s.url.includes("clock.json"));
-            if (clockSource) {
-              const ref = clockSource.headers?.Referer || "https://allmanga.to";
-              const ua = clockSource.headers?.["User-Agent"] || "Mozilla/5.0";
-              const clockRes = await Promise.race([
-                fetch(clockSource.url, { headers: { Referer: ref, "User-Agent": ua }, cache: "no-store" }).then(r => r.ok ? r.json() : null),
-                new Promise<null>(r => setTimeout(() => r(null), 3000)),
-              ]);
-              if (clockRes?.links?.length) {
-                const hlsLink = clockRes.links.find((l: any) => l.hls) || clockRes.links[0];
-                if (hlsLink?.link) {
-                  streamUrl = hlsLink.link;
-                  streamReferer = ref;
-                  quality = hlsLink.resolutionStr || "auto";
-                  isM3U8 = true;
-                  isMP4 = false;
+            const clockSources = sources.filter((s: any) => s.url && s.url.includes("clock.json"));
+            const ref = "https://allmanga.to";
+            const ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0";
+            for (const cs of clockSources) {
+              try {
+                const clockRes = await Promise.race([
+                  fetch(cs.url, { headers: { Referer: ref, "User-Agent": ua }, cache: "no-store" }).then(r => r.ok ? r.json() : null),
+                  new Promise<null>(r => setTimeout(() => r(null), 3000)),
+                ]);
+                if (clockRes?.links?.length) {
+                  const hlsLink = clockRes.links.find((l: any) => l.hls) || clockRes.links[0];
+                  if (hlsLink?.link) {
+                    streamUrl = hlsLink.link;
+                    streamReferer = ref;
+                    quality = hlsLink.resolutionStr || cs.name || "auto";
+                    isM3U8 = true;
+                    isMP4 = false;
+                    break; // Use first working clock.json source
+                  }
                 }
+              } catch {
+                // try next clock source
               }
             }
           } else if (c.provider === "anikoto") {
