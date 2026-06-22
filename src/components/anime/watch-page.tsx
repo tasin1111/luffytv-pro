@@ -225,10 +225,22 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   // ── Stream State ──
   const [streamData, setStreamData] = useState<StreamData | null>(null);
   const [activeProvider, setActiveProvider] = useState("kiwi");
-  const [translation, setTranslation] = useState<"sub" | "dub">("sub");
+  /**
+   * Translation mode — 3-way toggle like AniDap/Anistream:
+   *   "sub"     → Soft sub (subtitles as separate VTT track)
+   *   "hardsub" → Hard sub (subtitles burned into video)
+   *   "dub"     → English dub audio
+   *
+   * For backwards compatibility with the existing code that uses "sub"|"dub",
+   * "sub" and "hardsub" both map to type="sub" servers (just filtered by
+   * the `hardsub` flag on each server).
+   */
+  const [translation, setTranslation] = useState<"sub" | "hardsub" | "dub">("sub");
   const [availableProviders, setAvailableProviders] = useState<string[]>([]);
   const [failedProviders, setFailedProviders] = useState<Set<string>>(new Set());
   const [dubAvailable, setDubAvailable] = useState(false);
+  const [hardsubAvailable, setHardsubAvailable] = useState(false);
+  const [softsubAvailable, setSoftsubAvailable] = useState(false);
   const [streamLoading, setStreamLoading] = useState(true);
   const [streamError, setStreamError] = useState<string | null>(null);
 
@@ -243,6 +255,8 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     streamUrl?: string;
     isM3U8?: boolean;
     isMP4?: boolean;
+    /** Whether subtitles are burned into the video (hard sub) vs soft sub */
+    hardsub?: boolean;
     /** AniDap/AniLight streams include WebVTT subtitle tracks + intro/outro chapters */
     subtitleTracks?: Array<{ url: string; lang: string; label: string }>;
     intro?: { start: number; end: number } | null;
@@ -307,8 +321,10 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
     async function retryStream() {
       try {
+        // Map 3-way translation mode to the 2-way type the miruro-direct API expects
+        const apiType = translation === "dub" ? "dub" : "sub";
         const res = await fetch(
-          `/api/anime/scraper/miruro-direct/${anilistId}/${episodeNum}?type=${translation}`
+          `/api/anime/scraper/miruro-direct/${anilistId}/${episodeNum}?type=${apiType}`
         );
         if (cancelled) return;
         if (res.ok) {
@@ -365,7 +381,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     setStreamError(null);
   }, [activeProvider]);
 
-  const handleTranslationChange = useCallback((t: "sub" | "dub") => {
+  const handleTranslationChange = useCallback((t: "sub" | "hardsub" | "dub") => {
     if (t === translation) return;
     setTranslation(t);
     setFailedProviders(new Set());
@@ -537,12 +553,45 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           return;
         }
         setServerList(data.servers);
+        // Detect what's available: hard sub, soft sub, dub
         const hasDub = data.servers.some((s: ServerEntry) => s.type === "dub");
+        const hasHardsub = data.servers.some((s: ServerEntry) => s.type === "sub" && s.hardsub === true);
+        const hasSoftsub = data.servers.some((s: ServerEntry) => s.type === "sub" && s.hardsub !== true);
         setDubAvailable(hasDub);
-        // Auto-select first sub server
-        const firstSub = data.servers.find((s: ServerEntry) => s.type === translation);
-        if (firstSub) {
-          setSelectedServer(firstSub.id);
+        setHardsubAvailable(hasHardsub);
+        setSoftsubAvailable(hasSoftsub);
+
+        // Auto-select first server matching current translation mode
+        // Translation modes: "sub" (soft sub), "hardsub", "dub"
+        let firstMatch: ServerEntry | undefined;
+        if (translation === "dub") {
+          firstMatch = data.servers.find((s: ServerEntry) => s.type === "dub");
+        } else if (translation === "hardsub") {
+          firstMatch = data.servers.find((s: ServerEntry) => s.type === "sub" && s.hardsub === true);
+        } else {
+          // "sub" → soft sub preferred, fall back to any sub
+          firstMatch = data.servers.find((s: ServerEntry) => s.type === "sub" && s.hardsub !== true)
+                    || data.servers.find((s: ServerEntry) => s.type === "sub");
+        }
+
+        // If first match doesn't exist (e.g. user picked "hardsub" but only
+        // soft sub is available), fall back to whatever's first available
+        // in priority order: soft sub → hard sub → dub
+        if (!firstMatch) {
+          firstMatch = data.servers.find((s: ServerEntry) => s.type === "sub" && s.hardsub !== true)
+                    || data.servers.find((s: ServerEntry) => s.type === "sub")
+                    || data.servers.find((s: ServerEntry) => s.type === "dub")
+                    || data.servers[0];
+          // Update translation to match what we actually picked
+          if (firstMatch) {
+            if (firstMatch.type === "dub") setTranslation("dub");
+            else if (firstMatch.hardsub === true) setTranslation("hardsub");
+            else setTranslation("sub");
+          }
+        }
+
+        if (firstMatch) {
+          setSelectedServer(firstMatch.id);
         } else if (data.servers[0]) {
           setSelectedServer(data.servers[0].id);
         }
@@ -799,11 +848,13 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   {animeDuration && ` · ${animeDuration}min`}
                 </span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  translation === "sub"
-                    ? "bg-[#D4A017]/15 text-[#D4A017]"
-                    : "bg-red-500/15 text-red-400"
+                  translation === "dub"
+                    ? "bg-red-500/15 text-red-400"
+                    : translation === "hardsub"
+                    ? "bg-orange-500/15 text-orange-400"
+                    : "bg-[#D4A017]/15 text-[#D4A017]"
                 }`}>
-                  {translation.toUpperCase()}
+                  {translation === "sub" ? "SOFT SUB" : translation === "hardsub" ? "HARD SUB" : "DUB"}
                 </span>
                 {streamData && (
                   <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.05] text-zinc-400">
@@ -1197,43 +1248,67 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               <h3 className="text-sm font-bold text-white">Servers</h3>
             </div>
 
-            {/* SUB/DUB Toggle */}
+            {/* SUB / HARD SUB / DUB Toggle — 3-way like AniDap/Anistream */}
             <div className="flex items-center gap-3">
               <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Audio</span>
               <div className="flex rounded-lg overflow-hidden border border-white/[0.06]">
+                {/* Soft Sub */}
                 <button
                   onClick={() => handleTranslationChange("sub")}
-                  className={`px-4 py-1.5 text-xs font-bold transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${
                     translation === "sub"
                       ? "bg-[#D4A017] text-black"
                       : "bg-[#111118] text-zinc-400 hover:text-white"
-                  }`}
+                  } ${!softsubAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
+                  disabled={!softsubAvailable}
+                  title="Soft sub — subtitles as separate VTT track"
                 >
-                  SUB
+                  SOFT SUB
                 </button>
+                {/* Hard Sub */}
+                <button
+                  onClick={() => handleTranslationChange("hardsub")}
+                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${
+                    translation === "hardsub"
+                      ? "bg-[#D4A017] text-black"
+                      : "bg-[#111118] text-zinc-400 hover:text-white"
+                  } ${!hardsubAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
+                  disabled={!hardsubAvailable}
+                  title="Hard sub — subtitles burned into video"
+                >
+                  HARD SUB
+                </button>
+                {/* Dub */}
                 <button
                   onClick={() => handleTranslationChange("dub")}
-                  className={`px-4 py-1.5 text-xs font-bold transition-colors ${
+                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${
                     translation === "dub"
                       ? "bg-[#D4A017] text-black"
                       : "bg-[#111118] text-zinc-400 hover:text-white"
                   } ${!dubAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
                   disabled={!dubAvailable}
+                  title="Dub — English dubbed audio"
                 >
                   DUB
                 </button>
               </div>
-              {!dubAvailable && (
-                <span className="text-[10px] text-zinc-600">No dub available</span>
-              )}
             </div>
 
-            {/* Provider Pills — Unified Miruro + Animex servers */}
+            {/* Provider Pills — filtered by current translation mode */}
             {serverList.length > 0 && (
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Server</span>
                 {serverList
-                  .filter(s => s.type === translation)
+                  .filter(s => {
+                    // Filter by translation mode:
+                    //   "sub"     → soft sub servers (type=sub, hardsub !== true)
+                    //   "hardsub" → hard sub servers (type=sub, hardsub === true)
+                    //   "dub"     → dub servers (type=dub)
+                    if (translation === "dub") return s.type === "dub";
+                    if (translation === "hardsub") return s.type === "sub" && s.hardsub === true;
+                    // "sub" → soft sub
+                    return s.type === "sub" && s.hardsub !== true;
+                  })
                   .map(s => (
                     <button
                       key={s.id}

@@ -82,6 +82,22 @@ interface VerifiedServer {
   streamUrl: string;
   isM3U8: boolean;
   isMP4: boolean;
+  /**
+   * Whether this stream has subtitles burned into the video (hard sub) vs
+   * provided as a separate VTT track (soft sub). Used by the watch-page UI
+   * to filter servers when the user picks "Hard Sub" vs "Soft Sub".
+   *
+   * Mapping:
+   *   - AniDap beep/meme/uwu/kuro/sax/yume (under type=sub) → hardsub=true
+   *   - AniDap mimi/mochi/uwu/kuro/sax/yume (under type=dub) → harddub=true
+   *     (but we still mark hardsub=true since subs are burned in)
+   *   - AniDap vee/yuki/miku/neko (under type=sub) → hardsub=false (soft sub)
+   *   - Animex beep/mimi/miku/uwu/etc → hardsub=true (Animex doesn't do soft sub)
+   *   - AniLight → hardsub=false (returns WebVTT subtitle tracks)
+   *   - Kyren → hardsub=false (returns optional WebVTT subtitle tracks)
+   *   - Miruro/AniVexa/Senshi/AniVault → unknown, default false
+   */
+  hardsub?: boolean;
   /** Optional WebVTT subtitle tracks (AniDap/AniLight providers include these) */
   subtitleTracks?: Array<{ url: string; lang: string; label: string }>;
   /** Optional intro chapter for auto-skip */
@@ -198,6 +214,8 @@ export async function GET(
         streamUrl: r.streamUrl,
         isM3U8: r.isM3U8,
         isMP4: r.isMP4,
+        // Mark hardsub servers — from AniDap's metadata
+        hardsub: meta?.hardsub === true,
         subtitleTracks: r.tracks.map(t => ({ url: t.url, lang: t.lang, label: t.label })),
         intro: r.intro,
         outro: r.outro,
@@ -222,6 +240,8 @@ export async function GET(
         streamUrl: r.streamUrl,
         isM3U8: r.isM3U8,
         isMP4: r.isMP4,
+        // AniLight streams are soft sub (return WebVTT subtitle tracks)
+        hardsub: false,
         subtitleTracks: r.tracks.map(t => ({ url: t.url, lang: t.lang, label: t.label })),
       });
     }
@@ -243,6 +263,8 @@ export async function GET(
         streamUrl: r.streamUrl,
         isM3U8: r.isM3U8,
         isMP4: r.isMP4,
+        // Kyren streams are soft sub (return optional WebVTT subtitle tracks)
+        hardsub: false,
         subtitleTracks: r.tracks.map(t => ({ url: t.url, lang: t.lang, label: t.label || t.lang })),
       });
     }
@@ -296,6 +318,17 @@ export async function GET(
             const isSwapped = /^https?:\/\/[^/]*\.24stream\.xyz\//.test(streamUrl);
             const proxyUrl = isSwapped ? streamUrl : buildProxyUrl(streamUrl, ref, !isM3U8);
 
+            // Animex providers — most are hard sub (subs burned into video).
+            // Based on Animex's /servers endpoint "tip" field:
+            //   beep, mimi, mochi, uwu, miku, koto, kiwi → "Hard sub"
+            //   yuki → "Soft sub, Good, Multi quality"
+            //   vee → "Soft sub, DASH"
+            //   neko → "Hard sub, Direct MP4"
+            //   huzz → "Hard sub, HLS Alt"
+            // We mark hardsub=true for everything except yuki/vee.
+            const ANIMEX_SOFTSUB = new Set(["yuki", "vee"]);
+            const animexHardsub = !ANIMEX_SOFTSUB.has(c.provider);
+
             // NOTE: We intentionally DO NOT verify Animex streams by fetching
             // them server-side. Reasons:
             //   1. The verification fetch goes through proxy.anikuro.to, which
@@ -308,7 +341,8 @@ export async function GET(
             // So we trust the API response and add the server to the list.
             return { ...c, quality: p.quality || "auto",
               streamUrl: proxyUrl,
-              isM3U8, isMP4: !isM3U8 };
+              isM3U8, isMP4: !isM3U8,
+              hardsub: animexHardsub };
           }
         }
       }
