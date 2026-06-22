@@ -18,14 +18,27 @@
 //   - uwu:   Provider not found (usually broken)
 
 const GRAPHQL_URL = "https://graphql.animex.one/graphql";
-const REST_BASE = "https://pp.animex.one/rest/api";
+
+// Use chad.anidap.se as the REST API host instead of pp.animex.one.
+// Both servers serve the EXACT same API (same backend, same data), but
+// pp.animex.one returns {"error":"bot_detected","status":403} when called
+// from Vercel's IPs, while chad.anidap.se does not. The AniDap frontend
+// (anidap.se) uses chad.anidap.se exclusively — it's the same Cloudflare
+// Worker but with a more permissive bot policy.
+const REST_BASE = "https://chad.anidap.se/rest/api";
 
 const UPSTREAM_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
   Accept: "application/json, text/plain, */*",
-  Origin: "https://animex.one",
-  Referer: "https://animex.one/",
+  // Use anidap.se as Origin/Referer — matches what the AniDap frontend sends
+  // when calling chad.anidap.se. (animex.one would also work but anidap.se
+  // is more consistent with the host change above.)
+  Origin: "https://anidap.se",
+  Referer: "https://anidap.se/",
+  "Sec-Fetch-Dest": "empty",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Site": "same-site",
 };
 
 // ─── Provider Config ──────────────────────────────────────────────────────────
