@@ -232,17 +232,21 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const [streamLoading, setStreamLoading] = useState(true);
   const [streamError, setStreamError] = useState<string | null>(null);
 
-  // ── Server List (Miruro + Animex + AniVault + AniVexa + Senshi — ALL verified) ──
+  // ── Server List (Miruro + Animex + AniVault + AniVexa + Senshi + AniDap — ALL verified) ──
   interface ServerEntry {
     id: string;
     name: string;
-    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi";
+    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap";
     provider: string;
     type: "sub" | "dub";
     quality?: string;
     streamUrl?: string;
     isM3U8?: boolean;
     isMP4?: boolean;
+    /** AniDap streams include WebVTT subtitle tracks + intro/outro chapters */
+    subtitleTracks?: Array<{ url: string; lang: string; label: string }>;
+    intro?: { start: number; end: number } | null;
+    outro?: { start: number; end: number } | null;
   }
   const [serverList, setServerList] = useState<ServerEntry[]>([]);
   const [selectedServer, setSelectedServer] = useState<string>(""); // server id
@@ -572,6 +576,13 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     const isM3U8 = (server as any).isM3U8 !== false;
     const isMP4 = (server as any).isMP4 === true;
 
+    // AniDap streams come with their own WebVTT subtitle tracks (for softsub
+    // providers like vee/yuki/miku/neko) and intro/outro chapters. Pass them
+    // through to the HLS player.
+    const subtitleTracks = (server as ServerEntry).subtitleTracks || [];
+    const intro = (server as ServerEntry).intro ?? null;
+    const outro = (server as ServerEntry).outro ?? null;
+
     const newStreamData: StreamData = {
       video_link: streamUrl,
       source_type: isMP4 ? "mp4" : "hls",
@@ -582,14 +593,18 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         isM3U8,
       }],
       embed_sources: [],
-      subtitle_tracks: [],
-      intro: null,
-      outro: null,
+      subtitle_tracks: subtitleTracks.map(t => ({
+        url: t.url,
+        label: t.label || t.lang || "English",
+        kind: "subtitles" as const,
+      })),
+      intro,
+      outro,
       provider: `${server.source}:${server.provider}`,
       available_qualities: [quality],
     };
 
-    console.log(`[WatchPage] Playing via ${server.source}:${server.provider} (${quality})`);
+    console.log(`[WatchPage] Playing via ${server.source}:${server.provider} (${quality}) — subs=${subtitleTracks.length} intro=${intro ? `${intro.start}-${intro.end}` : "no"} outro=${outro ? `${outro.start}-${outro.end}` : "no"}`);
     setStreamData(newStreamData);
     setStreamLoading(false);
     setStreamError(null);

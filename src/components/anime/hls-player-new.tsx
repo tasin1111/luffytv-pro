@@ -52,6 +52,8 @@ export default function HLSPlayerNew({
     setLoading(true);
     setError(null);
     retryCountRef.current = 0;
+    setCurrentSubtitle(-1);
+    setHlsSubtitles([]);
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -239,7 +241,41 @@ export default function HLSPlayerNew({
     setShowSettings(false);
   };
   const changeSubtitle = (track: number) => {
-    if (hlsRef.current) { hlsRef.current.subtitleTrack = track; setCurrentSubtitle(track); }
+    // Track index scheme:
+    //   -1                    → Off
+    //   0..hlsSubtitles.len-1 → HLS-embedded subtitle tracks (switch via hls.subtitleTrack)
+    //   hlsSubtitles.len..    → External <track> elements (toggle via textTracks[i].mode)
+    if (track === -1) {
+      // Turn off everything
+      if (hlsRef.current) hlsRef.current.subtitleTrack = -1;
+      const video = videoRef.current;
+      if (video) {
+        for (let i = 0; i < video.textTracks.length; i++) {
+          video.textTracks[i].mode = 'disabled';
+        }
+      }
+      setCurrentSubtitle(-1);
+    } else if (hlsRef.current && track < hlsSubtitles.length) {
+      // HLS-embedded track
+      hlsRef.current.subtitleTrack = track;
+      // Disable external tracks
+      const video = videoRef.current;
+      if (video) {
+        for (let i = 0; i < video.textTracks.length; i++) video.textTracks[i].mode = 'disabled';
+      }
+      setCurrentSubtitle(track);
+    } else {
+      // External <track> element
+      if (hlsRef.current) hlsRef.current.subtitleTrack = -1;
+      const externalIdx = track - hlsSubtitles.length;
+      const video = videoRef.current;
+      if (video) {
+        for (let i = 0; i < video.textTracks.length; i++) {
+          video.textTracks[i].mode = (i === externalIdx) ? 'showing' : 'disabled';
+        }
+      }
+      setCurrentSubtitle(track);
+    }
     setShowSettings(false);
   };
   const skipTime = (seconds: number) => { if (videoRef.current) videoRef.current.currentTime += seconds; };
@@ -265,7 +301,22 @@ export default function HLSPlayerNew({
       onMouseLeave={() => { if (playing) { setShowControls(false); setShowSettings(false); } }}
       onClick={(e) => { if (e.target === e.currentTarget || e.target === videoRef.current) togglePlay(); }}
     >
-      <video ref={videoRef} className="w-full h-full object-contain" playsInline onClick={togglePlay} />
+      <video ref={videoRef} className="w-full h-full object-contain" playsInline onClick={togglePlay} crossOrigin="anonymous">
+        {/* External WebVTT subtitle tracks (from AniDap) — routed through prox.animex.one
+            because the source URLs (1oe.lostproject.club) are Cloudflare-protected. */}
+        {(subtitleTracks || []).map((t, i) => (
+          <track
+            key={`ext-sub-${i}`}
+            kind="subtitles"
+            src={t.url.includes('prox.animex.one') || t.url.startsWith('blob:') || t.url.startsWith('data:')
+              ? t.url
+              : `https://prox.animex.one/fetch?url=${encodeURIComponent(t.url)}`}
+            srcLang={t.lang || 'en'}
+            label={t.label || t.lang || 'English'}
+            default={i === 0 && hlsSubtitles.length === 0}
+          />
+        ))}
+      </video>
 
       {/* Loading */}
       {loading && !error && (
@@ -365,7 +416,7 @@ export default function HLSPlayerNew({
           <div className="flex-1" />
 
           {/* Settings (quality + subtitles) */}
-          {(qualities.length > 0 || hlsSubtitles.length > 0) && (
+          {(qualities.length > 0 || hlsSubtitles.length > 0 || (subtitleTracks && subtitleTracks.length > 0)) && (
             <div className="relative">
               <button
                 onClick={() => setShowSettings(!showSettings)}
@@ -389,18 +440,26 @@ export default function HLSPlayerNew({
                       ))}
                     </>
                   )}
-                  {/* Subtitles */}
-                  {hlsSubtitles.length > 0 && (
+                  {/* Subtitles — combine HLS-embedded tracks + external VTT tracks (AniDap) */}
+                  {(hlsSubtitles.length > 0 || (subtitleTracks && subtitleTracks.length > 0)) && (
                     <>
                       <div className="px-3 py-1 mt-1 text-[10px] font-bold text-white/30 uppercase tracking-wider border-t border-white/5">Subtitles</div>
                       <button onClick={() => changeSubtitle(-1)} className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 ${currentSubtitle === -1 ? 'text-[#9d6ef8] font-bold' : 'text-white/70'}`}>
                         Off
                       </button>
                       {hlsSubtitles.map((sub, i) => (
-                        <button key={i} onClick={() => changeSubtitle(i)} className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 ${currentSubtitle === i ? 'text-[#9d6ef8] font-bold' : 'text-white/70'}`}>
+                        <button key={`hls-sub-${i}`} onClick={() => changeSubtitle(i)} className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 ${currentSubtitle === i ? 'text-[#9d6ef8] font-bold' : 'text-white/70'}`}>
                           {sub.name || sub.lang || `Track ${i + 1}`}
                         </button>
                       ))}
+                      {(subtitleTracks || []).map((sub, i) => {
+                        const idx = hlsSubtitles.length + i;
+                        return (
+                          <button key={`ext-sub-${i}`} onClick={() => changeSubtitle(idx)} className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 ${currentSubtitle === idx ? 'text-[#9d6ef8] font-bold' : 'text-white/70'}`}>
+                            {sub.label || sub.lang || `External ${i + 1}`}
+                          </button>
+                        );
+                      })}
                     </>
                   )}
                 </div>

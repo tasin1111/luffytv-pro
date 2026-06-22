@@ -19,6 +19,11 @@ import {
   getSourceFromProvider,
 } from "@/lib/miruro-direct";
 import { animexGetAnime, animexServers, animexSources } from "@/lib/animex-api";
+import {
+  fetchAllAniDapSources,
+  ANIDAP_PROVIDER_META,
+  type AniDapProvider,
+} from "@/lib/anidap-api";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -69,13 +74,19 @@ const ANIMEX_REFERERS: Record<string, string> = {
 interface VerifiedServer {
   id: string;
   name: string;
-  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi";
+  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap";
   provider: string;
   type: "sub" | "dub";
   quality: string;
   streamUrl: string;
   isM3U8: boolean;
   isMP4: boolean;
+  /** Optional WebVTT subtitle tracks (AniDap providers include these) */
+  subtitleTracks?: Array<{ url: string; lang: string; label: string }>;
+  /** Optional intro chapter for auto-skip */
+  intro?: { start: number; end: number } | null;
+  /** Optional outro chapter for auto-skip */
+  outro?: { start: number; end: number } | null;
 }
 
 export async function GET(
@@ -92,12 +103,14 @@ export async function GET(
   // ─── Gather all candidate servers in parallel ─────────────────────
   interface Candidate {
     id: string; name: string;
-    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi";
+    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap";
     provider: string; type: "sub" | "dub";
   }
   const candidates: Candidate[] = [];
 
-  const [miruroRaw, animexData, anivaultSub, anivaultDub] = await Promise.allSettled([
+  // Fire AniDap resolver + sources fetch in parallel with the other sources.
+  // AniDap gives us 11 providers × 2 types (sub/dub) — all verified playable.
+  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults] = await Promise.allSettled([
     fetchRawEpisodes(id),
     (async () => {
       const anime = await animexGetAnime(id);
@@ -106,6 +119,7 @@ export async function GET(
     })(),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/sub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/dub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: 8000 }),
   ]);
 
   // Miruro
@@ -160,6 +174,33 @@ export async function GET(
   // Only add 2 servers (sub + dub) to keep verification fast
   candidates.push({ id: "senshi:VidPlay-1:sub", name: "Senshi", source: "senshi", provider: "VidPlay-1", type: "sub" });
   candidates.push({ id: "senshi:VidPlay-1:dub", name: "Senshi (Dub)", source: "senshi", provider: "VidPlay-1", type: "dub" });
+
+  // AniDap results are ALREADY verified playable (fetchAllAniDapSources filters out
+  // providers with no playable stream). We push them straight into the final list
+  // — no need to re-verify each one. We also pass through subtitles + intro/outro.
+  const anidapVerified: VerifiedServer[] = [];
+  if (anidapResults.status === "fulfilled" && anidapResults.value) {
+    for (const r of anidapResults.value) {
+      const meta = ANIDAP_PROVIDER_META[r.provider as AniDapProvider];
+      const provName = meta?.name || (r.provider[0].toUpperCase() + r.provider.slice(1));
+      const typeTag = r.type === "dub" ? " (Dub)" : (meta?.hardsub ? " (HS)" : "");
+      anidapVerified.push({
+        id: `anidap:${r.provider}:${r.type}`,
+        name: `AniDap ${provName}${typeTag}`,
+        source: "anidap",
+        provider: r.provider,
+        type: r.type,
+        quality: r.quality,
+        streamUrl: r.streamUrl,
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        subtitleTracks: r.tracks.map(t => ({ url: t.url, lang: t.lang, label: t.label })),
+        intro: r.intro,
+        outro: r.outro,
+      });
+    }
+    console.log(`[Servers] AniDap: ${anidapVerified.length} verified streams (already pre-checked)`);
+  }
 
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
 
@@ -355,7 +396,11 @@ export async function GET(
     if (r.status === "fulfilled" && r.value) verified.push(r.value);
   }
 
-  console.log(`[Servers] ${verified.length}/${candidates.length} verified`);
+  // Merge in the pre-verified AniDap streams (already have playable streamUrl,
+  // subtitles, intro/outro chapters — no re-verification needed).
+  verified.push(...anidapVerified);
+
+  console.log(`[Servers] ${verified.length}/${candidates.length + anidapVerified.length} verified (incl. ${anidapVerified.length} AniDap)`);
 
   return NextResponse.json({ anilistId: id, episode: epNum, servers: verified, total: verified.length }, {
     headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
