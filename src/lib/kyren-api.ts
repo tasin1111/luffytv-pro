@@ -4,7 +4,8 @@
  * Kyren (https://kyren.moe) is a Next.js anime streaming site with a public
  * API at kyren.moe/api (NOT api.kyren.moe — that subdomain is heavily
  * Cloudflare-protected). The same-origin API on kyren.moe works fine from
- * server-side fetches with proper Origin/Referer headers.
+ * curl (different TLS fingerprint than Node's fetch / undici), so we use
+ * curl via child_process for all Kyren API calls.
  *
  * API shape:
  *   1. Search (by query):
@@ -37,20 +38,16 @@
  * permissive CORS headers (access-control-allow-origin: *). They play
  * DIRECTLY from the browser — no proxy needed.
  *
- * Server mapping (from kyren's player JS):
- *   pahe            → "jett"    (HLS, 1080p, default)
- *   senshi          → "viper"   (HLS)
- *   vidnest-direct  → "neon"    (HLS)
- *   megaplay        → "raze"    (embed — iframe)
- *   megaplay-direct → "kayo"    (HLS)
- *   vidnest         → "sova"    (HLS — actually returns pahe provider)
- *   vidnest-pahe    → "skye"    (HLS — actually returns pahe provider)
- *   tryembed        → "omen"    (embed — iframe)
- *   animeverse      → "gekko"   (MP4 direct)
- *
- * We only use the HLS servers (skip embed + MP4) for consistency with the
- * HLS player. megaplay/tryembed are embeds, animeverse is MP4.
+ * IMPORTANT: We use curl (via child_process) for Kyren API calls because
+ * Node's fetch / undici gets Cloudflare-challenged (403) while curl doesn't.
+ * This is the same TLS fingerprint bypass technique used in our scraper
+ * stream proxy. On Vercel, curl IS available (verified).
  */
+
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 const KYREN_API = "https://kyren.moe/api";
 
@@ -67,6 +64,35 @@ const HEADERS: Record<string, string> = {
   "Sec-Fetch-Mode": "cors",
   "Sec-Fetch-Site": "same-origin",
 };
+
+/**
+ * Fetch a URL using curl (bypasses Cloudflare's TLS fingerprint challenge
+ * that blocks Node's fetch / undici). Returns parsed JSON or null on error.
+ */
+async function curlFetchJson<T = any>(url: string, timeoutMs = 12000): Promise<T | null> {
+  try {
+    const args = ["-s", "--max-time", String(Math.floor(timeoutMs / 1000))];
+    for (const [key, val] of Object.entries(HEADERS)) {
+      args.push("-H", `${key}: ${val}`);
+    }
+    args.push(url);
+
+    const { stdout } = await execFileAsync("curl", args, {
+      encoding: "utf-8",
+      timeout: timeoutMs,
+      maxBuffer: 5 * 1024 * 1024, // 5MB
+    });
+
+    if (!stdout || stdout.startsWith("<!DOCTYPE") || stdout.startsWith("<html")) {
+      // Got HTML (Cloudflare challenge page) — not JSON
+      return null;
+    }
+    return JSON.parse(stdout) as T;
+  } catch (e: any) {
+    console.error(`[Kyren] curlFetchJson failed for ${url.slice(0, 80)}:`, e?.message || e);
+    return null;
+  }
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -164,27 +190,53 @@ export async function resolveKyrenAnime(
   const cacheKey = `id:${anilistId}`;
   if (searchCache.has(cacheKey)) return searchCache.get(cacheKey)!;
 
-  // Kyren's search supports querying by AniList ID directly.
-  // We try a few approaches:
-  //   1. Search by the ID as a number (kyren seems to match it against `id` field)
-  //   2. Fall back to searching the slug pattern "{id}-..."
+  // Kyren's search doesn't match by `id` field directly when we pass a number.
+  // We need to search by the anime title instead. Use AniList GraphQL to get
+  // the title, then search Kyren by that title.
   try {
-    const res = await Promise.race([
-      fetch(`${KYREN_API}/anime/search?q=${anilistId}`, {
-        headers: HEADERS,
+    // Step 1: Get the anime title from AniList
+    const anilistRes = await Promise.race([
+      fetch("https://graphql.anilist.co", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: "query($id:Int){Media(id:$id,type:ANIME){id title{romaji english} idMal}}",
+          variables: { id: anilistId },
+        }),
         cache: "no-store",
       }),
       new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
     ]);
-    if (!res || !res.ok) {
+    if (!anilistRes || !anilistRes.ok) {
       searchCache.set(cacheKey, null);
       return null;
     }
-    const data: KyrenSearchResponse = await res.json();
+    const anilistData = await anilistRes.json();
+    const media = anilistData?.data?.Media;
+    if (!media) {
+      searchCache.set(cacheKey, null);
+      return null;
+    }
+    const title = media.title?.english || media.title?.romaji;
+    if (!title) {
+      searchCache.set(cacheKey, null);
+      return null;
+    }
+
+    // Step 2: Search Kyren by title (using curl to bypass CF challenge)
+    const data = await curlFetchJson<KyrenSearchResponse>(
+      `${KYREN_API}/anime/search?q=${encodeURIComponent(title)}`,
+      timeoutMs
+    );
+    if (!data) {
+      searchCache.set(cacheKey, null);
+      return null;
+    }
     const items = data?.items || [];
-    // Find the item whose `id` matches the AniList ID
-    const match = items.find(i => i.id === anilistId) || items[0];
+    // Find the item whose `id` matches the AniList ID (exact match)
+    const match = items.find(i => i.id === anilistId);
     if (!match) {
+      console.log(`[Kyren] anilistId=${anilistId} not found in ${items.length} results for "${title}"`);
       searchCache.set(cacheKey, null);
       return null;
     }
@@ -221,12 +273,7 @@ export async function getKyrenStream(
   const url = `${KYREN_API}/stream/${anilistId}/${epNum}?${params.toString()}`;
 
   try {
-    const res = await Promise.race([
-      fetch(url, { headers: HEADERS, cache: "no-store" }),
-      new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
-    ]);
-    if (!res || !res.ok) return null;
-    const data: KyrenStreamResponse = await res.json();
+    const data = await curlFetchJson<KyrenStreamResponse>(url, timeoutMs);
     if (!data?.ok || !data?.sources?.length) return null;
     return data;
   } catch {
