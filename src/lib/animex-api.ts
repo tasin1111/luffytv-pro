@@ -172,13 +172,18 @@ function detectFormat(streamType: string, url: string): string {
 // when called from Vercel's IPs, but curl has a different TLS fingerprint that
 // Cloudflare doesn't block. Same technique we use for Kyren.
 //
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-const execFileAsync = promisify(execFile);
+// IMPORTANT: We use DYNAMIC import() for node:child_process so that this file
+// can be imported from client-side code (unified-scraper.ts is imported by
+// scraper-anime-page.tsx which is a client component). The dynamic import is
+// only evaluated when curlFetch() actually runs at request time on the server.
+//
 
 /**
  * Fetch a URL using curl with our standard Animex headers.
  * Returns a Response-like object with .ok, .status, .json(), .text().
+ *
+ * Uses dynamic import() for node:child_process to avoid bundling it into
+ * client-side code (which would break Next.js's Turbopack build).
  */
 async function curlFetch(
   url: string,
@@ -198,6 +203,13 @@ async function curlFetch(
   args.push(url);
 
   try {
+    // Dynamic import — only loaded when this function runs (server-side at
+    // request time). Prevents node:child_process from being bundled into
+    // client-side code.
+    const childProcess = await import("node:child_process");
+    const util = await import("node:util");
+    const execFileAsync = util.promisify(childProcess.execFile);
+
     const { stdout } = await execFileAsync("curl", args, {
       encoding: "utf-8",
       timeout: timeoutMs,
