@@ -53,32 +53,35 @@ export type AniDapProvider =
   // sub-only providers (softsub — VTT tracks included)
   | "vee" | "yuki" | "miku" | "neko"
   // hardsub providers (also served under type=sub, but no VTT tracks)
-  | "beep" | "meme" | "uwu" | "kuro" | "sax" | "yume"
+  | "beep" | "meme" | "uwu" | "kuro" | "sax" | "yume" | "mochi"
   // dub-only provider
   | "mimi";
 
+// Full provider catalog — covers ALL providers that AniDap's /servers endpoint
+// can return. We try every one in parallel (batched) so we don't miss any.
 export const ANIDAP_SUB_PROVIDERS: AniDapProvider[] = [
-  "vee", "yuki", "miku", "neko",         // softsub
-  "beep", "meme", "uwu", "kuro", "sax", "yume",  // hardsub
+  "vee", "yuki", "miku", "neko",               // softsub
+  "beep", "meme", "uwu", "kuro", "sax", "yume", "mochi",  // hardsub
 ];
 
 export const ANIDAP_DUB_PROVIDERS: AniDapProvider[] = [
-  "mimi", "yuki", "miku", "uwu", "kuro", "sax", "yume",
+  "mimi", "yuki", "miku", "uwu", "kuro", "sax", "yume", "mochi",
 ];
 
 // Provider metadata for nice display names + flags
 export const ANIDAP_PROVIDER_META: Record<AniDapProvider, { name: string; hardsub: boolean; dub: boolean; sub: boolean }> = {
-  vee:  { name: "Vee",   hardsub: false, sub: true,  dub: false },
-  yuki: { name: "Yuki",  hardsub: false, sub: true,  dub: true  },
-  miku: { name: "Miku",  hardsub: false, sub: true,  dub: true  },
-  neko: { name: "Neko",  hardsub: false, sub: true,  dub: false },
-  beep: { name: "Beep",  hardsub: true,  sub: true,  dub: false },
-  meme: { name: "Meme",  hardsub: true,  sub: true,  dub: false },
-  uwu:  { name: "Uwu",   hardsub: true,  sub: true,  dub: true  },
-  kuro: { name: "Kuro",  hardsub: true,  sub: true,  dub: true  },
-  sax:  { name: "Sax",   hardsub: true,  sub: true,  dub: true  },
-  yume: { name: "Yume",  hardsub: true,  sub: true,  dub: true  },
-  mimi: { name: "Mimi",  hardsub: false, sub: false, dub: true  },
+  vee:   { name: "Vee",   hardsub: false, sub: true,  dub: false },
+  yuki:  { name: "Yuki",  hardsub: false, sub: true,  dub: true  },
+  miku:  { name: "Miku",  hardsub: false, sub: true,  dub: true  },
+  neko:  { name: "Neko",  hardsub: false, sub: true,  dub: false },
+  beep:  { name: "Beep",  hardsub: true,  sub: true,  dub: false },
+  meme:  { name: "Meme",  hardsub: true,  sub: true,  dub: false },
+  uwu:   { name: "Uwu",   hardsub: true,  sub: true,  dub: true  },
+  kuro:  { name: "Kuro",  hardsub: true,  sub: true,  dub: true  },
+  sax:   { name: "Sax",   hardsub: true,  sub: true,  dub: true  },
+  yume:  { name: "Yume",  hardsub: true,  sub: true,  dub: true  },
+  mochi: { name: "Mochi", hardsub: true,  sub: true,  dub: true  },
+  mimi:  { name: "Mimi",  hardsub: false, sub: false, dub: true  },
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -220,17 +223,18 @@ const ANIDAP_STREAM_REFERER = "https://animex.one/";
 
 /** Provider-specific referer for the rare case we need to proxy. */
 const ANIDAP_PROVIDER_REFERER: Record<AniDapProvider, string> = {
-  vee:  "https://www.animeonsen.xyz/",
-  yuki: "https://megaplay.buzz/",
-  miku: "https://ply.24stream.xyz/media/",
-  neko: "https://animeverse.to/",
-  beep: "https://animex.one/",
-  meme: "https://animex.one/",
-  uwu:  "https://kwik.cx/",
-  kuro: "https://animex.one/",
-  sax:  "https://animex.one/",
-  yume: "https://animex.one/",
-  mimi: "https://animex.one/",
+  vee:   "https://www.animeonsen.xyz/",
+  yuki:  "https://megaplay.buzz/",
+  miku:  "https://ply.24stream.xyz/media/",
+  neko:  "https://animeverse.to/",
+  beep:  "https://animex.one/",
+  meme:  "https://animex.one/",
+  uwu:   "https://kwik.cx/",
+  kuro:  "https://animex.one/",
+  sax:   "https://animex.one/",
+  yume:  "https://animex.one/",
+  mochi: "https://animex.one/",
+  mimi:  "https://animex.one/",
 };
 
 /**
@@ -248,9 +252,9 @@ function applyCdnSwap(url: string, provider: AniDapProvider): string {
     // playeng.animeapps.top/r2/cachehd/... → bd.24stream.xyz/media/cachehd/...
     return u.replace("https://playeng.animeapps.top/r2/", "https://bd.24stream.xyz/media/");
   }
-  if (provider === "mimi" || provider === "meme") {
+  if (provider === "mimi" || provider === "meme" || provider === "mochi") {
     // vibeplayer.site/public/stream/... → hawk.24stream.xyz/media/...
-    // (Anistream uses this for mimi/mochi — we apply to mimi/meme since AniDap
+    // (Anistream uses this for mimi/mochi — we apply to mimi/meme/mochi since AniDap
     // providers map differently than Animex)
     return u.replace("https://vibeplayer.site/public/stream/", "https://hawk.24stream.xyz/media/");
   }

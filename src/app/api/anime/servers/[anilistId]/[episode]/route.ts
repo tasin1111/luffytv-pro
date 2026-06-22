@@ -155,13 +155,30 @@ export async function GET(
     }
   }
 
-  // Animex
+  // Animex — NOTE: Animex and AniDap share the SAME backend (chad.anidap.se).
+  // Both call /rest/api/sources with the same provider IDs (beep, mimi, yuki,
+  // mochi, uwu, etc.). To avoid double-fetching + rate-limiting, we ONLY add
+  // Animex candidates for providers that AniDap DIDN'T already cover.
+  //
+  // AniDap covers: vee, yuki, miku, neko, beep, meme, uwu, kuro, sax, yume, mimi
+  // Animex adds:   mochi, koto, kiwi, kami, huzz (these are NOT in AniDap's catalog)
+  //
+  // We collect AniDap's verified providers first, then only fetch Animex
+  // sources for providers NOT already covered by AniDap.
+  const ANIDAP_PROVIDERS_COVERED = new Set<string>([
+    "vee", "yuki", "miku", "neko", "beep", "meme", "uwu", "kuro", "sax", "yume", "mimi", "mochi",
+  ]);
+
   let animexSlug: string | null = null;
   if (animexData.status === "fulfilled" && animexData.value) {
     animexSlug = animexData.value.slug;
     for (const cat of ["sub", "dub"] as const) {
       const provs = cat === "dub" ? animexData.value.servers.dubProviders : animexData.value.servers.subProviders;
       for (const p of provs) {
+        // Skip providers already covered by AniDap (same backend, same streams)
+        if (ANIDAP_PROVIDERS_COVERED.has(p.id)) continue;
+        // Skip embed-type providers (ok.ru, mp4upload — they're iframe embeds, not direct streams)
+        if ((p as any).type === "embed") continue;
         candidates.push({
           id: `animex:${p.id}:${cat}`,
           name: `Animex ${p.id[0].toUpperCase() + p.id.slice(1)}${cat === "dub" ? " (Dub)" : ""}`,
