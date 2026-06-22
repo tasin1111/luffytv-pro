@@ -72,18 +72,23 @@ export default function HLSPlayerNew({
         lowLatencyMode: false,
         backBufferLength: 30,
         maxBufferLength: 30,
-        // Start at highest quality (not auto-ABR which picks low quality initially)
+        // Start at highest quality
         startLevel: -1,
-        abrEwmaDefaultEstimate: 5000000, // Assume 5Mbps bandwidth (prevents quality drop)
+        abrEwmaDefaultEstimate: 5000000,
         abrBandWidthFactor: 0.95,
         abrBandWidthUpFactor: 0.7,
         maxStarvationDelay: 4,
-        manifestLoadingTimeOut: 10000,
-        manifestLoadingMaxRetry: 2,
-        levelLoadingTimeOut: 10000,
-        fragLoadingTimeOut: 20000,
-        // Enable subtitle tracks from manifest
+        manifestLoadingTimeOut: 15000,
+        manifestLoadingMaxRetry: 3,
+        levelLoadingTimeOut: 15000,
+        levelLoadingMaxRetry: 3,
+        fragLoadingTimeOut: 30000,
+        fragLoadingMaxRetry: 4,
         enableWebVTT: true,
+        // Allow cross-origin requests without credentials
+        xhrSetup: (xhr) => {
+          xhr.withCredentials = false;
+        },
       });
       hlsRef.current = hls;
       hls.loadSource(url);
@@ -119,17 +124,20 @@ export default function HLSPlayerNew({
       });
 
       hls.on(Hls.Events.ERROR, (_e, data) => {
+        console.error(`[HLS] Error: type=${data.type} details=${data.details} fatal=${data.fatal}`, data);
         if (data.fatal) {
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            if (retryCountRef.current < 2) {
+            if (retryCountRef.current < 3) {
               retryCountRef.current++;
-              setTimeout(() => hls.startLoad(), 1500);
+              console.log(`[HLS] Network retry ${retryCountRef.current}/3`);
+              setTimeout(() => hls.startLoad(), 2000);
             } else {
               setError('Stream failed to load. Try another server.');
               setLoading(false);
               onProviderFailed?.();
             }
           } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            console.log('[HLS] Media error, recovering...');
             hls.recoverMediaError();
           } else {
             setError('Playback error. Try another server.');

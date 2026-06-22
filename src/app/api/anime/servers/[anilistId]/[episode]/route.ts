@@ -207,7 +207,12 @@ export async function GET(
                   return null;
                 }
                 if (isM3U8 && !text.trim().startsWith("#EXTM3U")) {
-                  console.log(`[Servers] ${c.id}: REJECTED — not a valid m3u8`);
+                  console.log(`[Servers] ${c.id}: REJECTED — not a valid m3u8 (got ${text.slice(0, 50)})`);
+                  return null;
+                }
+                // Reject empty responses
+                if (text.trim().length === 0) {
+                  console.log(`[Servers] ${c.id}: REJECTED — empty response`);
                   return null;
                 }
               }
