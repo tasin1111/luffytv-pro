@@ -190,35 +190,29 @@ export async function getAniDapSources(
 
 // ─── Build a playable, CORS-friendly URL for an AniDap stream ─────────────────
 //
-// AniDap's streams sit behind Cloudflare and require Origin: https://animex.one
-// when fetched. We can't set Origin from a browser (it's a forbidden header),
-// so we route the stream through our OWN Next.js stream proxy at
-// /api/anime/scraper/stream which:
-//   • Uses axios (different TLS fingerprint than fetch — Cloudflare doesn't
-//     block it the way it blocks browser fetch / undici)
-//   • Sends the correct Origin + Referer headers upstream
-//   • For m3u8: rewrites ALL segment + AES-key URLs in the manifest to also
-//     route back through this proxy (with the same referer)
-//   • For segments/MP4/AES-keys: passes raw bytes through with correct
-//     content-type and permissive CORS headers
-//   • Falls back to curl for AES keys (curl's TLS fingerprint bypasses
-//     Cloudflare challenges where axios/fetch get 403'd)
+// AniDap's streams sit behind Cloudflare on vault-XX.uwucdn.top. We try
+// proxy.anikuro.to first (the same proxy that works for Miruro/Animex/etc.)
+// — if Anikuro returns 500 for a particular AniDap CDN, the user can switch
+// to another AniDap provider or another source (Miruro/Animex/AniVexa).
 //
-// Endpoint shape: /api/anime/scraper/stream?url={encodeURIComponent(url)}&ref={referer}
-//
-// We use "https://animex.one/" as the referer — this is what AniDap's own
-// player uses (their API response includes headers: { Origin: "https://animex.one" }).
+// URL format: https://proxy.anikuro.to/{base64(url|referer)}.{m3u8|mp4}
+//   - referer = https://animex.one/ (what AniDap's own player uses)
+//   - ext = .m3u8 for HLS, .mp4 for MP4
 //
 const ANIDAP_STREAM_REFERER = "https://animex.one/";
 
-export function buildAniDapProxyUrl(streamUrl: string): string {
-  return `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(ANIDAP_STREAM_REFERER)}`;
+export function buildAniDapProxyUrl(streamUrl: string, isMP4 = false): string {
+  const b64 = Buffer.from(`${streamUrl}|${ANIDAP_STREAM_REFERER}`).toString("base64");
+  const ext = isMP4 ? ".mp4" : ".m3u8";
+  return `https://proxy.anikuro.to/${b64}${ext}`;
 }
 
 /**
  * Build a proxy URL for an AniDap WebVTT subtitle track.
- * Subtitle files on `1oe.lostproject.club` are also Cloudflare-protected,
- * so we route them through the same scraper stream proxy.
+ * Subtitle files on `1oe.lostproject.club` are Cloudflare-protected, and
+ * proxy.anikuro.to returns 500 for them. So we route subtitle URLs through
+ * our OWN /api/anime/scraper/stream proxy which uses axios (different TLS
+ * fingerprint than fetch — bypasses some CF challenges).
  */
 export function buildAniDapSubtitleProxyUrl(subtitleUrl: string): string {
   return `/api/anime/scraper/stream?url=${encodeURIComponent(subtitleUrl)}&ref=${encodeURIComponent(ANIDAP_STREAM_REFERER)}`;
@@ -397,7 +391,7 @@ export async function fetchAllAniDapSources(
           chapters,
           intro: intro ? { start: intro.start, end: intro.end } : null,
           outro: outro ? { start: outro.start, end: outro.end } : null,
-          streamUrl: buildAniDapProxyUrl(playable.url),
+          streamUrl: buildAniDapProxyUrl(playable.url, mp4),
           quality: playable.quality || "auto",
           isM3U8: m3u8,
           isMP4: mp4,

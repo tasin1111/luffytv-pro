@@ -302,17 +302,16 @@ export default function HLSPlayerNew({
       onClick={(e) => { if (e.target === e.currentTarget || e.target === videoRef.current) togglePlay(); }}
     >
       <video ref={videoRef} className="w-full h-full object-contain" playsInline onClick={togglePlay} crossOrigin="anonymous">
-        {/* External WebVTT subtitle tracks (from AniDap) — routed through our
-            own /api/anime/scraper/stream proxy because the source URLs
-            (1oe.lostproject.club) are Cloudflare-protected. */}
+        {/* External WebVTT subtitle tracks (from AniDap softsub providers).
+            Routed through proxy.anikuro.to using the same base64(url|referer)
+            format as the video streams. */}
         {(subtitleTracks || []).map((t, i) => {
-          // Determine proxy URL — only proxy if the URL is on a CF-protected
-          // host. Already-proxied / data: / blob: URLs pass through unchanged.
           let trackSrc = t.url;
           if (!t.url.startsWith('blob:') && !t.url.startsWith('data:') && !t.url.startsWith('/')) {
-            // External URL — route through our scraper stream proxy with
-            // Origin: https://animex.one (what AniDap's player uses).
-            trackSrc = `/api/anime/scraper/stream?url=${encodeURIComponent(t.url)}&ref=${encodeURIComponent('https://animex.one/')}`;
+            // External URL — route through Anikuro proxy (same as video streams)
+            // Referer = https://animex.one/ (what AniDap's player uses)
+            const b64 = btoa(`${t.url}|https://animex.one/`);
+            trackSrc = `https://proxy.anikuro.to/${b64}.m3u8`;
           }
           return (
             <track

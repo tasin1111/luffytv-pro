@@ -36,22 +36,24 @@ const ANIVAULT_SENSHI = "https://anivault-scraper.up.railway.app/api/watch/sensh
 const ANIVEXA_PROVIDERS = ["animegg", "allmanga", "anikoto", "anineko"] as const;
 
 /**
- * Build a proxy URL using OUR OWN /api/anime/scraper/stream proxy.
- *
- * Previous versions used proxy.anikuro.to (base64(url|referer).m3u8) — that
- * proxy started returning HTTP 500 for everything (Cloudflare-protected CDNs
- * started 403'ing the proxy's fetches). Our own proxy uses axios + curl
- * which have different TLS fingerprints that Cloudflare doesn't block.
- *
- * What it does:
- *   - HLS m3u8: rewrites manifest + AES keys + segments to route through itself
- *   - MP4: passthrough with correct content-type
- *   - Sends the correct Referer + Origin headers upstream
+ * Build a proxy URL using proxy.anikuro.to — the same proxy that was working
+ * before. It's a Cloudflare Worker that:
+ *   - Rewrites m3u8 manifest (segments + AES keys + sub-playlists)
+ *   - Sends correct Referer/Origin headers upstream
  *   - Adds permissive CORS headers for browser playback
- *   - Falls back to curl for AES keys (curl bypasses Cloudflare)
+ *
+ * URL format: https://proxy.anikuro.to/{base64(url|referer)}.{m3u8|mp4}
+ *
+ * Note: Anikuro does NOT work for some Cloudflare-protected CDNs (e.g.
+ * vault-XX.uwucdn.top from AniDap) — it returns 500 for those. AniDap
+ * streams use their own buildAniDapProxyUrl() (also via Anikuro) defined
+ * in /lib/anidap-api.ts. Subtitle URLs from AniDap use our own scraper
+ * stream proxy because Anikuro 500s on those.
  */
 function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = false): string {
-  return `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(referer)}`;
+  const b64 = Buffer.from(`${streamUrl}|${referer}`).toString("base64");
+  const ext = isMP4 ? ".mp4" : ".m3u8";
+  return `https://proxy.anikuro.to/${b64}${ext}`;
 }
 
 const ANIMEX_REFERERS: Record<string, string> = {
