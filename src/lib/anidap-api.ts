@@ -292,13 +292,19 @@ export async function discoverAniDapServers(
 }
 
 /**
- * Fetch sources from EVERY provider that actually has this episode.
+ * Fetch sources from EVERY provider in our catalog (10 sub + 7 dub).
  *
  * Strategy:
- *   1. ONE call to `/servers` discovers which providers exist for this episode
- *      (sub + dub). Skips embed-only providers (ok.ru, mp4upload).
- *   2. For each discovered provider, fire a `/sources` call (batched 3-at-a-time
- *      to dodge AniDap's per-IP rate limiter).
+ *   - Try ALL providers in our catalog (vee, yuki, miku, neko, beep, meme,
+ *     uwu, kuro, sax, yume for sub; mimi, yuki, miku, uwu, kuro, sax, yume
+ *     for dub) — NOT just the ones /servers returns.
+ *   - Reason: /servers doesn't always list every provider that has the
+ *     episode. e.g. for One Piece ep 1, "sax" has the episode but isn't in
+ *     the /servers response.
+ *   - Batched 3-at-a-time with 700ms gap to dodge AniDap's per-IP rate
+ *     limiter.
+ *   - Providers that return "bot_detected" or "too_many_requests" are
+ *     silently skipped (they're rate-limited, not absent).
  *
  * Returns only providers that actually have a playable stream.
  */
@@ -315,34 +321,26 @@ export async function fetchAllAniDapSources(
 
   const wantSub = options?.sub ?? true;
   const wantDub = options?.dub ?? true;
-  const timeoutMs = options?.timeoutMs ?? 8000;
+  const timeoutMs = options?.timeoutMs ?? 5000;
 
-  // Step 1: discover available providers via a single /servers call
-  const discovered = await discoverAniDapServers(anidapId, epNum, timeoutMs);
-
-  // Step 2: intersect with our wanted providers + types
+  // Build the full job list from our catalog — try EVERY provider, not just
+  // the ones /servers reports. /servers is unreliable and often omits
+  // providers that actually have the episode (e.g. sax for One Piece ep 1).
   const jobs: Array<{ provider: AniDapProvider; type: "sub" | "dub" }> = [];
   if (wantSub) {
-    for (const p of discovered.sub) {
-      // Only include providers that are in our catalog (ANIDAP_SUB_PROVIDERS)
-      if (ANIDAP_SUB_PROVIDERS.includes(p)) {
-        jobs.push({ provider: p, type: "sub" });
-      }
-    }
+    for (const p of ANIDAP_SUB_PROVIDERS) jobs.push({ provider: p, type: "sub" });
   }
   if (wantDub) {
-    for (const p of discovered.dub) {
-      if (ANIDAP_DUB_PROVIDERS.includes(p)) {
-        jobs.push({ provider: p, type: "dub" });
-      }
-    }
+    for (const p of ANIDAP_DUB_PROVIDERS) jobs.push({ provider: p, type: "dub" });
   }
 
-  console.log(`[AniDap] ${anidapId} ep${epNum}: ${discovered.sub.length} sub providers, ${discovered.dub.length} dub providers discovered. Fetching ${jobs.length} sources (batched 3-at-a-time).`);
+  console.log(`[AniDap] ${anidapId} ep${epNum}: trying ALL ${jobs.length} providers from catalog (batched ${4}-at-a-time, 500ms gap)`);
 
-  // Step 3: fetch sources in batches of 3 (with 700ms gap to dodge rate limiter)
-  const BATCH_SIZE = 3;
-  const BATCH_GAP_MS = 700;
+  // Fetch sources in batches of 4 (with 500ms gap to dodge rate limiter).
+  // Timing: 17 providers / 4 per batch = 5 batches × (5s + 0.5s) = ~27s
+  // — fits within Vercel's 30s function timeout.
+  const BATCH_SIZE = 4;
+  const BATCH_GAP_MS = 500;
   const verified: AniDapVerifiedResult[] = [];
 
   for (let i = 0; i < jobs.length; i += BATCH_SIZE) {

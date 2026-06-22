@@ -114,7 +114,7 @@ export async function GET(
     })(),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/sub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/dub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: 8000 }),
+    fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: 5000 }),
   ]);
 
   // Miruro
@@ -228,33 +228,16 @@ export async function GET(
             const ref = ANIMEX_REFERERS[c.provider] || "https://animex.one/";
             const isM3U8 = p.url.includes(".m3u8") || p.type?.includes("mpegurl");
             const proxyUrl = buildProxyUrl(p.url, ref, !isM3U8);
-            // VERIFY the stream actually returns valid content (not Google Cloud HTML)
-            try {
-              const checkRes = await Promise.race([
-                fetch(proxyUrl, { cache: "no-store" }),
-                new Promise<Response | null>(r => setTimeout(() => r(null), 3000)),
-              ]);
-              if (checkRes && checkRes.ok) {
-                const ct = checkRes.headers.get("content-type") || "";
-                const text = await checkRes.text();
-                // Reject if it's HTML (Google Cloud error page) or not a valid m3u8/mp4
-                if (text.includes("<!doctype html>") || text.includes("<html")) {
-                  console.log(`[Servers] ${c.id}: REJECTED — CDN returned HTML, not m3u8`);
-                  return null;
-                }
-                if (isM3U8 && !text.trim().startsWith("#EXTM3U")) {
-                  console.log(`[Servers] ${c.id}: REJECTED — not a valid m3u8 (got ${text.slice(0, 50)})`);
-                  return null;
-                }
-                // Reject empty responses
-                if (text.trim().length === 0) {
-                  console.log(`[Servers] ${c.id}: REJECTED — empty response`);
-                  return null;
-                }
-              }
-            } catch {
-              // If verification fails, still include it (might work from browser)
-            }
+            // NOTE: We intentionally DO NOT verify Animex streams by fetching
+            // them server-side. Reasons:
+            //   1. The verification fetch goes through proxy.anikuro.to, which
+            //      can be slow or rate-limited — adding 3s+ to every candidate.
+            //   2. Many Animex CDNs (playeng.animeapps.top) return Google Cloud
+            //      HTML when fetched from Vercel's IP but play fine from the
+            //      browser (different IP, different TLS fingerprint).
+            //   3. The HLS player already has retry logic — if a stream fails,
+            //      it'll try the next server.
+            // So we trust the API response and add the server to the list.
             return { ...c, quality: p.quality || "auto",
               streamUrl: proxyUrl,
               isM3U8, isMP4: !isM3U8 };
