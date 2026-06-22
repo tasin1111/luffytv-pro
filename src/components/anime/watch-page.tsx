@@ -232,18 +232,18 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const [streamLoading, setStreamLoading] = useState(true);
   const [streamError, setStreamError] = useState<string | null>(null);
 
-  // ── Server List (Miruro + Animex + AniVault + AniVexa + Senshi + AniDap — ALL verified) ──
+  // ── Server List (Miruro + Animex + AniVault + AniVexa + Senshi + AniDap + AniLight + Kyren — ALL verified) ──
   interface ServerEntry {
     id: string;
     name: string;
-    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap";
+    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren";
     provider: string;
     type: "sub" | "dub";
     quality?: string;
     streamUrl?: string;
     isM3U8?: boolean;
     isMP4?: boolean;
-    /** AniDap streams include WebVTT subtitle tracks + intro/outro chapters */
+    /** AniDap/AniLight streams include WebVTT subtitle tracks + intro/outro chapters */
     subtitleTracks?: Array<{ url: string; lang: string; label: string }>;
     intro?: { start: number; end: number } | null;
     outro?: { start: number; end: number } | null;

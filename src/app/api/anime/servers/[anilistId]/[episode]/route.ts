@@ -24,6 +24,12 @@ import {
   ANIDAP_PROVIDER_META,
   type AniDapProvider,
 } from "@/lib/anidap-api";
+import { fetchAniLightSources } from "@/lib/anilight-api";
+import {
+  fetchAllKyrenSources,
+  KYREN_SERVER_NAMES,
+  type KyrenServer,
+} from "@/lib/kyren-api";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -69,14 +75,14 @@ const ANIMEX_REFERERS: Record<string, string> = {
 interface VerifiedServer {
   id: string;
   name: string;
-  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap";
+  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren";
   provider: string;
   type: "sub" | "dub";
   quality: string;
   streamUrl: string;
   isM3U8: boolean;
   isMP4: boolean;
-  /** Optional WebVTT subtitle tracks (AniDap providers include these) */
+  /** Optional WebVTT subtitle tracks (AniDap/AniLight providers include these) */
   subtitleTracks?: Array<{ url: string; lang: string; label: string }>;
   /** Optional intro chapter for auto-skip */
   intro?: { start: number; end: number } | null;
@@ -105,7 +111,8 @@ export async function GET(
 
   // Fire AniDap resolver + sources fetch in parallel with the other sources.
   // AniDap gives us 11 providers × 2 types (sub/dub) — all verified playable.
-  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults] = await Promise.allSettled([
+  // Also fire AniLight + Kyren in parallel — both return direct-playable streams.
+  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults] = await Promise.allSettled([
     fetchRawEpisodes(id),
     (async () => {
       const anime = await animexGetAnime(id);
@@ -115,6 +122,8 @@ export async function GET(
     fetch(`${ANIVAULT_API}/${id}/${epNum}/sub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/dub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
     fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: 5000 }),
+    fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 8000 }),
+    fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 8000 }),
   ]);
 
   // Miruro
@@ -195,6 +204,47 @@ export async function GET(
       });
     }
     console.log(`[Servers] AniDap: ${anidapVerified.length} verified streams (already pre-checked)`);
+  }
+
+  // AniLight results — pre-verified playable, direct CDN URLs (no proxy needed)
+  const anilightVerified: VerifiedServer[] = [];
+  if (anilightResults.status === "fulfilled" && anilightResults.value) {
+    for (const r of anilightResults.value) {
+      anilightVerified.push({
+        id: `anilight:${r.type}`,
+        name: `AniLight${r.type === "dub" ? " (Dub)" : ""}`,
+        source: "anilight",
+        provider: "anilight",
+        type: r.type,
+        quality: r.quality,
+        streamUrl: r.streamUrl,
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        subtitleTracks: r.tracks.map(t => ({ url: t.url, lang: t.lang, label: t.label })),
+      });
+    }
+    console.log(`[Servers] AniLight: ${anilightVerified.length} verified streams (direct CDN, no proxy)`);
+  }
+
+  // Kyren results — pre-verified playable, HLS through kyren's CF Worker (permissive CORS)
+  const kyrenVerified: VerifiedServer[] = [];
+  if (kyrenResults.status === "fulfilled" && kyrenResults.value) {
+    for (const r of kyrenResults.value) {
+      const serverName = KYREN_SERVER_NAMES[r.server as KyrenServer] || r.server;
+      kyrenVerified.push({
+        id: `kyren:${r.server}:${r.type}`,
+        name: `Kyren ${serverName}${r.type === "dub" ? " (Dub)" : ""}`,
+        source: "kyren",
+        provider: r.server,
+        type: r.type,
+        quality: r.quality,
+        streamUrl: r.streamUrl,
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        subtitleTracks: r.tracks.map(t => ({ url: t.url, lang: t.lang, label: t.label || t.lang })),
+      });
+    }
+    console.log(`[Servers] Kyren: ${kyrenVerified.length} verified streams (HLS via kyren Worker)`);
   }
 
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
@@ -390,11 +440,14 @@ export async function GET(
     if (r.status === "fulfilled" && r.value) verified.push(r.value);
   }
 
-  // Merge in the pre-verified AniDap streams (already have playable streamUrl,
-  // subtitles, intro/outro chapters — no re-verification needed).
+  // Merge in the pre-verified AniDap + AniLight + Kyren streams (already have
+  // playable streamUrl, subtitles, intro/outro chapters — no re-verification needed).
   verified.push(...anidapVerified);
+  verified.push(...anilightVerified);
+  verified.push(...kyrenVerified);
 
-  console.log(`[Servers] ${verified.length}/${candidates.length + anidapVerified.length} verified (incl. ${anidapVerified.length} AniDap)`);
+  const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length;
+  console.log(`[Servers] ${verified.length}/${candidates.length + totalPre} verified (incl. ${totalPre} pre-verified: AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length})`);
 
   return NextResponse.json({ anilistId: id, episode: epNum, servers: verified, total: verified.length }, {
     headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
