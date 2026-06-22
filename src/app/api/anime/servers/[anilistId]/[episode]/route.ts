@@ -206,13 +206,15 @@ export async function GET(
     console.log(`[Servers] AniDap: ${anidapVerified.length} verified streams (already pre-checked)`);
   }
 
-  // AniLight results — pre-verified playable, direct CDN URLs (no proxy needed)
+  // AniLight results — pre-verified playable, direct CDN URLs (no proxy needed).
+  // AniLight returns multiple qualities (360p, 720p, 1080p) — we expose each
+  // as a separate server so the user can pick.
   const anilightVerified: VerifiedServer[] = [];
   if (anilightResults.status === "fulfilled" && anilightResults.value) {
     for (const r of anilightResults.value) {
       anilightVerified.push({
-        id: `anilight:${r.type}`,
-        name: `AniLight${r.type === "dub" ? " (Dub)" : ""}`,
+        id: `anilight:${r.type}:${r.quality}`,
+        name: `AniLight ${r.quality}${r.type === "dub" ? " (Dub)" : ""}`,
         source: "anilight",
         provider: "anilight",
         type: r.type,

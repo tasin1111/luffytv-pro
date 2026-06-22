@@ -166,24 +166,79 @@ function detectFormat(streamType: string, url: string): string {
 }
 
 // ─── Fetch Helpers ────────────────────────────────────────────────────────────
+//
+// We use curl (via child_process) for ALL Animex API calls — GraphQL + REST.
+// Reason: Node's fetch / undici gets Cloudflare-challenged (403 bot_detected)
+// when called from Vercel's IPs, but curl has a different TLS fingerprint that
+// Cloudflare doesn't block. Same technique we use for Kyren.
+//
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+const execFileAsync = promisify(execFile);
+
+/**
+ * Fetch a URL using curl with our standard Animex headers.
+ * Returns a Response-like object with .ok, .status, .json(), .text().
+ */
+async function curlFetch(
+  url: string,
+  options: RequestInit = {},
+  timeoutMs = 10000
+): Promise<Response> {
+  const method = (options.method || "GET").toUpperCase();
+  const headers = { ...UPSTREAM_HEADERS, ...(options.headers as Record<string, string>) };
+
+  const args = ["-s", "--max-time", String(Math.floor(timeoutMs / 1000))];
+  for (const [key, val] of Object.entries(headers)) {
+    if (val) args.push("-H", `${key}: ${val}`);
+  }
+  if (method === "POST" && options.body) {
+    args.push("-X", "POST", "--data", String(options.body));
+  }
+  args.push(url);
+
+  try {
+    const { stdout } = await execFileAsync("curl", args, {
+      encoding: "utf-8",
+      timeout: timeoutMs,
+      maxBuffer: 5 * 1024 * 1024,
+    });
+
+    // Build a Response-like object
+    const isHtml = stdout.startsWith("<!DOCTYPE") || stdout.startsWith("<html");
+    const status = isHtml ? 403 : 200;
+    const resp: any = {
+      ok: !isHtml,
+      status,
+      statusText: isHtml ? "Forbidden" : "OK",
+      headers: new Headers({ "content-type": isHtml ? "text/html" : "application/json" }),
+      _body: stdout,
+      async json() { return JSON.parse(this._body); },
+      async text() { return this._body; },
+    };
+    return resp as Response;
+  } catch (e: any) {
+    // Return a 502-like response on curl failure
+    const errResp: any = {
+      ok: false,
+      status: 502,
+      statusText: "Bad Gateway",
+      headers: new Headers(),
+      _body: JSON.stringify({ error: e?.message || "curl failed" }),
+      async json() { try { return JSON.parse(this._body); } catch { return null; } },
+      async text() { return this._body; },
+    };
+    return errResp as Response;
+  }
+}
 
 async function fetchWithTimeout(
   url: string,
   options: RequestInit = {},
   timeoutMs = 10000
 ): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      ...options,
-      headers: { ...UPSTREAM_HEADERS, ...(options.headers as Record<string, string>) },
-      signal: controller.signal,
-    });
-    return res;
-  } finally {
-    clearTimeout(timeout);
-  }
+  // Use curl to bypass Cloudflare's TLS fingerprint challenge
+  return curlFetch(url, options, timeoutMs);
 }
 
 // ─── Slug Mapping (AniList ID → AnimeX slug via GraphQL) ────────────────────

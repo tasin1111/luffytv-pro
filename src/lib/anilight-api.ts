@@ -197,10 +197,12 @@ export interface AniLightVerifiedResult {
 
 /**
  * Fetch + verify AniLight streams for an anime episode.
- * Returns one entry per (sub, dub) that has a playable stream.
+ * Returns one entry PER QUALITY (360p, 720p, 1080p) per type (sub, dub).
  *
- * The streams come from `nanobyte.bigdreamsmalldih.site` (masterUrl) which is
- * an ESA CDN (not Cloudflare) — works DIRECTLY from the browser with no proxy.
+ * AniLight returns multiple qualities for each stream — we expose each as a
+ * separate server so the user can pick. The streams come from
+ * `nanobyte.bigdreamsmalldih.site` (ESA CDN, not Cloudflare) — work DIRECTLY
+ * from the browser with no proxy.
  */
 export async function fetchAniLightSources(
   anilistId: number,
@@ -234,49 +236,47 @@ export async function fetchAniLightSources(
     return 0;
   };
 
-  const pickBest = (side: AniLightStreamSide): AniLightQuality | null => {
-    if (!side?.success) return null;
+  // Returns one AniLightVerifiedResult PER quality (sorted high → low)
+  const collectAll = (side: AniLightStreamSide, type: "sub" | "dub"): AniLightVerifiedResult[] => {
+    if (!side?.success) return [];
     const qualities = side.qualities || [];
     if (qualities.length === 0) {
       // Fall back to masterUrl if no qualities listed
       if (side.masterUrl) {
-        return { quality: "auto", url: side.masterUrl };
+        return [{
+          type,
+          streamUrl: side.masterUrl,
+          quality: "auto",
+          isM3U8: true,
+          isMP4: false,
+          tracks,
+          qualities: [],
+        }];
       }
-      return null;
+      return [];
     }
-    return qualities.slice().sort((a, b) => qRank(b.quality) - qRank(a.quality))[0];
+    // Sort high → low quality
+    return qualities
+      .slice()
+      .sort((a, b) => qRank(b.quality) - qRank(a.quality))
+      .map(q => ({
+        type,
+        streamUrl: q.url,
+        quality: q.quality,
+        isM3U8: true,
+        isMP4: false,
+        tracks,
+        qualities,
+      }));
   };
 
   if (wantSub) {
-    const best = pickBest(data.stream.sub);
-    if (best) {
-      verified.push({
-        type: "sub",
-        streamUrl: best.url,
-        quality: best.quality,
-        isM3U8: true,
-        isMP4: false,
-        tracks,
-        qualities: data.stream.sub.qualities || [],
-      });
-    }
+    verified.push(...collectAll(data.stream.sub, "sub"));
   }
-
   if (wantDub) {
-    const best = pickBest(data.stream.dub);
-    if (best) {
-      verified.push({
-        type: "dub",
-        streamUrl: best.url,
-        quality: best.quality,
-        isM3U8: true,
-        isMP4: false,
-        tracks,
-        qualities: data.stream.dub.qualities || [],
-      });
-    }
+    verified.push(...collectAll(data.stream.dub, "dub"));
   }
 
-  console.log(`[AniLight] ${verified.length} streams for malId=${malId} ep${epNum} (sub=${data.stream.sub?.success ? "yes" : "no"}, dub=${data.stream.dub?.success ? "yes" : "no"})`);
+  console.log(`[AniLight] ${verified.length} streams for malId=${malId} ep${epNum} (sub=${data.stream.sub?.success ? `${data.stream.sub.qualities?.length || 1} qualities` : "no"}, dub=${data.stream.dub?.success ? `${data.stream.dub.qualities?.length || 1} qualities` : "no"})`);
   return verified;
 }
