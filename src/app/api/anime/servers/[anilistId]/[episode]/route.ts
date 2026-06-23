@@ -30,6 +30,7 @@ import {
   KYREN_SERVER_NAMES,
   type KyrenServer,
 } from "@/lib/kyren-api";
+import { fetchAnikageSources } from "@/lib/anikage-api";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -87,7 +88,7 @@ const ANIMEX_REFERERS: Record<string, string> = {
 interface VerifiedServer {
   id: string;
   name: string;
-  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren";
+  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage";
   provider: string;
   type: "sub" | "dub";
   quality: string;
@@ -140,7 +141,7 @@ export async function GET(
   // Fire AniDap resolver + sources fetch in parallel with the other sources.
   // AniDap gives us 11 providers × 2 types (sub/dub) — all verified playable.
   // Also fire AniLight + Kyren in parallel — both return direct-playable streams.
-  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults] = await Promise.allSettled([
+  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults] = await Promise.allSettled([
     fetchRawEpisodes(id),
     (async () => {
       const anime = await animexGetAnime(id);
@@ -152,6 +153,7 @@ export async function GET(
     fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: 5000 }),
     fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 8000 }),
     fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 8000 }),
+    fetchAnikageSources(id, epNum, { timeoutMs: 10000 }),
   ]);
 
   // Miruro
@@ -364,6 +366,31 @@ export async function GET(
     console.log(`[Servers] Kyren: ${kyrenVerified.length} verified streams (HLS via kyren Worker)`);
   }
 
+  // Anikage results — 5 servers (megg, kiss, miko, verse, neko) × sub/dub
+  const anikageVerified: VerifiedServer[] = [];
+  if (anikageResults.status === "fulfilled" && anikageResults.value) {
+    for (const r of anikageResults.value) {
+      const serverName = r.server.charAt(0).toUpperCase() + r.server.slice(1);
+      const typeTag = r.type === "dub" ? " (Dub)" : (r.hardsub ? " (HS)" : "");
+      anikageVerified.push({
+        id: `anikage:${r.server}:${r.type}`,
+        name: `Anikage ${serverName}${typeTag}`,
+        source: "anikage",
+        provider: r.server,
+        type: r.type,
+        quality: r.quality,
+        streamUrl: r.streamUrl,
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        hardsub: r.hardsub,
+        subtitleTracks: r.tracks,
+        intro: r.intro,
+        outro: r.outro,
+      });
+    }
+    console.log(`[Servers] Anikage: ${anikageVerified.length} servers`);
+  }
+
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
 
   // ─── Verify ALL in parallel (4s timeout each) ─────────────────────
@@ -518,9 +545,10 @@ export async function GET(
   verified.push(...animexVerified);
   verified.push(...anilightVerified);
   verified.push(...kyrenVerified);
+  verified.push(...anikageVerified);
 
-  const totalPre = anidapVerified.length + animexVerified.length + anilightVerified.length + kyrenVerified.length;
-  console.log(`[Servers] ${verified.length}/${candidates.length + totalPre} verified (incl. ${totalPre} pre-verified: AniDap=${anidapVerified.length}, Animex=${animexVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length})`);
+  const totalPre = anidapVerified.length + animexVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length;
+  console.log(`[Servers] ${verified.length}/${candidates.length + totalPre} verified (AniDap=${anidapVerified.length}, Animex=${animexVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length})`);
 
   return NextResponse.json({ anilistId: id, episode: epNum, servers: verified, total: verified.length }, {
     headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
