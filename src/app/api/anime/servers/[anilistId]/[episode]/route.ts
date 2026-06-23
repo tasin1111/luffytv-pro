@@ -31,6 +31,7 @@ import {
   type KyrenServer,
 } from "@/lib/kyren-api";
 import { fetchAnikageSources } from "@/lib/anikage-api";
+import { fetchMioAnimeSources } from "@/lib/mioanime-api";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -88,7 +89,7 @@ const ANIMEX_REFERERS: Record<string, string> = {
 interface VerifiedServer {
   id: string;
   name: string;
-  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage";
+  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime";
   provider: string;
   type: "sub" | "dub";
   quality: string;
@@ -141,7 +142,7 @@ export async function GET(
   // Fire AniDap resolver + sources fetch in parallel with the other sources.
   // AniDap gives us 11 providers × 2 types (sub/dub) — all verified playable.
   // Also fire AniLight + Kyren in parallel — both return direct-playable streams.
-  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults] = await Promise.allSettled([
+  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults] = await Promise.allSettled([
     fetchRawEpisodes(id),
     (async () => {
       const anime = await animexGetAnime(id);
@@ -154,6 +155,7 @@ export async function GET(
     fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 8000 }),
     fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 8000 }),
     fetchAnikageSources(id, epNum, { timeoutMs: 10000 }),
+    fetchMioAnimeSources(id, epNum, { timeoutMs: 10000 }),
   ]);
 
   // Miruro
@@ -391,6 +393,28 @@ export async function GET(
     console.log(`[Servers] Anikage: ${anikageVerified.length} servers`);
   }
 
+  // MioAnime results — AniZone + Verse + Senshi + AllAnime (4 sources)
+  const mioanimeVerified: VerifiedServer[] = [];
+  if (mioanimeResults.status === "fulfilled" && mioanimeResults.value) {
+    for (const r of mioanimeResults.value) {
+      const typeTag = r.type === "dub" ? " (Dub)" : (r.hardsub ? " (HS)" : "");
+      mioanimeVerified.push({
+        id: r.id,
+        name: `${r.name}${typeTag}`,
+        source: "mioanime",
+        provider: r.id,
+        type: r.type,
+        quality: r.quality,
+        streamUrl: r.streamUrl,
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        hardsub: r.hardsub,
+        subtitleTracks: r.subtitleTracks,
+      });
+    }
+    console.log(`[Servers] MioAnime: ${mioanimeVerified.length} servers`);
+  }
+
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
 
   // ─── Verify ALL in parallel (4s timeout each) ─────────────────────
@@ -546,9 +570,10 @@ export async function GET(
   verified.push(...anilightVerified);
   verified.push(...kyrenVerified);
   verified.push(...anikageVerified);
+  verified.push(...mioanimeVerified);
 
-  const totalPre = anidapVerified.length + animexVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length;
-  console.log(`[Servers] ${verified.length}/${candidates.length + totalPre} verified (AniDap=${anidapVerified.length}, Animex=${animexVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length})`);
+  const totalPre = anidapVerified.length + animexVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length;
+  console.log(`[Servers] ${verified.length}/${candidates.length + totalPre} verified (AniDap=${anidapVerified.length}, Animex=${animexVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length})`);
 
   return NextResponse.json({ anilistId: id, episode: epNum, servers: verified, total: verified.length }, {
     headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
