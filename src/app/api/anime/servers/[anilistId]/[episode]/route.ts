@@ -171,51 +171,15 @@ export async function GET(
     }
   }
 
-  // Animex — REUSES AniDap's already-fetched results (same backend, same API).
-  // Animex and AniDap both call chad.anidap.se / pp.animex.one with the same
-  // provider IDs. Making separate API calls for Animex causes rate-limiting
-  // and timeout issues (only 2 servers survive out of 21).
-  // Solution: clone AniDap's verified results and label them as "Animex".
-  // This gives us ALL Animex servers with ZERO extra API calls.
+  // Animex — NOT included in the main servers endpoint.
+  // Animex has its own dedicated endpoint: /api/anime/animex-servers/{id}/{ep}
+  // The watch page fetches it separately so it doesn't compete for the 30s timeout.
+  // Animex servers appear in the watch page after they finish loading.
   let animexSlug: string | null = null;
   if (animexData.status === "fulfilled" && animexData.value) {
     animexSlug = animexData.value.slug;
   }
-
-  // Animex providers per user spec (subset of AniDap's providers)
-  const ANIMEX_SUB_PROVIDERS = new Set(["beep", "yuki", "mimi", "miku", "neko", "mochi", "uwu", "kuro", "sax", "yume", "koto"]);
-  const ANIMEX_DUB_PROVIDERS = new Set(["mimi", "yuki", "mochi", "yume", "koto", "uwu", "sax", "kuro", "neko", "miku"]);
-  const ANIMEX_SOFTSUB = new Set(["beep", "yuki"]);
-
-  // Build Animex server list from AniDap's verified results (ZERO extra API calls)
-  const animexVerified: VerifiedServer[] = [];
-  if (anidapResults.status === "fulfilled" && anidapResults.value) {
-    for (const r of anidapResults.value) {
-      // Only include providers that are in the Animex provider list
-      const allowedProviders = r.type === "dub" ? ANIMEX_DUB_PROVIDERS : ANIMEX_SUB_PROVIDERS;
-      if (!allowedProviders.has(r.provider)) continue;
-
-      const provName = r.provider[0].toUpperCase() + r.provider.slice(1).toLowerCase();
-      const isHardsub = !ANIMEX_SOFTSUB.has(r.provider);
-      const typeTag = r.type === "dub" ? " (Dub)" : (isHardsub ? " (HS)" : "");
-      animexVerified.push({
-        id: `animex:${r.provider}:${r.type}`,
-        name: `Animex ${provName}${typeTag}`,
-        source: "animex",
-        provider: r.provider,
-        type: r.type,
-        quality: r.quality,
-        streamUrl: r.streamUrl,  // reuse AniDap's already-proxied URL
-        isM3U8: r.isM3U8,
-        isMP4: r.isMP4,
-        hardsub: isHardsub,
-        subtitleTracks: r.tracks.map(t => ({ url: t.url, lang: t.lang, label: t.label })),
-        intro: r.intro,
-        outro: r.outro,
-      });
-    }
-    console.log(`[Servers] Animex: ${animexVerified.length} servers (reused from AniDap, zero extra API calls)`);
-  }
+  // No animexVerified here — it's fetched separately by the watch page.
 
   // AniVault (AnimeHeaven)
   if (anivaultSub.status === "fulfilled" && anivaultSub.value?.mp4) {
@@ -519,14 +483,14 @@ export async function GET(
   // Merge in the pre-verified AniDap + AniLight + Kyren streams (already have
   // playable streamUrl, subtitles, intro/outro chapters — no re-verification needed).
   verified.push(...anidapVerified);
-  verified.push(...animexVerified);
   verified.push(...anilightVerified);
   verified.push(...kyrenVerified);
   verified.push(...anikageVerified);
   verified.push(...mioanimeVerified);
+  // NOTE: Animex is NOT here — it's fetched separately via /api/anime/animex-servers
 
-  const totalPre = anidapVerified.length + animexVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length;
-  console.log(`[Servers] ${verified.length}/${candidates.length + totalPre} verified (AniDap=${anidapVerified.length}, Animex=${animexVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length})`);
+  const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length;
+  console.log(`[Servers] ${verified.length}/${candidates.length + totalPre} verified (AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length})`);
 
   return NextResponse.json({ anilistId: id, episode: epNum, servers: verified, total: verified.length }, {
     headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },

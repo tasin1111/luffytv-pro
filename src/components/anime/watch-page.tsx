@@ -609,6 +609,36 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           setStreamError("Failed to load servers.");
         }
       });
+
+    // ── Fetch Animex servers SEPARATELY (doesn't block the main list) ──
+    // Animex fetches from pp.animex.one in batches — takes longer than other
+    // sources. This runs in parallel and appends servers when ready.
+    fetch(`/api/anime/animex-servers/${anilistId}/${episodeNum}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(animexData => {
+        if (cancelled || !animexData?.servers?.length) return;
+        // Append Animex servers to the existing server list
+        setServerList(prev => {
+          // Avoid duplicates — only add servers whose IDs don't already exist
+          const existingIds = new Set(prev.map(s => s.id));
+          const newServers = animexData.servers.filter((s: ServerEntry) => !existingIds.has(s.id));
+          const combined = [...prev, ...newServers];
+          // Update availability flags
+          const hasDub = combined.some((s: ServerEntry) => s.type === "dub");
+          const hasHardsub = combined.some((s: ServerEntry) => s.type === "sub" && s.hardsub === true);
+          const hasSoftsub = combined.some((s: ServerEntry) => s.type === "sub" && s.hardsub !== true);
+          setDubAvailable(hasDub);
+          setHardsubAvailable(hasHardsub);
+          setSoftsubAvailable(hasSoftsub);
+          console.log(`[WatchPage] Animex servers loaded: +${newServers.length} (total: ${combined.length})`);
+          return combined;
+        });
+      })
+      .catch(() => {
+        // Animex failed silently — other servers are still available
+        console.log("[WatchPage] Animex servers failed to load (non-critical)");
+      });
+
     return () => { cancelled = true; };
   }, [anilistId, episodeNum]);
 
