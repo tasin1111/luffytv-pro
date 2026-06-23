@@ -265,7 +265,7 @@ export async function miruroWatchProvider(
     const isMP4 = !result.isM3U8;
     const proxyUrl = isMP4
       ? `/api/anime/scraper/stream?url=${encodeURIComponent(result.url)}&ref=${encodeURIComponent(ref || "https://www.miruro.tv/")}`
-      : `https://proxy.anikuro.to/${Buffer.from(`${result.url}|${ref || "https://www.miruro.tv/"}`).toString("base64")}.m3u8`;
+      : `https://pro.24stream.xyz/stream/${Buffer.from(`${result.url}|${ref || "https://www.miruro.tv/"}`).toString("base64")}.m3u8`;
     return {
       sources: [{
         url: proxyUrl,
@@ -325,7 +325,7 @@ export async function miruroWatch(
         const isMP4 = !result.isM3U8;
     const proxyUrl = isMP4
       ? `/api/anime/scraper/stream?url=${encodeURIComponent(result.url)}&ref=${encodeURIComponent(ref || "https://www.miruro.tv/")}`
-      : `https://proxy.anikuro.to/${Buffer.from(`${result.url}|${ref || "https://www.miruro.tv/"}`).toString("base64")}.m3u8`;
+      : `https://pro.24stream.xyz/stream/${Buffer.from(`${result.url}|${ref || "https://www.miruro.tv/"}`).toString("base64")}.m3u8`;
         sources[0].url = proxyUrl;
 
         return {

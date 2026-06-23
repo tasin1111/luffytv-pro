@@ -291,13 +291,20 @@ export function buildAniDapProxyUrl(streamUrl: string, isMP4 = false, provider?:
     return swapped;
   }
 
-  // Step 3: Otherwise, wrap through proxy.anikuro.to with the correct referer
+  // Step 3: Otherwise, wrap through pro.24stream.xyz (Anistream's proxy)
+  // Encoding: XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
   const referer = provider
     ? (ANIDAP_PROVIDER_REFERER[provider] || ANIDAP_STREAM_REFERER)
     : ANIDAP_STREAM_REFERER;
-  const b64 = Buffer.from(`${swapped}|${referer}`).toString("base64");
-  const ext = isMP4 ? ".mp4" : ".m3u8";
-  return `https://proxy.anikuro.to/${b64}${ext}`;
+  const key = "aproxy2026";
+  const keyBytes = Buffer.from(key);
+  const combined = Buffer.from(swapped + "\0" + referer);
+  const xored = Buffer.alloc(combined.length);
+  for (let i = 0; i < combined.length; i++) {
+    xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
+  }
+  const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `https://pro.24stream.xyz/stream/${b64}/index.txt`;
 }
 
 /**
@@ -308,7 +315,16 @@ export function buildAniDapProxyUrl(streamUrl: string, isMP4 = false, provider?:
  * fingerprint than fetch — bypasses some CF challenges).
  */
 export function buildAniDapSubtitleProxyUrl(subtitleUrl: string): string {
-  return `/api/anime/scraper/stream?url=${encodeURIComponent(subtitleUrl)}&ref=${encodeURIComponent(ANIDAP_STREAM_REFERER)}`;
+  // Route subtitles through pro.24stream.xyz too
+  const key = "aproxy2026";
+  const keyBytes = Buffer.from(key);
+  const combined = Buffer.from(subtitleUrl + "\0" + ANIDAP_STREAM_REFERER);
+  const xored = Buffer.alloc(combined.length);
+  for (let i = 0; i < combined.length; i++) {
+    xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
+  }
+  const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `https://pro.24stream.xyz/stream/${b64}/index.txt`;
 }
 
 // ─── Convenience: fetch from many providers in parallel ───────────────────────

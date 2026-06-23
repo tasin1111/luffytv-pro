@@ -56,10 +56,22 @@ const ANIVEXA_PROVIDERS = ["animegg", "allmanga", "anikoto", "anineko"] as const
  * in /lib/anidap-api.ts. Subtitle URLs from AniDap use our own scraper
  * stream proxy because Anikuro 500s on those.
  */
+/**
+ * Build a proxy URL using pro.24stream.xyz (Anistream's proxy).
+ * Encoding: XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
+ * This proxy handles m3u8 rewriting, AES keys, segments, CORS — everything.
+ * pro.24stream.xyz has permissive CORS (access-control-allow-origin: *).
+ */
 function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = false): string {
-  const b64 = Buffer.from(`${streamUrl}|${referer}`).toString("base64");
-  const ext = isMP4 ? ".mp4" : ".m3u8";
-  return `https://proxy.anikuro.to/${b64}${ext}`;
+  const key = "aproxy2026";
+  const keyBytes = Buffer.from(key);
+  const combined = Buffer.from(streamUrl + "\0" + referer);
+  const xored = Buffer.alloc(combined.length);
+  for (let i = 0; i < combined.length; i++) {
+    xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
+  }
+  const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `https://pro.24stream.xyz/stream/${b64}/index.txt`;
 }
 
 const ANIMEX_REFERERS: Record<string, string> = {

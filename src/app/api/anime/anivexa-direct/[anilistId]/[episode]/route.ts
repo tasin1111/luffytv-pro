@@ -162,7 +162,7 @@ export async function GET(
     // For HLS: use mode=manifest (needs URL rewriting for segments + AES keys)
     const proxyUrl = isMP4
       ? `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(streamReferer)}`
-      : `https://proxy.anikuro.to/${Buffer.from(`${streamUrl}|${streamReferer}`).toString("base64")}.m3u8`;
+      : `https://pro.24stream.xyz/stream/${Buffer.from(`${streamUrl}|${streamReferer}`).toString("base64")}.m3u8`;
 
     return NextResponse.json({
       url: proxyUrl,

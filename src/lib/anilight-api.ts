@@ -364,10 +364,17 @@ export async function fetchAniLightSources(
       const hasTracks = (data.tracks || []).length > 0;
       const hardsub = !hasTracks;
 
-      // Build proxy URL — route through proxy.anikuro.to for CORS
-      const b64 = Buffer.from(`${source.url}|https://kwik.cx/`).toString("base64");
-      const ext = isMp4 ? ".mp4" : ".m3u8";
-      const streamUrl = `https://proxy.anikuro.to/${b64}${ext}`;
+      // Build proxy URL — route through pro.24stream.xyz (Anistream's proxy)
+      // Encoding: XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
+      const key = "aproxy2026";
+      const keyBytes = Buffer.from(key);
+      const combined = Buffer.from(source.url + "\0https://kwik.cx/");
+      const xored = Buffer.alloc(combined.length);
+      for (let i = 0; i < combined.length; i++) {
+        xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
+      }
+      const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+      const streamUrl = `https://pro.24stream.xyz/stream/${b64}/index.txt`;
 
       const tracks = (data.tracks || []).filter(t => t?.url);
 

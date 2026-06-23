@@ -337,10 +337,16 @@ export default function HLSPlayerNew({
         {(subtitleTracks || []).map((t, i) => {
           let trackSrc = t.url;
           if (!t.url.startsWith('blob:') && !t.url.startsWith('data:') && !t.url.startsWith('/')) {
-            // External URL — route through Anikuro proxy (same as video streams)
-            // Referer = https://animex.one/ (what AniDap's player uses)
-            const b64 = btoa(`${t.url}|https://animex.one/`);
-            trackSrc = `https://proxy.anikuro.to/${b64}.m3u8`;
+            // External URL — route through pro.24stream.xyz (Anistream's proxy)
+            // XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
+            const key = 'aproxy2026';
+            const combined = t.url + '\0https://animex.one/';
+            const xored = new Uint8Array(combined.length);
+            for (let i = 0; i < combined.length; i++) {
+              xored[i] = combined.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+            }
+            let b64 = btoa(String.fromCharCode(...xored)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+            trackSrc = `https://pro.24stream.xyz/stream/${b64}/index.txt`;
           }
           return (
             <track
