@@ -293,6 +293,13 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const [jumpToEp, setJumpToEp] = useState("");
   const [countdown, setCountdown] = useState("");
 
+  // ── Player Control Bar State (CinemaOS-style) ──
+  const [autoPlay, setAutoPlay] = useState(true);
+  const [autoSkip, setAutoSkip] = useState(true);
+  const [skipFiller, setSkipFiller] = useState(true);
+  const [flipLayout, setFlipLayout] = useState(false);
+  const [lightsOff, setLightsOff] = useState(false);
+
   // ── Relations ──
   const [relations, setRelations] = useState<RelationAnime[]>([]);
 
@@ -760,7 +767,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               subtitleTracks={(streamData.subtitle_tracks || []).map(s => ({ url: s.url, lang: s.label || "en", label: s.label || "English" }))}
               onEnded={handleVideoEnded}
               onProviderFailed={() => handleProviderFailed(activeProvider)}
-              autoplay={true}
+              autoplay={autoPlay}
             />
           )}
 
@@ -776,7 +783,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               outro={streamData.outro}
               onEnded={handleVideoEnded}
               onProviderFailed={() => handleProviderFailed(activeProvider)}
-              autoplay={true}
+              autoplay={autoPlay}
             />
           )}
 
@@ -834,9 +841,81 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         </div>
       </div>
 
-      {/* ─── CONTENT AREA ─── */}
+      {/* ─── PLAYER CONTROL BAR (CinemaOS-style) ─── */}
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="flex items-center gap-4 py-3 px-4 bg-black border border-white/[0.06] rounded-xl mt-2 flex-wrap">
+          {/* Toggle Switches */}
+          {[
+            { label: "Autoplay", state: autoPlay, setter: setAutoPlay },
+            { label: "Auto Skip", state: autoSkip, setter: setAutoSkip },
+            { label: "Auto Next", state: autoNext, setter: setAutoNext },
+            { label: "Skip Filler", state: skipFiller, setter: setSkipFiller },
+            { label: "Flip Layout", state: flipLayout, setter: setFlipLayout },
+          ].map(({ label, state, setter }) => (
+            <button
+              key={label}
+              onClick={() => setter(!state)}
+              className="flex items-center gap-2 group"
+            >
+              {/* Custom toggle circle */}
+              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                state
+                  ? "bg-white border-white"
+                  : "bg-transparent border-zinc-600 group-hover:border-zinc-400"
+              }`}>
+                {state && (
+                  <svg className="w-3 h-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </div>
+              <span className={`text-xs font-medium transition-colors ${
+                state ? "text-white" : "text-zinc-500 group-hover:text-zinc-300"
+              }`}>{label}</span>
+            </button>
+          ))}
+
+          {/* Divider */}
+          <div className="w-px h-6 bg-white/[0.06] mx-1" />
+
+          {/* Action Buttons */}
+          <button
+            onClick={() => setShowShortcuts(!showShortcuts)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-white/[0.06] transition-colors"
+          >
+            <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <rect x="3" y="3" width="7" height="7" rx="1" />
+              <rect x="14" y="3" width="7" height="7" rx="1" />
+              <rect x="3" y="14" width="7" height="7" rx="1" />
+              <rect x="14" y="14" width="7" height="7" rx="1" />
+            </svg>
+            <span className="text-xs font-medium text-white">Shortcuts</span>
+          </button>
+
+          <button
+            onClick={() => setLightsOff(!lightsOff)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
+              lightsOff ? "bg-amber-500/10" : "hover:bg-white/[0.06]"
+            }`}
+          >
+            <svg className={`w-4 h-4 ${lightsOff ? "text-amber-400" : "text-white"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V18h6v-1.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z" />
+            </svg>
+            <span className={`text-xs font-medium ${lightsOff ? "text-amber-400" : "text-white"}`}>Lights Off</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Lights Off overlay */}
+      {lightsOff && (
+        <div
+          className="fixed inset-0 bg-black/90 z-30 pointer-events-none"
+          style={{ backdropFilter: "blur(8px)" }}
+        />
+      )}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-12">
 
+        {/* ─── CONTENT AREA ─── */}
         {/* ─── TITLE BAR ─── */}
         <div className="py-4 border-b border-white/[0.06]">
           <div className="flex items-start justify-between gap-4">
