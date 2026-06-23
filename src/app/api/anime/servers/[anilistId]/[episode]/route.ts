@@ -155,25 +155,47 @@ export async function GET(
     }
   }
 
-  // Animex — fetch ALL providers from /servers (including ones AniDap also covers).
-  // User explicitly wants both Animex AND AniDap servers shown, even if they're
-  // the same stream. We accept the rate-limiting risk (chad.anidap.se may 429
-  // some requests) — the ones that succeed still show up.
+  // Animex — since Animex and AniDap share the SAME backend (chad.anidap.se),
+  // we DON'T make separate API calls for Animex (that would double the rate-
+  // limiting). Instead, we REUSE AniDap's already-fetched results and label
+  // them as "Animex" servers. This gives us all the Animex server names
+  // (Beep, Mimi, Yuki, Mochi, Uwu, Light, Near, Ryu, etc.) with ZERO extra
+  // API calls.
+  //
+  // The user explicitly wants both "Animex" and "AniDap" servers to show in
+  // the watch page, even though they point to the same underlying streams.
+  // This matches what AniDap's own UI does — it shows multiple server entries
+  // for the same stream.
   let animexSlug: string | null = null;
   if (animexData.status === "fulfilled" && animexData.value) {
     animexSlug = animexData.value.slug;
-    for (const cat of ["sub", "dub"] as const) {
-      const provs = cat === "dub" ? animexData.value.servers.dubProviders : animexData.value.servers.subProviders;
-      for (const p of provs) {
-        // Skip embed-type providers (ok.ru, mp4upload — they're iframe embeds, not direct streams)
-        if ((p as any).type === "embed") continue;
-        candidates.push({
-          id: `animex:${p.id}:${cat}`,
-          name: `Animex ${p.id[0].toUpperCase() + p.id.slice(1)}${cat === "dub" ? " (Dub)" : ""}`,
-          source: "animex", provider: p.id, type: cat,
-        });
-      }
+  }
+
+  // Build Animex server list from AniDap's verified results (zero extra API calls)
+  const animexVerified: VerifiedServer[] = [];
+  if (anidapResults.status === "fulfilled" && anidapResults.value) {
+    for (const r of anidapResults.value) {
+      const provName = r.provider[0].toUpperCase() + r.provider.slice(1).toLowerCase();
+      const isHardsub = r.provider !== "vee" && r.provider !== "yuki" && r.provider !== "miku"
+                     && r.provider !== "neko" && r.provider !== "beep";
+      const typeTag = r.type === "dub" ? " (Dub)" : (isHardsub ? " (HS)" : "");
+      animexVerified.push({
+        id: `animex:${r.provider}:${r.type}`,
+        name: `Animex ${provName}${typeTag}`,
+        source: "animex",
+        provider: r.provider,
+        type: r.type,
+        quality: r.quality,
+        streamUrl: r.streamUrl,  // reuse AniDap's already-proxied URL
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        hardsub: isHardsub,
+        subtitleTracks: r.tracks.map(t => ({ url: t.url, lang: t.lang, label: t.label })),
+        intro: r.intro,
+        outro: r.outro,
+      });
     }
+    console.log(`[Servers] Animex: ${animexVerified.length} servers (reused from AniDap, zero extra API calls)`);
   }
 
   // AniVault (AnimeHeaven)
@@ -293,67 +315,8 @@ export async function GET(
             isM3U8: result.isM3U8, isMP4: !result.isM3U8 };
         }
       }
-      if (c.source === "animex" && animexSlug) {
-        // Animex sources — fetch with a longer timeout (8s) since the API
-        // can be slow when rate-limited. The 4s default was too short and
-        // most Animex sources were timing out.
-        const result = await Promise.race([
-          animexSources(animexSlug, epNum, c.type, c.provider),
-          new Promise<null>(r => setTimeout(() => r(null), 8000)),
-        ]);
-        if (result?.sources?.length) {
-          const p = result.sources.find(s => {
-            const u = s.url || "", t = s.type || "";
-            return ((u.includes(".m3u8") || t.includes("mpegurl") || (u.includes(".txt") && t.includes("mpegurl")) || u.includes(".mp4")) && !u.includes(".mpd"));
-          });
-          if (p?.url) {
-            const ref = ANIMEX_REFERERS[c.provider] || "https://animex.one/";
-            const isM3U8 = p.url.includes(".m3u8") || p.type?.includes("mpegurl");
-
-            // Apply Anistream.one's CDN swap strategy — swap Cloudflare-protected
-            // CDNs to their non-CF-protected mirrors on 24stream.xyz.
-            // This makes beep/mimi/mochi/kiwi streams play DIRECTLY (no proxy
-            // needed) — bd.24stream.xyz serves the same files as
-            // playeng.animeapps.top but without Cloudflare bot protection.
-            let streamUrl = p.url;
-            streamUrl = streamUrl.replace("https://playeng.animeapps.top/r2/", "https://bd.24stream.xyz/media/");
-            streamUrl = streamUrl.replace("https://vibeplayer.site/public/stream/", "https://hawk.24stream.xyz/media/");
-            streamUrl = streamUrl.replace("https://hls.anidb.app/stream/", "https://wave.24stream.xyz/stream/");
-            streamUrl = streamUrl.replace("https://tools.fast4speed.rsvp", "https://mp4.24stream.xyz/storage");
-
-            // If the URL is now on 24stream.xyz, use it directly (no proxy needed).
-            // Otherwise, wrap through Anikuro proxy with the provider's referer.
-            const isSwapped = /^https?:\/\/[^/]*\.24stream\.xyz\//.test(streamUrl);
-            const proxyUrl = isSwapped ? streamUrl : buildProxyUrl(streamUrl, ref, !isM3U8);
-
-            // Animex providers — most are hard sub (subs burned into video).
-            // Based on Animex's /servers endpoint "tip" field:
-            //   beep, mimi, mochi, uwu, miku, koto, kiwi → "Hard sub"
-            //   yuki → "Soft sub, Good, Multi quality"
-            //   vee → "Soft sub, DASH"
-            //   neko → "Hard sub, Direct MP4"
-            //   huzz → "Hard sub, HLS Alt"
-            // We mark hardsub=true for everything except yuki/vee.
-            const ANIMEX_SOFTSUB = new Set(["yuki", "vee"]);
-            const animexHardsub = !ANIMEX_SOFTSUB.has(c.provider);
-
-            // NOTE: We intentionally DO NOT verify Animex streams by fetching
-            // them server-side. Reasons:
-            //   1. The verification fetch goes through proxy.anikuro.to, which
-            //      can be slow or rate-limited — adding 3s+ to every candidate.
-            //   2. Many Animex CDNs (playeng.animeapps.top) return Google Cloud
-            //      HTML when fetched from Vercel's IP but play fine from the
-            //      browser (different IP, different TLS fingerprint).
-            //   3. The HLS player already has retry logic — if a stream fails,
-            //      it'll try the next server.
-            // So we trust the API response and add the server to the list.
-            return { ...c, quality: p.quality || "auto",
-              streamUrl: proxyUrl,
-              isM3U8, isMP4: !isM3U8,
-              hardsub: animexHardsub };
-          }
-        }
-      }
+      // Animex servers are now built from AniDap's results (above) — no
+      // separate API calls needed. Skip the old candidate-based verify.
       if (c.source === "anivault") {
         const data = c.type === "dub" ? (anivaultDub.status === "fulfilled" ? anivaultDub.value : null) : (anivaultSub.status === "fulfilled" ? anivaultSub.value : null);
         if (data?.streamUrl) {
@@ -487,11 +450,12 @@ export async function GET(
   // Merge in the pre-verified AniDap + AniLight + Kyren streams (already have
   // playable streamUrl, subtitles, intro/outro chapters — no re-verification needed).
   verified.push(...anidapVerified);
+  verified.push(...animexVerified);
   verified.push(...anilightVerified);
   verified.push(...kyrenVerified);
 
-  const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length;
-  console.log(`[Servers] ${verified.length}/${candidates.length + totalPre} verified (incl. ${totalPre} pre-verified: AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length})`);
+  const totalPre = anidapVerified.length + animexVerified.length + anilightVerified.length + kyrenVerified.length;
+  console.log(`[Servers] ${verified.length}/${candidates.length + totalPre} verified (incl. ${totalPre} pre-verified: AniDap=${anidapVerified.length}, Animex=${animexVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length})`);
 
   return NextResponse.json({ anilistId: id, episode: epNum, servers: verified, total: verified.length }, {
     headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
