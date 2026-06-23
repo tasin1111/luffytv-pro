@@ -155,29 +155,35 @@ export async function GET(
     }
   }
 
-  // Animex — since Animex and AniDap share the SAME backend (chad.anidap.se),
-  // we DON'T make separate API calls for Animex (that would double the rate-
-  // limiting). Instead, we REUSE AniDap's already-fetched results and label
-  // them as "Animex" servers. This gives us all the Animex server names
-  // (Beep, Mimi, Yuki, Mochi, Uwu, Light, Near, Ryu, etc.) with ZERO extra
-  // API calls.
+  // Animex — per user spec, Animex has these REAL providers only:
+  //   Hard Sub: Mimi, Mochi, Uwu, Sax, Yume, Koto
+  //   Soft Sub: Beep, Yuki
+  //   Dub: Mimi, Yuki, Mochi, Yume, Koto, Uwu, Sax
   //
-  // The user explicitly wants both "Animex" and "AniDap" servers to show in
-  // the watch page, even though they point to the same underlying streams.
-  // This matches what AniDap's own UI does — it shows multiple server entries
-  // for the same stream.
+  // Since Animex and AniDap share the SAME backend (chad.anidap.se), we REUSE
+  // AniDap's already-fetched results and label them as "Animex" servers.
+  // ZERO extra API calls = ZERO rate-limiting.
   let animexSlug: string | null = null;
   if (animexData.status === "fulfilled" && animexData.value) {
     animexSlug = animexData.value.slug;
   }
 
+  // Animex providers per user spec (NO Death Note names — those are AniLight)
+  const ANIMEX_SUB_PROVIDERS = new Set(["beep", "yuki", "mimi", "mochi", "uwu", "sax", "yume", "koto"]);
+  const ANIMEX_DUB_PROVIDERS = new Set(["mimi", "yuki", "mochi", "yume", "koto", "uwu", "sax"]);
+  // Animex soft sub providers (only Beep + Yuki)
+  const ANIMEX_SOFTSUB = new Set(["beep", "yuki"]);
+
   // Build Animex server list from AniDap's verified results (zero extra API calls)
   const animexVerified: VerifiedServer[] = [];
   if (anidapResults.status === "fulfilled" && anidapResults.value) {
     for (const r of anidapResults.value) {
+      // Only include providers that are in the Animex provider list
+      const allowedProviders = r.type === "dub" ? ANIMEX_DUB_PROVIDERS : ANIMEX_SUB_PROVIDERS;
+      if (!allowedProviders.has(r.provider)) continue;
+
       const provName = r.provider[0].toUpperCase() + r.provider.slice(1).toLowerCase();
-      const isHardsub = r.provider !== "vee" && r.provider !== "yuki" && r.provider !== "miku"
-                     && r.provider !== "neko" && r.provider !== "beep";
+      const isHardsub = !ANIMEX_SOFTSUB.has(r.provider);
       const typeTag = r.type === "dub" ? " (Dub)" : (isHardsub ? " (HS)" : "");
       animexVerified.push({
         id: `animex:${r.provider}:${r.type}`,
@@ -186,7 +192,7 @@ export async function GET(
         provider: r.provider,
         type: r.type,
         quality: r.quality,
-        streamUrl: r.streamUrl,  // reuse AniDap's already-proxied URL
+        streamUrl: r.streamUrl,
         isM3U8: r.isM3U8,
         isMP4: r.isMP4,
         hardsub: isHardsub,
@@ -195,7 +201,7 @@ export async function GET(
         outro: r.outro,
       });
     }
-    console.log(`[Servers] Animex: ${animexVerified.length} servers (reused from AniDap, zero extra API calls)`);
+    console.log(`[Servers] Animex: ${animexVerified.length} servers (reused from AniDap, filtered to real Animex providers)`);
   }
 
   // AniVault (AnimeHeaven)
@@ -252,27 +258,29 @@ export async function GET(
   }
 
   // AniLight results — pre-verified playable, direct CDN URLs (no proxy needed).
-  // AniLight returns multiple qualities (360p, 720p, 1080p) — we expose each
-  // as a separate server so the user can pick.
+  // AniLight results — each Death Note server (light, near, ryu, misa, kiwi,
+  // misora, raye, rem) returns a DIFFERENT stream URL. Each is a separate
+  // server in the watch page.
   const anilightVerified: VerifiedServer[] = [];
   if (anilightResults.status === "fulfilled" && anilightResults.value) {
     for (const r of anilightResults.value) {
+      const serverName = r.server.charAt(0).toUpperCase() + r.server.slice(1);
+      const typeTag = r.type === "dub" ? " (Dub)" : (r.hardsub ? " (HS)" : "");
       anilightVerified.push({
-        id: `anilight:${r.type}:${r.quality}`,
-        name: `AniLight ${r.quality}${r.type === "dub" ? " (Dub)" : ""}`,
+        id: `anilight:${r.server}:${r.type}`,
+        name: `AniLight ${serverName}${typeTag}`,
         source: "anilight",
-        provider: "anilight",
+        provider: r.server,
         type: r.type,
         quality: r.quality,
         streamUrl: r.streamUrl,
         isM3U8: r.isM3U8,
         isMP4: r.isMP4,
-        // AniLight streams are soft sub (return WebVTT subtitle tracks)
-        hardsub: false,
+        hardsub: r.hardsub,
         subtitleTracks: r.tracks.map(t => ({ url: t.url, lang: t.lang, label: t.label })),
       });
     }
-    console.log(`[Servers] AniLight: ${anilightVerified.length} verified streams (direct CDN, no proxy)`);
+    console.log(`[Servers] AniLight: ${anilightVerified.length} verified streams (Death Note servers)`);
   }
 
   // Kyren results — pre-verified playable, HLS through kyren's CF Worker (permissive CORS)

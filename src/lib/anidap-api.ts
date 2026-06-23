@@ -48,6 +48,10 @@ const ANIDAP_HEADERS: Record<string, string> = {
 };
 
 // ─── Provider catalog ────────────────────────────────────────────────────────
+//
+// AniDap providers — ONLY the real AniDap provider names. Death Note character
+// names (LIGHT, NEAR, RYU, etc.) belong to ANILIGHT, not AniDap.
+//
 
 export type AniDapProvider =
   // softsub providers (VTT tracks included)
@@ -55,14 +59,10 @@ export type AniDapProvider =
   // hardsub providers (no VTT tracks — subs burned into video)
   | "meme" | "uwu" | "kuro" | "sax" | "yume" | "mochi" | "koto" | "kami"
   // dub-only provider
-  | "mimi"
-  // Death Note character names — hidden AniDap providers (sub only, hardsub)
-  // These all return the same playeng.animeapps.top stream as beep/mimi/etc
-  // but show as separate servers in the AniDap UI.
-  | "LIGHT" | "NEAR" | "RYU" | "MISA" | "KIWI" | "MEG"
-  | "MISORA" | "RAYE" | "REM" | "L" | "WATARI" | "TAKADA" | "AIZAWA" | "SOICHIRO";
+  | "mimi";
 
-// Providers we actually need to fetch from the API (the rest are aliases)
+// Full provider catalog — covers ALL providers that AniDap's /servers endpoint
+// can return. We try every one in parallel (batched) so we don't miss any.
 export const ANIDAP_SUB_PROVIDERS: AniDapProvider[] = [
   "vee", "yuki", "miku", "neko", "beep",        // softsub
   "meme", "uwu", "kuro", "sax", "yume", "mochi", "koto", "kami",  // hardsub
@@ -72,14 +72,6 @@ export const ANIDAP_DUB_PROVIDERS: AniDapProvider[] = [
   "mimi", "yuki", "miku", "uwu", "kuro", "sax", "yume", "mochi",
 ];
 
-// Death Note character names — ALL sub-only, ALL hardsub, ALL return the same
-// stream as beep (playeng.animeapps.top). We don't need to fetch them
-// individually — we can clone beep's result for each one.
-export const ANIDAP_DEATH_NOTE_ALIASES: AniDapProvider[] = [
-  "LIGHT", "NEAR", "RYU", "MISA", "KIWI", "MEG",
-  "MISORA", "RAYE", "REM", "L", "WATARI", "TAKADA", "AIZAWA", "SOICHIRO",
-];
-
 // Provider metadata for nice display names + flags
 export const ANIDAP_PROVIDER_META: Record<AniDapProvider, { name: string; hardsub: boolean; dub: boolean; sub: boolean }> = {
   // Soft sub providers
@@ -87,7 +79,7 @@ export const ANIDAP_PROVIDER_META: Record<AniDapProvider, { name: string; hardsu
   yuki:  { name: "Yuki",  hardsub: false, sub: true,  dub: true  },
   miku:  { name: "Miku",  hardsub: false, sub: true,  dub: true  },
   neko:  { name: "Neko",  hardsub: false, sub: true,  dub: false },
-  beep:  { name: "Beep",  hardsub: false, sub: true,  dub: false },  // beep is soft sub per AniDap UI
+  beep:  { name: "Beep",  hardsub: false, sub: true,  dub: false },
   // Hard sub providers
   meme:  { name: "Meme",  hardsub: true,  sub: true,  dub: false },
   uwu:   { name: "Uwu",   hardsub: true,  sub: true,  dub: true  },
@@ -99,21 +91,6 @@ export const ANIDAP_PROVIDER_META: Record<AniDapProvider, { name: string; hardsu
   kami:  { name: "Kami",  hardsub: true,  sub: true,  dub: false },
   // Dub-only
   mimi:  { name: "Mimi",  hardsub: true,  sub: false, dub: true  },
-  // Death Note character names (all sub-only, all hardsub)
-  LIGHT:    { name: "Light",    hardsub: true, sub: true, dub: false },
-  NEAR:     { name: "Near",     hardsub: true, sub: true, dub: false },
-  RYU:      { name: "Ryu",      hardsub: true, sub: true, dub: false },
-  MISA:     { name: "Misa",     hardsub: true, sub: true, dub: false },
-  KIWI:     { name: "Kiwi",     hardsub: true, sub: true, dub: false },
-  MEG:      { name: "Meg",      hardsub: true, sub: true, dub: false },
-  MISORA:   { name: "Misora",   hardsub: true, sub: true, dub: false },
-  RAYE:     { name: "Raye",     hardsub: true, sub: true, dub: false },
-  REM:      { name: "Rem",      hardsub: true, sub: true, dub: false },
-  L:        { name: "L",        hardsub: true, sub: true, dub: false },
-  WATARI:   { name: "Watari",   hardsub: true, sub: true, dub: false },
-  TAKADA:   { name: "Takada",   hardsub: true, sub: true, dub: false },
-  AIZAWA:   { name: "Aizawa",   hardsub: true, sub: true, dub: false },
-  SOICHIRO: { name: "Soichiro", hardsub: true, sub: true, dub: false },
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -524,32 +501,5 @@ export async function fetchAllAniDapSources(
   }
 
   console.log(`[AniDap] ${verified.length}/${jobs.length} API providers yielded playable streams`);
-
-  // ─── Clone Death Note character name servers ────────────────────────────
-  // AniDap has hidden providers with Death Note character names (LIGHT, NEAR,
-  // RYU, MISA, KIWI, MEG, MISORA, RAYE, REM, L, WATARI, TAKADA, AIZAWA,
-  // SOICHIRO). They all return the SAME stream URL as beep/koto/kami
-  // (playeng.animeapps.top → bd.24stream.xyz via CDN swap).
-  //
-  // Instead of making 14 extra API calls (which would get rate-limited), we
-  // clone the first successful hardsub sub result (usually beep) for each
-  // Death Note character name. This matches what AniDap's own UI shows —
-  // multiple server entries that all point to the same underlying stream.
-  const hardsubSubResult = verified.find(
-    r => r.type === "sub" && ANIDAP_PROVIDER_META[r.provider]?.hardsub === true
-  );
-  if (hardsubSubResult) {
-    for (const alias of ANIDAP_DEATH_NOTE_ALIASES) {
-      const meta = ANIDAP_PROVIDER_META[alias];
-      verified.push({
-        ...hardsubSubResult,
-        provider: alias,
-        streamUrl: buildAniDapProxyUrl(hardsubSubResult.sources[0]?.url || "", false, alias),
-      });
-    }
-    console.log(`[AniDap] +${ANIDAP_DEATH_NOTE_ALIASES.length} Death Note alias servers cloned (zero API calls)`);
-  }
-
-  console.log(`[AniDap] ${verified.length} total servers after cloning`);
   return verified;
 }

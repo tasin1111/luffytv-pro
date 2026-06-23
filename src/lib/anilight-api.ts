@@ -195,14 +195,108 @@ export interface AniLightVerifiedResult {
   qualities: AniLightQuality[];
 }
 
+// ─── Death Note server names (AniLight's server IDs) ─────────────────────────
+//
+// AniLight has hidden server providers using Death Note character names.
+// Each returns a DIFFERENT stream URL (different CDN, different quality).
+// Discovered via the /api/sources endpoint:
+//   GET /api/sources?id={anilistId}&epNum={n}&type={sub|dub}&providerId={name}
+//
+// Servers and their characteristics (from testing):
+//   light  → vibeplayer.site (HLS, hard sub)
+//   near   → hls.anidb.app (HLS, hard sub)
+//   ryu    → tools.fast4speed.rsvp (HLS, hard sub)
+//   misa   → s1.streamzone1.site (HLS, soft sub + VTT tracks)
+//   kiwi   → kwik.cx (HLS, hard sub)
+//   meg    → embed (iframe, skip)
+//   misora → cdn.mewstream.buzz (HLS, hard sub)
+//   raye   → pro.24stream.xyz (HLS, hard sub)
+//   rem    → vibeplayer.site (HLS, soft sub + VTT tracks)
+//
+export const ANILIGHT_SERVERS = [
+  "light", "near", "ryu", "misa", "kiwi", "misora", "raye", "rem",
+] as const;
+
+export type AniLightServer = typeof ANILIGHT_SERVERS[number];
+
+export const ANILIGHT_SERVER_NAMES: Record<string, string> = {
+  light: "Light", near: "Near", ryu: "Ryu", misa: "Misa",
+  kiwi: "Kiwi", misora: "Misora", raye: "Raye", rem: "Rem",
+};
+
+// ─── Per-server source fetch (via /api/sources) ──────────────────────────────
+
+export interface AniLightServerSource {
+  url: string;
+  quality: string;
+  type: string;
+  server?: string;
+}
+
+export interface AniLightServerResponse {
+  sources: AniLightServerSource[];
+  tracks?: AniLightTrack[] | null;
+  audio?: any;
+  chapters?: Array<{ title: string; start: number; end: number }> | null;
+  error?: string;
+}
+
 /**
- * Fetch + verify AniLight streams for an anime episode.
- * Returns one entry PER QUALITY (360p, 720p, 1080p) per type (sub, dub).
+ * Fetch sources from a specific AniLight server (Death Note name).
+ * Uses the /api/sources endpoint (different from /api/watch/mal).
+ */
+export async function getAniLightServerSources(
+  anilistId: number,
+  epNum: number,
+  type: "sub" | "dub",
+  server: string,
+  timeoutMs = 8000
+): Promise<AniLightServerResponse | null> {
+  const url = `${ANILIGHT_API}/sources?id=${anilistId}&epNum=${epNum}&type=${type}&providerId=${server}`;
+  try {
+    const res = await Promise.race([
+      fetch(url, { headers: HEADERS, cache: "no-store" }),
+      new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
+    ]);
+    if (!res || !res.ok) return null;
+    const data = await res.json() as AniLightServerResponse;
+    if (data?.error || !data?.sources?.length) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+// ─── Main: fetch ALL AniLight servers (Death Note names) ─────────────────────
+
+export interface AniLightVerifiedResult {
+  server: string;
+  type: "sub" | "dub";
+  /** Stream URL — may need proxy depending on CDN */
+  streamUrl: string;
+  /** Quality label */
+  quality: string;
+  isM3U8: boolean;
+  isMP4: boolean;
+  /** Whether this is hard sub (subs burned in) or soft sub (VTT tracks) */
+  hardsub: boolean;
+  /** WebVTT subtitle tracks (only for soft sub servers like misa/rem) */
+  tracks: AniLightTrack[];
+}
+
+/**
+ * Fetch ALL AniLight servers for an anime episode.
+ * Tries every Death Note server name (light, near, ryu, misa, kiwi, misora,
+ * raye, rem) in parallel for both sub and dub.
  *
- * AniLight returns multiple qualities for each stream — we expose each as a
- * separate server so the user can pick. The streams come from
- * `nanobyte.bigdreamsmalldih.site` (ESA CDN, not Cloudflare) — work DIRECTLY
- * from the browser with no proxy.
+ * Each server returns a DIFFERENT stream URL — they're not duplicates!
+ * - light → vibeplayer.site
+ * - misa → s1.streamzone1.site (with VTT subtitles)
+ * - rem → vibeplayer.site (different hash, with VTT subtitles)
+ * - etc.
+ *
+ * The streams come from various CDNs — some work directly, some need proxy.
+ * We route them through proxy.anikuro.to for CORS + correct referer.
  */
 export async function fetchAniLightSources(
   anilistId: number,
@@ -213,70 +307,59 @@ export async function fetchAniLightSources(
   const wantDub = options?.dub ?? true;
   const timeoutMs = options?.timeoutMs ?? 8000;
 
-  const malId = await resolveMalId(anilistId);
-  if (!malId) {
-    console.log(`[AniLight] no malId for anilistId=${anilistId} — skipping`);
-    return [];
-  }
-
-  const data = await getAniLightWatch(malId, epNum, timeoutMs);
-  if (!data?.stream) {
-    console.log(`[AniLight] no stream data for malId=${malId} ep${epNum}`);
-    return [];
-  }
-
-  const verified: AniLightVerifiedResult[] = [];
-  const tracks = (data.tracks || []).filter(t => t?.url);
-
-  // Quality ranking — 1080p > 720p > 480p > 360p > auto
-  const qRank = (q: string): number => {
-    const m = (q || "").match(/(\d{3,4})p?/i);
-    if (m) return parseInt(m[1], 10);
-    if (/auto/i.test(q)) return 1;
-    return 0;
-  };
-
-  // Returns one AniLightVerifiedResult PER quality (sorted high → low)
-  const collectAll = (side: AniLightStreamSide, type: "sub" | "dub"): AniLightVerifiedResult[] => {
-    if (!side?.success) return [];
-    const qualities = side.qualities || [];
-    if (qualities.length === 0) {
-      // Fall back to masterUrl if no qualities listed
-      if (side.masterUrl) {
-        return [{
-          type,
-          streamUrl: side.masterUrl,
-          quality: "auto",
-          isM3U8: true,
-          isMP4: false,
-          tracks,
-          qualities: [],
-        }];
-      }
-      return [];
-    }
-    // Sort high → low quality
-    return qualities
-      .slice()
-      .sort((a, b) => qRank(b.quality) - qRank(a.quality))
-      .map(q => ({
-        type,
-        streamUrl: q.url,
-        quality: q.quality,
-        isM3U8: true,
-        isMP4: false,
-        tracks,
-        qualities,
-      }));
-  };
-
+  // Build job list: for each (type, server) pair
+  const jobs: Array<{ server: string; type: "sub" | "dub" }> = [];
   if (wantSub) {
-    verified.push(...collectAll(data.stream.sub, "sub"));
+    for (const s of ANILIGHT_SERVERS) jobs.push({ server: s, type: "sub" });
   }
   if (wantDub) {
-    verified.push(...collectAll(data.stream.dub, "dub"));
+    for (const s of ANILIGHT_SERVERS) jobs.push({ server: s, type: "dub" });
   }
 
-  console.log(`[AniLight] ${verified.length} streams for malId=${malId} ep${epNum} (sub=${data.stream.sub?.success ? `${data.stream.sub.qualities?.length || 1} qualities` : "no"}, dub=${data.stream.dub?.success ? `${data.stream.dub.qualities?.length || 1} qualities` : "no"})`);
+  console.log(`[AniLight] trying ${jobs.length} server×type combos for anilistId=${anilistId} ep${epNum}`);
+
+  // Fetch ALL servers in parallel (AniLight doesn't rate-limit like AniDap)
+  const results = await Promise.allSettled(
+    jobs.map(async (job): Promise<AniLightVerifiedResult | null> => {
+      const data = await getAniLightServerSources(anilistId, epNum, job.type, job.server, timeoutMs);
+      if (!data?.sources?.length) return null;
+
+      const source = data.sources[0];
+      if (!source?.url) return null;
+
+      const isHls = source.type?.includes("mpegurl") || source.url.includes(".m3u8");
+      const isMp4 = source.type?.includes("mp4") || source.url.includes(".mp4");
+
+      // Determine hardsub: servers with VTT tracks are soft sub
+      const hasTracks = (data.tracks || []).length > 0;
+      const hardsub = !hasTracks;
+
+      // Build proxy URL — route through proxy.anikuro.to for CORS
+      // Referer: https://kwik.cx/ (what AniLight's player uses)
+      const b64 = Buffer.from(`${source.url}|https://kwik.cx/`).toString("base64");
+      const ext = isMp4 ? ".mp4" : ".m3u8";
+      const streamUrl = `https://proxy.anikuro.to/${b64}${ext}`;
+
+      const tracks = (data.tracks || []).filter(t => t?.url);
+
+      return {
+        server: job.server,
+        type: job.type,
+        streamUrl,
+        quality: source.quality || "auto",
+        isM3U8: isHls,
+        isMP4: isMp4,
+        hardsub,
+        tracks,
+      };
+    })
+  );
+
+  const verified: AniLightVerifiedResult[] = [];
+  for (const r of results) {
+    if (r.status === "fulfilled" && r.value) verified.push(r.value);
+  }
+
+  console.log(`[AniLight] ${verified.length}/${jobs.length} servers yielded playable streams`);
   return verified;
 }
