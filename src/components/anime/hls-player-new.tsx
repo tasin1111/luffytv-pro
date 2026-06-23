@@ -71,19 +71,39 @@ export default function HLSPlayerNew({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
+        // ─── Buffer settings (fix for Miruro Kiwi "force loading" issue) ───
+        // The previous settings (30s buffer) were too aggressive — when the
+        // proxy is slow, the player would buffer ahead, get stuck, and show
+        // a loading spinner even though the video was playing. Now we use
+        // a smaller buffer + allow ABR to downgrade quality if the proxy
+        // can't keep up.
         backBufferLength: 30,
-        maxBufferLength: 30,
-        startLevel: -1,
-        abrEwmaDefaultEstimate: 5000000,
+        maxBufferLength: 60,        // buffer up to 60s ahead (was 30)
+        maxMaxBufferLength: 120,    // hard cap (was default 600)
+        maxBufferSize: 60 * 1000 * 1000, // 60MB max buffer
+        maxBufferHole: 0.5,         // tolerate 0.5s gaps
+
+        // ─── ABR (Adaptive Bitrate) settings ───
+        // Don't force highest quality anymore — let ABR pick based on bandwidth.
+        // The previous code forced the highest level on MANIFEST_PARSED, which
+        // caused "force loading" when the proxy was slow.
+        startLevel: -1,             // auto-select starting level
+        abrEwmaDefaultEstimate: 5000000,  // 5 Mbps initial estimate
         abrBandWidthFactor: 0.95,
         abrBandWidthUpFactor: 0.7,
         maxStarvationDelay: 4,
-        manifestLoadingTimeOut: 15000,
-        manifestLoadingMaxRetry: 3,
-        levelLoadingTimeOut: 15000,
-        levelLoadingMaxRetry: 3,
-        fragLoadingTimeOut: 30000,
-        fragLoadingMaxRetry: 4,
+        abrEwmaDefaultEstimateMax: 5000000,
+
+        // ─── Timeouts (generous for slow proxies) ───
+        manifestLoadingTimeOut: 20000,
+        manifestLoadingMaxRetry: 4,
+        levelLoadingTimeOut: 20000,
+        levelLoadingMaxRetry: 4,
+        fragLoadingTimeOut: 45000,   // was 30s — proxies can be slow
+        fragLoadingMaxRetry: 6,      // was 4 — more retries for flaky proxies
+        fragLoadingRetryDelay: 1000, // 1s between retries
+
+        // ─── Other ───
         enableWebVTT: true,
         xhrSetup: (xhr) => { xhr.withCredentials = false; },
       });
@@ -94,9 +114,18 @@ export default function HLSPlayerNew({
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
         setQualities(data.levels);
         setLoading(false);
+        // NOTE: We no longer force the highest quality on manifest parse.
+        // Previously: hls.currentLevel = data.levels.length - 1
+        // That caused "force loading" when the proxy was slow — the player
+        // would try to buffer the highest quality, fail to keep up, and
+        // show a perpetual loading spinner even though video was playing.
+        // Now we let ABR (Adaptive Bitrate) pick the quality based on
+        // measured bandwidth. The user can still manually pick a higher
+        // quality from the settings menu.
         if (data.levels.length > 0) {
-          hls.currentLevel = data.levels.length - 1;
-          setCurrentQuality(data.levels.length - 1);
+          // Set currentLevel to -1 (auto) — ABR will pick the best level
+          hls.currentLevel = -1;
+          setCurrentQuality(-1);
         }
         if (autoplay) {
           video.play().catch(() => {

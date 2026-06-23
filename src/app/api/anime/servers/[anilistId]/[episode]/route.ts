@@ -294,9 +294,12 @@ export async function GET(
         }
       }
       if (c.source === "animex" && animexSlug) {
+        // Animex sources — fetch with a longer timeout (8s) since the API
+        // can be slow when rate-limited. The 4s default was too short and
+        // most Animex sources were timing out.
         const result = await Promise.race([
           animexSources(animexSlug, epNum, c.type, c.provider),
-          new Promise<null>(r => setTimeout(() => r(null), 4000)),
+          new Promise<null>(r => setTimeout(() => r(null), 8000)),
         ]);
         if (result?.sources?.length) {
           const p = result.sources.find(s => {
