@@ -267,9 +267,10 @@ export async function getAniLightServerSources(
   }
 }
 
-// ─── Main: fetch ALL AniLight servers (Death Note names) ─────────────────────
+// ─── Main: fetch ALL AniLight servers (Death Note names + quality variants) ──
 
 export interface AniLightVerifiedResult {
+  /** Server name — either a Death Note name (light, near, ryu, etc.) or "1080p"/"720p"/"360p" */
   server: string;
   type: "sub" | "dub";
   /** Stream URL — may need proxy depending on CDN */
@@ -286,17 +287,14 @@ export interface AniLightVerifiedResult {
 
 /**
  * Fetch ALL AniLight servers for an anime episode.
- * Tries every Death Note server name (light, near, ryu, misa, kiwi, misora,
- * raye, rem) in parallel for both sub and dub.
  *
- * Each server returns a DIFFERENT stream URL — they're not duplicates!
- * - light → vibeplayer.site
- * - misa → s1.streamzone1.site (with VTT subtitles)
- * - rem → vibeplayer.site (different hash, with VTT subtitles)
- * - etc.
+ * Returns TWO types of servers:
+ *   1. Quality variants from /api/watch/mal: AniLight 1080p, AniLight 720p, AniLight 360p
+ *      (these come from nanobyte.bigdreamsmalldih.site — ESA CDN, plays directly)
+ *   2. Death Note servers from /api/sources: AniLight Light, Near, Ryu, Misa, Kiwi,
+ *      Misora, Raye, Rem (each returns a DIFFERENT stream URL)
  *
- * The streams come from various CDNs — some work directly, some need proxy.
- * We route them through proxy.anikuro.to for CORS + correct referer.
+ * Both types show with "AniLight" prefix in the watch page.
  */
 export async function fetchAniLightSources(
   anilistId: number,
@@ -307,7 +305,40 @@ export async function fetchAniLightSources(
   const wantDub = options?.dub ?? true;
   const timeoutMs = options?.timeoutMs ?? 8000;
 
-  // Build job list: for each (type, server) pair
+  const verified: AniLightVerifiedResult[] = [];
+
+  // ─── Step 1: Fetch quality variants (1080p/720p/360p) via /api/watch/mal ──
+  // These come from nanobyte.bigdreamsmalldih.site (ESA CDN) — play DIRECTLY.
+  const malId = await resolveMalId(anilistId);
+  if (malId) {
+    const watchData = await getAniLightWatch(malId, epNum, timeoutMs);
+    if (watchData?.stream) {
+      const tracks = (watchData.tracks || []).filter(t => t?.url);
+
+      const collectQualities = (side: AniLightStreamSide, type: "sub" | "dub") => {
+        if (!side?.success || !side.qualities?.length) return;
+        for (const q of side.qualities) {
+          if (!q.url) continue;
+          verified.push({
+            server: q.quality,  // "1080p", "720p", "360p"
+            type,
+            streamUrl: q.url,   // direct ESA CDN URL — no proxy needed
+            quality: q.quality,
+            isM3U8: true,
+            isMP4: false,
+            hardsub: false,     // quality variants are soft sub (have VTT tracks)
+            tracks,
+          });
+        }
+      };
+
+      if (wantSub) collectQualities(watchData.stream.sub, "sub");
+      if (wantDub) collectQualities(watchData.stream.dub, "dub");
+      console.log(`[AniLight] quality variants: ${verified.length} servers from /api/watch/mal`);
+    }
+  }
+
+  // ─── Step 2: Fetch Death Note servers via /api/sources ─────────────────────
   const jobs: Array<{ server: string; type: "sub" | "dub" }> = [];
   if (wantSub) {
     for (const s of ANILIGHT_SERVERS) jobs.push({ server: s, type: "sub" });
@@ -316,9 +347,8 @@ export async function fetchAniLightSources(
     for (const s of ANILIGHT_SERVERS) jobs.push({ server: s, type: "dub" });
   }
 
-  console.log(`[AniLight] trying ${jobs.length} server×type combos for anilistId=${anilistId} ep${epNum}`);
+  console.log(`[AniLight] trying ${jobs.length} Death Note server×type combos`);
 
-  // Fetch ALL servers in parallel (AniLight doesn't rate-limit like AniDap)
   const results = await Promise.allSettled(
     jobs.map(async (job): Promise<AniLightVerifiedResult | null> => {
       const data = await getAniLightServerSources(anilistId, epNum, job.type, job.server, timeoutMs);
@@ -335,7 +365,6 @@ export async function fetchAniLightSources(
       const hardsub = !hasTracks;
 
       // Build proxy URL — route through proxy.anikuro.to for CORS
-      // Referer: https://kwik.cx/ (what AniLight's player uses)
       const b64 = Buffer.from(`${source.url}|https://kwik.cx/`).toString("base64");
       const ext = isMp4 ? ".mp4" : ".m3u8";
       const streamUrl = `https://proxy.anikuro.to/${b64}${ext}`;
@@ -355,11 +384,14 @@ export async function fetchAniLightSources(
     })
   );
 
-  const verified: AniLightVerifiedResult[] = [];
+  let deathNoteCount = 0;
   for (const r of results) {
-    if (r.status === "fulfilled" && r.value) verified.push(r.value);
+    if (r.status === "fulfilled" && r.value) {
+      verified.push(r.value);
+      deathNoteCount++;
+    }
   }
 
-  console.log(`[AniLight] ${verified.length}/${jobs.length} servers yielded playable streams`);
+  console.log(`[AniLight] ${verified.length} total servers (${verified.length - deathNoteCount} quality variants + ${deathNoteCount} Death Note servers)`);
   return verified;
 }

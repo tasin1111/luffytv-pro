@@ -258,17 +258,19 @@ export async function GET(
   }
 
   // AniLight results — pre-verified playable, direct CDN URLs (no proxy needed).
-  // AniLight results — each Death Note server (light, near, ryu, misa, kiwi,
-  // misora, raye, rem) returns a DIFFERENT stream URL. Each is a separate
-  // server in the watch page.
+  // AniLight results — includes BOTH:
+  //   1. Quality variants (1080p, 720p, 360p) from /api/watch/mal — direct ESA CDN
+  //   2. Death Note servers (Light, Near, Ryu, Misa, Kiwi, Misora, Raye, Rem) from /api/sources
+  // All show with "AniLight" prefix.
   const anilightVerified: VerifiedServer[] = [];
   if (anilightResults.status === "fulfilled" && anilightResults.value) {
     for (const r of anilightResults.value) {
-      const serverName = r.server.charAt(0).toUpperCase() + r.server.slice(1);
+      // Capitalize first letter for display
+      const serverDisplay = r.server.charAt(0).toUpperCase() + r.server.slice(1);
       const typeTag = r.type === "dub" ? " (Dub)" : (r.hardsub ? " (HS)" : "");
       anilightVerified.push({
         id: `anilight:${r.server}:${r.type}`,
-        name: `AniLight ${serverName}${typeTag}`,
+        name: `AniLight ${serverDisplay}${typeTag}`,
         source: "anilight",
         provider: r.server,
         type: r.type,
@@ -280,7 +282,7 @@ export async function GET(
         subtitleTracks: r.tracks.map(t => ({ url: t.url, lang: t.lang, label: t.label })),
       });
     }
-    console.log(`[Servers] AniLight: ${anilightVerified.length} verified streams (Death Note servers)`);
+    console.log(`[Servers] AniLight: ${anilightVerified.length} servers (quality variants + Death Note servers)`);
   }
 
   // Kyren results — pre-verified playable, HLS through kyren's CF Worker (permissive CORS)
