@@ -160,51 +160,93 @@ export async function GET(
   //   Soft Sub: Beep, Yuki
   //   Dub: Mimi, Yuki, Mochi, Yume, Koto, Uwu, Sax, Kuro, Neko, Miku
   //
-  // Since Animex and AniDap share the SAME backend (chad.anidap.se), we REUSE
-  // AniDap's already-fetched results and label them as "Animex" servers.
-  // This gives us ALL Animex servers with ZERO extra API calls = no rate-limiting.
+  // Animex fetches its OWN sources from pp.animex.one (the REAL Animex API,
+  // NOT chad.anidap.se). We batch the calls 3 at a time to avoid rate-limiting.
   let animexSlug: string | null = null;
   if (animexData.status === "fulfilled" && animexData.value) {
     animexSlug = animexData.value.slug;
   }
 
   // Animex providers per user spec
-  const ANIMEX_SUB_PROVIDERS = new Set(["beep", "yuki", "mimi", "miku", "neko", "mochi", "uwu", "kuro", "sax", "yume", "koto"]);
-  const ANIMEX_DUB_PROVIDERS = new Set(["mimi", "yuki", "mochi", "yume", "koto", "uwu", "sax", "kuro", "neko", "miku"]);
+  const ANIMEX_SUB_PROVIDERS = ["beep", "yuki", "mimi", "miku", "neko", "mochi", "uwu", "kuro", "sax", "yume", "koto"];
+  const ANIMEX_DUB_PROVIDERS = ["mimi", "yuki", "mochi", "yume", "koto", "uwu", "sax", "kuro", "neko", "miku"];
   const ANIMEX_SOFTSUB = new Set(["beep", "yuki"]);
 
-  // Build Animex server list from AniDap's verified results (zero extra API calls)
+  // Build Animex server list by fetching from pp.animex.one in batches
   const animexVerified: VerifiedServer[] = [];
-  if (anidapResults.status === "fulfilled" && anidapResults.value) {
-    for (const r of anidapResults.value) {
-      const allowedProviders = r.type === "dub" ? ANIMEX_DUB_PROVIDERS : ANIMEX_SUB_PROVIDERS;
-      if (!allowedProviders.has(r.provider)) continue;
+  if (animexSlug) {
+    // Build all (provider, type) jobs
+    const animexJobs: Array<{ provider: string; type: "sub" | "dub" }> = [];
+    for (const p of ANIMEX_SUB_PROVIDERS) animexJobs.push({ provider: p, type: "sub" });
+    for (const p of ANIMEX_DUB_PROVIDERS) animexJobs.push({ provider: p, type: "dub" });
 
-      const provName = r.provider[0].toUpperCase() + r.provider.slice(1).toLowerCase();
-      const isHardsub = !ANIMEX_SOFTSUB.has(r.provider);
-      const typeTag = r.type === "dub" ? " (Dub)" : (isHardsub ? " (HS)" : "");
-      animexVerified.push({
-        id: `animex:${r.provider}:${r.type}`,
-        name: `Animex ${provName}${typeTag}`,
-        source: "animex",
-        provider: r.provider,
-        type: r.type,
-        quality: r.quality,
-        streamUrl: r.streamUrl,
-        isM3U8: r.isM3U8,
-        isMP4: r.isMP4,
-        hardsub: isHardsub,
-        subtitleTracks: r.tracks.map(t => ({ url: t.url, lang: t.lang, label: t.label })),
-        intro: r.intro,
-        outro: r.outro,
-      });
+    // Process in batches of 3 with 500ms gap to avoid rate-limiting
+    const ANIMEX_BATCH = 3;
+    const ANIMEX_GAP = 500;
+    for (let i = 0; i < animexJobs.length; i += ANIMEX_BATCH) {
+      const batch = animexJobs.slice(i, i + ANIMEX_BATCH);
+      const batchResults = await Promise.allSettled(
+        batch.map(async (job) => {
+          const result = await Promise.race([
+            animexSources(animexSlug!, epNum, job.type, job.provider),
+            new Promise<null>(r => setTimeout(() => r(null), 8000)),
+          ]);
+          if (!result?.sources?.length) return null;
+
+          const p = result.sources.find(s => {
+            const u = s.url || "", t = s.type || "";
+            return ((u.includes(".m3u8") || t.includes("mpegurl") || (u.includes(".txt") && t.includes("mpegurl")) || u.includes(".mp4")) && !u.includes(".mpd"));
+          });
+          if (!p?.url) return null;
+
+          const ref = ANIMEX_REFERERS[job.provider] || "https://animex.one/";
+          const isM3U8 = p.url.includes(".m3u8") || p.type?.includes("mpegurl");
+
+          // Apply CDN swap
+          let streamUrl = p.url;
+          streamUrl = streamUrl.replace("https://playeng.animeapps.top/r2/", "https://bd.24stream.xyz/media/");
+          streamUrl = streamUrl.replace("https://vibeplayer.site/public/stream/", "https://hawk.24stream.xyz/media/");
+          streamUrl = streamUrl.replace("https://hls.anidb.app/stream/", "https://wave.24stream.xyz/stream/");
+          streamUrl = streamUrl.replace("https://tools.fast4speed.rsvp", "https://mp4.24stream.xyz/storage");
+
+          const isSwapped = /^https?:\/\/[^/]*\.24stream\.xyz\//.test(streamUrl);
+          const proxyUrl = isSwapped ? streamUrl : buildProxyUrl(streamUrl, ref, !isM3U8);
+
+          const isHardsub = !ANIMEX_SOFTSUB.has(job.provider);
+          const provName = job.provider[0].toUpperCase() + job.provider.slice(1).toLowerCase();
+          const typeTag = job.type === "dub" ? " (Dub)" : (isHardsub ? " (HS)" : "");
+
+          return {
+            id: `animex:${job.provider}:${job.type}`,
+            name: `Animex ${provName}${typeTag}`,
+            source: "animex" as const,
+            provider: job.provider,
+            type: job.type,
+            quality: p.quality || "auto",
+            streamUrl: proxyUrl,
+            isM3U8,
+            isMP4: !isM3U8,
+            hardsub: isHardsub,
+            subtitleTracks: (result.tracks || []).map((t: any) => ({ url: t.url, lang: t.lang, label: t.label })),
+            intro: result.intro || null,
+            outro: result.outro || null,
+          };
+        })
+      );
+
+      for (const r of batchResults) {
+        if (r.status === "fulfilled" && r.value) animexVerified.push(r.value);
+      }
+
+      if (i + ANIMEX_BATCH < animexJobs.length) {
+        await new Promise(r => setTimeout(r, ANIMEX_GAP));
+      }
     }
-    console.log(`[Servers] Animex: ${animexVerified.length} servers (reused from AniDap, zero extra API calls)`);
+    console.log(`[Servers] Animex: ${animexVerified.length} servers (fetched from pp.animex.one, batched 3-at-a-time)`);
   }
 
   // NOTE: We do NOT add Animex candidates to the verify loop — they're already
-  // built above from AniDap's results. This avoids 21 extra API calls that
-  // would get rate-limited.
+  // fetched above in batches.
 
   // AniVault (AnimeHeaven)
   if (anivaultSub.status === "fulfilled" && anivaultSub.value?.mp4) {
