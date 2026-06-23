@@ -246,6 +246,59 @@ async function fetchAllAnime(title: string, epNum: number, timeoutMs: number): P
   } catch { return []; }
 }
 
+
+// ─── 5. Re:Anime (embed URLs) ─────────────────────────────────────────────────
+
+const REANIME_API = "https://reanime-scraper-api.sapis.workers.dev";
+
+async function fetchReAnime(title: string, epNum: number, timeoutMs: number): Promise<MioSource[]> {
+  try {
+    const searchRes = await fetch(`${REANIME_API}/api/search?q=${encodeURIComponent(title)}`, {
+      headers: HEADERS, cache: "no-store",
+    });
+    if (!searchRes.ok) return [];
+    const searchData = await searchRes.json();
+    const results = searchData?.results || [];
+    if (!results.length) return [];
+
+    const anime = results.find((r: any) => 
+      r.title?.english?.toLowerCase() === title.toLowerCase() ||
+      r.title?.romaji?.toLowerCase() === title.toLowerCase()
+    ) || results[0];
+    if (!anime?.anime_id) return [];
+
+    const watchRes = await fetch(`${REANIME_API}/api/watch/${anime.anime_id}/episodes/${epNum}`, {
+      headers: HEADERS, cache: "no-store",
+    });
+    if (!watchRes.ok) return [];
+    const watchData = await watchRes.json();
+    const streams = watchData?.streams || [];
+
+    const results2: MioSource[] = [];
+    const seen = new Set<string>();
+    for (const s of streams) {
+      if (!s.embedUrl) continue;
+      const key = `${s.embedUrl}:${s.dataType}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      const isDub = s.dataType === "dub";
+      results2.push({
+        id: `reanime:${s.serverName}:${s.dataType}:${epNum}`,
+        name: `Re:Anime ${s.serverName}`,
+        type: isDub ? "dub" : "sub",
+        streamUrl: s.embedUrl,
+        quality: "auto",
+        isM3U8: false,
+        isMP4: false,
+        hardsub: false,
+        subtitleTracks: [],
+      });
+    }
+    return results2;
+  } catch { return []; }
+}
+
 // ─── Main: fetch ALL MioAnime sources ─────────────────────────────────────────
 
 export async function fetchMioAnimeSources(
@@ -277,11 +330,12 @@ export async function fetchMioAnimeSources(
   console.log(`[MioAnime] fetching 4 sources for "${title}" ep${epNum} (malId=${malId})`);
 
   // Fetch ALL sources in parallel
-  const [anizone, verse, senshi, allanime] = await Promise.allSettled([
+  const [anizone, verse, senshi, allanime, reanime] = await Promise.allSettled([
     fetchAniZone(title, epNum, timeoutMs),
     fetchVerse(title, epNum, timeoutMs),
     malId ? fetchSenshi(malId, epNum, timeoutMs) : Promise.resolve([]),
     fetchAllAnime(title, epNum, timeoutMs),
+    fetchReAnime(title, epNum, timeoutMs),
   ]);
 
   const results: MioSource[] = [];
@@ -289,7 +343,8 @@ export async function fetchMioAnimeSources(
   if (verse.status === "fulfilled") results.push(...verse.value);
   if (senshi.status === "fulfilled") results.push(...senshi.value);
   if (allanime.status === "fulfilled") results.push(...allanime.value);
+  if (reanime.status === "fulfilled") results.push(...reanime.value);
 
-  console.log(`[MioAnime] ${results.length} sources (AniZone=${anizone.status === "fulfilled" ? anizone.value.length : 0}, Verse=${verse.status === "fulfilled" ? verse.value.length : 0}, Senshi=${senshi.status === "fulfilled" ? senshi.value.length : 0}, AllAnime=${allanime.status === "fulfilled" ? allanime.value.length : 0})`);
+  console.log(`[MioAnime] ${results.length} sources (AniZone=${anizone.status === "fulfilled" ? anizone.value.length : 0}, Verse=${verse.status === "fulfilled" ? verse.value.length : 0}, Senshi=${senshi.status === "fulfilled" ? senshi.value.length : 0}, AllAnime=${allanime.status === "fulfilled" ? allanime.value.length : 0}, ReAnime=${reanime.status === "fulfilled" ? reanime.value.length : 0})`);
   return results;
 }
