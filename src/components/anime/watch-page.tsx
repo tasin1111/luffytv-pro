@@ -670,6 +670,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     const quality = (server as any).quality || "Auto";
     const isM3U8 = (server as any).isM3U8 !== false;
     const isMP4 = (server as any).isMP4 === true;
+    const isEmbed = (server as any).isEmbed === true;
 
     // AniDap streams come with their own WebVTT subtitle tracks (for softsub
     // providers like vee/yuki/miku/neko) and intro/outro chapters. Pass them
@@ -680,7 +681,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
     const newStreamData: StreamData = {
       video_link: streamUrl,
-      source_type: isMP4 ? "mp4" : "hls",
+      source_type: isEmbed ? "embed" : (isMP4 ? "mp4" : "hls"),
       hls_sources: [{
         url: streamUrl,
         quality,

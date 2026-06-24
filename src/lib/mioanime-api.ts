@@ -29,6 +29,7 @@ export interface MioSource {
   quality: string;
   isM3U8: boolean;
   isMP4: boolean;
+  isEmbed?: boolean; // ← embed URLs (flixcloud.cc, animegg.org/embed/...) loaded in iframe
   hardsub: boolean;
   subtitleTracks: Array<{ url: string; lang: string; label: string }>;
 }
@@ -231,14 +232,22 @@ async function fetchAllAnime(title: string, epNum: number, timeoutMs: number): P
     const anime = searchData[0];
     const showId = anime.id;
 
-    // The /play endpoint returns the MP4 binary directly — use it as video src
-    const playUrl = `${ALLANIME_API}/play?show_id=${showId}&ep_no=${epNum}`;
+    // Use /episode_url endpoint — returns the actual CDN URL (wixstatic.com)
+    // The /play endpoint returns the raw MP4 binary (600MB+) which is too heavy
+    // to proxy through the API worker.
+    const urlRes = await fetch(`${ALLANIME_API}/episode_url?show_id=${showId}&ep_no=${epNum}&quality=best&mode=sub`, {
+      headers: HEADERS, cache: "no-store",
+    });
+    if (!urlRes.ok) return [];
+    const urlData = await urlRes.json();
+    const mp4Url = urlData?.episode_url;
+    if (!mp4Url) return [];
 
     return [{
       id: `allanime:${showId}:${epNum}`,
       name: "AllAnime",
       type: "sub",
-      streamUrl: playUrl, // Direct MP4 — plays directly from the API
+      streamUrl: mp4Url, // Direct MP4 CDN URL (wixstatic.com)
       quality: "auto",
       isM3U8: false,
       isMP4: true,
@@ -289,10 +298,11 @@ async function fetchReAnime(title: string, epNum: number, timeoutMs: number): Pr
         id: `reanime:${s.serverName}:${s.dataType}:${epNum}`,
         name: `Re:Anime ${s.serverName}`,
         type: isDub ? "dub" : "sub",
-        streamUrl: s.embedUrl,
+        streamUrl: s.embedUrl, // Embed URL (flixcloud.cc/e/...) — loaded in iframe
         quality: "auto",
         isM3U8: false,
         isMP4: false,
+        isEmbed: true, // ← NEW: mark as embed so watch page uses iframe player
         hardsub: false,
         subtitleTracks: [],
       });

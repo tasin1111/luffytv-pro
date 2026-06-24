@@ -58,22 +58,35 @@ export async function GET(
     let quality: string = "auto";
     let isM3U8: boolean = true;
     let isMP4: boolean = false;
+    let isEmbed: boolean = false;
 
     if (provider === "animegg") {
-      // Animegg returns MP4 in multiple qualities (360p, 480p, 720p, 1080p)
-      // Pick highest quality available
-      const streams = (data.streams || []).filter((s: any) => s.type === "mp4" && s.url);
-      const playable = streams.find((s: any) => s.quality === "1080p")
-                    || streams.find((s: any) => s.quality === "720p")
-                    || streams.find((s: any) => s.quality === "480p")
-                    || streams.find((s: any) => s.quality === "360p")
-                    || streams[0];
-      if (playable) {
-        streamUrl = playable.url;
-        streamReferer = playable.referer || "https://www.animegg.org/";
-        quality = playable.quality || "auto";
-        isMP4 = true;
+      // AniVexa API returns an `embed` field for animegg (e.g. "https://www.animegg.org/embed/27657")
+      // Use the embed URL in an iframe — more reliable than direct MP4 URLs
+      // (MP4 URLs from animegg.org often 403 outside their embed page)
+      const firstStream = (data.streams || [])[0];
+      if (firstStream?.embed) {
+        streamUrl = firstStream.embed;
+        streamReferer = firstStream.referer || "https://www.animegg.org/";
+        quality = "auto";
+        isEmbed = true;
         isM3U8 = false;
+        isMP4 = false;
+      } else {
+        // Fallback: try direct MP4 URLs (less reliable)
+        const streams = (data.streams || []).filter((s: any) => s.type === "mp4" && s.url);
+        const playable = streams.find((s: any) => s.quality === "1080p")
+                      || streams.find((s: any) => s.quality === "720p")
+                      || streams.find((s: any) => s.quality === "480p")
+                      || streams.find((s: any) => s.quality === "360p")
+                      || streams[0];
+        if (playable) {
+          streamUrl = playable.url;
+          streamReferer = playable.referer || "https://www.animegg.org/";
+          quality = playable.quality || "auto";
+          isMP4 = true;
+          isM3U8 = false;
+        }
       }
     }
 
@@ -158,12 +171,19 @@ export async function GET(
       );
     }
 
-    // ─── Build proxy URL with correct referer ────────────────────────
-    // For MP4: use mode=segment (no manifest rewriting — MP4 is a direct file)
-    // For HLS: use mode=manifest (needs URL rewriting for segments + AES keys)
-    const proxyUrl = isMP4
-      ? `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(streamReferer)}`
-      : wrapM3u8Url(`https://cdn.animex.su/stream/${Buffer.from(`${streamUrl}|${streamReferer}`).toString("base64")}.m3u8`);
+    // ─── Build response ─────────────────────────────────────────────
+    // For embed URLs: return the embed URL directly (no proxy — loaded in iframe)
+    // For MP4: proxy through /api/anime/scraper/stream (Referer spoofing)
+    // For HLS: wrap through cdn.animex.su (CORS-friendly, handles m3u8 rewriting)
+    let proxyUrl: string;
+    if (isEmbed) {
+      // Embed URLs go directly into an iframe — no proxy needed (iframe ignores CORS)
+      proxyUrl = streamUrl;
+    } else if (isMP4) {
+      proxyUrl = `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(streamReferer)}`;
+    } else {
+      proxyUrl = wrapM3u8Url(`https://cdn.animex.su/stream/${Buffer.from(`${streamUrl}|${streamReferer}`).toString("base64")}.m3u8`);
+    }
 
     return NextResponse.json({
       url: proxyUrl,
@@ -171,8 +191,9 @@ export async function GET(
       quality,
       isM3U8,
       isMP4,
+      isEmbed,
       provider: `anivexa:${provider}`,
-      sourceType: isMP4 ? "mp4" : "hls",
+      sourceType: isEmbed ? "embed" : (isMP4 ? "mp4" : "hls"),
       streamReferer,
       intro: data.intro || null,
       outro: data.outro || null,

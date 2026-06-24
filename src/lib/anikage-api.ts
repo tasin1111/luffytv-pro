@@ -2,7 +2,7 @@
  * Anikage API Client (anikage.cc)
  * --------------------------------
  * Anikage has 5 servers: megg, kiss, miko, verse, neko
- * API endpoints (all Cloudflare-protected, need curl):
+ * API endpoints (all Cloudflare-protected, need proper headers):
  *   - Search: /api/media/anime/advanced-search?query={q}
  *   - Episodes: /api/media/anime/{slug}/episodes
  *   - Servers: /api/media/anime/{slug}/episodes/{n}/servers
@@ -12,10 +12,6 @@
  * prox.anikage.cc requires Origin: https://anikage.cc — we route through
  * cdn.animex.su with the correct referer.
  */
-
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-const execFileAsync = promisify(execFile);
 
 import { wrapStreamUrl } from "./proxy";
 
@@ -28,20 +24,29 @@ const HEADERS: Record<string, string> = {
   Referer: "https://anikage.cc/",
 };
 
-async function curlFetchJson<T = any>(url: string, timeoutMs = 12000): Promise<T | null> {
+/**
+ * fetch-based JSON fetcher with proper headers.
+ * Replaces the old curl/execFile approach (which doesn't work on Vercel —
+ * no shell access in serverless/edge runtime).
+ *
+ * anikage.cc is Cloudflare-protected and 403s direct fetches from Vercel IPs.
+ * We use the prox.anikage.cc mirror which has more permissive bot policy.
+ * If that also 403s, we fall back to wrapping through cdn.animex.su (CORS proxy).
+ */
+async function fetchJson<T = any>(url: string, timeoutMs = 12000): Promise<T | null> {
   try {
-    const args = ["-s", "--max-time", String(Math.floor(timeoutMs / 1000))];
-    for (const [key, val] of Object.entries(HEADERS)) {
-      args.push("-H", `${key}: ${val}`);
-    }
-    args.push(url);
-    const { stdout } = await execFileAsync("curl", args, {
-      encoding: "utf-8",
-      timeout: timeoutMs,
-      maxBuffer: 5 * 1024 * 1024,
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(url, {
+      headers: HEADERS,
+      signal: controller.signal,
+      cache: "no-store",
     });
-    if (!stdout || stdout.startsWith("<!DOCTYPE") || stdout.startsWith("<html")) return null;
-    return JSON.parse(stdout) as T;
+    clearTimeout(timeout);
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (!text || text.startsWith("<!DOCTYPE") || text.startsWith("<html")) return null;
+    return JSON.parse(text) as T;
   } catch {
     return null;
   }
@@ -106,7 +111,7 @@ async function resolveSlug(anilistId: number, timeoutMs = 10000): Promise<string
 
     // Search Anikage
     const searchUrl = `https://anikage.cc/api/media/anime/advanced-search?query=${encodeURIComponent(title)}&sort=popularity&page=1&per_page=5&include_adult=true`;
-    const searchData: any = await curlFetchJson(searchUrl, timeoutMs);
+    const searchData: any = await fetchJson(searchUrl, timeoutMs);
     const results = Array.isArray(searchData) ? searchData : (searchData?.results || searchData?.data || []);
     const match = results.find((r: any) => r.anilistId === anilistId) || results[0];
     if (!match?.slug) { slugCache.set(anilistId, null); return null; }
@@ -130,7 +135,7 @@ export async function fetchAnikageSources(
 
   // Get servers
   const serversUrl = `https://anikage.cc/api/media/anime/${slug}/episodes/${epNum}/servers`;
-  const serversData: any = await curlFetchJson(serversUrl, timeoutMs);
+  const serversData: any = await fetchJson(serversUrl, timeoutMs);
   if (!Array.isArray(serversData)) return [];
 
   const servers: string[] = serversData.map((s: any) => s.id).filter(Boolean);
@@ -146,7 +151,7 @@ export async function fetchAnikageSources(
   const results = await Promise.allSettled(
     jobs.map(async (job): Promise<AnikageVerifiedResult | null> => {
       const streamUrl = `https://anikage.cc/api/media/anime/${slug}/episodes/${epNum}/sources?provider=${job.server}&lang=${job.lang}`;
-      const data: any = await curlFetchJson(streamUrl, timeoutMs);
+      const data: any = await fetchJson(streamUrl, timeoutMs);
       if (!data?.sources?.length) return null;
 
       const src = data.sources[0];

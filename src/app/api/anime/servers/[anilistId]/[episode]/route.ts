@@ -98,6 +98,7 @@ interface VerifiedServer {
   streamUrl: string;
   isM3U8: boolean;
   isMP4: boolean;
+  isEmbed?: boolean;
   /**
    * Whether this stream has subtitles burned into the video (hard sub) vs
    * provided as a separate VTT track (soft sub). Used by the watch-page UI
@@ -331,6 +332,7 @@ export async function GET(
         streamUrl: r.streamUrl,
         isM3U8: r.isM3U8,
         isMP4: r.isMP4,
+        isEmbed: (r as any).isEmbed === true,
         hardsub: r.hardsub,
         subtitleTracks: r.subtitleTracks,
       });
