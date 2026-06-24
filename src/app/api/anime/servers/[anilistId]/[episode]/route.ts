@@ -33,6 +33,7 @@ import {
 } from "@/lib/kyren-api";
 import { fetchAnikageSources } from "@/lib/anikage-api";
 import { fetchMioAnimeSources } from "@/lib/mioanime-api";
+import { anixtvFetchAllServers } from "@/lib/anixtv-api";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -90,7 +91,7 @@ const ANIMEX_REFERERS: Record<string, string> = {
 interface VerifiedServer {
   id: string;
   name: string;
-  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime";
+  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv";
   provider: string;
   type: "sub" | "dub";
   quality: string;
@@ -143,7 +144,7 @@ export async function GET(
   // Fire AniDap resolver + sources fetch in parallel with the other sources.
   // AniDap gives us 11 providers × 2 types (sub/dub) — all verified playable.
   // Also fire AniLight + Kyren in parallel — both return direct-playable streams.
-  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults] = await Promise.allSettled([
+  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults, anixtvResults] = await Promise.allSettled([
     fetchRawEpisodes(id),
     (async () => {
       const anime = await animexGetAnime(id);
@@ -157,6 +158,10 @@ export async function GET(
     fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 8000 }),
     fetchAnikageSources(id, epNum, { timeoutMs: 10000 }),
     fetchMioAnimeSources(id, epNum, { timeoutMs: 10000 }),
+    // AnixTV: Hindi dubbed anime (anixtv.in / anixx.fun). Multi-audio HLS with
+    // Hindi/Tamil/Telugu/Bengali/Malayalam/Marathi/Kannada/English/Korean/Japanese tracks.
+    // Tries providers 1-5 in parallel; most anime only have provider 1.
+    anixtvFetchAllServers(id, epNum, "Anime", 1),
   ]);
 
   // Miruro
@@ -333,6 +338,30 @@ export async function GET(
     console.log(`[Servers] MioAnime: ${mioanimeVerified.length} servers`);
   }
 
+  // AnixTV (Hindi dubbed anime from anixtv.in / anixx.fun)
+  // Already returns playable m3u8 URLs — no verification needed (would slow things down).
+  const anixtvVerified: VerifiedServer[] = [];
+  if (anixtvResults.status === "fulfilled" && anixtvResults.value) {
+    for (const r of anixtvResults.value) {
+      anixtvVerified.push({
+        id: r.id,
+        name: r.name,
+        source: "anixtv",
+        provider: r.provider,
+        type: r.type,
+        quality: r.quality,
+        streamUrl: r.streamUrl,
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        hardsub: r.hardsub,
+        subtitleTracks: r.subtitleTracks,
+        intro: r.intro,
+        outro: r.outro,
+      });
+    }
+    console.log(`[Servers] AnixTV: ${anixtvVerified.length} servers (Hindi dub)`);
+  }
+
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
 
   // ─── Verify ALL in parallel (4s timeout each) ─────────────────────
@@ -488,10 +517,11 @@ export async function GET(
   verified.push(...kyrenVerified);
   verified.push(...anikageVerified);
   verified.push(...mioanimeVerified);
+  verified.push(...anixtvVerified);
   // NOTE: Animex is NOT here — it's fetched separately via /api/anime/animex-servers
 
-  const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length;
-  console.log(`[Servers] ${verified.length}/${candidates.length + totalPre} verified (AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length})`);
+  const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length + anixtvVerified.length;
+  console.log(`[Servers] ${verified.length}/${candidates.length + totalPre} verified (AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length}, AnixTV=${anixtvVerified.length})`);
 
   return NextResponse.json({ anilistId: id, episode: epNum, servers: verified, total: verified.length }, {
     headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
