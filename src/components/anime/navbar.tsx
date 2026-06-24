@@ -15,7 +15,7 @@ interface QuickResult {
 }
 
 export default function Navbar() {
-  const { route, navigate } = useAppStore();
+  const { route, navigate, sectionSubPage, setSectionSubPage } = useAppStore();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -24,7 +24,7 @@ export default function Navbar() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const searchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -42,41 +42,48 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Real-time search with debounce
+  // Real-time search with debounce — use useCallback to avoid re-render lag
+  const doSearch = useCallback(async (q: string) => {
+    try {
+      const res = await fetch(`/api/anime/search?q=${encodeURIComponent(q)}&page=1`);
+      if (res.ok) {
+        const data = await res.json();
+        const results = (data?.results || data?.media || []).slice(0, 6).map((item: any) => ({
+          id: item.id,
+          title: item.title?.english || item.title?.romaji || "Unknown",
+          image: item.coverImage?.medium || item.coverImage?.large || "",
+          format: item.format,
+          episodes: item.episodes,
+          seasonYear: item.seasonYear,
+          averageScore: item.averageScore,
+        }));
+        setSearchResults(results);
+      }
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, []);
+
+  // Use a ref for the query to avoid re-running effect on every keystroke
+  const queryRef = useRef("");
   useEffect(() => {
+    queryRef.current = searchQuery;
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     const q = searchQuery.trim();
     if (q.length < 2) {
       setSearchResults([]);
       setShowSearchResults(false);
+      setSearchLoading(false);
       return;
     }
     setSearchLoading(true);
     setShowSearchResults(true);
-    searchTimerRef.current = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/anime/search?q=${encodeURIComponent(q)}&page=1`);
-        if (res.ok) {
-          const data = await res.json();
-          const results = (data?.results || data?.media || []).slice(0, 6).map((item: any) => ({
-            id: item.id,
-            title: item.title?.english || item.title?.romaji || "Unknown",
-            image: item.coverImage?.medium || item.coverImage?.large || "",
-            format: item.format,
-            episodes: item.episodes,
-            seasonYear: item.seasonYear,
-            averageScore: item.averageScore,
-          }));
-          setSearchResults(results);
-        }
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setSearchLoading(false);
-      }
-    }, 400);
+    // Longer debounce (500ms) for smoother typing
+    searchTimerRef.current = setTimeout(() => doSearch(q), 500);
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
-  }, [searchQuery]);
+  }, [searchQuery, doSearch]);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,21 +126,24 @@ export default function Navbar() {
   const isMangaReader = page === "manga-read" || page === "novel-read";
   if (isWatchPage || isMangaReader || page === "signin" || page === "signup") return null;
 
+  // Only 3 nav items: Home (anime home), Browse, Schedule
+  const isAnimePage = ["dub", "anime", "watch", "genre", "bookmarks", "history"].includes(page);
   const navItems = [
-    { label: "Home", page: "home" as const, active: page === "home" },
-    { label: "Browse", page: "dub" as const, active: page === "dub" || page === "anime" || page === "browse" || page === "genre" || page === "bookmarks" || page === "history" },
-    { label: "Schedule", page: "dub" as const, active: false },
-    { label: "Movies", page: "movies" as const, active: page === "movies" || page === "movie-detail" || page === "movie-watch" },
-    { label: "TV", page: "tv" as const, active: page === "tv" || page === "tv-detail" || page === "tv-watch" },
-    { label: "Live", page: "live" as const, active: page === "live" || page === "live-watch" },
-    { label: "Manga", page: "manga" as const, active: page === "manga" || page === "manga-detail" || page === "manga-read" },
+    { label: "Home", active: isAnimePage && sectionSubPage === "home" },
+    { label: "Browse", active: isAnimePage && (sectionSubPage === "browse" || sectionSubPage === "genres") },
+    { label: "Schedule", active: isAnimePage && sectionSubPage === "schedule" },
   ];
 
-  const handleNavClick = (item: typeof navItems[0]) => {
-    if (item.label === "Schedule") {
+  const handleNavClick = (label: string) => {
+    if (label === "Home") {
       navigate({ page: "dub" });
-    } else {
-      navigate({ page: item.page });
+      setSectionSubPage("home");
+    } else if (label === "Browse") {
+      navigate({ page: "dub" });
+      setSectionSubPage("browse");
+    } else if (label === "Schedule") {
+      navigate({ page: "dub" });
+      setSectionSubPage("schedule");
     }
     setMobileOpen(false);
   };
@@ -143,7 +153,7 @@ export default function Navbar() {
       <header className={`nav-header-container${scrolled ? " scrolled" : ""}`}>
         {/* Left: Logo + Nav Links */}
         <nav className="navbar-capsule">
-          <button className="nav-logo" onClick={() => navigate({ page: "home" })}>
+          <button className="nav-logo" onClick={() => { navigate({ page: "dub" }); setSectionSubPage("home"); }}>
             <span className="nav-logo-text">LuffyTV</span>
           </button>
 
@@ -152,7 +162,7 @@ export default function Navbar() {
               <button
                 key={item.label}
                 className={`nav-link${item.active ? " active" : ""}`}
-                onClick={() => handleNavClick(item)}
+                onClick={() => handleNavClick(item.label)}
               >
                 {item.label}
               </button>
@@ -213,7 +223,7 @@ export default function Navbar() {
                     <button
                       type="button"
                       className="nav-search-view-all"
-                      onClick={handleSearchSubmit}
+                      onClick={handleSearchSubmit as any}
                     >
                       View all results for &ldquo;{searchQuery}&rdquo;
                     </button>
@@ -242,7 +252,7 @@ export default function Navbar() {
           <button
             key={item.label}
             className={`nav-link${item.active ? " active" : ""}`}
-            onClick={() => handleNavClick(item)}
+            onClick={() => handleNavClick(item.label)}
           >
             {item.label}
           </button>
