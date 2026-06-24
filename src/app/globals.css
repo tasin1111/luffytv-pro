@@ -1779,20 +1779,20 @@ video::-webkit-media-controls { border-radius: 8px; }
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 8px 12px;
-  border-radius: 16px;
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+  padding: 8px 16px;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   transition: all 0.3s ease;
-  box-shadow: 0 6px 36px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.03);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   min-width: 0;
 }
 .per-page-floating-nav.scrolled {
-  background: rgba(0, 0, 0, 0.80);
-  border-color: rgba(255, 255, 255, 0.15);
-  box-shadow: 0 10px 50px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.05);
+  background: rgba(0, 0, 0, 0.88);
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 15px rgba(230, 57, 70, 0.05);
 }
 
 /* ── Section Brand Label (red "ANIME" / "MOVIES" etc.) — screenshot style ── */
@@ -1876,10 +1876,10 @@ video::-webkit-media-controls { border-radius: 8px; }
   align-items: center;
   justify-content: space-between;
   padding: 10px 16px;
-  background: rgba(10, 10, 10, 0.9);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 /* ── Mobile Bottom Nav ── */
@@ -1889,10 +1889,10 @@ video::-webkit-media-controls { border-radius: 8px; }
   justify-content: space-around;
   padding: 8px 4px;
   padding-bottom: max(8px, env(safe-area-inset-bottom));
-  background: rgba(10, 10, 10, 0.95);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
 }
 .mobile-bottom-nav-item {
   display: flex;
