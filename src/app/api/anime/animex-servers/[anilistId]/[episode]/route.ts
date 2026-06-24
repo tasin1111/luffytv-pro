@@ -13,6 +13,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { animexGetAnime, animexSources } from "@/lib/animex-api";
+import { wrapStreamUrl } from "@/lib/proxy";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // 60s — generous timeout for batched fetching
@@ -52,7 +53,7 @@ function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = fals
     xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
   }
   const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return `https://pro.24stream.xyz/stream/${b64}/index.txt`;
+  return wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
 }
 
 export async function GET(

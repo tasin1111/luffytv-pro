@@ -2,15 +2,16 @@
 
 import { useEffect, useRef, useCallback } from "react";
 import Hls from "hls.js";
+import { proxifyM3u8 } from "@/lib/proxy";
 
 // ============================================================
 // HLS PLAYER — FAST LIVE STREAM
 //
-// Uses /api/hls-resolve which fetches BOTH master + sub-playlist
-// server-side in ONE request. This cuts load time ~50%.
+// Routes m3u8 through Cloudflare Worker (NEXT_PUBLIC_PROXY_BASE).
+// Falls back to /api/hls-resolve if worker URL not configured.
 //
 // Key speed optimizations:
-//   - Resolve endpoint: 1 round-trip instead of 2
+//   - Worker edge: 300+ POPs, no Vercel CPU time limits
 //   - startLevel: 0 (skip ABR quality probing)
 //   - initialLiveManifestSize: 1 (play after 1 segment, not 3)
 //   - abrEwmaDefaultEstimate: 5Mbps (start high, not low)
@@ -58,7 +59,8 @@ export default function HLSPlayer({
 
     // Safari/iOS — native HLS
     if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      const resolveUrl = `/api/hls-resolve?url=${encodeURIComponent(src)}`;
+      // Route through Cloudflare Worker (or fall back to /api/hls-resolve if PROXY_BASE not set)
+      const resolveUrl = proxifyM3u8(src);
       video.src = resolveUrl;
       const onPlay = () => handlePlaying();
       const onError = () => handleError("Native HLS failed");
@@ -123,9 +125,8 @@ export default function HLSPlayer({
 
     hlsRef.current = hls;
 
-    // Load through RESOLVE endpoint — fetches master + sub-playlist
-    // server-side, returns final playlist in ONE request
-    const resolveUrl = `/api/hls-resolve?url=${encodeURIComponent(src)}`;
+    // Route through Cloudflare Worker (or fall back to /api/hls-resolve if PROXY_BASE not set)
+    const resolveUrl = proxifyM3u8(src);
     hls.loadSource(resolveUrl);
     hls.attachMedia(video);
 

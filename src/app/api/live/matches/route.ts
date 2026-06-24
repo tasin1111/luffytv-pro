@@ -74,7 +74,9 @@ const PROXY_HOSTS = new Set([
 
 function proxyImageUrl(url: string): string {
   if (!url) return "";
+  const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
   if (url.startsWith("/api/image-proxy")) return url;
+  if (PROXY_BASE && url.startsWith(PROXY_BASE)) return url;
   if (url.startsWith("/")) return url;
   if (url.startsWith("data:")) return url;
   try {
@@ -86,11 +88,11 @@ function proxyImageUrl(url: string): string {
       parsed.hostname.endsWith(".imgur.com") ||
       parsed.hostname.endsWith(".wikimedia.org") ||
       parsed.hostname.endsWith(".dami-tv.pro");
-    if (needsProxy) {
-      return `/api/image-proxy?url=${encodeURIComponent(url)}`;
-    }
-    // For any other HTTPS image URL, also proxy it to avoid CORS/loading issues
-    if (parsed.protocol === "https:" && /\.(jpg|jpeg|png|webp|gif|svg|avif)/i.test(parsed.pathname)) {
+    const isImage = parsed.protocol === "https:" && /\.(jpg|jpeg|png|webp|gif|svg|avif)/i.test(parsed.pathname);
+    if (needsProxy || isImage) {
+      if (PROXY_BASE) {
+        return `${PROXY_BASE}/proxy/image?url=${encodeURIComponent(url)}`;
+      }
       return `/api/image-proxy?url=${encodeURIComponent(url)}`;
     }
   } catch {}

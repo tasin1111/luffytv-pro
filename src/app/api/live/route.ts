@@ -1186,8 +1186,10 @@ function deepToPrimitive(obj: any): any {
 function capitalize(s: string): string { return s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, " ") : ""; }
 
 // ── Image Proxy URL helper ──
-// Prefixes external image URLs with our /api/image-proxy endpoint
-// to bypass CORS, referer blocking, and CSP issues in the browser
+// Routes external image URLs through Cloudflare Worker (NEXT_PUBLIC_PROXY_BASE)
+// Falls back to /api/image-proxy if worker URL not configured.
+// Bypasses CORS, referer blocking, and CSP issues in the browser.
+const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
 const PROXY_HOSTS = new Set([
   "dami-tv.pro", "api.watchfooty.st", "streamfree.app",
   "r2.thesportsdb.com", "streamed.pk", "sportsembed.su",
@@ -1200,6 +1202,7 @@ function proxyImageUrl(url: string): string {
   if (!url) return "";
   // Already a proxied URL — don't double-proxy
   if (url.startsWith("/api/image-proxy")) return url;
+  if (PROXY_BASE && url.startsWith(PROXY_BASE)) return url;
   // Relative URLs — no proxy needed
   if (url.startsWith("/")) return url;
   // Data URLs — no proxy needed
@@ -1214,11 +1217,11 @@ function proxyImageUrl(url: string): string {
       parsed.hostname.endsWith(".imgur.com") ||
       parsed.hostname.endsWith(".wikimedia.org") ||
       parsed.hostname.endsWith(".dami-tv.pro");
-    if (needsProxy) {
-      return `/api/image-proxy?url=${encodeURIComponent(url)}`;
-    }
-    // For any other HTTPS image URL, also proxy it to avoid CORS/loading issues
-    if (parsed.protocol === "https:" && /\.(jpg|jpeg|png|webp|gif|svg|avif)/i.test(parsed.pathname)) {
+    const isImage = parsed.protocol === "https:" && /\.(jpg|jpeg|png|webp|gif|svg|avif)/i.test(parsed.pathname);
+    if (needsProxy || isImage) {
+      if (PROXY_BASE) {
+        return `${PROXY_BASE}/proxy/image?url=${encodeURIComponent(url)}`;
+      }
       return `/api/image-proxy?url=${encodeURIComponent(url)}`;
     }
   } catch {}

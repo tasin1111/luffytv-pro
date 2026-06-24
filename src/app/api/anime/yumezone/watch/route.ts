@@ -414,6 +414,7 @@ function isAlreadyProxied(url: string): boolean {
   const workerBaseP = WORKER_BASE ? url.startsWith(WORKER_BASE + "/p/") : false;
   return (
     url.includes("cdn-eu.1ani.me/proxy/m3u8") ||
+    url.includes("workers.dev/proxy/") ||
     url.includes("workers.dev/p/") ||
     url.includes("/api/hls-proxy") ||
     url.includes("/api/hls-resolve") ||

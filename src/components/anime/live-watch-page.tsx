@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAppStore } from "./store";
 import Hls from "hls.js";
+import { proxifyM3u8, PROXY_BASE } from "@/lib/proxy";
 
 // ============================================================
 // LIVE WATCH PAGE — DamiTV + WatchFooty + StreamFree iframe Embed Player
@@ -762,8 +763,12 @@ export default function LiveWatchPage(props: LiveWatchProps) {
       hlsRef.current = hls;
 
       const useProxy = !activeStream.corsEnabled;
+      // Prefer Cloudflare Worker (handles Referer automatically via REFERER_MAP)
+      // Fall back to legacy /api/live/proxy/<url> route if PROXY_BASE not set.
       const finalUrl = useProxy
-        ? `/api/live/proxy/${m3u8Url}?referer=${encodeURIComponent(activeStream.referer || "")}`
+        ? (PROXY_BASE
+            ? proxifyM3u8(m3u8Url)
+            : `/api/live/proxy/${m3u8Url}?referer=${encodeURIComponent(activeStream.referer || "")}`)
         : m3u8Url;
 
       hls.loadSource(finalUrl);
@@ -830,7 +835,9 @@ export default function LiveWatchPage(props: LiveWatchProps) {
     } else if (videoRef.current.canPlayType("application/vnd.apple.mpegurl")) {
       const useProxy = !activeStream.corsEnabled;
       const finalUrl = useProxy
-        ? `/api/live/proxy/${m3u8Url}?referer=${encodeURIComponent(activeStream.referer || "")}`
+        ? (PROXY_BASE
+            ? proxifyM3u8(m3u8Url)
+            : `/api/live/proxy/${m3u8Url}?referer=${encodeURIComponent(activeStream.referer || "")}`)
         : m3u8Url;
       videoRef.current.src = finalUrl;
       videoRef.current.addEventListener("loadedmetadata", () => {

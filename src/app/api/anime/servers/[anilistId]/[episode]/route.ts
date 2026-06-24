@@ -25,6 +25,7 @@ import {
   type AniDapProvider,
 } from "@/lib/anidap-api";
 import { fetchAniLightSources } from "@/lib/anilight-api";
+import { wrapStreamUrl } from "@/lib/proxy";
 import {
   fetchAllKyrenSources,
   KYREN_SERVER_NAMES,
@@ -59,10 +60,10 @@ const ANIVEXA_PROVIDERS = ["animegg", "allmanga", "anikoto", "anineko"] as const
  * stream proxy because Anikuro 500s on those.
  */
 /**
- * Build a proxy URL using pro.24stream.xyz (Anistream's proxy).
+ * Build a proxy URL using cdn.animex.su (Anistream's proxy).
  * Encoding: XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
  * This proxy handles m3u8 rewriting, AES keys, segments, CORS — everything.
- * pro.24stream.xyz has permissive CORS (access-control-allow-origin: *).
+ * cdn.animex.su has permissive CORS (access-control-allow-origin: *).
  */
 function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = false): string {
   const key = "aproxy2026";
@@ -73,7 +74,7 @@ function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = fals
     xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
   }
   const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return `https://pro.24stream.xyz/stream/${b64}/index.txt`;
+  return wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
 }
 
 const ANIMEX_REFERERS: Record<string, string> = {

@@ -33,6 +33,8 @@
 const ANIDAP_FRONT = "https://anidap.se";
 const ANIDAP_API = "https://chad.anidap.se/rest/api";
 
+import { wrapStreamUrl } from "./proxy";
+
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
@@ -291,7 +293,7 @@ export function buildAniDapProxyUrl(streamUrl: string, isMP4 = false, provider?:
     return swapped;
   }
 
-  // Step 3: Otherwise, wrap through pro.24stream.xyz (Anistream's proxy)
+  // Step 3: Otherwise, wrap through cdn.animex.su (Anistream's proxy)
   // Encoding: XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
   const referer = provider
     ? (ANIDAP_PROVIDER_REFERER[provider] || ANIDAP_STREAM_REFERER)
@@ -304,7 +306,7 @@ export function buildAniDapProxyUrl(streamUrl: string, isMP4 = false, provider?:
     xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
   }
   const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return `https://pro.24stream.xyz/stream/${b64}/index.txt`;
+  return wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
 }
 
 /**
@@ -315,7 +317,7 @@ export function buildAniDapProxyUrl(streamUrl: string, isMP4 = false, provider?:
  * fingerprint than fetch — bypasses some CF challenges).
  */
 export function buildAniDapSubtitleProxyUrl(subtitleUrl: string): string {
-  // Route subtitles through pro.24stream.xyz too
+  // Route subtitles through cdn.animex.su too
   const key = "aproxy2026";
   const keyBytes = Buffer.from(key);
   const combined = Buffer.from(subtitleUrl + "\0" + ANIDAP_STREAM_REFERER);
@@ -324,7 +326,7 @@ export function buildAniDapSubtitleProxyUrl(subtitleUrl: string): string {
     xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
   }
   const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return `https://pro.24stream.xyz/stream/${b64}/index.txt`;
+  return wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
 }
 
 // ─── Convenience: fetch from many providers in parallel ───────────────────────

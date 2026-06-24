@@ -15,11 +15,22 @@ export async function GET(request: NextRequest) {
   const isHls = type === "hls" || url.includes(".m3u8");
   const isCdnProxy = url.includes("cdn-eu.1ani.me");
   const isOurProxy = url.includes("/api/stream");
+  const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
 
   // Build the video source URL
   let videoSrc: string;
-  if (isCdnProxy || isOurProxy || url.startsWith("http")) {
+  if (isCdnProxy || isOurProxy) {
     videoSrc = url;
+  } else if (url.startsWith("http")) {
+    // External URL — route through Cloudflare Worker if available
+    // (Worker handles Referer/Origin/CORS automatically)
+    if (PROXY_BASE) {
+      videoSrc = isHls
+        ? `${PROXY_BASE}/proxy/m3u8?url=${encodeURIComponent(url)}`
+        : `${PROXY_BASE}/proxy/raw?url=${encodeURIComponent(url)}`;
+    } else {
+      videoSrc = url;
+    }
   } else {
     videoSrc = `/api/stream?url=${encodeURIComponent(url)}${referer ? `&referer=${encodeURIComponent(referer)}` : ""}`;
   }

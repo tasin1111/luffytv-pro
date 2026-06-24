@@ -14,6 +14,7 @@
  *   /watch/anikoto/{id}/sub|dub/anikoto-{ep}    → ssub.streams[] or sdub.streams[] with hls + referer
  */
 import { NextRequest, NextResponse } from "next/server";
+import { wrapM3u8Url } from "@/lib/proxy";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -162,7 +163,7 @@ export async function GET(
     // For HLS: use mode=manifest (needs URL rewriting for segments + AES keys)
     const proxyUrl = isMP4
       ? `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(streamReferer)}`
-      : `https://pro.24stream.xyz/stream/${Buffer.from(`${streamUrl}|${streamReferer}`).toString("base64")}.m3u8`;
+      : wrapM3u8Url(`https://cdn.animex.su/stream/${Buffer.from(`${streamUrl}|${streamReferer}`).toString("base64")}.m3u8`);
 
     return NextResponse.json({
       url: proxyUrl,

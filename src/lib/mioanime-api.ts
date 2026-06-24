@@ -14,6 +14,8 @@
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
+import { wrapStreamUrl } from "./proxy";
+
 const HEADERS: Record<string, string> = {
   "User-Agent": UA,
   Accept: "application/json, text/plain, */*",
@@ -96,7 +98,7 @@ async function fetchAniZone(title: string, epNum: number, timeoutMs: number): Pr
     const results: MioSource[] = [];
     for (const src of sources) {
       if (!src.url) continue;
-      // Route through pro.24stream.xyz proxy with anizone referer
+      // Route through cdn.animex.su proxy with anizone referer
       const key = "aproxy2026";
       const keyBytes = Buffer.from(key);
       const combined = Buffer.from(src.url + "\0" + "https://anizone.to");
@@ -105,7 +107,7 @@ async function fetchAniZone(title: string, epNum: number, timeoutMs: number): Pr
         xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
       }
       const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const proxyUrl = `https://pro.24stream.xyz/stream/${b64}/index.txt`;
+      const proxyUrl = wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
 
       results.push({
         id: `anizone:${ep.id}`,
@@ -186,7 +188,7 @@ async function fetchSenshi(malId: number, epNum: number, timeoutMs: number): Pro
       const url = s.resolvedStreamUrl || s.originalUrl;
       if (!url) continue;
 
-      // Route through pro.24stream.xyz proxy
+      // Route through cdn.animex.su proxy
       const key = "aproxy2026";
       const keyBytes = Buffer.from(key);
       const combined = Buffer.from(url + "\0" + "https://senshi.live/");
@@ -195,7 +197,7 @@ async function fetchSenshi(malId: number, epNum: number, timeoutMs: number): Pro
         xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
       }
       const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const proxyUrl = `https://pro.24stream.xyz/stream/${b64}/index.txt`;
+      const proxyUrl = wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
 
       results.push({
         id: `senshi:${s.server}:${s.status}`,

@@ -7,6 +7,7 @@
 // (function names + return shapes) is kept compatible with the old version.
 
 import { encodePipeRequest, decodePipeResponse, translateId, deepTranslateIds, fetchRawEpisodes, getEpisodes as getMiruroEpisodesDirect, getSourceFromProvider } from "./miruro-direct";
+import { wrapStreamUrl, wrapM3u8Url } from "./proxy";
 
 // ─── AniList GraphQL ──────────────────────────────────────────────
 const ANILIST_API = "https://graphql.anilist.co";
@@ -265,7 +266,7 @@ export async function miruroWatchProvider(
     const isMP4 = !result.isM3U8;
     const proxyUrl = isMP4
       ? `/api/anime/scraper/stream?url=${encodeURIComponent(result.url)}&ref=${encodeURIComponent(ref || "https://www.miruro.tv/")}`
-      : `https://pro.24stream.xyz/stream/${Buffer.from(`${result.url}|${ref || "https://www.miruro.tv/"}`).toString("base64")}.m3u8`;
+      : wrapM3u8Url(`https://cdn.animex.su/stream/${Buffer.from(`${result.url}|${ref || "https://www.miruro.tv/"}`).toString("base64")}.m3u8`);
     return {
       sources: [{
         url: proxyUrl,
@@ -325,7 +326,7 @@ export async function miruroWatch(
         const isMP4 = !result.isM3U8;
     const proxyUrl = isMP4
       ? `/api/anime/scraper/stream?url=${encodeURIComponent(result.url)}&ref=${encodeURIComponent(ref || "https://www.miruro.tv/")}`
-      : `https://pro.24stream.xyz/stream/${Buffer.from(`${result.url}|${ref || "https://www.miruro.tv/"}`).toString("base64")}.m3u8`;
+      : wrapM3u8Url(`https://cdn.animex.su/stream/${Buffer.from(`${result.url}|${ref || "https://www.miruro.tv/"}`).toString("base64")}.m3u8`);
         sources[0].url = proxyUrl;
 
         return {

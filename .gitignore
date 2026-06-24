@@ -9,3 +9,7 @@ __pycache__/
 download_full_commit.py
 download_old_commit.py
 restore_all.py
+
+# Local env files (Vercel manages env vars in dashboard)
+.env.local
+.env*.local

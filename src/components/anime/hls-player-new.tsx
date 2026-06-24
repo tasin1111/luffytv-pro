@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
+import { proxify, proxifyM3u8 } from '@/lib/proxy';
 
 interface HLSPlayerProps {
   url: string;
@@ -332,21 +333,28 @@ export default function HLSPlayerNew({
     >
       <video ref={videoRef} className="w-full h-full object-contain" playsInline onClick={togglePlay} crossOrigin="anonymous">
         {/* External WebVTT subtitle tracks (from AniDap softsub providers).
-            Routed through proxy.anikuro.to using the same base64(url|referer)
-            format as the video streams. */}
+            Routed through Cloudflare Worker (NEXT_PUBLIC_PROXY_BASE) — handles
+            Referer + CORS automatically. Falls back to legacy cdn.animex.su
+            XOR proxy if PROXY_BASE not configured. */}
         {(subtitleTracks || []).map((t, i) => {
           let trackSrc = t.url;
           if (!t.url.startsWith('blob:') && !t.url.startsWith('data:') && !t.url.startsWith('/')) {
-            // External URL — route through pro.24stream.xyz (Anistream's proxy)
-            // XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
-            const key = 'aproxy2026';
-            const combined = t.url + '\0https://animex.one/';
-            const xored = new Uint8Array(combined.length);
-            for (let i = 0; i < combined.length; i++) {
-              xored[i] = combined.charCodeAt(i) ^ key.charCodeAt(i % key.length);
+            const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE;
+            if (PROXY_BASE) {
+              // ── NEW: Route through Cloudflare Worker ──
+              trackSrc = proxify(t.url, 'raw');
+            } else {
+              // ── LEGACY FALLBACK: cdn.animex.su XOR proxy ──
+              // XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
+              const key = 'aproxy2026';
+              const combined = t.url + '\0https://animex.one/';
+              const xored = new Uint8Array(combined.length);
+              for (let j = 0; j < combined.length; j++) {
+                xored[j] = combined.charCodeAt(j) ^ key.charCodeAt(j % key.length);
+              }
+              let b64 = btoa(String.fromCharCode(...xored)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+              trackSrc = `https://cdn.animex.su/stream/${b64}/index.txt`;
             }
-            let b64 = btoa(String.fromCharCode(...xored)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-            trackSrc = `https://pro.24stream.xyz/stream/${b64}/index.txt`;
           }
           return (
             <track

@@ -52,10 +52,15 @@ const PROXY_HOSTS = new Set([
 
 function proxyImageUrl(url: string): string {
   if (!url) return "";
+  const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
   if (url.startsWith("/api/image-proxy")) return url;
+  if (PROXY_BASE && url.startsWith(PROXY_BASE)) return url;
   try {
     const parsed = new URL(url);
     if (PROXY_HOSTS.has(parsed.hostname) || parsed.hostname.endsWith(".streamed.pk") || parsed.hostname.endsWith(".thesportsdb.com")) {
+      if (PROXY_BASE) {
+        return `${PROXY_BASE}/proxy/image?url=${encodeURIComponent(url)}`;
+      }
       return `/api/image-proxy?url=${encodeURIComponent(url)}`;
     }
   } catch {}

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useAppStore } from "./store";
 import HLSPlayerNew from "./hls-player-new";
 import { getProviderDisplayName } from "@/lib/miruro-api";
+import { proxifyM3u8, proxify } from "@/lib/proxy";
 
 // ============================================================
 // WATCH PAGE — Redesigned layout
@@ -783,18 +784,18 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           {streamData && streamData.source_type === "hls" && streamData.video_link && (
             <HLSPlayerNew
               key={selectedServer}
-              url={streamData.video_link}
+              url={proxifyM3u8(streamData.video_link)}
               animeId={animeId}
               episodeNum={episodeNum}
               sourceType="hls"
               intro={streamData.intro}
               outro={streamData.outro}
               allStreams={streamData.hls_sources.map(s => ({
-                url: s.url,
+                url: proxifyM3u8(s.url),
                 quality: s.quality || "Auto",
                 label: s.label || s.quality || "Auto",
               }))}
-              subtitleTracks={(streamData.subtitle_tracks || []).map(s => ({ url: s.url, lang: s.label || "en", label: s.label || "English" }))}
+              subtitleTracks={(streamData.subtitle_tracks || []).map(s => ({ url: proxify(s.url, "raw"), lang: s.label || "en", label: s.label || "English" }))}
               onEnded={handleVideoEnded}
               onProviderFailed={() => handleProviderFailed(activeProvider)}
               autoplay={autoPlay}
@@ -805,7 +806,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           {streamData && streamData.source_type === "mp4" && streamData.video_link && (
             <HLSPlayerNew
               key={`mp4-${selectedServer}`}
-              url={streamData.video_link}
+              url={proxify(streamData.video_link, "raw")}
               animeId={animeId}
               episodeNum={episodeNum}
               sourceType="mp4"

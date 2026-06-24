@@ -45,6 +45,8 @@
 const ANILIGHT_API = "https://api.anilight.live/api";
 const ANILIST_GRAPHQL = "https://graphql.anilist.co";
 
+import { wrapStreamUrl } from "./proxy";
+
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
@@ -210,7 +212,7 @@ export interface AniLightVerifiedResult {
 //   kiwi   → kwik.cx (HLS, hard sub)
 //   meg    → embed (iframe, skip)
 //   misora → cdn.mewstream.buzz (HLS, hard sub)
-//   raye   → pro.24stream.xyz (HLS, hard sub)
+//   raye   → cdn.animex.su (HLS, hard sub)
 //   rem    → vibeplayer.site (HLS, soft sub + VTT tracks)
 //
 export const ANILIGHT_SERVERS = [
@@ -364,7 +366,7 @@ export async function fetchAniLightSources(
       const hasTracks = (data.tracks || []).length > 0;
       const hardsub = !hasTracks;
 
-      // Build proxy URL — route through pro.24stream.xyz (Anistream's proxy)
+      // Build proxy URL — route through cdn.animex.su (Anistream's proxy)
       // Encoding: XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
       const key = "aproxy2026";
       const keyBytes = Buffer.from(key);
@@ -374,7 +376,7 @@ export async function fetchAniLightSources(
         xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
       }
       const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const streamUrl = `https://pro.24stream.xyz/stream/${b64}/index.txt`;
+      const streamUrl = wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
 
       const tracks = (data.tracks || []).filter(t => t?.url);
 

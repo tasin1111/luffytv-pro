@@ -156,6 +156,7 @@ export default function MainPage() {
   const mounted = useMounted();
   const [showSplash, setShowSplash] = useState(true);
   const [splashComplete, setSplashComplete] = useState(false);
+  const sectionSubPage = useAppStore(s => s.sectionSubPage);  // for isBrowseFullBleed below
 
   // Hash-based routing
   useEffect(() => {
@@ -214,6 +215,8 @@ export default function MainPage() {
   const isWatchPage = route.page === "watch" || route.page === "movie-watch" || route.page === "tv-watch" || route.page === "live-watch" || route.page === "live-tv-watch" || route.page === "scraper-watch";
   const isMangaReader = route.page === "manga-read" || route.page === "novel-read";
   const isFullWidth = route.page === "home" || route.page === "watchnow" || route.page === "live" || route.page === "signin" || route.page === "signup" || route.page === "dub" || route.page === "anime";
+  // Browse sub-page wants true full-screen (no main padding) — its own internal layout handles spacing
+  const isBrowseFullBleed = route.page === "dub" && sectionSubPage === "browse";
 
   // Whether footer & floating navbar are visible
   const showNavAndFooter = !isWatchPage && !isMangaReader && route.page !== "signin" && route.page !== "signup";
@@ -277,7 +280,7 @@ export default function MainPage() {
       {/* Main Content */}
       <ErrorBoundary>
       <div className={`min-h-screen bg-[#000000] flex flex-col ${!showSplash ? "content-reveal" : "opacity-0"}`}>
-        <main className={`${isWatchPage ? 'w-full px-4 lg:px-8 pt-4' : isMangaReader ? 'w-full' : showNavAndFooter ? 'w-full pt-[72px] px-4 lg:px-8' : isFullWidth ? 'w-full pt-4' : 'max-w-[1400px] mx-auto px-4 lg:px-8 pt-4'} ${isWatchPage || isMangaReader ? "" : "pb-28 lg:pb-12"} flex-1`}>
+        <main className={`${isWatchPage ? 'w-full px-4 lg:px-8 pt-4' : isMangaReader ? 'w-full' : isBrowseFullBleed ? 'w-full pt-[72px]' : showNavAndFooter ? 'w-full pt-[72px] px-4 lg:px-8' : isFullWidth ? 'w-full pt-4' : 'max-w-[1400px] mx-auto px-4 lg:px-8 pt-4'} ${isWatchPage || isMangaReader ? "" : "pb-28 lg:pb-12"} flex-1`}>
           {renderPage()}
         </main>
         {showNavAndFooter && (

@@ -10,12 +10,14 @@
  *
  * Stream URLs are encoded IDs that go through prox.anikage.cc/stream/{id}/index.txt
  * prox.anikage.cc requires Origin: https://anikage.cc — we route through
- * pro.24stream.xyz with the correct referer.
+ * cdn.animex.su with the correct referer.
  */
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
+
+import { wrapStreamUrl } from "./proxy";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
@@ -150,13 +152,13 @@ export async function fetchAnikageSources(
       const src = data.sources[0];
       if (!src?.url) return null;
 
-      // Build proxied URL — route through pro.24stream.xyz with anikage referer
+      // Build proxied URL — route through cdn.animex.su with anikage referer
       // The encoded URL goes to prox.anikage.cc/stream/{id}/index.txt
       // prox.anikage.cc needs Origin: https://anikage.cc
-      // We wrap it through pro.24stream.xyz which sends the correct Origin
+      // We wrap it through cdn.animex.su which sends the correct Origin
       const anikageProxyUrl = `https://prox.anikage.cc/stream/${src.url}/index.txt`;
       
-      // Use pro.24stream.xyz to proxy the anikage proxy (double proxy, but works)
+      // Use cdn.animex.su to proxy the anikage proxy (double proxy, but works)
       const key = "aproxy2026";
       const keyBytes = Buffer.from(key);
       const combined = Buffer.from(anikageProxyUrl + "\0" + "https://anikage.cc/");
@@ -165,7 +167,7 @@ export async function fetchAnikageSources(
         xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
       }
       const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const finalUrl = `https://pro.24stream.xyz/stream/${b64}/index.txt`;
+      const finalUrl = wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
 
       const isM3U8 = src.isM3U8 === true || src.quality?.includes("Hls");
       const hardsub = src.type === "hardsub" || (job.server === "neko" && !isM3U8);

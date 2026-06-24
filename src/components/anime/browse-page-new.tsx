@@ -50,23 +50,63 @@ function useDebounce<T>(value: T, delay: number): T {
 }
 
 // ---- AniList API (replaces jikanApi) ----
+// NOTE: AniList v2 GraphQL — sort/type/filters must go INSIDE media(), not on Page().
+// sort variable MUST be an array (e.g. ["SCORE_DESC"]) per [MediaSort] type.
 async function anilistSearch(params: any) {
-  const variables: any = { page: params.page || 1, perPage: params.perPage || ITEMS_PER_PAGE };
-  variables.sort = params.sort || "POPULARITY_DESC";
+  const variables: any = {
+    page: params.page || 1,
+    perPage: params.perPage || ITEMS_PER_PAGE,
+    sort: [params.sort || "POPULARITY_DESC"],   // ← array, not string
+    type: "ANIME",
+  };
 
-  const filters: string[] = [];
-  if (params.q) filters.push(`search: "${params.q.replace(/"/g, '\\"')}"`);
-  if (params.genres) filters.push(`genre_in: [${params.genres.split(",").map((g: string) => `"${g}"`).join(",")}]`);
-  if (params.start_date) filters.push(`seasonYear: ${parseInt(params.start_date.slice(0, 4))}`);
-  if (params.season) filters.push(`season: ${params.season.toUpperCase()}`);
-  if (params.type) {
-    if (params.type.includes(",")) filters.push(`format_in: [${params.type.split(",").join(",")}]`);
-    else filters.push(`format: ${params.type}`);
+  // Build the media() argument list — all filters live here, not on Page()
+  const mediaArgs: string[] = ["sort: $sort", "type: $type"];
+  if (params.q) {
+    variables.search = params.q;
+    mediaArgs.push("search: $search");
   }
-  if (params.status) filters.push(`status: ${params.status === "complete" ? "FINISHED" : params.status === "airing" ? "RELEASING" : "NOT_YET_RELEASED"}`);
+  if (params.genres) {
+    variables.genres = params.genres.split(",").map((g: string) => g.trim()).filter(Boolean);
+    mediaArgs.push("genre_in: $genres");
+  }
+  if (params.start_date) {
+    variables.seasonYear = parseInt(params.start_date.slice(0, 4));
+    mediaArgs.push("seasonYear: $seasonYear");
+  }
+  if (params.season) {
+    variables.season = params.season.toUpperCase();
+    mediaArgs.push("season: $season");
+  }
+  if (params.type) {
+    // type here is the FORMAT (TV, MOVIE, etc.) — one or many
+    const formats = params.type.split(",").map((t: string) => t.trim()).filter(Boolean);
+    if (formats.length > 1) {
+      variables.formats = formats;
+      mediaArgs.push("format_in: $formats");
+    } else if (formats.length === 1) {
+      variables.format = formats[0];
+      mediaArgs.push("format: $format");
+    }
+  }
+  if (params.status) {
+    // status is already an AniList enum ("FINISHED" | "RELEASING" | "NOT_YET_RELEASED" | "CANCELLED" | "HIATUS")
+    // No remapping needed — the state stores the raw enum value directly.
+    variables.status = params.status;
+    mediaArgs.push("status: $status");
+  }
 
-  const filterStr = filters.length > 0 ? `, ${filters.join(", ")}` : "";
-  const query = `query($page:Int,$perPage:Int,$sort:[MediaSort]){Page(page:$page,perPage:$perPage,sort:[$sort],type:ANIME${filterStr}){pageInfo{total currentPage lastPage}media{id title{english romaji}coverImage{extraLarge large medium}averageScore format episodes seasonYear status genres}}}`;
+  // Build the variable declaration list dynamically based on what we set
+  const varDecls: string[] = ["$page:Int", "$perPage:Int", "$sort:[MediaSort]", "$type:MediaType"];
+  if (variables.search) varDecls.push("$search:String");
+  if (variables.genres) varDecls.push("$genres:[String]");
+  if (variables.seasonYear) varDecls.push("$seasonYear:Int");
+  if (variables.season) varDecls.push("$season:MediaSeason");
+  if (variables.format) varDecls.push("$format:MediaFormat");
+  if (variables.formats) varDecls.push("$formats:[MediaFormat]");
+  if (variables.status) varDecls.push("$status:MediaStatus");
+
+  const query = `query(${varDecls.join(",")}){Page(page:$page,perPage:$perPage){pageInfo{total currentPage lastPage}media(${mediaArgs.join(", ")}){id title{english romaji}coverImage{extraLarge large medium}averageScore format episodes seasonYear status genres}}}`;
 
   const res = await fetch("https://graphql.anilist.co", {
     method: "POST",
@@ -74,6 +114,10 @@ async function anilistSearch(params: any) {
     body: JSON.stringify({ query, variables }),
   });
   const data = await res.json();
+  if (data?.errors) {
+    console.error("[AniList] GraphQL errors:", data.errors);
+    throw new Error(data.errors[0]?.message || "AniList GraphQL error");
+  }
   return {
     data: (data?.data?.Page?.media || []).map((m: any) => ({
       mal_id: m.id,
