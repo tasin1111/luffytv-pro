@@ -25,7 +25,7 @@ const GRAPHQL_URL = "https://graphql.animex.one/graphql";
 // from Vercel's IPs, while chad.anidap.se does not. The AniDap frontend
 // (anidap.se) uses chad.anidap.se exclusively — it's the same Cloudflare
 // Worker but with a more permissive bot policy.
-const REST_BASE = "https://pp.animex.one/rest/api";
+const REST_BASE = "https://chad.anidap.se/rest/api";
 
 const UPSTREAM_HEADERS: Record<string, string> = {
   "User-Agent":

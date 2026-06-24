@@ -1,19 +1,19 @@
 /**
  * GET /api/anime/animex-servers/[anilistId]/[episode]
  *
- * Fetches Animex servers INDEPENDENTLY from pp.animex.one.
+ * Fetches Animex servers INDEPENDENTLY from chad.anidap.se (the mirror of pp.animex.one).
  * This runs as a SEPARATE request from the main servers endpoint,
  * so it doesn't compete with other sources for the Vercel 30s timeout.
  *
  * The watch page fetches this in parallel with /api/anime/servers —
  * main servers load first, Animex servers get appended when ready.
  *
- * Uses curl (via animex-api.ts) to bypass Cloudflare bot detection.
- * Fetches all 21 providers (11 sub + 10 dub) in batches of 3 with 500ms gap.
+ * Dynamically fetches the actual sub/dub provider list from /servers endpoint
+ * (no more hardcoding provider IDs that drift over time).
+ * Fallback to known-good lists if /servers endpoint fails.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { animexGetAnime, animexSources } from "@/lib/animex-api";
-import { wrapStreamUrl } from "@/lib/proxy";
+import { animexGetAnime, animexServers, animexSources } from "@/lib/animex-api";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // 60s — generous timeout for batched fetching
@@ -44,6 +44,17 @@ interface AnimexServer {
   outro: { start: number; end: number } | null;
 }
 
+// Providers that serve SOFT SUB (subtitles as separate track, not burned in).
+// Everything else is hardsub. Matches what animex.one reports.
+const ANIMEX_SOFTSUB = new Set(["beep", "yuki"]);
+
+// Hardcoded fallback lists — used only if /servers endpoint fails to return a list.
+// These match what animex.one currently reports (verified 2026-06).
+// Actual sub: beep, yuki, miku, neko, mochi, uwu (6 providers — meets "minimum 6" requirement)
+// Actual dub: yuki, miku, mochi, uwu (4 providers)
+const FALLBACK_SUB_PROVIDERS = ["beep", "yuki", "miku", "neko", "mochi", "uwu"];
+const FALLBACK_DUB_PROVIDERS = ["yuki", "miku", "mochi", "uwu"];
+
 function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = false): string {
   const key = "aproxy2026";
   const keyBytes = Buffer.from(key);
@@ -53,7 +64,7 @@ function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = fals
     xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
   }
   const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
+  return `https://cdn.animex.su/stream/${b64}/index.txt`;
 }
 
 export async function GET(
@@ -67,10 +78,6 @@ export async function GET(
     return NextResponse.json({ error: "Invalid params" }, { status: 400 });
   }
 
-  const ANIMEX_SUB_PROVIDERS = ["beep", "yuki", "mimi", "miku", "neko", "mochi", "uwu", "kuro", "sax", "yume", "koto"];
-  const ANIMEX_DUB_PROVIDERS = ["mimi", "yuki", "mochi", "yume", "koto", "uwu", "sax", "kuro", "neko", "miku"];
-  const ANIMEX_SOFTSUB = new Set(["beep", "yuki"]);
-
   try {
     // Step 1: Resolve AniList ID → Animex slug
     const anime = await animexGetAnime(id);
@@ -78,10 +85,21 @@ export async function GET(
       return NextResponse.json({ servers: [], total: 0, message: "Anime not found on Animex" });
     }
 
-    // Step 2: Fetch all providers in batches of 3
+    // Step 2: Fetch the ACTUAL provider list from /servers endpoint.
+    // This returns subProviders + dubProviders arrays — we use these instead
+    // of hardcoding provider IDs (which drift over time as animex adds/removes providers).
+    const serversList = await animexServers(anime.slug, epNum);
+    const subProviderIds: string[] = (serversList.subProviders || []).map((p: any) => p.id);
+    const dubProviderIds: string[] = (serversList.dubProviders || []).map((p: any) => p.id);
+
+    // Fall back to known-good lists if /servers endpoint returns nothing
+    const subProviders = subProviderIds.length > 0 ? subProviderIds : FALLBACK_SUB_PROVIDERS;
+    const dubProviders = dubProviderIds.length > 0 ? dubProviderIds : FALLBACK_DUB_PROVIDERS;
+
+    // Step 3: Build job list — sub + dub providers
     const jobs: Array<{ provider: string; type: "sub" | "dub" }> = [];
-    for (const p of ANIMEX_SUB_PROVIDERS) jobs.push({ provider: p, type: "sub" });
-    for (const p of ANIMEX_DUB_PROVIDERS) jobs.push({ provider: p, type: "dub" });
+    for (const p of subProviders) jobs.push({ provider: p, type: "sub" });
+    for (const p of dubProviders) jobs.push({ provider: p, type: "dub" });
 
     const BATCH = 3;
     const GAP_MS = 500;
@@ -106,7 +124,7 @@ export async function GET(
           const ref = ANIMEX_REFERERS[job.provider] || "https://animex.one/";
           const isM3U8 = p.url.includes(".m3u8") || p.type?.includes("mpegurl");
 
-          // Apply CDN swap
+          // Apply CDN swap (these mirrors serve the same files without CF protection)
           let streamUrl = p.url;
           streamUrl = streamUrl.replace("https://playeng.animeapps.top/r2/", "https://bd.24stream.xyz/media/");
           streamUrl = streamUrl.replace("https://vibeplayer.site/public/stream/", "https://hawk.24stream.xyz/media/");
@@ -147,13 +165,15 @@ export async function GET(
       }
     }
 
-    console.log(`[Animex-Servers] ${servers.length}/${jobs.length} servers for anilistId=${id} ep${epNum}`);
+    console.log(`[Animex-Servers] ${servers.length}/${jobs.length} servers for anilistId=${id} ep${epNum} (sub:${subProviders.length} dub:${dubProviders.length})`);
 
     return NextResponse.json({
       anilistId: id,
       episode: epNum,
       servers,
       total: servers.length,
+      subProviders,
+      dubProviders,
     }, {
       headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
     });

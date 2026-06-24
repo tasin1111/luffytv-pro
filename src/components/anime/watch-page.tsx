@@ -569,15 +569,16 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         setHardsubAvailable(hasHardsub);
         setSoftsubAvailable(hasSoftsub);
 
-        // Auto-select first server matching current translation mode
-        // Translation modes: "sub" (soft sub), "hardsub", "dub"
+        // Auto-select first server matching current translation mode.
+        // Translation modes: "sub" (soft sub preferred, falls back to hardsub),
+        // "hardsub", "dub".
         let firstMatch: ServerEntry | undefined;
         if (translation === "dub") {
           firstMatch = data.servers.find((s: ServerEntry) => s.type === "dub");
         } else if (translation === "hardsub") {
           firstMatch = data.servers.find((s: ServerEntry) => s.type === "sub" && s.hardsub === true);
         } else {
-          // "sub" → soft sub preferred, fall back to any sub
+          // "sub" → soft sub preferred, fall back to any sub (hardsub ok)
           firstMatch = data.servers.find((s: ServerEntry) => s.type === "sub" && s.hardsub !== true)
                     || data.servers.find((s: ServerEntry) => s.type === "sub");
         }
@@ -1411,13 +1412,22 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 {serverList
                   .filter(s => {
                     // Filter by translation mode:
-                    //   "sub"     → soft sub servers (type=sub, hardsub !== true)
-                    //   "hardsub" → hard sub servers (type=sub, hardsub === true)
-                    //   "dub"     → dub servers (type=dub)
+                    //   "sub"     → ALL sub servers (soft sub first, then hardsub as fallback)
+                    //               — shows every available sub server so the user has more choice
+                    //   "hardsub" → ONLY hard sub servers (type=sub, hardsub === true)
+                    //   "dub"     → ONLY dub servers (type=dub)
                     if (translation === "dub") return s.type === "dub";
                     if (translation === "hardsub") return s.type === "sub" && s.hardsub === true;
-                    // "sub" → soft sub
-                    return s.type === "sub" && s.hardsub !== true;
+                    // "sub" → show ALL type=sub servers (both soft sub and hardsub)
+                    return s.type === "sub";
+                  })
+                  .sort((a, b) => {
+                    // In "sub" mode, sort soft-sub before hardsub (so user sees soft sub first)
+                    if (translation === "sub") {
+                      if (a.hardsub !== true && b.hardsub === true) return -1;
+                      if (a.hardsub === true && b.hardsub !== true) return 1;
+                    }
+                    return 0;
                   })
                   .map(s => (
                     <button
