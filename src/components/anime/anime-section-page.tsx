@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAppStore } from "./store";
 import ContentCard from "./anime-card";
-import BrowsePage from "./browse-page";
+import BrowsePage from "./browse-page-new";
 import type { MiruroAnimeResult } from "@/lib/miruro-api";
 
 /* ═══════════════════════════════════════════════════════════════
@@ -1226,13 +1226,7 @@ export default function AnimeSectionPage() {
 
   // Early return for browse sub-page
   if (subPage === "browse") {
-    return (
-      <div className="lu-page" style={{ paddingTop: '0px', overflowX: 'hidden', width: '100%', maxWidth: '100vw', boxSizing: 'border-box', background: '#0D0D0D' }}>
-        <div className="max-w-[1400px] mx-auto px-5 sm:px-14 lg:px-14 py-8">
-          <BrowsePage />
-        </div>
-      </div>
-    );
+    return <BrowsePage />;
   }
 
   return (
