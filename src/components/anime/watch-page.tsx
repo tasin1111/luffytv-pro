@@ -300,6 +300,10 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const [flipLayout, setFlipLayout] = useState(false);
   const [lightsOff, setLightsOff] = useState(false);
 
+  // ── Floating Mini-Player State ──
+  const [showFloatingPlayer, setShowFloatingPlayer] = useState(false);
+  const playerZoneRef = useRef<HTMLDivElement>(null);
+
   // ── Relations ──
   const [relations, setRelations] = useState<RelationAnime[]>([]);
 
@@ -744,6 +748,26 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const prevEp = episodeNum > 1 ? episodeNum - 1 : null;
   const nextEp = episodeList.some(e => e.number === episodeNum + 1) ? episodeNum + 1 : null;
 
+  // ── Floating Mini-Player: show when player scrolls out of view ──
+  useEffect(() => {
+    function onScroll() {
+      if (!playerZoneRef.current) return;
+      const rect = playerZoneRef.current.getBoundingClientRect();
+      // If the bottom of the player zone is above the viewport top, show floating player
+      const playerOutOfView = rect.bottom < 0;
+      setShowFloatingPlayer(playerOutOfView && !!streamData?.video_link);
+    }
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [streamData?.video_link]);
+
+  // Scroll back to player when floating player is clicked
+  const scrollToPlayer = useCallback(() => {
+    if (playerZoneRef.current) {
+      playerZoneRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, []);
+
   const searchLower = epSearch.toLowerCase();
   const filteredEps = episodeList
     .filter(ep => !epSearch || String(ep.number).includes(searchLower))
@@ -776,7 +800,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     <div className="min-h-screen bg-[#0a0a0f]">
 
       {/* ─── PLAYER ZONE ─── */}
-      <div className="w-full" style={{ maxWidth: "100vw" }}>
+      <div ref={playerZoneRef} className="w-full" style={{ maxWidth: "100vw" }}>
         <div className="relative w-full bg-black" style={{ aspectRatio: "16 / 9" }}>
 
           {/* HLS Native Player */}
@@ -1490,6 +1514,67 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           </div>
         )}
       </div>
+
+      {/* ─── FLOATING MINI-PLAYER ─── */}
+      {/* Shows when you scroll past the main player — keeps video playing */}
+      {showFloatingPlayer && streamData?.video_link && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <div className="flex items-center gap-3 bg-black/90 backdrop-blur-xl border border-white/10 rounded-2xl px-4 py-2.5 shadow-2xl"
+               style={{ minWidth: "min(640px, calc(100vw - 32px))" }}>
+
+            {/* Click to scroll back to player */}
+            <button
+              onClick={scrollToPlayer}
+              className="flex items-center gap-3 flex-1 min-w-0 group"
+              title="Back to player"
+            >
+              {/* Thumbnail / play indicator */}
+              <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#7c3aed]/30 to-[#D4A017]/20 flex items-center justify-center shrink-0 group-hover:from-[#7c3aed]/50 transition-all">
+                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </div>
+
+              {/* Title + episode info */}
+              <div className="flex-1 min-w-0 text-left">
+                <p className="text-xs font-semibold text-white truncate">{animeTitle}</p>
+                <p className="text-[10px] text-zinc-400 truncate">
+                  Episode {episodeNum}
+                  {streamData.provider && ` · ${getProviderDisplayName(streamData.provider)}`}
+                </p>
+              </div>
+            </button>
+
+            {/* Divider */}
+            <div className="w-px h-8 bg-white/10" />
+
+            {/* Next episode button */}
+            {nextEp && (
+              <button
+                onClick={() => switchEpisode(nextEp)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] transition-colors"
+                title="Next episode"
+              >
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                </svg>
+                <span className="text-[10px] font-medium text-white hidden sm:inline">Next</span>
+              </button>
+            )}
+
+            {/* Fullscreen toggle */}
+            <button
+              onClick={scrollToPlayer}
+              className="flex items-center justify-center w-9 h-9 rounded-lg bg-white/[0.06] hover:bg-white/[0.12] transition-colors"
+              title="Expand player"
+            >
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
