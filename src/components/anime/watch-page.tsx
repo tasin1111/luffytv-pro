@@ -236,12 +236,13 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
    * "sub" and "hardsub" both map to type="sub" servers (just filtered by
    * the `hardsub` flag on each server).
    */
-  const [translation, setTranslation] = useState<"sub" | "hardsub" | "dub">("sub");
+  const [translation, setTranslation] = useState<"sub" | "hardsub" | "dub" | "hindi">("sub");
   const [availableProviders, setAvailableProviders] = useState<string[]>([]);
   const [failedProviders, setFailedProviders] = useState<Set<string>>(new Set());
   const [dubAvailable, setDubAvailable] = useState(false);
   const [hardsubAvailable, setHardsubAvailable] = useState(false);
   const [softsubAvailable, setSoftsubAvailable] = useState(false);
+  const [hindiAvailable, setHindiAvailable] = useState(false);
   const [streamLoading, setStreamLoading] = useState(true);
   const [streamError, setStreamError] = useState<string | null>(null);
 
@@ -389,7 +390,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     setStreamError(null);
   }, [activeProvider]);
 
-  const handleTranslationChange = useCallback((t: "sub" | "hardsub" | "dub") => {
+  const handleTranslationChange = useCallback((t: "sub" | "hardsub" | "dub" | "hindi") => {
     if (t === translation) return;
     setTranslation(t);
     setFailedProviders(new Set());
@@ -561,20 +562,24 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           return;
         }
         setServerList(data.servers);
-        // Detect what's available: hard sub, soft sub, dub
-        const hasDub = data.servers.some((s: ServerEntry) => s.type === "dub");
+        // Detect what's available: hard sub, soft sub, dub, hindi
+        const hasDub = data.servers.some((s: ServerEntry) => s.type === "dub" && s.source !== "anixtv");
         const hasHardsub = data.servers.some((s: ServerEntry) => s.type === "sub" && s.hardsub === true);
         const hasSoftsub = data.servers.some((s: ServerEntry) => s.type === "sub" && s.hardsub !== true);
+        const hasHindi = data.servers.some((s: ServerEntry) => s.source === "anixtv");
         setDubAvailable(hasDub);
         setHardsubAvailable(hasHardsub);
         setSoftsubAvailable(hasSoftsub);
+        setHindiAvailable(hasHindi);
 
         // Auto-select first server matching current translation mode.
         // Translation modes: "sub" (soft sub preferred, falls back to hardsub),
-        // "hardsub", "dub".
+        // "hardsub", "dub" (English dub), "hindi" (Hindi dub from AnixTV).
         let firstMatch: ServerEntry | undefined;
-        if (translation === "dub") {
-          firstMatch = data.servers.find((s: ServerEntry) => s.type === "dub");
+        if (translation === "hindi") {
+          firstMatch = data.servers.find((s: ServerEntry) => s.source === "anixtv");
+        } else if (translation === "dub") {
+          firstMatch = data.servers.find((s: ServerEntry) => s.type === "dub" && s.source !== "anixtv");
         } else if (translation === "hardsub") {
           firstMatch = data.servers.find((s: ServerEntry) => s.type === "sub" && s.hardsub === true);
         } else {
@@ -626,12 +631,14 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           const newServers = animexData.servers.filter((s: ServerEntry) => !existingIds.has(s.id));
           const combined = [...prev, ...newServers];
           // Update availability flags
-          const hasDub = combined.some((s: ServerEntry) => s.type === "dub");
+          const hasDub = combined.some((s: ServerEntry) => s.type === "dub" && s.source !== "anixtv");
           const hasHardsub = combined.some((s: ServerEntry) => s.type === "sub" && s.hardsub === true);
           const hasSoftsub = combined.some((s: ServerEntry) => s.type === "sub" && s.hardsub !== true);
+          const hasHindi = combined.some((s: ServerEntry) => s.source === "anixtv");
           setDubAvailable(hasDub);
           setHardsubAvailable(hasHardsub);
           setSoftsubAvailable(hasSoftsub);
+          setHindiAvailable(hasHindi);
           console.log(`[WatchPage] Animex servers loaded: +${newServers.length} (total: ${combined.length})`);
           return combined;
         });
@@ -959,13 +966,15 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   {animeDuration && ` · ${animeDuration}min`}
                 </span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  translation === "dub"
+                  translation === "hindi"
+                    ? "bg-purple-500/15 text-purple-400"
+                    : translation === "dub"
                     ? "bg-red-500/15 text-red-400"
                     : translation === "hardsub"
                     ? "bg-orange-500/15 text-orange-400"
                     : "bg-[#D4A017]/15 text-[#D4A017]"
                 }`}>
-                  {translation === "sub" ? "SOFT SUB" : translation === "hardsub" ? "HARD SUB" : "DUB"}
+                  {translation === "sub" ? "SOFT SUB" : translation === "hardsub" ? "HARD SUB" : translation === "dub" ? "DUB" : "HINDI DUB"}
                 </span>
                 {streamData && (
                   <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.05] text-zinc-400">
@@ -1389,7 +1398,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 >
                   HARD SUB
                 </button>
-                {/* Dub */}
+                {/* Dub (English) */}
                 <button
                   onClick={() => handleTranslationChange("dub")}
                   className={`px-3 py-1.5 text-xs font-bold transition-colors ${
@@ -1401,6 +1410,19 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   title="Dub — English dubbed audio"
                 >
                   DUB
+                </button>
+                {/* Hindi Dub (AnixTV — multi-audio HLS with Hindi/Tamil/Telugu/Bengali/etc.) */}
+                <button
+                  onClick={() => handleTranslationChange("hindi")}
+                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${
+                    translation === "hindi"
+                      ? "bg-[#D4A017] text-black"
+                      : "bg-[#111118] text-zinc-400 hover:text-white"
+                  } ${!hindiAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
+                  disabled={!hindiAvailable}
+                  title="Hindi Dub — AnixTV multi-audio (Hindi/Tamil/Telugu/Bengali/Malayalam/Marathi/Kannada)"
+                >
+                  HINDI
                 </button>
               </div>
             </div>
@@ -1415,8 +1437,10 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                     //   "sub"     → ALL sub servers (soft sub first, then hardsub as fallback)
                     //               — shows every available sub server so the user has more choice
                     //   "hardsub" → ONLY hard sub servers (type=sub, hardsub === true)
-                    //   "dub"     → ONLY dub servers (type=dub)
-                    if (translation === "dub") return s.type === "dub";
+                    //   "dub"     → ONLY English dub servers (type=dub, NOT anixtv)
+                    //   "hindi"   → ONLY AnixTV servers (Hindi/multi-audio dub from anixtv.in)
+                    if (translation === "hindi") return s.source === "anixtv";
+                    if (translation === "dub") return s.type === "dub" && s.source !== "anixtv";
                     if (translation === "hardsub") return s.type === "sub" && s.hardsub === true;
                     // "sub" → show ALL type=sub servers (both soft sub and hardsub)
                     return s.type === "sub";

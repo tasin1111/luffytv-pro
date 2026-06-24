@@ -134,6 +134,37 @@ export async function GET(
           const isSwapped = /^https?:\/\/[^/]*\.24stream\.xyz\//.test(streamUrl);
           const proxyUrl = isSwapped ? streamUrl : buildProxyUrl(streamUrl, ref, !isM3U8);
 
+          // ── VERIFY the stream URL actually responds (HEAD request, 6s timeout).
+          // This filters out dead servers — providers that return a URL but the
+          // URL 404s or times out. Without this, the watch page would show
+          // servers that just fail when the user clicks play.
+          //
+          // Skip verification for cdn.animex.su URLs (they're time-limited signed URLs
+          // that require the XOR-encoded wrapper to be re-fetched fresh each play —
+          // a HEAD request now would consume the signed token).
+          const needsVerify = !proxyUrl.includes("cdn.animex.su") && !proxyUrl.includes("pro.24stream.xyz");
+          if (needsVerify) {
+            try {
+              const verifyResp = await Promise.race([
+                fetch(proxyUrl, {
+                  method: "HEAD",
+                  headers: { "User-Agent": "Mozilla/5.0", "Referer": ref },
+                  cache: "no-store",
+                  redirect: "follow",
+                }),
+                new Promise<Response | null>(r => setTimeout(() => r(null), 6000)),
+              ]);
+              // If response is null (timeout) or status >= 400, skip this server
+              if (!verifyResp || verifyResp.status >= 400) {
+                console.log(`[Animex-Servers] SKIP ${job.provider}:${job.type} — verify failed (${verifyResp?.status || "timeout"})`);
+                return null;
+              }
+            } catch (err) {
+              console.log(`[Animex-Servers] SKIP ${job.provider}:${job.type} — verify error:`, err instanceof Error ? err.message : String(err));
+              return null;
+            }
+          }
+
           const isHardsub = !ANIMEX_SOFTSUB.has(job.provider);
           const provName = job.provider[0].toUpperCase() + job.provider.slice(1).toLowerCase();
           const typeTag = job.type === "dub" ? " (Dub)" : (isHardsub ? " (HS)" : "");
