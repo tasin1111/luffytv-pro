@@ -64,6 +64,9 @@ const REFERER_MAP = {
   "ply.24stream.xyz":      "https://allanime.uns.bio/",
   // nanobyte CDN — AniLight quality variants
   "nanobyte.bigdreamsmalldih.site": "https://kwik.cx/",
+  // AniKage proxy — Cloudflare-protected, needs Origin: https://anikage.cc
+  "prox.anikage.cc":         "https://anikage.cc/",
+  "anikage.cc":              "https://anikage.cc/",
   "www.animegg.org":       "https://www.animegg.org/",
   "youtu-chan.com":        "https://youtu-chan.com/",
   "gogoanime3.co":         "https://gogoanime3.co/",
@@ -127,6 +130,9 @@ const ALWAYS_PROXY_HOSTS = new Set([
   "ply.24stream.xyz",
   // nanobyte CDN — AniLight quality variants (1080p/720p/360p)
   "nanobyte.bigdreamsmalldih.site",
+  // AniKage proxy — Cloudflare-protected, must route through worker
+  "prox.anikage.cc",
+  "anikage.cc",
 ]);
 
 // Cache instance (only available in Worker runtime, not in tests)
