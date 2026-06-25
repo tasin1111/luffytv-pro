@@ -124,3 +124,21 @@ export function wrapM3u8Url(url: string | null | undefined): string {
   // Use animanga.fun as primary proxy
   return buildAnimangaUrl(url);
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// CLIENT-SIDE helpers (used by React components like HLSPlayer)
+// These are re-exports for backward compatibility — they use the same
+// animanga.fun proxy as the server-side helpers above.
+// ─────────────────────────────────────────────────────────────────────
+
+export const PROXY_BASE = ANIMANGA_PROXY;
+
+export type ProxyMode = "auto" | "m3u8" | "image" | "raw";
+
+export function proxify(url: string | null | undefined, mode: ProxyMode = "auto"): string {
+  return wrapStreamUrl(url);
+}
+
+export const proxifyM3u8  = (url: string) => wrapM3u8Url(url);
+export const proxifyImage = (url: string) => wrapStreamUrl(url);
+export const proxifyRaw   = (url: string) => wrapStreamUrl(url);
