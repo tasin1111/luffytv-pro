@@ -36,7 +36,7 @@ import { fetchMioAnimeSources } from "@/lib/mioanime-api";
 import { fetchAnistreamSources } from "@/lib/anistream-api";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 const ANIVAULT_API = "https://anivault-scraper.up.railway.app/api/watch/animeheaven";
 const ANIVEXA_API = "https://anivexa-api-tawny.vercel.app";
@@ -168,11 +168,11 @@ export async function GET(
     })(),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/sub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/dub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: 5000 }),
+    fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: 4000 }),
     fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 6000 }),
     fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 6000 }),
-    fetchAnikageSources(id, epNum, { timeoutMs: 7000 }),
-    fetchMioAnimeSources(id, epNum, { timeoutMs: 7000 }),
+    fetchAnikageSources(id, epNum, { timeoutMs: 5000 }),
+    fetchMioAnimeSources(id, epNum, { timeoutMs: 5000 }),
     // Anistream.one: uses api.anistream.one (OWN REST API, NOT Cloudflare-protected).
     // Returns DIRECT stream URLs — no XOR wrapper, no cdn.animex.su needed.
     // Has embed providers too (ok.ru, mp4upload) for some servers.
