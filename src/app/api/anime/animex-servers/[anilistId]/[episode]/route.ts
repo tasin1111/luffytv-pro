@@ -56,39 +56,21 @@ const FALLBACK_SUB_PROVIDERS = ["beep", "yuki", "miku", "neko", "mochi", "uwu"];
 const FALLBACK_DUB_PROVIDERS = ["yuki", "miku", "mochi", "uwu"];
 
 /**
- * Build a playable URL for a stream.
- *
- * OLD approach (BROKEN): XOR-encode the URL and route through cdn.animex.su.
- *   cdn.animex.su is DEAD (DNS NXDOMAIN as of 2026-06-25) — all such URLs return 530.
- *
- * NEW approach: Route the DIRECT stream URL through our Cloudflare Worker.
- *   The worker adds the correct Referer header (from REFERER_MAP) and bypasses CORS.
- *   For CDN-swapped URLs (bd.24stream.xyz etc.), the worker also handles Referer.
- *
- * If the URL is already on a 24stream.xyz CDN (post-swap), it's direct — just wrap
- * through the worker for Referer + CORS.
- * Otherwise (e.g. vibeplayer.site, animeapps.top), wrap through worker too.
+ * Build a proxy URL using pro.aniwatchtv.site.
+ * Encoding: XOR(url + "\0" + referer, key) → base64url → /uwu/{token}
+ * Key: "10b06cdc1ca48c9fb0b94af97cc040cf"
  */
 function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = false): string {
-  // Route through our worker — it will add Referer based on the hostname
-  const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
-  if (!PROXY_BASE) {
-    // Fallback: use the old XOR wrapper (will fail if cdn.animex.su is down,
-    // but at least doesn't crash). Prefer m3u8 mode for HLS, raw for MP4.
-    const key = "aproxy2026";
-    const keyBytes = Buffer.from(key);
-    const combined = Buffer.from(streamUrl + "\0" + referer);
-    const xored = Buffer.alloc(combined.length);
-    for (let i = 0; i < combined.length; i++) {
-      xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
-    }
-    const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    return `https://cdn.animex.su/stream/${b64}/index.txt`;
+  const XOR_KEY = "10b06cdc1ca48c9fb0b94af97cc040cf";
+  const combined = streamUrl + "\0" + referer;
+  const keyBytes = Buffer.from(XOR_KEY);
+  const dataBytes = Buffer.from(combined);
+  const xored = Buffer.alloc(dataBytes.length);
+  for (let i = 0; i < dataBytes.length; i++) {
+    xored[i] = dataBytes[i] ^ keyBytes[i % keyBytes.length];
   }
-  // Use /proxy/m3u8 for HLS (rewrites segment URLs inside the manifest),
-  // /proxy/raw for MP4 (pass-through).
-  const mode = isMP4 ? "raw" : "m3u8";
-  return `${PROXY_BASE}/proxy/${mode}?url=${encodeURIComponent(streamUrl)}`;
+  const token = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `https://pro.aniwatchtv.site/uwu/${token}`;
 }
 
 export async function GET(
@@ -198,13 +180,16 @@ export async function GET(
       }
     }
 
-    console.log(`[Animex-Servers] ${servers.length}/${jobs.length} servers for anilistId=${id} ep${epNum} (sub:${subProviders.length} dub:${dubProviders.length})`);
+    // ── FILTER OUT servers with no streamUrl or empty streamUrl ──────────────
+    const filteredServers = servers.filter(s => s.streamUrl && s.streamUrl.length > 10);
+
+    console.log(`[Animex-Servers] ${filteredServers.length}/${jobs.length} servers for anilistId=${id} ep${epNum} (sub:${subProviders.length} dub:${dubProviders.length})`);
 
     return NextResponse.json({
       anilistId: id,
       episode: epNum,
-      servers,
-      total: servers.length,
+      servers: filteredServers,
+      total: filteredServers.length,
       subProviders,
       dubProviders,
     }, {
