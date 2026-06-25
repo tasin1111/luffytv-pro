@@ -570,10 +570,15 @@ export async function GET(
   verified.push(...anistreamVerified);
   // NOTE: Animex is NOT here — it's fetched separately via /api/anime/animex-servers
 
-  const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length + anixtvVerified.length;
-  console.log(`[Servers] ${verified.length}/${candidates.length + totalPre} verified (AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length}, AnixTV=${anixtvVerified.length})`);
+  // ── FILTER OUT servers with no streamUrl or empty streamUrl ──────────────
+  // Don't show servers that don't have a playable m3u8/mp4/embed URL.
+  const beforeFilter = verified.length;
+  const filtered = verified.filter(s => s.streamUrl && s.streamUrl.length > 10);
 
-  return NextResponse.json({ anilistId: id, episode: epNum, servers: verified, total: verified.length }, {
+  const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length + anixtvVerified.length;
+  console.log(`[Servers] ${filtered.length}/${beforeFilter} servers (filtered ${beforeFilter - filtered.length} empty) — AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length}, AnixTV=${anixtvVerified.length}`);
+
+  return NextResponse.json({ anilistId: id, episode: epNum, servers: filtered, total: filtered.length }, {
     headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
   });
 }
