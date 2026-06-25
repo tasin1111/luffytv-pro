@@ -45,7 +45,7 @@
 const ANILIGHT_API = "https://api.anilight.live/api";
 const ANILIST_GRAPHQL = "https://graphql.anilist.co";
 
-import { wrapStreamUrl } from "./proxy";
+import { wrapStreamUrl, wrapM3u8Url } from "./proxy";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
@@ -448,7 +448,7 @@ export async function fetchAniLightSources(
         verified.push({
           server: q.quality,  // "1080p", "720p", "360p"
           type,
-          streamUrl: q.url,   // direct ESA CDN URL — no proxy needed
+          streamUrl: wrapM3u8Url(q.url),   // wrap through aniwatchtv proxy
           quality: q.quality,
           isM3U8: true,
           isMP4: false,
