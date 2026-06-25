@@ -45,7 +45,6 @@ interface StreamData {
   tried_providers?: string[];
   all_providers?: string[];
   _fallback?: boolean;
-  skipProxy?: boolean;  // AnixTV: load m3u8 DIRECT (no proxy) — has CORS + signed tokens
 }
 
 interface EpisodeItem {
@@ -714,10 +713,6 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
       outro,
       provider: `${server.source}:${server.provider}`,
       available_qualities: [quality],
-      // AnixTV m3u8 URLs have CORS headers + time-limited signed tokens.
-      // Proxying them breaks the tokens → must load DIRECT (no proxy).
-      // Flag this so the player knows not to wrap through proxy.
-      skipProxy: server.source === "anixtv",
     };
 
     console.log(`[WatchPage] Playing via ${server.source}:${server.provider} (${quality}) — subs=${subtitleTracks.length} intro=${intro ? `${intro.start}-${intro.end}` : "no"} outro=${outro ? `${outro.start}-${outro.end}` : "no"}`);
@@ -813,14 +808,14 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           {streamData && streamData.source_type === "hls" && streamData.video_link && (
             <HLSPlayerNew
               key={selectedServer}
-              url={streamData.skipProxy ? streamData.video_link : proxifyM3u8(streamData.video_link)}
+              url={proxifyM3u8(streamData.video_link)}
               animeId={animeId}
               episodeNum={episodeNum}
               sourceType="hls"
               intro={streamData.intro}
               outro={streamData.outro}
               allStreams={streamData.hls_sources.map(s => ({
-                url: streamData.skipProxy ? s.url : proxifyM3u8(s.url),
+                url: proxifyM3u8(s.url),
                 quality: s.quality || "Auto",
                 label: s.label || s.quality || "Auto",
               }))}

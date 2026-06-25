@@ -33,7 +33,6 @@ import {
 } from "@/lib/kyren-api";
 import { fetchAnikageSources } from "@/lib/anikage-api";
 import { fetchMioAnimeSources } from "@/lib/mioanime-api";
-import { anixtvFetchAllServers } from "@/lib/anixtv-api";
 import { fetchAnistreamSources } from "@/lib/anistream-api";
 
 export const dynamic = "force-dynamic";
@@ -160,7 +159,7 @@ export async function GET(
   // Fire AniDap resolver + sources fetch in parallel with the other sources.
   // AniDap gives us 11 providers × 2 types (sub/dub) — all verified playable.
   // Also fire AniLight + Kyren in parallel — both return direct-playable streams.
-  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults, anixtvResults, anistreamResults] = await Promise.allSettled([
+  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults, anistreamResults] = await Promise.allSettled([
     fetchRawEpisodes(id),
     (async () => {
       const anime = await animexGetAnime(id);
@@ -174,10 +173,6 @@ export async function GET(
     fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 6000 }),
     fetchAnikageSources(id, epNum, { timeoutMs: 7000 }),
     fetchMioAnimeSources(id, epNum, { timeoutMs: 7000 }),
-    // AnixTV: Hindi dubbed anime (anixtv.in / anixx.fun). Multi-audio HLS with
-    // Hindi/Tamil/Telugu/Bengali/Malayalam/Marathi/Kannada/English/Korean/Japanese tracks.
-    // Tries providers 1-5 in parallel; most anime only have provider 1.
-    anixtvFetchAllServers(id, epNum, animeTitle, 1),
     // Anistream.one: uses api.anistream.one (OWN REST API, NOT Cloudflare-protected).
     // Returns DIRECT stream URLs — no XOR wrapper, no cdn.animex.su needed.
     // Has embed providers too (ok.ru, mp4upload) for some servers.
@@ -360,28 +355,29 @@ export async function GET(
   }
 
   // AnixTV (Hindi dubbed anime from anixtv.in / anixx.fun)
-  // Already returns playable m3u8 URLs — no verification needed (would slow things down).
+  // The watch URL itself IS the player — just load it in an iframe.
+  // No m3u8 resolution needed, no proxy needed.
+  // URL: https://anixtv.in/anime-watch?action=hindi_N_player&id={anilistId}&season=1&episode={ep}&title={title}
   const anixtvVerified: VerifiedServer[] = [];
-  if (anixtvResults.status === "fulfilled" && anixtvResults.value) {
-    for (const r of anixtvResults.value) {
-      anixtvVerified.push({
-        id: r.id,
-        name: r.name,
-        source: "anixtv",
-        provider: r.provider,
-        type: r.type,
-        quality: r.quality,
-        streamUrl: r.streamUrl,
-        isM3U8: r.isM3U8,
-        isMP4: r.isMP4,
-        hardsub: r.hardsub,
-        subtitleTracks: r.subtitleTracks,
-        intro: r.intro,
-        outro: r.outro,
-      });
-    }
-    console.log(`[Servers] AnixTV: ${anixtvVerified.length} servers (Hindi dub)`);
-  }
+  // Always add AnixTV Hindi as an embed server — the page itself handles
+  // whether the anime exists or not (shows "no video" if not available)
+  anixtvVerified.push({
+    id: "anixtv:hindi_1:dub",
+    name: "AnixTV Hindi",
+    source: "anixtv",
+    provider: "hindi_1",
+    type: "dub",
+    quality: "1080p",
+    streamUrl: `https://anixtv.in/anime-watch?action=hindi_1_player&id=${id}&season=1&episode=${epNum}&title=${encodeURIComponent(animeTitle)}`,
+    isM3U8: false,
+    isMP4: false,
+    isEmbed: true,  // ← load in iframe, NOT hls.js
+    hardsub: false,
+    subtitleTracks: [],
+    intro: null,
+    outro: null,
+  });
+  console.log(`[Servers] AnixTV: 1 server (Hindi dub embed — direct iframe)`);
 
   // MegaPlay Hindi removed — was returning 410 errors (expired/removed).
   // AnixTV is the sole Hindi source now. If AnixTV doesn't have the anime,
