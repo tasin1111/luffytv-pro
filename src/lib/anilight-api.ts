@@ -65,7 +65,7 @@ const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
 
 function workerWrap(url: string): string {
   if (!WORKER_BASE) return url;  // fallback: try direct (will fail on Vercel but works locally)
-  return `${WORKER_BASE}/proxy/raw?url=${encodeURIComponent(url)}`;
+  return `${WORKER_BASE}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent("https://anilight.live/")}`;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────

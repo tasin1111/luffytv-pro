@@ -13,7 +13,7 @@
  * cdn.animex.su with the correct referer.
  */
 
-import { wrapStreamUrl } from "./proxy";
+import { wrapStreamUrl, workerWrap } from "./proxy";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
@@ -37,7 +37,7 @@ async function fetchJson<T = any>(url: string, timeoutMs = 12000): Promise<T | n
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(url, {
+    const res = await fetch(workerWrap(url), {
       headers: HEADERS,
       signal: controller.signal,
       cache: "no-store",

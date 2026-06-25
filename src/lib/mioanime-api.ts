@@ -286,7 +286,7 @@ async function fetchReAnime(title: string, epNum: number, timeoutMs: number): Pr
         id: `reanime:${s.serverName}:${s.dataType}:${epNum}`,
         name: `Re:Anime ${s.serverName}`,
         type: isDub ? "dub" : "sub",
-        streamUrl: s.embedUrl, // Embed URL (flixcloud.cc/e/...) — loaded in iframe
+        streamUrl: wrapStreamUrl(s.embedUrl), // Wrap flixcloud.cc through aniwatchtv proxy (403 direct)
         quality: "auto",
         isM3U8: false,
         isMP4: false,
