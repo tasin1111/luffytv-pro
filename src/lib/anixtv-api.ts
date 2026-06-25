@@ -75,7 +75,15 @@ export async function anixtvGetVideoId(
   const watchUrl = `${ANIXTV_BASE}/anime-watch?action=hindi_${providerNum}_player&id=${anilistId}&season=${season}&episode=${episode}&title=${encodeURIComponent(title)}`;
 
   try {
-    const res = await fetch(watchUrl, {
+    // Route through our Cloudflare Worker — anixtv.in is Cloudflare-protected
+    // and blocks direct fetch from Vercel IPs (returns CF challenge page).
+    // The worker runs on Cloudflare's network → bypasses the challenge.
+    const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+    const fetchUrl = WORKER_BASE
+      ? `${WORKER_BASE}/proxy/raw?url=${encodeURIComponent(watchUrl)}`
+      : watchUrl;
+
+    const res = await fetch(fetchUrl, {
       headers: {
         "User-Agent": UA,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -84,12 +92,19 @@ export async function anixtvGetVideoId(
       },
       cache: "no-store",
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[AnixTV] watch page returned ${res.status}`);
+      return null;
+    }
     const html = await res.text();
 
     // Extract iframe src="https://as-cdn21.top/video/{videoId}"
     const m = html.match(/<iframe[^>]+src=["']https?:\/\/as-cdn\d+\.top\/video\/([a-f0-9]+)/i);
-    return m?.[1] || null;
+    if (!m) {
+      console.error(`[AnixTV] no iframe found in HTML (size=${html.length}, preview=${html.slice(0, 100)})`);
+      return null;
+    }
+    return m[1];
   } catch (err) {
     console.error("[AnixTV] Failed to fetch videoId:", err);
     return null;
