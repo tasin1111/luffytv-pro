@@ -157,22 +157,11 @@ export async function fetchAnikageSources(
       const src = data.sources[0];
       if (!src?.url) return null;
 
-      // Build proxied URL — route through cdn.animex.su with anikage referer
-      // The encoded URL goes to prox.anikage.cc/stream/{id}/index.txt
-      // prox.anikage.cc needs Origin: https://anikage.cc
-      // We wrap it through cdn.animex.su which sends the correct Origin
+      // Build proxied URL — route the anikage stream through our worker.
+      // prox.anikage.cc needs Origin: https://anikage.cc — our worker can add this
+      // via the REFERER_MAP. OLD approach used cdn.animex.su XOR wrapper — DEAD.
       const anikageProxyUrl = `https://prox.anikage.cc/stream/${src.url}/index.txt`;
-      
-      // Use cdn.animex.su to proxy the anikage proxy (double proxy, but works)
-      const key = "aproxy2026";
-      const keyBytes = Buffer.from(key);
-      const combined = Buffer.from(anikageProxyUrl + "\0" + "https://anikage.cc/");
-      const xored = Buffer.alloc(combined.length);
-      for (let i = 0; i < combined.length; i++) {
-        xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
-      }
-      const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const finalUrl = wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
+      const finalUrl = wrapStreamUrl(anikageProxyUrl);
 
       const isM3U8 = src.isM3U8 === true || src.quality?.includes("Hls");
       const hardsub = src.type === "hardsub" || (job.server === "neko" && !isM3U8);

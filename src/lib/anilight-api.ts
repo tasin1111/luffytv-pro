@@ -501,16 +501,10 @@ export async function fetchAniLightSources(
         const hasTracks = (data.tracks || []).length > 0;
         const hardsub = !hasTracks;
 
-        // Build proxy URL — route through cdn.animex.su (Anistream's proxy)
-        const key = "aproxy2026";
-        const keyBytes = Buffer.from(key);
-        const combined = Buffer.from(source.url + "\0https://kwik.cx/");
-        const xored = Buffer.alloc(combined.length);
-        for (let i = 0; i < combined.length; i++) {
-          xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
-        }
-        const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-        const streamUrl = wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
+        // Route the DIRECT stream URL through our worker.
+        // Worker adds Referer: https://kwik.cx/ (from REFERER_MAP) + CORS headers.
+        // OLD approach used cdn.animex.su XOR wrapper — DEAD as of 2026-06-25.
+        const streamUrl = wrapStreamUrl(source.url);
 
         const tracks = (data.tracks || []).filter(t => t?.url);
 

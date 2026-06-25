@@ -57,6 +57,13 @@ const REFERER_MAP = {
   "kwik.cx":               "https://kwik.cx/",
   // AniLight API (Cloudflare-protected — needs Referer: https://anilight.live/)
   "api.anilight.live":     "https://anilight.live/",
+  // 24stream.xyz CDN subdomains — need Referer from their parent site
+  "bd.24stream.xyz":       "https://animex.one/",
+  "hawk.24stream.xyz":     "https://animex.one/",
+  "mp4.24stream.xyz":      "https://animex.one/",
+  "ply.24stream.xyz":      "https://allanime.uns.bio/",
+  // nanobyte CDN — AniLight quality variants
+  "nanobyte.bigdreamsmalldih.site": "https://kwik.cx/",
   "www.animegg.org":       "https://www.animegg.org/",
   "youtu-chan.com":        "https://youtu-chan.com/",
   "gogoanime3.co":         "https://gogoanime3.co/",
@@ -110,6 +117,16 @@ const ALWAYS_PROXY_HOSTS = new Set([
   // (the worker runs on Cloudflare's network → bypasses the CF challenge)
   "api.anilight.live",
   "anilight.live",
+  // 24stream.xyz CDN subdomains — need Referer spoofing (403 without it).
+  // These serve the actual video segments for animex/anidap/anilight streams.
+  // NOTE: cdn.animex.su + pro.24stream.xyz + wave.24stream.xyz + wv.24stream.xyz
+  // are DEAD (DNS NXDOMAIN as of 2026-06-25). Do NOT add them.
+  "bd.24stream.xyz",
+  "hawk.24stream.xyz",
+  "mp4.24stream.xyz",
+  "ply.24stream.xyz",
+  // nanobyte CDN — AniLight quality variants (1080p/720p/360p)
+  "nanobyte.bigdreamsmalldih.site",
 ]);
 
 // Cache instance (only available in Worker runtime, not in tests)

@@ -94,9 +94,11 @@ export function unproxify(url: string): string {
  */
 // Hosts that already serve permissive CORS headers — load direct, skip the worker.
 // (Wrapping these through the worker just adds ~100ms latency for zero benefit.)
-const DIRECT_OK_HOSTS = [
-  "cdn.animex.su",       // Anistream's anime proxy — CORS: *, handles m3u8 + subtitles
-  "pro.24stream.xyz",    // Legacy fallback — same proxy format as cdn.animex.su
+//
+// NOTE: cdn.animex.su and pro.24stream.xyz are DEAD (DNS NXDOMAIN as of 2026-06-25).
+// Do NOT add them here — they will cause 530 errors in the worker.
+const DIRECT_OK_HOSTS: string[] = [
+  // (empty — all anime proxy CDNs are either dead or need Referer spoofing)
 ];
 
 function isDirectOk(url: string): boolean {

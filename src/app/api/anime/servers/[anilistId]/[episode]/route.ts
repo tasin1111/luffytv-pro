@@ -25,7 +25,7 @@ import {
   type AniDapProvider,
 } from "@/lib/anidap-api";
 import { fetchAniLightSources } from "@/lib/anilight-api";
-import { wrapStreamUrl } from "@/lib/proxy";
+import { wrapStreamUrl, wrapM3u8Url } from "@/lib/proxy";
 import {
   fetchAllKyrenSources,
   KYREN_SERVER_NAMES,
@@ -61,21 +61,15 @@ const ANIVEXA_PROVIDERS = ["animegg", "allmanga", "anikoto", "anineko"] as const
  * stream proxy because Anikuro 500s on those.
  */
 /**
- * Build a proxy URL using cdn.animex.su (Anistream's proxy).
- * Encoding: XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
- * This proxy handles m3u8 rewriting, AES keys, segments, CORS — everything.
- * cdn.animex.su has permissive CORS (access-control-allow-origin: *).
+ * Build a playable URL for a stream.
+ * Routes the DIRECT stream URL through our Cloudflare Worker.
+ * The worker adds the correct Referer header (from REFERER_MAP) + CORS headers.
+ * OLD approach used cdn.animex.su XOR wrapper — DEAD (DNS NXDOMAIN as of 2026-06-25).
  */
 function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = false): string {
-  const key = "aproxy2026";
-  const keyBytes = Buffer.from(key);
-  const combined = Buffer.from(streamUrl + "\0" + referer);
-  const xored = Buffer.alloc(combined.length);
-  for (let i = 0; i < combined.length; i++) {
-    xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
-  }
-  const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
+  // Use wrapM3u8Url for HLS (rewrites segment URLs), wrapStreamUrl for MP4.
+  // Both route through our worker when NEXT_PUBLIC_PROXY_BASE is set.
+  return isMP4 ? wrapStreamUrl(streamUrl) : wrapM3u8Url(streamUrl);
 }
 
 const ANIMEX_REFERERS: Record<string, string> = {
@@ -134,6 +128,26 @@ export async function GET(
     return NextResponse.json({ error: "Invalid anilistId" }, { status: 400 });
   }
 
+  // ─── Resolve anime title from AniList (needed for AnixTV search) ────────────
+  // AnixTV's watch URL requires the anime title as a query param — without it,
+  // AnixTV can't find the anime and returns no iframe → no hindi servers.
+  let animeTitle = "Anime";
+  try {
+    const titleRes = await fetch("https://graphql.anilist.co", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: `query($id:Int){Media(id:$id,type:ANIME){id title{english romaji native}}}`,
+        variables: { id },
+      }),
+    });
+    if (titleRes.ok) {
+      const titleData = await titleRes.json();
+      const t = titleData?.data?.Media?.title;
+      animeTitle = t?.english || t?.romaji || t?.native || "Anime";
+    }
+  } catch { /* fallback to "Anime" */ }
+
   // ─── Gather all candidate servers in parallel ─────────────────────
   interface Candidate {
     id: string; name: string;
@@ -162,7 +176,7 @@ export async function GET(
     // AnixTV: Hindi dubbed anime (anixtv.in / anixx.fun). Multi-audio HLS with
     // Hindi/Tamil/Telugu/Bengali/Malayalam/Marathi/Kannada/English/Korean/Japanese tracks.
     // Tries providers 1-5 in parallel; most anime only have provider 1.
-    anixtvFetchAllServers(id, epNum, "Anime", 1),
+    anixtvFetchAllServers(id, epNum, animeTitle, 1),
   ]);
 
   // Miruro

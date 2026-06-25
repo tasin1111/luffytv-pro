@@ -174,15 +174,15 @@ export async function GET(
     // ─── Build response ─────────────────────────────────────────────
     // For embed URLs: return the embed URL directly (no proxy — loaded in iframe)
     // For MP4: proxy through /api/anime/scraper/stream (Referer spoofing)
-    // For HLS: wrap through cdn.animex.su (CORS-friendly, handles m3u8 rewriting)
+    // For HLS: route DIRECT URL through our worker (Referer + CORS handled)
+    //   OLD approach used cdn.animex.su XOR wrapper — DEAD as of 2026-06-25.
     let proxyUrl: string;
     if (isEmbed) {
-      // Embed URLs go directly into an iframe — no proxy needed (iframe ignores CORS)
       proxyUrl = streamUrl;
     } else if (isMP4) {
       proxyUrl = `/api/anime/scraper/stream?url=${encodeURIComponent(streamUrl)}&ref=${encodeURIComponent(streamReferer)}`;
     } else {
-      proxyUrl = wrapM3u8Url(`https://cdn.animex.su/stream/${Buffer.from(`${streamUrl}|${streamReferer}`).toString("base64")}.m3u8`);
+      proxyUrl = wrapM3u8Url(streamUrl);
     }
 
     return NextResponse.json({

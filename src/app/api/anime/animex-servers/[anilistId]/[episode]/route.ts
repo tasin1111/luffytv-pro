@@ -55,16 +55,40 @@ const ANIMEX_SOFTSUB = new Set(["beep", "yuki"]);
 const FALLBACK_SUB_PROVIDERS = ["beep", "yuki", "miku", "neko", "mochi", "uwu"];
 const FALLBACK_DUB_PROVIDERS = ["yuki", "miku", "mochi", "uwu"];
 
+/**
+ * Build a playable URL for a stream.
+ *
+ * OLD approach (BROKEN): XOR-encode the URL and route through cdn.animex.su.
+ *   cdn.animex.su is DEAD (DNS NXDOMAIN as of 2026-06-25) — all such URLs return 530.
+ *
+ * NEW approach: Route the DIRECT stream URL through our Cloudflare Worker.
+ *   The worker adds the correct Referer header (from REFERER_MAP) and bypasses CORS.
+ *   For CDN-swapped URLs (bd.24stream.xyz etc.), the worker also handles Referer.
+ *
+ * If the URL is already on a 24stream.xyz CDN (post-swap), it's direct — just wrap
+ * through the worker for Referer + CORS.
+ * Otherwise (e.g. vibeplayer.site, animeapps.top), wrap through worker too.
+ */
 function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = false): string {
-  const key = "aproxy2026";
-  const keyBytes = Buffer.from(key);
-  const combined = Buffer.from(streamUrl + "\0" + referer);
-  const xored = Buffer.alloc(combined.length);
-  for (let i = 0; i < combined.length; i++) {
-    xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
+  // Route through our worker — it will add Referer based on the hostname
+  const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+  if (!PROXY_BASE) {
+    // Fallback: use the old XOR wrapper (will fail if cdn.animex.su is down,
+    // but at least doesn't crash). Prefer m3u8 mode for HLS, raw for MP4.
+    const key = "aproxy2026";
+    const keyBytes = Buffer.from(key);
+    const combined = Buffer.from(streamUrl + "\0" + referer);
+    const xored = Buffer.alloc(combined.length);
+    for (let i = 0; i < combined.length; i++) {
+      xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
+    }
+    const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return `https://cdn.animex.su/stream/${b64}/index.txt`;
   }
-  const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return `https://cdn.animex.su/stream/${b64}/index.txt`;
+  // Use /proxy/m3u8 for HLS (rewrites segment URLs inside the manifest),
+  // /proxy/raw for MP4 (pass-through).
+  const mode = isMP4 ? "raw" : "m3u8";
+  return `${PROXY_BASE}/proxy/${mode}?url=${encodeURIComponent(streamUrl)}`;
 }
 
 export async function GET(

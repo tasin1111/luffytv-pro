@@ -99,16 +99,10 @@ async function fetchAniZone(title: string, epNum: number, timeoutMs: number): Pr
     const results: MioSource[] = [];
     for (const src of sources) {
       if (!src.url) continue;
-      // Route through cdn.animex.su proxy with anizone referer
-      const key = "aproxy2026";
-      const keyBytes = Buffer.from(key);
-      const combined = Buffer.from(src.url + "\0" + "https://anizone.to");
-      const xored = Buffer.alloc(combined.length);
-      for (let i = 0; i < combined.length; i++) {
-        xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
-      }
-      const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const proxyUrl = wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
+      // Route the DIRECT stream URL through our worker.
+      // Worker adds Referer: https://anizone.to (from REFERER_MAP) + CORS headers.
+      // OLD approach used cdn.animex.su XOR wrapper — DEAD as of 2026-06-25.
+      const proxyUrl = wrapStreamUrl(src.url);
 
       results.push({
         id: `anizone:${ep.id}`,
@@ -189,16 +183,10 @@ async function fetchSenshi(malId: number, epNum: number, timeoutMs: number): Pro
       const url = s.resolvedStreamUrl || s.originalUrl;
       if (!url) continue;
 
-      // Route through cdn.animex.su proxy
-      const key = "aproxy2026";
-      const keyBytes = Buffer.from(key);
-      const combined = Buffer.from(url + "\0" + "https://senshi.live/");
-      const xored = Buffer.alloc(combined.length);
-      for (let i = 0; i < combined.length; i++) {
-        xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
-      }
-      const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const proxyUrl = wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
+      // Route the DIRECT stream URL through our worker.
+      // Worker adds Referer: https://senshi.live/ (from REFERER_MAP) + CORS headers.
+      // OLD approach used cdn.animex.su XOR wrapper — DEAD as of 2026-06-25.
+      const proxyUrl = wrapStreamUrl(url);
 
       results.push({
         id: `senshi:${s.server}:${s.status}`,

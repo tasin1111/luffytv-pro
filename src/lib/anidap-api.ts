@@ -286,47 +286,26 @@ export function buildAniDapProxyUrl(streamUrl: string, isMP4 = false, provider?:
   // Step 1: Apply provider-specific CDN swap (direct mirror, no proxy needed)
   const swapped = provider ? applyCdnSwap(streamUrl, provider) : streamUrl;
 
-  // Step 2: If the swap produced a 24stream.xyz URL, return it directly —
-  // these subdomains (bd, hawk, wave, wv, ply, mp4) serve files without
-  // Cloudflare bot protection and have permissive CORS.
+  // Step 2: If the swap produced a 24stream.xyz URL, route through worker for Referer.
+  // (bd/hawk/mp4/ply.24stream.xyz return 403 without proper Referer — our worker
+  // adds the correct Referer from REFERER_MAP.)
   if (/^https?:\/\/[^/]*\.24stream\.xyz\//.test(swapped)) {
-    return swapped;
+    return wrapStreamUrl(swapped);
   }
 
-  // Step 3: Otherwise, wrap through cdn.animex.su (Anistream's proxy)
-  // Encoding: XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
-  const referer = provider
-    ? (ANIDAP_PROVIDER_REFERER[provider] || ANIDAP_STREAM_REFERER)
-    : ANIDAP_STREAM_REFERER;
-  const key = "aproxy2026";
-  const keyBytes = Buffer.from(key);
-  const combined = Buffer.from(swapped + "\0" + referer);
-  const xored = Buffer.alloc(combined.length);
-  for (let i = 0; i < combined.length; i++) {
-    xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
-  }
-  const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
+  // Step 3: For non-24stream URLs (e.g. vibeplayer.site, animeonsen.xyz),
+  // route through our worker — it adds the correct Referer per hostname.
+  // OLD approach used cdn.animex.su XOR wrapper — DEAD as of 2026-06-25.
+  return wrapStreamUrl(swapped);
 }
 
 /**
  * Build a proxy URL for an AniDap WebVTT subtitle track.
- * Subtitle files on `1oe.lostproject.club` are Cloudflare-protected, and
- * proxy.anikuro.to returns 500 for them. So we route subtitle URLs through
- * our OWN /api/anime/scraper/stream proxy which uses axios (different TLS
- * fingerprint than fetch — bypasses some CF challenges).
+ * Route through our worker — it handles Referer + CORS.
+ * OLD approach used cdn.animex.su XOR wrapper — DEAD as of 2026-06-25.
  */
 export function buildAniDapSubtitleProxyUrl(subtitleUrl: string): string {
-  // Route subtitles through cdn.animex.su too
-  const key = "aproxy2026";
-  const keyBytes = Buffer.from(key);
-  const combined = Buffer.from(subtitleUrl + "\0" + ANIDAP_STREAM_REFERER);
-  const xored = Buffer.alloc(combined.length);
-  for (let i = 0; i < combined.length; i++) {
-    xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
-  }
-  const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
+  return wrapStreamUrl(subtitleUrl);
 }
 
 // ─── Convenience: fetch from many providers in parallel ───────────────────────
