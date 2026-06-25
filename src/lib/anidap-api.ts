@@ -464,36 +464,11 @@ export async function fetchAllAniDapSources(
         const m3u8 = isHls(playable);
         const mp4 = isMp4(playable);
 
-        // ── VERIFY the stream URL actually responds (HEAD request, 5s timeout).
-        // This filters out dead providers — AniDap's /sources endpoint often
-        // returns URLs that 404 or timeout. Without this, the watch page would
-        // show servers that just fail when the user clicks play.
-        //
-        // We verify the FINAL proxy URL (cdn.animex.su/...) since that's what
-        // the browser will actually fetch. Skip verification for direct CDN
-        // URLs (bd.24stream.xyz etc.) — they're reliable.
+        // ── VERIFICATION REMOVED ──
+        // HEAD verification was killing valid servers (CDNs return 403 on HEAD
+        // but 200 on GET, time-limited URLs expire, etc.)
+        // Return ALL servers — player retries on failure.
         const proxyUrl = buildAniDapProxyUrl(playable.url, mp4, job.provider);
-        const needsVerify = !proxyUrl.includes("24stream.xyz");
-        if (needsVerify) {
-          try {
-            const verifyResp = await Promise.race([
-              fetch(proxyUrl, {
-                method: "HEAD",
-                headers: { "User-Agent": "Mozilla/5.0" },
-                cache: "no-store",
-                redirect: "follow",
-              }),
-              new Promise<Response | null>(r => setTimeout(() => r(null), 5000)),
-            ]);
-            if (!verifyResp || verifyResp.status >= 400) {
-              console.log(`[AniDap] SKIP ${job.provider}:${job.type} — verify failed (${verifyResp?.status || "timeout"})`);
-              return null;
-            }
-          } catch {
-            console.log(`[AniDap] SKIP ${job.provider}:${job.type} — verify error`);
-            return null;
-          }
-        }
 
         // Parse intro/outro from chapters
         const chapters = data.chapters || [];

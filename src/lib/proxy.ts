@@ -38,13 +38,18 @@ const CDN_REFERERS: Record<string, string> = {
   "hawk.24stream.xyz":     "https://animex.one/",
   "mp4.24stream.xyz":      "https://animex.one/",
   "ply.24stream.xyz":      "https://allanime.uns.bio/",
-  // Miruro CDNs
+  // Miruro CDNs — need megaplay.buzz Referer (NOT miruro.tv!)
   "hls.anidb.app":         "https://www.miruro.tv/",
   "mt.nekostream.site":    "https://www.miruro.tv/",
-  "vault-16.owocdn.top":   "https://www.miruro.tv/",
+  "vault-16.owocdn.top":   "https://megaplay.buzz/",
   "hls.krussdomi.com":     "https://www.miruro.tv/",
-  "s1.streamzone1.site":   "https://www.miruro.tv/",
+  "s1.streamzone1.site":   "https://megaplay.buzz/",
   "cdn.mewstream.buzz":    "https://www.miruro.tv/",
+  // vibeplayer / vivibebe (same site, different domain)
+  "vibeplayer.site":       "https://megaplay.buzz/",
+  "vivibebe.site":         "https://megaplay.buzz/",
+  // playeng
+  "playeng.animeapps.top": "https://animex.one/",
   // MegaPlay
   "megaplay.buzz":         "https://anikototv.to/",
   // AniLight quality variants
@@ -53,11 +58,21 @@ const CDN_REFERERS: Record<string, string> = {
   "kwik.cx":               "https://kwik.cx/",
   // AniKage
   "prox.anikage.cc":       "https://anikage.cc/",
-  // vibeplayer
-  "vibeplayer.site":       "https://megaplay.buzz/",
-  // playeng
-  "playeng.animeapps.top": "https://animex.one/",
+  // allanime
+  "allanime.uns.bio":      "https://allanime.uns.bio/",
+  // harmonix (miku provider)
+  "soq6.harmonixwellnessgroup.store": "https://allanime.uns.bio/",
 };
+
+// CDNs that our worker CAN'T fetch (return 403) — use animanga.fun instead.
+// These CDNs block Cloudflare Worker IPs or need special TLS fingerprint.
+const ANIMANGA_ONLY_HOSTS = new Set([
+  "vault-16.owocdn.top",
+  "mt.nekostream.site",
+  "vibeplayer.site",
+  "vivibebe.site",
+  "nanobyte.bigdreamsmalldih.site",
+]);
 
 function getRefererFor(url: string): string {
   try {
@@ -73,18 +88,30 @@ function getRefererFor(url: string): string {
 
 /**
  * Build a proxy URL for OUR Cloudflare Worker with the correct Referer header.
- * Format: https://your-worker.workers.dev/proxy?url={url}&headers={"Referer":"..."}
- *
- * If NEXT_PUBLIC_PROXY_BASE is not set, falls back to /api/hls-proxy (legacy).
+ * For CDNs that block our worker (ANIMANGA_ONLY_HOSTS), use animanga.fun instead.
  */
 function buildProxyUrl(url: string): string {
   const referer = getRefererFor(url);
   const headers = JSON.stringify({ Referer: referer });
-  if (!WORKER_PROXY) {
-    // Fallback: legacy Next.js route (works but slower — hits Vercel server)
-    return `/api/hls-proxy?url=${encodeURIComponent(url)}`;
+  const encodedUrl = encodeURIComponent(url);
+  const encodedHeaders = encodeURIComponent(headers);
+
+  // Check if this CDN is blocked on our worker — use animanga.fun
+  let hostname = "";
+  try { hostname = new URL(url).hostname; } catch {}
+
+  const useAnimanga = ANIMANGA_ONLY_HOSTS.has(hostname) ||
+                      ANIMANGA_ONLY_HOSTS.has(hostname.replace(/^[^.]+\./, ""));
+
+  if (useAnimanga) {
+    return `https://upcloud.animanga.fun/proxy?url=${encodedUrl}&headers=${encodedHeaders}`;
   }
-  return `${WORKER_PROXY}/proxy?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(headers)}`;
+
+  // Use our worker for everything else
+  if (!WORKER_PROXY) {
+    return `/api/hls-proxy?url=${encodedUrl}`;
+  }
+  return `${WORKER_PROXY}/proxy?url=${encodedUrl}&headers=${encodedHeaders}`;
 }
 
 /**
