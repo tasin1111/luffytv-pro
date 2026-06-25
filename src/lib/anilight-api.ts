@@ -56,6 +56,18 @@ const HEADERS: Record<string, string> = {
   "Accept-Language": "en-US,en;q=0.9",
 };
 
+// ─── Worker proxy helper ────────────────────────────────────────────────────
+// AniLight's API is Cloudflare-protected — direct fetch from Vercel IPs gets
+// the "Just a moment..." CF challenge page instead of JSON.
+// Route ALL AniLight API calls through our Cloudflare Worker, which runs on
+// Cloudflare's own network and bypasses the challenge.
+const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+
+function workerWrap(url: string): string {
+  if (!WORKER_BASE) return url;  // fallback: try direct (will fail on Vercel but works locally)
+  return `${WORKER_BASE}/proxy/raw?url=${encodeURIComponent(url)}`;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface AniLightSearchResult {
@@ -149,7 +161,7 @@ export async function resolveMalId(anilistId: number): Promise<number | null> {
 export async function searchAniLight(query: string): Promise<AniLightSearchResult[]> {
   try {
     const res = await fetch(
-      `${ANILIGHT_API}/search?q=${encodeURIComponent(query)}`,
+      workerWrap(`${ANILIGHT_API}/search?q=${encodeURIComponent(query)}`),
       { headers: HEADERS, cache: "no-store" }
     );
     if (!res.ok) return [];
@@ -157,6 +169,85 @@ export async function searchAniLight(query: string): Promise<AniLightSearchResul
     return Array.isArray(data) ? data : [];
   } catch {
     return [];
+  }
+}
+
+// ─── AniList ID → AniLight slug resolver (with cache) ────────────────────────
+
+const slugCache = new Map<number, { slug: string; anilightId: number } | null>();
+
+/**
+ * Resolve AniList ID → AniLight slug + internal ID.
+ * Uses AniList GraphQL to get the English title, then searches AniLight.
+ */
+export async function resolveAniLightSlug(anilistId: number): Promise<{ slug: string; anilightId: number } | null> {
+  if (slugCache.has(anilistId)) return slugCache.get(anilistId)!;
+
+  try {
+    // Step 1: Get anime title from AniList
+    const res = await fetch(ANILIST_GRAPHQL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "User-Agent": UA },
+      body: JSON.stringify({
+        query: `query($id:Int){Media(id:$id,type:ANIME){id title{english romaji native}}}`,
+        variables: { id: anilistId },
+      }),
+    });
+    if (!res.ok) { slugCache.set(anilistId, null); return null; }
+    const data = await res.json();
+    const title = data?.data?.Media?.title?.english || data?.data?.Media?.title?.romaji;
+    if (!title) { slugCache.set(anilistId, null); return null; }
+
+    // Step 2: Search AniLight by title
+    const results = await searchAniLight(title);
+    const match = results.find(r => r.anilistId === anilistId) || results[0];
+    if (!match?.slug || !match?.id) { slugCache.set(anilistId, null); return null; }
+
+    const result = { slug: match.slug, anilightId: match.id };
+    slugCache.set(anilistId, result);
+    console.log(`[AniLight] anilistId=${anilistId} → slug=${result.slug}, anilightId=${result.anilightId}`);
+    return result;
+  } catch {
+    slugCache.set(anilistId, null);
+    return null;
+  }
+}
+
+// ─── Watch by slug (returns episode list + server providers) ─────────────────
+
+export interface AniLightWatchBySlugResponse {
+  id: number;
+  episodes: Array<{
+    number: number;
+    title: string;
+    embed_url?: { sub?: string; dub?: string };
+  }>;
+  servers: {
+    subProviders: Array<{ id: string; tip: string; default: boolean }>;
+    dubProviders: Array<{ id: string; tip: string; default: boolean }>;
+  };
+  nextAiringEpisode?: any;
+}
+
+/**
+ * Method 1: Fetch watch data by slug.
+ * Returns the AniLight internal ID + episode list + server provider IDs.
+ * Use the internal ID + provider IDs with /api/sources to get stream URLs.
+ */
+export async function getAniLightWatchBySlug(
+  slug: string,
+  timeoutMs = 8000
+): Promise<AniLightWatchBySlugResponse | null> {
+  const url = `${ANILIGHT_API}/watch/${slug}`;
+  try {
+    const res = await Promise.race([
+      fetch(workerWrap(url), { headers: HEADERS, cache: "no-store" }),
+      new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
+    ]);
+    if (!res || !res.ok) return null;
+    return await res.json() as AniLightWatchBySlugResponse;
+  } catch {
+    return null;
   }
 }
 
@@ -170,7 +261,7 @@ export async function getAniLightWatch(
   const url = `${ANILIGHT_API}/watch/mal?id=${malId}&epNum=${epNum}`;
   try {
     const res = await Promise.race([
-      fetch(url, { headers: HEADERS, cache: "no-store" }),
+      fetch(workerWrap(url), { headers: HEADERS, cache: "no-store" }),
       new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
     ]);
     if (!res || !res.ok) return null;
@@ -246,18 +337,23 @@ export interface AniLightServerResponse {
 /**
  * Fetch sources from a specific AniLight server (Death Note name).
  * Uses the /api/sources endpoint (different from /api/watch/mal).
+ *
+ * @param anilightId  AniLight INTERNAL ID (from /api/watch/{slug} response, NOT AniList ID)
+ * @param epNum       Episode number
+ * @param type        "sub" or "dub"
+ * @param server      Server provider ID (e.g. "light", "misa", "near", "ryu")
  */
 export async function getAniLightServerSources(
-  anilistId: number,
+  anilightId: number,
   epNum: number,
   type: "sub" | "dub",
   server: string,
   timeoutMs = 8000
 ): Promise<AniLightServerResponse | null> {
-  const url = `${ANILIGHT_API}/sources?id=${anilistId}&epNum=${epNum}&type=${type}&providerId=${server}`;
+  const url = `${ANILIGHT_API}/sources?id=${anilightId}&epNum=${epNum}&type=${type}&providerId=${server}`;
   try {
     const res = await Promise.race([
-      fetch(url, { headers: HEADERS, cache: "no-store" }),
+      fetch(workerWrap(url), { headers: HEADERS, cache: "no-store" }),
       new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
     ]);
     if (!res || !res.ok) return null;
@@ -290,13 +386,24 @@ export interface AniLightVerifiedResult {
 /**
  * Fetch ALL AniLight servers for an anime episode.
  *
- * Returns TWO types of servers:
- *   1. Quality variants from /api/watch/mal: AniLight 1080p, AniLight 720p, AniLight 360p
- *      (these come from nanobyte.bigdreamsmalldih.site — ESA CDN, plays directly)
- *   2. Death Note servers from /api/sources: AniLight Light, Near, Ryu, Misa, Kiwi,
- *      Misora, Raye, Rem (each returns a DIFFERENT stream URL)
+ * Uses BOTH methods the user described:
  *
- * Both types show with "AniLight" prefix in the watch page.
+ * METHOD 1 (by slug):
+ *   1. Resolve AniList ID → AniLight slug + internal ID (via /api/search)
+ *   2. Call /api/watch/{slug} → get episode list + server provider IDs
+ *      (subProviders + dubProviders — each has {id, tip, default})
+ *   3. For each provider ID, call /api/sources?id={anilightId}&epNum={ep}&type={sub|dub}&providerId={id}
+ *      → returns { sources: [{url, quality, type}], tracks, chapters }
+ *
+ * METHOD 2 (by MAL ID):
+ *   1. Resolve AniList ID → MAL ID (via AniList GraphQL)
+ *   2. Call /api/watch/mal?id={malId}&epNum={ep}
+ *      → returns { stream: { sub: { qualities: [{quality, url}] }, dub: {...} }, tracks }
+ *      (multi-quality streams from nanobyte.bigdreamsmalldih.site — ESA CDN, plays directly)
+ *      (also returns captions/subtitles in tracks field)
+ *
+ * Both methods run in parallel. Results are merged — quality variants from Method 2
+ * + Death Note servers from Method 1.
  */
 export async function fetchAniLightSources(
   anilistId: number,
@@ -309,98 +416,125 @@ export async function fetchAniLightSources(
 
   const verified: AniLightVerifiedResult[] = [];
 
-  // ─── Step 1: Fetch quality variants (1080p/720p/360p) via /api/watch/mal ──
-  // These come from nanobyte.bigdreamsmalldih.site (ESA CDN) — play DIRECTLY.
-  const malId = await resolveMalId(anilistId);
-  if (malId) {
-    const watchData = await getAniLightWatch(malId, epNum, timeoutMs);
-    if (watchData?.stream) {
-      const tracks = (watchData.tracks || []).filter(t => t?.url);
+  // ─── Run Method 1 (by slug) + Method 2 (by MAL ID) in parallel ────────────
+  const [slugResult, malResult] = await Promise.allSettled([
+    // Method 1: resolve slug + fetch server list + fetch sources for each server
+    (async () => {
+      const slugInfo = await resolveAniLightSlug(anilistId);
+      if (!slugInfo) return null;
+      const watchData = await getAniLightWatchBySlug(slugInfo.slug, timeoutMs);
+      if (!watchData) return null;
+      return { slugInfo, watchData };
+    })(),
+    // Method 2: resolve MAL ID + fetch quality variants
+    (async () => {
+      const malId = await resolveMalId(anilistId);
+      if (!malId) return null;
+      const watchData = await getAniLightWatch(malId, epNum, timeoutMs);
+      return watchData;
+    })(),
+  ]);
 
-      const collectQualities = (side: AniLightStreamSide, type: "sub" | "dub") => {
-        if (!side?.success || !side.qualities?.length) return;
-        for (const q of side.qualities) {
-          if (!q.url) continue;
-          verified.push({
-            server: q.quality,  // "1080p", "720p", "360p"
-            type,
-            streamUrl: q.url,   // direct ESA CDN URL — no proxy needed
-            quality: q.quality,
-            isM3U8: true,
-            isMP4: false,
-            hardsub: false,     // quality variants are soft sub (have VTT tracks)
-            tracks,
-          });
-        }
-      };
+  // ─── Method 2 results: quality variants (1080p/720p/360p) ─────────────────
+  let qualityCount = 0;
+  if (malResult.status === "fulfilled" && malResult.value?.stream) {
+    const watchData = malResult.value;
+    const tracks = (watchData.tracks || []).filter(t => t?.url);
 
-      if (wantSub) collectQualities(watchData.stream.sub, "sub");
-      if (wantDub) collectQualities(watchData.stream.dub, "dub");
-      console.log(`[AniLight] quality variants: ${verified.length} servers from /api/watch/mal`);
-    }
-  }
-
-  // ─── Step 2: Fetch Death Note servers via /api/sources ─────────────────────
-  const jobs: Array<{ server: string; type: "sub" | "dub" }> = [];
-  if (wantSub) {
-    for (const s of ANILIGHT_SERVERS) jobs.push({ server: s, type: "sub" });
-  }
-  if (wantDub) {
-    for (const s of ANILIGHT_SERVERS) jobs.push({ server: s, type: "dub" });
-  }
-
-  console.log(`[AniLight] trying ${jobs.length} Death Note server×type combos`);
-
-  const results = await Promise.allSettled(
-    jobs.map(async (job): Promise<AniLightVerifiedResult | null> => {
-      const data = await getAniLightServerSources(anilistId, epNum, job.type, job.server, timeoutMs);
-      if (!data?.sources?.length) return null;
-
-      const source = data.sources[0];
-      if (!source?.url) return null;
-
-      const isHls = source.type?.includes("mpegurl") || source.url.includes(".m3u8");
-      const isMp4 = source.type?.includes("mp4") || source.url.includes(".mp4");
-
-      // Determine hardsub: servers with VTT tracks are soft sub
-      const hasTracks = (data.tracks || []).length > 0;
-      const hardsub = !hasTracks;
-
-      // Build proxy URL — route through cdn.animex.su (Anistream's proxy)
-      // Encoding: XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
-      const key = "aproxy2026";
-      const keyBytes = Buffer.from(key);
-      const combined = Buffer.from(source.url + "\0https://kwik.cx/");
-      const xored = Buffer.alloc(combined.length);
-      for (let i = 0; i < combined.length; i++) {
-        xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
+    const collectQualities = (side: AniLightStreamSide, type: "sub" | "dub") => {
+      if (!side?.success || !side.qualities?.length) return;
+      for (const q of side.qualities) {
+        if (!q.url) continue;
+        verified.push({
+          server: q.quality,  // "1080p", "720p", "360p"
+          type,
+          streamUrl: q.url,   // direct ESA CDN URL — no proxy needed
+          quality: q.quality,
+          isM3U8: true,
+          isMP4: false,
+          hardsub: false,     // quality variants are soft sub (have VTT tracks)
+          tracks,
+        });
+        qualityCount++;
       }
-      const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-      const streamUrl = wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
+    };
 
-      const tracks = (data.tracks || []).filter(t => t?.url);
+    if (wantSub) collectQualities(watchData.stream.sub, "sub");
+    if (wantDub) collectQualities(watchData.stream.dub, "dub");
+    console.log(`[AniLight] Method 2 (MAL): ${qualityCount} quality variants`);
+  }
 
-      return {
-        server: job.server,
-        type: job.type,
-        streamUrl,
-        quality: source.quality || "auto",
-        isM3U8: isHls,
-        isMP4: isMp4,
-        hardsub,
-        tracks,
-      };
-    })
-  );
-
+  // ─── Method 1 results: Death Note servers (light, misa, near, etc.) ───────
   let deathNoteCount = 0;
-  for (const r of results) {
-    if (r.status === "fulfilled" && r.value) {
-      verified.push(r.value);
-      deathNoteCount++;
+  if (slugResult.status === "fulfilled" && slugResult.value) {
+    const { slugInfo, watchData } = slugResult.value;
+
+    // Build job list from the DYNAMIC server list returned by /api/watch/{slug}
+    // (instead of the old hardcoded ANILIGHT_SERVERS list)
+    const jobs: Array<{ server: string; type: "sub" | "dub" }> = [];
+    if (wantSub) {
+      for (const p of (watchData.servers?.subProviders || [])) {
+        jobs.push({ server: p.id, type: "sub" });
+      }
+    }
+    if (wantDub) {
+      for (const p of (watchData.servers?.dubProviders || [])) {
+        jobs.push({ server: p.id, type: "dub" });
+      }
+    }
+
+    console.log(`[AniLight] Method 1 (slug): ${slugInfo.slug} anilightId=${slugInfo.anilightId} — ${jobs.length} server×type combos`);
+
+    const results = await Promise.allSettled(
+      jobs.map(async (job): Promise<AniLightVerifiedResult | null> => {
+        // Use the AniLight INTERNAL ID (not AniList ID) for /api/sources
+        const data = await getAniLightServerSources(slugInfo.anilightId, epNum, job.type, job.server, timeoutMs);
+        if (!data?.sources?.length) return null;
+
+        const source = data.sources[0];
+        if (!source?.url) return null;
+
+        const isHls = source.type?.includes("mpegurl") || source.url.includes(".m3u8");
+        const isMp4 = source.type?.includes("mp4") || source.url.includes(".mp4");
+
+        // Determine hardsub: servers with VTT tracks are soft sub
+        const hasTracks = (data.tracks || []).length > 0;
+        const hardsub = !hasTracks;
+
+        // Build proxy URL — route through cdn.animex.su (Anistream's proxy)
+        const key = "aproxy2026";
+        const keyBytes = Buffer.from(key);
+        const combined = Buffer.from(source.url + "\0https://kwik.cx/");
+        const xored = Buffer.alloc(combined.length);
+        for (let i = 0; i < combined.length; i++) {
+          xored[i] = combined[i] ^ keyBytes[i % keyBytes.length];
+        }
+        const b64 = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        const streamUrl = wrapStreamUrl(`https://cdn.animex.su/stream/${b64}/index.txt`);
+
+        const tracks = (data.tracks || []).filter(t => t?.url);
+
+        return {
+          server: job.server,
+          type: job.type,
+          streamUrl,
+          quality: source.quality || "auto",
+          isM3U8: isHls,
+          isMP4: isMp4,
+          hardsub,
+          tracks,
+        };
+      })
+    );
+
+    for (const r of results) {
+      if (r.status === "fulfilled" && r.value) {
+        verified.push(r.value);
+        deathNoteCount++;
+      }
     }
   }
 
-  console.log(`[AniLight] ${verified.length} total servers (${verified.length - deathNoteCount} quality variants + ${deathNoteCount} Death Note servers)`);
+  console.log(`[AniLight] ${verified.length} total servers (${qualityCount} quality + ${deathNoteCount} Death Note)`);
   return verified;
 }

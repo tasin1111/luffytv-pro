@@ -55,6 +55,8 @@ const REFERER_MAP = {
   "megaplay.buzz":         "https://megaplay.buzz/",
   "vibeplayer.site":       "https://vibeplayer.site/",
   "kwik.cx":               "https://kwik.cx/",
+  // AniLight API (Cloudflare-protected — needs Referer: https://anilight.live/)
+  "api.anilight.live":     "https://anilight.live/",
   "www.animegg.org":       "https://www.animegg.org/",
   "youtu-chan.com":        "https://youtu-chan.com/",
   "gogoanime3.co":         "https://gogoanime3.co/",
@@ -104,6 +106,10 @@ const ALWAYS_PROXY_HOSTS = new Set([
   "kwik.cx",
   "www.animegg.org",
   "youtu-chan.com",
+  // AniLight API — Cloudflare-protected, must be proxied through the worker
+  // (the worker runs on Cloudflare's network → bypasses the CF challenge)
+  "api.anilight.live",
+  "anilight.live",
 ]);
 
 // Cache instance (only available in Worker runtime, not in tests)
