@@ -250,7 +250,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   interface ServerEntry {
     id: string;
     name: string;
-    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv";
+    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream";
     provider: string;
     type: "sub" | "dub";
     quality?: string;
@@ -557,20 +557,35 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
       .then(data => {
         if (cancelled) return;
         if (!data?.servers?.length) {
-          setStreamLoading(false);
-          setStreamError("No servers available for this episode.");
+          // Don't overwrite if animex servers already loaded (they arrive via separate fetch)
+          setServerList(prev => {
+            if (prev.length > 0) {
+              setStreamLoading(false);
+              return prev;
+            }
+            setStreamLoading(false);
+            setStreamError("No servers available for this episode.");
+            return [];
+          });
           return;
         }
-        setServerList(data.servers);
-        // Detect what's available: hard sub, soft sub, dub, hindi
-        const hasDub = data.servers.some((s: ServerEntry) => s.type === "dub" && s.source !== "anixtv");
-        const hasHardsub = data.servers.some((s: ServerEntry) => s.type === "sub" && s.hardsub === true);
-        const hasSoftsub = data.servers.some((s: ServerEntry) => s.type === "sub" && s.hardsub !== true);
-        const hasHindi = data.servers.some((s: ServerEntry) => s.source === "anixtv");
-        setDubAvailable(hasDub);
-        setHardsubAvailable(hasHardsub);
-        setSoftsubAvailable(hasSoftsub);
-        setHindiAvailable(hasHindi);
+        // MERGE with existing servers (animex may have arrived first via separate fetch).
+        // Don't overwrite — append new servers that don't already exist.
+        setServerList(prev => {
+          const existingIds = new Set(prev.map(s => s.id));
+          const newServers = data.servers.filter((s: ServerEntry) => !existingIds.has(s.id));
+          const combined = [...prev, ...newServers];
+          // Update availability flags based on the combined list
+          const hasDub = combined.some((s: ServerEntry) => s.type === "dub" && s.source !== "anixtv");
+          const hasHardsub = combined.some((s: ServerEntry) => s.type === "sub" && s.hardsub === true);
+          const hasSoftsub = combined.some((s: ServerEntry) => s.type === "sub" && s.hardsub !== true);
+          const hasHindi = combined.some((s: ServerEntry) => s.source === "anixtv");
+          setDubAvailable(hasDub);
+          setHardsubAvailable(hasHardsub);
+          setSoftsubAvailable(hasSoftsub);
+          setHindiAvailable(hasHindi);
+          return combined;
+        });
 
         // Auto-select first server matching current translation mode.
         // Translation modes: "sub" (soft sub preferred, falls back to hardsub),

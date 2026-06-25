@@ -34,6 +34,7 @@ import {
 import { fetchAnikageSources } from "@/lib/anikage-api";
 import { fetchMioAnimeSources } from "@/lib/mioanime-api";
 import { anixtvFetchAllServers } from "@/lib/anixtv-api";
+import { fetchAnistreamSources } from "@/lib/anistream-api";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -85,7 +86,7 @@ const ANIMEX_REFERERS: Record<string, string> = {
 interface VerifiedServer {
   id: string;
   name: string;
-  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv";
+  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream";
   provider: string;
   type: "sub" | "dub";
   quality: string;
@@ -159,7 +160,7 @@ export async function GET(
   // Fire AniDap resolver + sources fetch in parallel with the other sources.
   // AniDap gives us 11 providers × 2 types (sub/dub) — all verified playable.
   // Also fire AniLight + Kyren in parallel — both return direct-playable streams.
-  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults, anixtvResults] = await Promise.allSettled([
+  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults, anixtvResults, anistreamResults] = await Promise.allSettled([
     fetchRawEpisodes(id),
     (async () => {
       const anime = await animexGetAnime(id);
@@ -169,14 +170,18 @@ export async function GET(
     fetch(`${ANIVAULT_API}/${id}/${epNum}/sub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/dub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
     fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: 5000 }),
-    fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 8000 }),
-    fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 8000 }),
-    fetchAnikageSources(id, epNum, { timeoutMs: 10000 }),
-    fetchMioAnimeSources(id, epNum, { timeoutMs: 10000 }),
+    fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 6000 }),
+    fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 6000 }),
+    fetchAnikageSources(id, epNum, { timeoutMs: 7000 }),
+    fetchMioAnimeSources(id, epNum, { timeoutMs: 7000 }),
     // AnixTV: Hindi dubbed anime (anixtv.in / anixx.fun). Multi-audio HLS with
     // Hindi/Tamil/Telugu/Bengali/Malayalam/Marathi/Kannada/English/Korean/Japanese tracks.
     // Tries providers 1-5 in parallel; most anime only have provider 1.
     anixtvFetchAllServers(id, epNum, animeTitle, 1),
+    // Anistream.one: uses api.anistream.one (OWN REST API, NOT Cloudflare-protected).
+    // Returns DIRECT stream URLs — no XOR wrapper, no cdn.animex.su needed.
+    // Has embed providers too (ok.ru, mp4upload) for some servers.
+    fetchAnistreamSources(id, epNum, { sub: true, dub: true, timeoutMs: 6000 }),
   ]);
 
   // Miruro
@@ -402,6 +407,34 @@ export async function GET(
   }];
   console.log(`[Servers] MegaPlay: 1 server (Hindi dub embed — always available)`);
 
+  // Anistream.one (api.anistream.one — OWN REST API, not CF-protected)
+  // Returns DIRECT stream URLs — no XOR wrapper, no cdn.animex.su needed.
+  // Has embed providers (ok.ru, mp4upload) + HLS providers (beep, yuki, mimi, mochi).
+  const anistreamVerified: VerifiedServer[] = [];
+  if (anistreamResults.status === "fulfilled" && anistreamResults.value) {
+    for (const r of anistreamResults.value) {
+      const provName = r.server[0].toUpperCase() + r.server.slice(1);
+      const typeTag = r.type === "dub" ? " (Dub)" : (r.hardsub ? " (HS)" : "");
+      anistreamVerified.push({
+        id: `anistream:${r.server}:${r.type}`,
+        name: `Anistream ${provName}${typeTag}`,
+        source: "anistream",
+        provider: r.server,
+        type: r.type,
+        quality: r.quality,
+        streamUrl: r.streamUrl,
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        isEmbed: r.isEmbed,
+        hardsub: r.hardsub,
+        subtitleTracks: r.tracks,
+        intro: r.intro,
+        outro: r.outro,
+      });
+    }
+    console.log(`[Servers] Anistream: ${anistreamVerified.length} servers`);
+  }
+
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
 
   // ─── Verify ALL in parallel (4s timeout each) ─────────────────────
@@ -559,6 +592,7 @@ export async function GET(
   verified.push(...mioanimeVerified);
   verified.push(...anixtvVerified);
   verified.push(...megaplayVerified);
+  verified.push(...anistreamVerified);
   // NOTE: Animex is NOT here — it's fetched separately via /api/anime/animex-servers
 
   const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length + anixtvVerified.length;
