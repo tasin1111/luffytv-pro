@@ -1412,15 +1412,17 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 >
                   DUB
                 </button>
-                {/* Hindi Dub (AnixTV — multi-audio HLS with Hindi/Tamil/Telugu/Bengali/etc.) */}
+                {/* Hindi Dub (AnixTV — multi-audio HLS with Hindi/Tamil/Telugu/Bengali/etc.)
+                    ALWAYS enabled — if no hindi servers, show "not in database" message
+                    instead of graying out the button. User should always be able to click
+                    HINDI to check availability. */}
                 <button
                   onClick={() => handleTranslationChange("hindi")}
                   className={`px-3 py-1.5 text-xs font-bold transition-colors ${
                     translation === "hindi"
                       ? "bg-[#D4A017] text-black"
                       : "bg-[#111118] text-zinc-400 hover:text-white"
-                  } ${!hindiAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
-                  disabled={!hindiAvailable}
+                  }`}
                   title="Hindi Dub — AnixTV multi-audio (Hindi/Tamil/Telugu/Bengali/Malayalam/Marathi/Kannada)"
                 >
                   HINDI
@@ -1477,6 +1479,16 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
             {serverList.length === 0 && !streamLoading && (
               <div className="text-center py-4">
                 <p className="text-zinc-500 text-xs">Loading servers...</p>
+              </div>
+            )}
+
+            {/* HINDI mode but no hindi servers available — show "not in database" message */}
+            {translation === "hindi" && serverList.length > 0 && !serverList.some(s => s.source === "anixtv") && !streamLoading && (
+              <div className="text-center py-4 px-4 rounded-lg bg-purple-500/5 border border-purple-500/20">
+                <p className="text-purple-300 text-sm font-medium mb-1">Not in our Hindi database</p>
+                <p className="text-zinc-500 text-xs">
+                  This anime doesn't have a Hindi dub on AnixTV yet. Try SOFT SUB / HARD SUB / DUB instead.
+                </p>
               </div>
             )}
           </div>
