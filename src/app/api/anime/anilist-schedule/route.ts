@@ -6,16 +6,34 @@ export const dynamic = "force-dynamic";
 const ANILIST_API = "https://graphql.anilist.co";
 
 async function anilistQuery(query: string, variables?: Record<string, unknown>) {
-  const res = await fetch(ANILIST_API, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ query, variables }),
-    next: { revalidate: 1800 },
-  });
-  if (!res.ok) throw new Error(`AniList request failed: ${res.status}`);
-  const json = await res.json();
-  if (json.errors) throw new Error(`AniList GraphQL error: ${json.errors[0]?.message || "Unknown"}`);
-  return json.data;
+  const MAX_RETRIES = 3;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(ANILIST_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ query, variables }),
+        next: { revalidate: 1800 },
+      });
+      if (res.status === 429 || res.status >= 500) {
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+          continue;
+        }
+      }
+      if (!res.ok) throw new Error(`AniList request failed: ${res.status}`);
+      const json = await res.json();
+      if (json.errors) throw new Error(`AniList GraphQL error: ${json.errors[0]?.message || "Unknown"}`);
+      return json.data;
+    } catch (err) {
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error("AniList request failed after retries");
 }
 
 /**

@@ -16,20 +16,22 @@
  */
 
 // ─────────────────────────────────────────────────────────────────────
-// PROXY CONFIG — SELF-HOSTED Cloudflare Worker
+// PROXY CONFIG — upcloud.animanga.fun (third-party, handles everything)
 // ─────────────────────────────────────────────────────────────────────
-// Our own worker at NEXT_PUBLIC_PROXY_BASE replaces upcloud.animanga.fun.
-// Same API format: /proxy?url={url}&headers={json}
+// ALL anime stream URLs go through upcloud.animanga.fun.
+// Our Cloudflare Worker is NOT used for anime streams anymore — it was
+// returning 403/522 on many CDNs (vault-16.owocdn.top, mt.nekostream.site,
+// vibeplayer.site, cdn.mewstream.buzz, s1.streamzone1.site, etc.)
 //
-// The worker:
-//   1. Fetches upstream URL with the headers we specify (Referer, Origin)
-//   2. For m3u8: rewrites segment URLs to /ts-proxy?url=...&headers=...
-//   3. Returns with CORS: * headers
-//
-// No third-party dependency — we control it 100%.
+// animanga.fun handles:
+//   - Referer spoofing (we pass the correct Referer per CDN)
+//   - CORS headers
+//   - m3u8 rewriting (segments → /ts-proxy)
+//   - Works for ALL CDNs (no 403 issues)
 // ─────────────────────────────────────────────────────────────────────
 
-const WORKER_PROXY = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+const ANIMANGA_PROXY = "https://upcloud.animanga.fun/proxy";
+const WORKER_PROXY = process.env.NEXT_PUBLIC_PROXY_BASE || "";  // kept for non-anime use (live sports)
 
 // Referer map for CDNs that need specific Referer headers.
 const CDN_REFERERS: Record<string, string> = {
@@ -38,7 +40,7 @@ const CDN_REFERERS: Record<string, string> = {
   "hawk.24stream.xyz":     "https://animex.one/",
   "mp4.24stream.xyz":      "https://animex.one/",
   "ply.24stream.xyz":      "https://allanime.uns.bio/",
-  // Miruro CDNs — need megaplay.buzz Referer (NOT miruro.tv!)
+  // Miruro CDNs
   "hls.anidb.app":         "https://www.miruro.tv/",
   "mt.nekostream.site":    "https://www.miruro.tv/",
   "vault-16.owocdn.top":   "https://megaplay.buzz/",
@@ -46,7 +48,7 @@ const CDN_REFERERS: Record<string, string> = {
   "hls.krussdomi.com":     "https://www.miruro.tv/",
   "s1.streamzone1.site":   "https://megaplay.buzz/",
   "cdn.mewstream.buzz":    "https://www.miruro.tv/",
-  // vibeplayer / vivibebe (same site, different domain)
+  // vibeplayer / vivibebe
   "vibeplayer.site":       "https://megaplay.buzz/",
   "vivibebe.site":         "https://megaplay.buzz/",
   // playeng
@@ -65,19 +67,6 @@ const CDN_REFERERS: Record<string, string> = {
   "soq6.harmonixwellnessgroup.store": "https://allanime.uns.bio/",
 };
 
-// CDNs that our worker CAN'T fetch (return 403) — use animanga.fun instead.
-// These CDNs block Cloudflare Worker IPs or need special TLS fingerprint.
-const ANIMANGA_ONLY_HOSTS = new Set([
-  "vault-16.owocdn.top",
-  "vault-01.uwucdn.top",
-  "mt.nekostream.site",
-  "vibeplayer.site",
-  "vivibebe.site",
-  "nanobyte.bigdreamsmalldih.site",
-  "cdn.mewstream.buzz",
-  "s1.streamzone1.site",
-]);
-
 function getRefererFor(url: string): string {
   try {
     const parsed = new URL(url);
@@ -91,55 +80,39 @@ function getRefererFor(url: string): string {
 }
 
 /**
- * Build a proxy URL for OUR Cloudflare Worker with the correct Referer header.
- * For CDNs that block our worker (ANIMANGA_ONLY_HOSTS), use animanga.fun instead.
+ * Build an animanga.fun proxy URL with the correct Referer header.
+ * ALL anime streams go through this — no worker, no double-proxy.
  */
 function buildProxyUrl(url: string): string {
   const referer = getRefererFor(url);
   const headers = JSON.stringify({ Referer: referer });
-  const encodedUrl = encodeURIComponent(url);
-  const encodedHeaders = encodeURIComponent(headers);
-
-  // Check if this CDN is blocked on our worker — use animanga.fun
-  let hostname = "";
-  try { hostname = new URL(url).hostname; } catch {}
-
-  const useAnimanga = ANIMANGA_ONLY_HOSTS.has(hostname) ||
-                      ANIMANGA_ONLY_HOSTS.has(hostname.replace(/^[^.]+\./, ""));
-
-  if (useAnimanga) {
-    return `https://upcloud.animanga.fun/proxy?url=${encodedUrl}&headers=${encodedHeaders}`;
-  }
-
-  // Use our worker for everything else
-  if (!WORKER_PROXY) {
-    return `/api/hls-proxy?url=${encodedUrl}`;
-  }
-  return `${WORKER_PROXY}/proxy?url=${encodedUrl}&headers=${encodedHeaders}`;
+  return `${ANIMANGA_PROXY}?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(headers)}`;
 }
 
 /**
- * SERVER-SIDE helper: wrap any URL through our Cloudflare Worker.
- * The worker adds the correct Referer (from CDN_REFERERS map) + CORS headers.
+ * SERVER-SIDE helper: wrap any URL through animanga.fun proxy.
  */
 export function wrapStreamUrl(url: string | null | undefined): string {
   if (!url) return "";
   if (typeof url !== "string") return "";
   if (url.startsWith("/api/") || url.startsWith("/")) return url;
   if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+  // Already proxied? Don't double-wrap
+  if (url.startsWith(ANIMANGA_PROXY)) return url;
   if (url.startsWith(WORKER_PROXY)) return url;
   return buildProxyUrl(url);
 }
 
 /**
- * SERVER-SIDE helper: wrap an m3u8 URL through our Cloudflare Worker.
- * The worker rewrites segment URLs to /ts-proxy so they also get proxied.
+ * SERVER-SIDE helper: wrap an m3u8 URL through animanga.fun proxy.
  */
 export function wrapM3u8Url(url: string | null | undefined): string {
   if (!url) return "";
   if (typeof url !== "string") return "";
   if (url.startsWith("/api/") || url.startsWith("/")) return url;
   if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+  // Already proxied? Don't double-wrap
+  if (url.startsWith(ANIMANGA_PROXY)) return url;
   if (url.startsWith(WORKER_PROXY)) return url;
   return buildProxyUrl(url);
 }
@@ -150,7 +123,7 @@ export function wrapM3u8Url(url: string | null | undefined): string {
 // animanga.fun proxy as the server-side helpers above.
 // ─────────────────────────────────────────────────────────────────────
 
-export const PROXY_BASE = WORKER_PROXY;
+export const PROXY_BASE = ANIMANGA_PROXY;  // client-side: animanga.fun
 
 export type ProxyMode = "auto" | "m3u8" | "image" | "raw";
 
