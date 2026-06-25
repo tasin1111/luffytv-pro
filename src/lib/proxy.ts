@@ -16,26 +16,32 @@
  */
 
 // ─────────────────────────────────────────────────────────────────────
-// PROXY CONFIG — Our own Cloudflare Worker (v3, anime-proxy based)
+// PROXY CONFIG — Hybrid: our Worker (v3) + animanga.fun fallback
 // ─────────────────────────────────────────────────────────────────────
-// Based on: https://github.com/OTAKUWeBer/anime-proxy
-// Worker has a CDN_RULES table with Referer/Origin per host.
-// Uses browser impersonation headers (Sec-CH-UA, Sec-Fetch-Site, etc.)
-// — this is what makes it work where other proxies fail.
+// Our Cloudflare Worker (v3) with browser impersonation headers works for
+// MOST CDNs. But a few CDNs (mt.nekostream.site, vibeplayer.site) detect
+// Cloudflare Worker TLS fingerprints and block them (403).
 //
-// Two API formats:
-//   /p/{base64url("url\0referer")}  — primary (compact, used by m3u8 rewriter)
-//   /proxy?url={url}&ref={referer}  — legacy (backward compat with our code)
+// For those blocked CDNs, we fall back to upcloud.animanga.fun (which runs
+// on a regular server with a different TLS fingerprint).
 //
-// The worker auto-detects the correct Referer from CDN_RULES — but we also
-// pass the referer explicitly via the `ref` param for safety.
+// Worker API: /proxy?url={url}&ref={referer}
+// animanga.fun API: /proxy?url={url}&headers={"Referer":"..."}
 // ─────────────────────────────────────────────────────────────────────
 
 const WORKER_PROXY = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+const ANIMANGA_PROXY = "https://upcloud.animanga.fun/proxy";
+
+// CDNs that block Cloudflare Worker TLS fingerprints — use animanga.fun.
+// These CDNs return 403 when fetched from a CF Worker, but 200 from animanga.fun.
+const ANIMANGA_ONLY_HOSTS = new Set([
+  "mt.nekostream.site",
+  "vibeplayer.site",
+  "vivibebe.site",
+  "nanobyte.bigdreamsmalldih.site",
+]);
 
 // Referer map — passed to the worker as the `ref` param.
-// The worker also has its own CDN_RULES table, but we pass the referer
-// explicitly so there's no ambiguity.
 const CDN_REFERERS: Record<string, string> = {
   // 24stream.xyz
   "bd.24stream.xyz":       "https://animex.one/",
@@ -82,17 +88,29 @@ function getRefererFor(url: string): string {
 }
 
 /**
- * Build a worker proxy URL with the correct Referer.
- * Format: /proxy?url={url}&ref={referer}
- * The worker also has its own CDN_RULES table as fallback.
+ * Build a proxy URL.
+ * - For CDNs in ANIMANGA_ONLY_HOSTS: use animanga.fun (different TLS fingerprint)
+ * - For everything else: use our Cloudflare Worker (v3 with browser headers)
  */
 function buildProxyUrl(url: string): string {
   const referer = getRefererFor(url);
-  if (!WORKER_PROXY) {
-    // Fallback: legacy Next.js route
-    return `/api/hls-proxy?url=${encodeURIComponent(url)}`;
+  const encodedUrl = encodeURIComponent(url);
+
+  // Check if this CDN blocks Cloudflare Worker → use animanga.fun
+  let hostname = "";
+  try { hostname = new URL(url).hostname; } catch {}
+  const useAnimanga = ANIMANGA_ONLY_HOSTS.has(hostname);
+
+  if (useAnimanga) {
+    const headers = JSON.stringify({ Referer: referer });
+    return `${ANIMANGA_PROXY}?url=${encodedUrl}&headers=${encodeURIComponent(headers)}`;
   }
-  return `${WORKER_PROXY}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(referer)}`;
+
+  // Use our worker (v3 with browser impersonation headers)
+  if (!WORKER_PROXY) {
+    return `/api/hls-proxy?url=${encodedUrl}`;
+  }
+  return `${WORKER_PROXY}/proxy?url=${encodedUrl}&ref=${encodeURIComponent(referer)}`;
 }
 
 /**
