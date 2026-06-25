@@ -383,29 +383,9 @@ export async function GET(
     console.log(`[Servers] AnixTV: ${anixtvVerified.length} servers (Hindi dub)`);
   }
 
-  // ─── MegaPlay.buzz (Hindi dub — ALWAYS available for ANY anime) ───────────
-  // megaplay.buzz/stream/ani/{anilistId}/{ep}/dub works for ANY anilist ID.
-  // It's an embed page (returns HTML with a player) — loaded in iframe.
-  // This ensures the HINDI button ALWAYS has at least one server, even when
-  // AnixTV doesn't have the anime.
-  // Source: github.com/tasinfahad6767-beep/luffytv2 (user's reference impl)
-  const megaplayVerified: VerifiedServer[] = [{
-    id: "megaplay:hindi:dub",
-    name: "MegaPlay Hindi",
-    source: "anixtv",  // reuse anixtv source so it shows under HINDI button
-    provider: "megaplay",
-    type: "dub",
-    quality: "auto",
-    streamUrl: `https://megaplay.buzz/stream/ani/${id}/${epNum}/dub`,
-    isM3U8: false,
-    isMP4: false,
-    isEmbed: true,  // ← embed URL — loaded in iframe
-    hardsub: false,
-    subtitleTracks: [],
-    intro: null,
-    outro: null,
-  }];
-  console.log(`[Servers] MegaPlay: 1 server (Hindi dub embed — always available)`);
+  // MegaPlay Hindi removed — was returning 410 errors (expired/removed).
+  // AnixTV is the sole Hindi source now. If AnixTV doesn't have the anime,
+  // the HINDI button shows "Not in our Hindi database" message.
 
   // Anistream.one (api.anistream.one — OWN REST API, not CF-protected)
   // Returns DIRECT stream URLs — no XOR wrapper, no cdn.animex.su needed.
@@ -591,7 +571,6 @@ export async function GET(
   verified.push(...anikageVerified);
   verified.push(...mioanimeVerified);
   verified.push(...anixtvVerified);
-  verified.push(...megaplayVerified);
   verified.push(...anistreamVerified);
   // NOTE: Animex is NOT here — it's fetched separately via /api/anime/animex-servers
 
