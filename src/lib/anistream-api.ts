@@ -40,6 +40,17 @@ const HEADERS: Record<string, string> = {
   "Referer": "https://anistream.one/",
 };
 
+// ─── Worker proxy helper ────────────────────────────────────────────────────
+// api.anistream.one is Cloudflare-protected — returns {"error":"bot_detected"}
+// when fetched from Vercel IPs. Route ALL API calls through our Cloudflare
+// Worker, which runs on Cloudflare's network and bypasses bot detection.
+const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+
+function workerWrap(url: string): string {
+  if (!WORKER_BASE) return url;  // fallback: try direct (works locally, fails on Vercel)
+  return `${WORKER_BASE}/proxy?url=${encodeURIComponent(url)}`;
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface AnistreamProvider {
@@ -143,7 +154,7 @@ export async function getAnistreamServers(
   const url = `${ANISTREAM_API}/servers?id=${slug}&epNum=${epNum}`;
   try {
     const res = await Promise.race([
-      fetch(url, { headers: HEADERS, cache: "no-store" }),
+      fetch(workerWrap(url), { headers: HEADERS, cache: "no-store" }),
       new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
     ]);
     if (!res || !res.ok) return null;
@@ -165,7 +176,7 @@ export async function getAnistreamSources(
   const url = `${ANISTREAM_API}/sources?id=${slug}&epNum=${epNum}&type=${type}&providerId=${providerId}`;
   try {
     const res = await Promise.race([
-      fetch(url, { headers: HEADERS, cache: "no-store" }),
+      fetch(workerWrap(url), { headers: HEADERS, cache: "no-store" }),
       new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
     ]);
     if (!res || !res.ok) return null;

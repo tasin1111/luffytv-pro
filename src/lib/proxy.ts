@@ -42,6 +42,7 @@ const CDN_REFERERS: Record<string, string> = {
   "hls.anidb.app":         "https://www.miruro.tv/",
   "mt.nekostream.site":    "https://www.miruro.tv/",
   "vault-16.owocdn.top":   "https://megaplay.buzz/",
+  "vault-01.uwucdn.top":   "https://megaplay.buzz/",
   "hls.krussdomi.com":     "https://www.miruro.tv/",
   "s1.streamzone1.site":   "https://megaplay.buzz/",
   "cdn.mewstream.buzz":    "https://www.miruro.tv/",
@@ -68,10 +69,13 @@ const CDN_REFERERS: Record<string, string> = {
 // These CDNs block Cloudflare Worker IPs or need special TLS fingerprint.
 const ANIMANGA_ONLY_HOSTS = new Set([
   "vault-16.owocdn.top",
+  "vault-01.uwucdn.top",
   "mt.nekostream.site",
   "vibeplayer.site",
   "vivibebe.site",
   "nanobyte.bigdreamsmalldih.site",
+  "cdn.mewstream.buzz",
+  "s1.streamzone1.site",
 ]);
 
 function getRefererFor(url: string): string {
