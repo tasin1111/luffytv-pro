@@ -9,17 +9,56 @@ const HEADERS = {
   Accept: "application/json",
 };
 
+/**
+ * AniList GraphQL query with retry logic + rate limit handling.
+ * AniList returns 429 (rate limited) or 500 (error 1101) when too many
+ * requests come from the same IP (Vercel's shared IPs get rate-limited often).
+ *
+ * Strategy:
+ *   1. Try the request
+ *   2. If 429 or 500: wait 1s, retry (up to 3 times)
+ *   3. If still failing: return null (caller handles fallback)
+ */
 async function anilistQuery(query: string, variables?: Record<string, unknown>) {
-  const res = await fetch(ANILIST_API, {
-    method: "POST",
-    headers: HEADERS,
-    body: JSON.stringify({ query, variables }),
-    next: { revalidate: 3600 },
-  });
-  if (!res.ok) throw new Error(`AniList request failed: ${res.status}`);
-  const json = await res.json();
-  if (json.errors) throw new Error(`AniList GraphQL error: ${json.errors[0]?.message || "Unknown"}`);
-  return json.data;
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 1000;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(ANILIST_API, {
+        method: "POST",
+        headers: HEADERS,
+        body: JSON.stringify({ query, variables }),
+        next: { revalidate: 3600 },
+      });
+
+      // Rate limited or server error — retry after delay
+      if (res.status === 429 || res.status >= 500) {
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+          continue;
+        }
+        return null;
+      }
+
+      if (!res.ok) return null;
+
+      const json = await res.json();
+      if (json.errors) {
+        // GraphQL errors are usually not transient — don't retry
+        return null;
+      }
+      return json.data;
+    } catch (err) {
+      // Network error — retry
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+        continue;
+      }
+      return null;
+    }
+  }
+  return null;
 }
 
 // ============================================================

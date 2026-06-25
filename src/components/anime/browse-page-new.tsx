@@ -108,33 +108,52 @@ async function anilistSearch(params: any) {
 
   const query = `query(${varDecls.join(",")}){Page(page:$page,perPage:$perPage){pageInfo{total currentPage lastPage}media(${mediaArgs.join(", ")}){id title{english romaji}coverImage{extraLarge large medium}averageScore format episodes seasonYear status genres}}}`;
 
-  const res = await fetch("https://graphql.anilist.co", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ query, variables }),
-  });
-  const data = await res.json();
-  if (data?.errors) {
-    console.error("[AniList] GraphQL errors:", data.errors);
-    throw new Error(data.errors[0]?.message || "AniList GraphQL error");
+  // AniList rate-limits Vercel IPs — retry on 429/500
+  const MAX_RETRIES = 3;
+  let lastError: any = null;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch("https://graphql.anilist.co", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query, variables }),
+      });
+      if (res.status === 429 || res.status >= 500) {
+        lastError = new Error(`AniList rate limited (${res.status})`);
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+      const data = await res.json();
+      if (data?.errors) {
+        console.error("[AniList] GraphQL errors:", data.errors);
+        throw new Error(data.errors[0]?.message || "AniList GraphQL error");
+      }
+      return {
+        data: (data?.data?.Page?.media || []).map((m: any) => ({
+          mal_id: m.id,
+          title: m.title?.english || m.title?.romaji || "Unknown",
+          title_english: m.title?.english,
+          images: { jpg: { large_image_url: m.coverImage?.large, small_image_url: m.coverImage?.medium } },
+          score: m.averageScore ? m.averageScore / 10 : null,
+          type: m.format || "TV",
+          episodes: m.episodes,
+          year: m.seasonYear,
+          status: m.status,
+        })),
+        pagination: {
+          items: { total: data?.data?.Page?.pageInfo?.total || 0 },
+          last_visible_page: data?.data?.Page?.pageInfo?.lastPage || 1,
+        },
+      };
+    } catch (err) {
+      lastError = err;
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+        continue;
+      }
+    }
   }
-  return {
-    data: (data?.data?.Page?.media || []).map((m: any) => ({
-      mal_id: m.id,
-      title: m.title?.english || m.title?.romaji || "Unknown",
-      title_english: m.title?.english,
-      images: { jpg: { large_image_url: m.coverImage?.large, small_image_url: m.coverImage?.medium } },
-      score: m.averageScore ? m.averageScore / 10 : null,
-      type: m.format || "TV",
-      episodes: m.episodes,
-      year: m.seasonYear,
-      status: m.status,
-    })),
-    pagination: {
-      items: { total: data?.data?.Page?.pageInfo?.total || 0 },
-      last_visible_page: data?.data?.Page?.pageInfo?.lastPage || 1,
-    },
-  };
+  throw lastError || new Error("AniList request failed after retries");
 }
 
 async function anilistGetSeasonal(year: string, season: string, params: any) {

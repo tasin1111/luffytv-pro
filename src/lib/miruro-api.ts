@@ -12,21 +12,47 @@ import { wrapStreamUrl, wrapM3u8Url } from "./proxy";
 // ─── AniList GraphQL ──────────────────────────────────────────────
 const ANILIST_API = "https://graphql.anilist.co";
 
+/**
+ * AniList GraphQL query with retry logic + rate limit handling.
+ * AniList returns 429 (rate limited) or 500 (error 1101) when too many
+ * requests come from the same IP (Vercel's shared IPs get rate-limited often).
+ */
 async function anilistQuery(query: string, variables?: Record<string, unknown>) {
-  try {
-    const res = await fetch(ANILIST_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ query, variables }),
-      next: { revalidate: 3600 },
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (json.errors) return null;
-    return json.data;
-  } catch {
-    return null;
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 1000;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const res = await fetch(ANILIST_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ query, variables }),
+        next: { revalidate: 3600 },
+      });
+
+      // Rate limited or server error — retry after delay
+      if (res.status === 429 || res.status >= 500) {
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+          continue;
+        }
+        return null;
+      }
+
+      if (!res.ok) return null;
+
+      const json = await res.json();
+      if (json.errors) return null;
+      return json.data;
+    } catch {
+      if (attempt < MAX_RETRIES - 1) {
+        await new Promise(r => setTimeout(r, RETRY_DELAY_MS * (attempt + 1)));
+        continue;
+      }
+      return null;
+    }
   }
+  return null;
 }
 
 const MEDIA_FIELDS = `
