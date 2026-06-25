@@ -67,6 +67,15 @@ const REFERER_MAP = {
   // AniKage proxy — Cloudflare-protected, needs Origin: https://anikage.cc
   "prox.anikage.cc":         "https://anikage.cc/",
   "anikage.cc":              "https://anikage.cc/",
+  // Miruro CDN hosts — need Referer: https://www.miruro.tv/
+  "hls.anidb.app":           "https://www.miruro.tv/",
+  "mt.nekostream.site":      "https://www.miruro.tv/",
+  "vault-16.owocdn.top":     "https://www.miruro.tv/",
+  "hls.krussdomi.com":       "https://www.miruro.tv/",
+  "s1.streamzone1.site":     "https://www.miruro.tv/",
+  "cdn.mewstream.buzz":      "https://www.miruro.tv/",
+  // MegaPlay (Hindi dub embeds) — needs Referer from anikototv
+  "megaplay.buzz":           "https://anikototv.to/",
   "www.animegg.org":       "https://www.animegg.org/",
   "youtu-chan.com":        "https://youtu-chan.com/",
   "gogoanime3.co":         "https://gogoanime3.co/",
@@ -133,6 +142,20 @@ const ALWAYS_PROXY_HOSTS = new Set([
   // AniKage proxy — Cloudflare-protected, must route through worker
   "prox.anikage.cc",
   "anikage.cc",
+  // Miruro CDN hosts — need Referer spoofing
+  "hls.anidb.app",
+  "mt.nekostream.site",
+  "vault-16.owocdn.top",
+  "hls.krussdomi.com",
+  "s1.streamzone1.site",
+  "cdn.mewstream.buzz",
+  "nekostream.site",
+  "owocdn.top",
+  "streamzone1.site",
+  "mewstream.buzz",
+  "krussdomi.com",
+  // MegaPlay (Hindi dub embeds)
+  "megaplay.buzz",
 ]);
 
 // Cache instance (only available in Worker runtime, not in tests)
