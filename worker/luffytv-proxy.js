@@ -1,257 +1,335 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════
- *  LuffyTV Universal Proxy — Cloudflare Worker v2
- *  Self-hosted replacement for upcloud.animanga.fun
+ *  LuffyTV Anime Proxy — Cloudflare Worker v3
+ *  Based on: https://github.com/OTAKUWeBer/anime-proxy
  * ═══════════════════════════════════════════════════════════════════════
- *
- *  HOW IT WORKS (same as animanga.fun):
- *
- *  Client sends: GET /proxy?url={stream_url}&headers={"Referer":"https://animex.one/"}
- *  Worker:
- *    1. Parses `url` and `headers` from query params
- *    2. Fetches the upstream URL with those headers
- *    3. If response is m3u8: rewrites segment URLs to /ts-proxy?url=...&headers=...
- *    4. Returns with CORS: * headers
- *
- *  For segments: GET /ts-proxy?url={segment_url}&headers={json}
- *  Worker: fetches segment with headers, returns with CORS
  *
  *  ENDPOINTS:
- *    /proxy?url=...&headers=...    → m3u8 manifests + general fetch (rewrites segments)
- *    /ts-proxy?url=...&headers=... → individual segments (pass-through)
- *    /health                       → health check
- *
- *  USAGE:
- *    const proxyUrl = `https://your-worker.workers.dev/proxy?url=${encodeURIComponent(streamUrl)}&headers=${encodeURIComponent(JSON.stringify({Referer: "https://animex.one/"}))}`;
+ *    /p/{base64url}          → primary: encoded "url\0referer" → proxy
+ *    /proxy?url=...&ref=...  → legacy: query params (backward compat)
+ *    /health                 → health check
  *
  *  DEPLOY:
- *    1. Cloudflare dashboard → Workers → Create Worker
- *    2. Paste this code → Save & Deploy
- *    3. Set NEXT_PUBLIC_PROXY_BASE to your worker URL in Vercel env vars
+ *    1. Cloudflare dashboard → Workers → luffytv-proxy → Edit code
+ *    2. Paste this entire file → Save & Deploy
+ *    3. Set NEXT_PUBLIC_PROXY_BASE in Vercel to your worker URL
  * ═══════════════════════════════════════════════════════════════════════
  */
 
-const DEFAULT_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36";
+let WORKER_BASE = '';
 
-// ─── MAIN ENTRY ─────────────────────────────────────────────────────────────
+/* ─── CDN rule table — Referer/Origin per host ──────────────────────────── */
+const CDN_RULES = [
+  // 24stream.xyz CDN subdomains (Animex/AniDap providers)
+  { test: h => h.endsWith('.24stream.xyz') || h === '24stream.xyz',
+    referer: 'https://animex.one/', origin: 'https://animex.one', secSite: 'cross-site' },
+  // Miruro CDNs
+  { test: h => h.endsWith('.anidb.app') || h === 'anidb.app',
+    referer: 'https://www.miruro.tv/', origin: 'https://www.miruro.tv', secSite: 'cross-site' },
+  { test: h => h.endsWith('.nekostream.site') || h === 'nekostream.site',
+    referer: 'https://www.miruro.tv/', origin: 'https://www.miruro.tv', secSite: 'cross-site' },
+  { test: h => h.endsWith('.owocdn.top') || h === 'owocdn.top',
+    referer: 'https://kwik.cx/', origin: 'https://kwik.cx', secSite: 'cross-site' },
+  { test: h => h.endsWith('.uwucdn.top') || h === 'uwucdn.top',
+    referer: 'https://kwik.cx/', origin: 'https://kwik.cx', secSite: 'cross-site' },
+  { test: h => h.endsWith('.krussdomi.com') || h === 'krussdomi.com',
+    referer: 'https://krussdomi.com/', origin: 'https://krussdomi.com', secSite: 'same-origin' },
+  { test: h => h.endsWith('.streamzone1.site') || h === 'streamzone1.site',
+    referer: 'https://megaplay.buzz/', origin: 'https://megaplay.buzz', secSite: 'cross-site' },
+  { test: h => h.endsWith('.mewstream.buzz') || h === 'mewstream.buzz',
+    referer: 'https://megaplay.buzz/', origin: 'https://megaplay.buzz', secSite: 'cross-site' },
+  { test: h => h.endsWith('.cinewave2.site') || h === 'cinewave2.site',
+    referer: 'https://megaplay.buzz/', origin: 'https://megaplay.buzz', secSite: 'cross-site' },
+  // vibeplayer / vivibebe
+  { test: h => h === 'vibeplayer.site' || h.endsWith('.vibeplayer.site') ||
+               h === 'vivibebe.site' || h.endsWith('.vivibebe.site'),
+    referer: 'https://vibeplayer.site/', origin: 'https://vibeplayer.site', secSite: 'same-origin' },
+  // playeng (beep provider)
+  { test: h => h.endsWith('.animeapps.top') || h === 'animeapps.top',
+    referer: 'https://animex.one/', origin: 'https://animex.one', secSite: 'cross-site' },
+  // nanobyte (AniLight quality variants)
+  { test: h => h.endsWith('.bigdreamsmalldih.site') || h === 'bigdreamsmalldih.site',
+    referer: 'https://kwik.cx/', origin: 'https://kwik.cx', secSite: 'cross-site' },
+  // kwik
+  { test: h => h === 'kwik.cx' || h.endsWith('.kwik.cx'),
+    referer: 'https://kwik.cx/', origin: 'https://kwik.cx', secSite: 'same-origin' },
+  // AniKage
+  { test: h => h === 'prox.anikage.cc' || h.endsWith('.anikage.cc'),
+    referer: 'https://anikage.cc/', origin: 'https://anikage.cc', secSite: 'cross-site' },
+  // allanime
+  { test: h => h === 'allanime.uns.bio' || h.endsWith('.allanime.uns.bio'),
+    referer: 'https://allanime.uns.bio/', origin: 'https://allanime.uns.bio', secSite: 'same-origin' },
+  // harmonix (miku provider)
+  { test: h => h.endsWith('.harmonixwellnessgroup.store'),
+    referer: 'https://allanime.uns.bio/', origin: 'https://allanime.uns.bio', secSite: 'cross-site' },
+  // megaplay
+  { test: h => h === 'megaplay.buzz' || h.endsWith('.megaplay.buzz'),
+    referer: 'https://megaplay.buzz/', origin: 'https://megaplay.buzz', secSite: 'same-origin' },
+  // animeverse
+  { test: h => h.endsWith('.animeverse.to') || h === 'animeverse.to',
+    referer: 'https://animeverse.to/', origin: 'https://animeverse.to', secSite: 'same-origin' },
+  // animeonsen
+  { test: h => h.endsWith('.animeonsen.xyz') || h === 'animeonsen.xyz',
+    referer: 'https://www.animeonsen.xyz/', origin: 'https://www.animeonsen.xyz', secSite: 'cross-site' },
+  // anidb app
+  { test: h => h === 'anidb.app',
+    referer: 'https://anidb.app/', origin: 'https://anidb.app', secSite: 'same-origin' },
+  // kem.clvd.xyz
+  { test: h => h.endsWith('.clvd.xyz'),
+    referer: 'https://kem.clvd.xyz/', origin: 'https://kem.clvd.xyz', secSite: 'cross-site' },
+  // mewstream
+  { test: h => h.endsWith('.mewstream.buzz'),
+    referer: 'https://megaplay.buzz/', origin: 'https://megaplay.buzz', secSite: 'cross-site' },
+  // Raw IP addresses (Miruro Ally uses 185.237.x.x)
+  { test: h => /^\d+\.\d+\.\d+\.\d+$/.test(h),
+    referer: 'https://www.miruro.tv/', origin: 'https://www.miruro.tv', secSite: 'cross-site' },
+  // Catch-all: default to megaplay.buzz referer (works for most anime CDNs)
+  { test: h => true,
+    referer: 'https://megaplay.buzz/', origin: 'https://megaplay.buzz', secSite: 'cross-site' },
+];
+
+/* ─── Base64url helpers ──────────────────────────────────────────────────── */
+function b64uEncode(str) {
+  const bytes = new TextEncoder().encode(str);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function b64uDecode(b64u) {
+  const b64 = b64u.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = b64 + '='.repeat((4 - b64.length % 4) % 4);
+  const binary = atob(padded);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return new TextDecoder().decode(bytes);
+}
+
+function encodePayload(url, referer) {
+  return b64uEncode(url + '\0' + (referer || ''));
+}
+
+function decodePayload(b64u) {
+  try {
+    const plain = b64uDecode(b64u);
+    const idx = plain.indexOf('\0');
+    if (idx === -1) return { url: plain, ref: null };
+    return { url: plain.slice(0, idx), ref: plain.slice(idx + 1) || null };
+  } catch {
+    return null;
+  }
+}
+
+/* ─── Browser impersonation headers ─────────────────────────────────────── */
+function browserHeaders(referer, origin, secSite) {
+  const h = {
+    'User-Agent':         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Accept':             '*/*',
+    'Accept-Language':    'en-US,en;q=0.9',
+    'Accept-Encoding':    'gzip, deflate, br',
+    'Sec-Fetch-Dest':     'empty',
+    'Sec-Fetch-Mode':     'cors',
+    'Sec-Fetch-Site':     secSite || 'cross-site',
+    'Sec-CH-UA':          '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+    'Sec-CH-UA-Mobile':   '?0',
+    'Sec-CH-UA-Platform': '"Windows"',
+    'Connection':         'keep-alive',
+    'Cache-Control':      'no-cache',
+    'Pragma':             'no-cache',
+  };
+  if (referer) h['Referer'] = referer;
+  if (origin)  h['Origin']  = origin;
+  return h;
+}
+
+/* ─── CORS headers ───────────────────────────────────────────────────────── */
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin':   '*',
+    'Access-Control-Allow-Methods':  'GET, HEAD, OPTIONS',
+    'Access-Control-Allow-Headers':  'Range, Content-Type',
+    'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Content-Type, Accept-Ranges',
+    'Accept-Ranges':                 'bytes',
+  };
+}
+
+/* ─── Resolve relative URL against base ─────────────────────────────────── */
+function resolveUrl(rel, base) {
+  if (/^https?:\/\//i.test(rel)) return rel;
+  try { return new URL(rel, base).href; } catch { return rel; }
+}
+
+/* ─── Rewrite M3U8: all segment/key URIs → /p/<base64url> ───────────────── */
+function rewriteM3u8(text, baseUrl, referer, workerBase) {
+  const lines = text.split('\n');
+  return lines.map(raw => {
+    const line = raw.trim();
+
+    if (line.startsWith('#') && line.includes('URI="')) {
+      return line.replace(/URI="([^"]+)"/g, (_, uri) => {
+        const abs = resolveUrl(uri, baseUrl);
+        return `URI="${workerBase}/p/${encodePayload(abs, referer)}"`;
+      });
+    }
+
+    if (line && !line.startsWith('#')) {
+      const abs = resolveUrl(line, baseUrl);
+      return `${workerBase}/p/${encodePayload(abs, referer)}`;
+    }
+
+    return raw;
+  }).join('\n');
+}
+
+/* ─── Core proxy logic ───────────────────────────────────────────────────── */
+async function proxyTarget(targetUrl, refParam, request) {
+  let parsedTarget;
+  try {
+    parsedTarget = new URL(targetUrl);
+    if (parsedTarget.protocol !== 'https:' && parsedTarget.protocol !== 'http:') throw new Error('bad protocol');
+  } catch {
+    return new Response(JSON.stringify({ error: 'Invalid target URL' }),
+      { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders() } });
+  }
+
+  const targetHost = parsedTarget.hostname.toLowerCase();
+  const overrideReferer = refParam || null;
+
+  const rule = CDN_RULES.find(r => r.test(targetHost));
+  let effectiveReferer, effectiveOrigin, effectiveSecSite;
+
+  if (rule) {
+    effectiveReferer = overrideReferer || rule.referer || `https://${targetHost}/`;
+    effectiveOrigin  = rule.origin || `https://${targetHost}`;
+    effectiveSecSite = rule.secSite || 'cross-site';
+  } else if (overrideReferer) {
+    try {
+      const refUrl = new URL(overrideReferer);
+      effectiveReferer = overrideReferer;
+      effectiveOrigin  = refUrl.origin;
+      effectiveSecSite = 'cross-site';
+    } catch {
+      effectiveReferer = overrideReferer;
+      effectiveOrigin  = `https://${targetHost}`;
+      effectiveSecSite = 'cross-site';
+    }
+  } else {
+    effectiveReferer = `https://${targetHost}/`;
+    effectiveOrigin  = `https://${targetHost}`;
+    effectiveSecSite = 'cross-site';
+  }
+
+  const headers = browserHeaders(effectiveReferer, effectiveOrigin, effectiveSecSite);
+  const rangeHeader = request.headers.get('Range');
+  if (rangeHeader) headers['Range'] = rangeHeader;
+
+  let upstreamResp;
+  try {
+    upstreamResp = await fetch(targetUrl, {
+      method:   request.method === 'HEAD' ? 'HEAD' : 'GET',
+      headers,
+      redirect: 'follow',
+    });
+  } catch (err) {
+    return new Response(
+      JSON.stringify({ error: 'Upstream fetch failed', detail: String(err) }),
+      { status: 502, headers: { 'Content-Type': 'application/json', ...corsHeaders() } }
+    );
+  }
+
+  if (!upstreamResp.ok && upstreamResp.status !== 206) {
+    return new Response(
+      JSON.stringify({ error: 'Upstream error', status: upstreamResp.status, host: targetHost }),
+      { status: upstreamResp.status, headers: { 'Content-Type': 'application/json', ...corsHeaders() } }
+    );
+  }
+
+  const contentType = (upstreamResp.headers.get('Content-Type') || '').toLowerCase();
+  const isM3u8 = contentType.includes('mpegurl') || contentType.includes('x-mpegurl')
+               || targetUrl.split('?')[0].endsWith('.m3u8')
+               || targetUrl.split('?')[0].endsWith('/master')
+               || targetUrl.split('?')[0].endsWith('/index.m3u8');
+
+  if (request.method === 'HEAD') {
+    const h = { 'Content-Type': upstreamResp.headers.get('Content-Type') || 'application/octet-stream', ...corsHeaders() };
+    const cl = upstreamResp.headers.get('Content-Length');
+    if (cl) h['Content-Length'] = cl;
+    return new Response(null, { status: upstreamResp.status, headers: h });
+  }
+
+  if (isM3u8) {
+    const text = await upstreamResp.text();
+    const workerBase = WORKER_BASE || new URL(request.url).origin;
+    const rewritten = rewriteM3u8(text, targetUrl, effectiveReferer, workerBase);
+    return new Response(rewritten, {
+      status: upstreamResp.status,
+      headers: {
+        'Content-Type':  'application/vnd.apple.mpegurl',
+        'Cache-Control': 'no-cache',
+        ...corsHeaders(),
+      },
+    });
+  }
+
+  // Binary / TS segment: stream as-is
+  const passHeaders = {
+    'Content-Type':  upstreamResp.headers.get('Content-Type') || 'application/octet-stream',
+    'Cache-Control': 'public, max-age=86400, immutable',
+    ...corsHeaders(),
+  };
+  const cl = upstreamResp.headers.get('Content-Length');
+  if (cl) passHeaders['Content-Length'] = cl;
+  const cr = upstreamResp.headers.get('Content-Range');
+  if (cr) passHeaders['Content-Range'] = cr;
+
+  return new Response(upstreamResp.body, { status: upstreamResp.status, headers: passHeaders });
+}
+
+/* ─── Main handler ───────────────────────────────────────────────────────── */
+async function handleRequest(request, env) {
+  const url = new URL(request.url);
+
+  if (request.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders() });
+  }
+
+  if (url.pathname === '/health' || url.pathname === '/') {
+    return new Response(JSON.stringify({ ok: true, worker: 'luffytv-proxy v3', ts: Date.now() }),
+      { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders() } });
+  }
+
+  // Primary: /p/<base64url>
+  if (url.pathname.startsWith('/p/')) {
+    const b64u = url.pathname.slice(3);
+    const decoded = decodePayload(b64u);
+    if (!decoded) {
+      return new Response(JSON.stringify({ error: 'Invalid payload' }),
+        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders() } });
+    }
+    return proxyTarget(decoded.url, decoded.ref, request);
+  }
+
+  // Legacy: /proxy?url=...&ref=...
+  if (url.pathname === '/proxy') {
+    const targetRaw = url.searchParams.get('url');
+    if (!targetRaw) {
+      return new Response(JSON.stringify({ error: 'Missing ?url= parameter' }),
+        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders() } });
+    }
+    let targetUrl;
+    try { targetUrl = decodeURIComponent(targetRaw); } catch {
+      return new Response(JSON.stringify({ error: 'Bad URL encoding' }),
+        { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders() } });
+    }
+    const refParam = url.searchParams.get('ref');
+    return proxyTarget(targetUrl, refParam, request);
+  }
+
+  return new Response('Not found', { status: 404, headers: corsHeaders() });
+}
 
 export default {
-  async fetch(request) {
-    const url = new URL(request.url);
-
-    // CORS preflight
-    if (request.method === "OPTIONS") {
-      return corsResponse(null, 204);
-    }
-
-    // Health check
-    if (url.pathname === "/health" || url.pathname === "/") {
-      return jsonResponse({ ok: true, time: Date.now(), worker: "luffytv-proxy v2" });
-    }
-
-    // Route by path
-    if (url.pathname === "/proxy" || url.pathname === "/ts-proxy") {
-      return handleProxy(request, url);
-    }
-
-    return jsonResponse({ error: "Not found", path: url.pathname }, 404);
+  async fetch(request, env, ctx) {
+    return handleRequest(request, env);
   },
 };
-
-// ─── PROXY HANDLER ──────────────────────────────────────────────────────────
-
-async function handleProxy(request, url) {
-  const upstream = url.searchParams.get("url");
-  if (!upstream) {
-    return jsonResponse({ error: "Missing ?url= param" }, 400);
-  }
-
-  let parsed;
-  try {
-    parsed = new URL(upstream);
-  } catch {
-    return jsonResponse({ error: "Invalid url param" }, 400);
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    return jsonResponse({ error: "Blocked scheme" }, 403);
-  }
-
-  // Parse headers from query param (JSON string)
-  // Expected: {"Referer":"https://animex.one/","Origin":"https://animex.one"}
-  let clientHeaders = {};
-  const headersParam = url.searchParams.get("headers");
-  if (headersParam) {
-    try {
-      clientHeaders = JSON.parse(headersParam);
-    } catch {
-      return jsonResponse({ error: "Invalid headers JSON" }, 400);
-    }
-  }
-
-  // Build fetch headers — start with defaults, override with client headers
-  const fetchHeaders = {
-    "User-Agent": DEFAULT_UA,
-    "Accept": "*/*",
-    "Accept-Language": "en-US,en;q=0.9",
-    ...clientHeaders,
-  };
-
-  // Forward Range header for video segments (allows seeking)
-  const range = request.headers.get("Range");
-  if (range) fetchHeaders["Range"] = range;
-
-  try {
-    const upstreamResp = await fetch(parsed.href, {
-      method: "GET",
-      headers: fetchHeaders,
-      cf: { cacheTtl: 0, cacheEverything: false },
-    });
-
-    // Check if this is an m3u8 playlist
-    const contentType = (upstreamResp.headers.get("content-type") || "").toLowerCase();
-    const isM3u8 = contentType.includes("mpegurl") ||
-                   contentType.includes("m3u8") ||
-                   contentType.includes("x-mpegurl") ||
-                   /\.m3u8(\?|$)/i.test(parsed.pathname) ||
-                   parsed.pathname.endsWith("/master") ||
-                   parsed.pathname.endsWith("/index.m3u8") ||
-                   parsed.pathname.endsWith("/playlist");
-
-    // Only rewrite if it's /proxy (not /ts-proxy) AND it's actually m3u8
-    if (url.pathname === "/proxy" && isM3u8) {
-      const text = await upstreamResp.text();
-      if (text.trimStart().startsWith("#EXTM3U")) {
-        const rewritten = rewriteM3U8(text, parsed.href, headersParam);
-        return new Response(rewritten, {
-          status: 200,
-          headers: corsHeaders({
-            "Content-Type": "application/vnd.apple.mpegurl",
-            "Cache-Control": "no-store, no-cache, must-revalidate",
-          }),
-        });
-      }
-      // Not actually m3u8 — pass through
-      return passThrough(text, upstreamResp);
-    }
-
-    // Non-m3u8 response — pass through with CORS
-    return passThroughBinary(upstreamResp);
-  } catch (err) {
-    return jsonResponse({
-      error: "proxy_failed",
-      message: err?.message || String(err),
-      upstream: parsed.href,
-    }, 502);
-  }
-}
-
-// ─── M3U8 REWRITER ──────────────────────────────────────────────────────────
-
-/**
- * Rewrite all URLs in an m3u8 playlist to go through /ts-proxy.
- * Each segment URL becomes: /ts-proxy?url={segment_url}&headers={same_headers}
- *
- * The headers are passed through from the parent request so segments
- * get the same Referer/Origin as the manifest.
- */
-function rewriteM3U8(content, baseUrl, headersParam) {
-  const lines = content.split("\n");
-  const out = [];
-
-  let parsedBase;
-  try { parsedBase = new URL(baseUrl); } catch { return content; }
-  const baseDir = parsedBase.href.substring(0, parsedBase.href.lastIndexOf("/") + 1);
-  const baseOrigin = parsedBase.origin;
-
-  // The worker's own origin (for building /ts-proxy URLs)
-  // We use relative paths so it works on any domain
-  const tsProxyPrefix = "/ts-proxy?url=";
-
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (!trimmed) { out.push(line); continue; }
-
-    // Comment line — may contain URI="..."
-    if (trimmed.startsWith("#")) {
-      out.push(rewriteUriAttrs(trimmed, baseDir, baseOrigin, headersParam, tsProxyPrefix));
-      continue;
-    }
-
-    // URL line — resolve to absolute, then wrap through /ts-proxy
-    const abs = resolveUrl(trimmed, baseDir, baseOrigin);
-    if (abs) {
-      const tsUrl = headersParam
-        ? `${tsProxyPrefix}${encodeURIComponent(abs)}&headers=${encodeURIComponent(headersParam)}`
-        : `${tsProxyPrefix}${encodeURIComponent(abs)}`;
-      out.push(tsUrl);
-    } else {
-      out.push(line);
-    }
-  }
-
-  return out.join("\n");
-}
-
-function rewriteUriAttrs(line, baseDir, baseOrigin, headersParam, tsProxyPrefix) {
-  return line.replace(/URI="([^"]+)"/g, (match, uri) => {
-    const abs = resolveUrl(uri, baseDir, baseOrigin);
-    if (!abs) return match;
-    const tsUrl = headersParam
-      ? `${tsProxyPrefix}${encodeURIComponent(abs)}&headers=${encodeURIComponent(headersParam)}`
-      : `${tsProxyPrefix}${encodeURIComponent(abs)}`;
-    return `URI="${tsUrl}"`;
-  });
-}
-
-function resolveUrl(input, baseDir, baseOrigin) {
-  try {
-    if (input.startsWith("http://") || input.startsWith("https://")) return input;
-    if (input.startsWith("/")) return baseOrigin + input;
-    return baseDir + input;
-  } catch { return null; }
-}
-
-// ─── RESPONSE HELPERS ───────────────────────────────────────────────────────
-
-async function passThrough(text, upstreamResp) {
-  return new Response(text, {
-    status: upstreamResp.status,
-    headers: corsHeaders({
-      "Content-Type": upstreamResp.headers.get("content-type") || "text/plain",
-      "Cache-Control": upstreamResp.headers.get("cache-control") || "no-store",
-    }),
-  });
-}
-
-async function passThroughBinary(upstreamResp) {
-  const body = await upstreamResp.arrayBuffer();
-  return new Response(body, {
-    status: upstreamResp.status,
-    headers: corsHeaders({
-      "Content-Type": upstreamResp.headers.get("content-type") || "application/octet-stream",
-      "Cache-Control": upstreamResp.headers.get("cache-control") || "no-store",
-      "Accept-Ranges": "bytes",
-    }),
-  });
-}
-
-function corsHeaders(extra = {}) {
-  return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "*",
-    "Access-Control-Max-Age": "86400",
-    ...extra,
-  };
-}
-
-function corsResponse(body, status = 200) {
-  return new Response(body, { status, headers: corsHeaders() });
-}
-
-function jsonResponse(obj, status = 200) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: corsHeaders({ "Content-Type": "application/json" }),
-  });
-}
