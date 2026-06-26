@@ -324,7 +324,7 @@ export async function GET(
     console.log(`[Servers] Kyren: ${kyrenVerified.length} verified streams (HLS via kyren Worker)`);
   }
 
-  // Anikage results — 5 servers (megg, kiss, miko, verse, neko) × sub/dub
+  // Anikage results — HLS (prox.anikage.cc) + embeds (otakuvid, otakuhg, vibeplayer, etc.)
   const anikageVerified: VerifiedServer[] = [];
   if (anikageResults.status === "fulfilled" && anikageResults.value) {
     for (const r of anikageResults.value) {
@@ -340,6 +340,7 @@ export async function GET(
         streamUrl: r.streamUrl,
         isM3U8: r.isM3U8,
         isMP4: r.isMP4,
+        isEmbed: r.isEmbed === true,
         hardsub: r.hardsub,
         subtitleTracks: r.tracks,
         intro: r.intro,
@@ -672,7 +673,17 @@ export async function GET(
                   || url.includes("streamlare.com/e/")
                   || url.includes("streamsb.net/e/")
                   || url.includes("anixtv.in")
-                  || url.includes("/embed/");
+                  || url.includes("/embed/")
+                  || url.includes("otakuvid.online/embed")
+                  || url.includes("otakuhg.site/e/")
+                  || url.includes("bibiemb.xyz/")
+                  || url.includes("vibeplayer.site/")
+                  || url.includes("playmogo.com/e/")
+                  || url.includes("doodstream.com/e/")
+                  || url.includes("streamtape.com/e/")
+                  || url.includes("voe.sx/e/")
+                  || url.includes("mixdrop.ag/e/")
+                  || url.includes("upstream.to/e/");
     // Reject if no playable format detected
     if (!isHls && !isMp4 && !isEmbed) return false;
 

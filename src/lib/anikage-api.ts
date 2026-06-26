@@ -18,7 +18,8 @@
  *      → { data: { sources: [{ streamUrl, quality, isM3U8 }], embeds: [{ url, type, server }], subtitles: [...] } }
  */
 
-import { wrapStreamUrl } from "./proxy";
+// wrapStreamUrl removed — AniKage HLS URLs (prox.anikage.cc) are used directly
+// (they have their own CORS + Referer handling). Embed URLs are also used directly.
 
 const SCRAPER_API = "https://anikage-scraper-api.sapis.workers.dev";
 
@@ -149,11 +150,35 @@ export async function fetchAnikageSources(
         const subtitles = data?.data?.subtitles || [];
         const verified: AnikageVerifiedResult[] = [];
 
-        // Process HLS/MP4 sources (already proxied via prox.anikage.cc)
+        // ── m3u8 verification helper ──
+        async function verifyM3u8(url: string, timeout = 5000): Promise<boolean> {
+          try {
+            const r = await Promise.race([
+              fetch(url, { headers: HEADERS, cache: "no-store" }),
+              new Promise<Response | null>(res => setTimeout(() => res(null), timeout)),
+            ]);
+            if (!r || !r.ok) return false;
+            const text = await r.text();
+            return text.trimStart().replace(/^\uFEFF/, "").startsWith("#EXTM3U");
+          } catch { return false; }
+        }
+
+        // Process HLS/MP4 sources (prox.anikage.cc/m3u8/{token})
+        // prox.anikage.cc is AniKage's OWN proxy — it handles Referer + CORS.
+        // Do NOT wrap through aniwatchtv (returns "invalid payload").
+        // Do NOT wrap through our worker (returns 502 — prox.anikage.cc blocks it).
+        // Use the URL directly — the browser will fetch it with proper CORS.
         for (const src of sources) {
           if (!src?.streamUrl) continue;
-          // prox.anikage.cc is CF-protected → wrap through our worker
-          const streamUrl = wrapStreamUrl(src.streamUrl);
+          const streamUrl = src.streamUrl;  // use directly, no wrapping
+
+          // Verify the m3u8 is actually playable (prox.anikage.cc may be down)
+          const isValid = await verifyM3u8(streamUrl);
+          if (!isValid) {
+            console.log(`[AniKage] ${job.server} ${src.quality} — m3u8 not playable, skipping`);
+            continue;
+          }
+
           verified.push({
             server: `${job.server}-${src.quality || "auto"}`,
             type: job.lang,
@@ -173,7 +198,8 @@ export async function fetchAnikageSources(
           });
         }
 
-        // Process embed URLs (vibeplayer, streamsb, ok.ru, otakuhg, etc.)
+        // Process embed URLs (vibeplayer, streamsb, ok.ru, otakuhg, otakuvid, etc.)
+        // These are iframe embeds — loaded directly in the browser, no proxy needed.
         for (const embed of embeds) {
           if (!embed?.url) continue;
           verified.push({
