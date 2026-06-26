@@ -70,6 +70,26 @@ function workerWrap(url: string): string {
   return `${WORKER_BASE}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent("https://anilight.live/")}`;
 }
 
+// ─── m3u8 verification ──────────────────────────────────────────────────────
+// Fetch the first few bytes of the proxied m3u8 URL and check if it starts
+// with #EXTM3U. If the CDN is down, the proxy returns a Cloudflare error page
+// (HTML) which does NOT start with #EXTM3U — so we filter it out.
+async function verifyM3u8Playable(proxiedUrl: string, timeoutMs = 5000): Promise<boolean> {
+  try {
+    const res = await Promise.race([
+      fetch(proxiedUrl, { headers: HEADERS, cache: "no-store" }),
+      new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
+    ]);
+    if (!res || !res.ok) return false;
+    const text = await res.text();
+    // Valid m3u8 must start with #EXTM3U (after any whitespace/BOM)
+    const trimmed = text.trimStart().replace(/^\uFEFF/, "");
+    return trimmed.startsWith("#EXTM3U");
+  } catch {
+    return false;
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface AniLightSearchResult {
@@ -444,14 +464,23 @@ export async function fetchAniLightSources(
     const watchData = malResult.value;
     const tracks = (watchData.tracks || []).filter(t => t?.url);
 
-    const collectQualities = (side: AniLightStreamSide, type: "sub" | "dub") => {
+    const collectQualities = async (side: AniLightStreamSide, type: "sub" | "dub") => {
       if (!side?.success || !side.qualities?.length) return;
       for (const q of side.qualities) {
         if (!q.url) continue;
+
+        // Verify the m3u8 is actually playable (not a Cloudflare error page)
+        const wrappedUrl = wrapM3u8Url(q.url);
+        const isValid = await verifyM3u8Playable(wrappedUrl, 5000);
+        if (!isValid) {
+          console.log(`[AniLight] Quality ${q.quality} (${type}) — m3u8 not playable, skipping`);
+          continue;
+        }
+
         verified.push({
           server: q.quality,  // "1080p", "720p", "360p"
           type,
-          streamUrl: wrapM3u8Url(q.url),   // wrap through aniwatchtv proxy
+          streamUrl: wrappedUrl,
           quality: q.quality,
           isM3U8: true,
           isMP4: false,
@@ -462,8 +491,8 @@ export async function fetchAniLightSources(
       }
     };
 
-    if (wantSub) collectQualities(watchData.stream.sub, "sub");
-    if (wantDub) collectQualities(watchData.stream.dub, "dub");
+    if (wantSub) await collectQualities(watchData.stream.sub, "sub");
+    if (wantDub) await collectQualities(watchData.stream.dub, "dub");
     console.log(`[AniLight] Method 2 (MAL): ${qualityCount} quality variants`);
   }
 
@@ -504,10 +533,17 @@ export async function fetchAniLightSources(
         const hasTracks = (data.tracks || []).length > 0;
         const hardsub = !hasTracks;
 
-        // Route the DIRECT stream URL through our worker.
-        // Worker adds Referer: https://kwik.cx/ (from REFERER_MAP) + CORS headers.
-        // OLD approach used cdn.animex.su XOR wrapper — DEAD as of 2026-06-25.
+        // Route the DIRECT stream URL through our proxy
         const streamUrl = wrapStreamUrl(source.url);
+
+        // Verify the m3u8 is actually playable (not a Cloudflare error page)
+        if (isHls) {
+          const isValid = await verifyM3u8Playable(streamUrl, 5000);
+          if (!isValid) {
+            console.log(`[AniLight] Server ${job.server} (${job.type}) — m3u8 not playable, skipping`);
+            return null;
+          }
+        }
 
         const tracks = (data.tracks || []).filter(t => t?.url);
 
