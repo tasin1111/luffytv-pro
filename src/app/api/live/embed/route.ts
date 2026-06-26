@@ -107,9 +107,9 @@ async function resolveStreamfree(category: string, streamKey: string): Promise<S
     let tokens: Record<string, { _t: string; _e: number; _n: string }> = {};
 
     const patterns = [
-      /const\s+_0x\s*=\s*(\{[^}]+\})/s,
-      /var\s+_0x\s*=\s*(\{[^}]+\})/s,
-      /window\._0x\s*=\s*(\{[^}]+\})/s,
+      new RegExp('const\\s+_0x\\s*=\\s*(\\{[^}]+\\})', 's'),
+      new RegExp('var\\s+_0x\\s*=\\s*(\\{[^}]+\\})', 's'),
+      new RegExp('window\\._0x\\s*=\\s*(\\{[^}]+\\})', 's'),
     ];
 
     for (const pattern of patterns) {

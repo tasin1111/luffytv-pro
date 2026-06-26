@@ -95,10 +95,13 @@ function encodeAniwatchtvToken(url: string, referer: string): string {
   for (let i = 0; i < dataBytes.length; i++) {
     xored[i] = dataBytes[i] ^ keyBytes[i % keyBytes.length];
   }
-  // Convert to base64url
+  // Convert to base64url — use Buffer (Node.js) or btoa (browser) for SSR compat
   let binary = "";
   for (let i = 0; i < xored.length; i++) binary += String.fromCharCode(xored[i]);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const b64 = typeof Buffer !== "undefined"
+    ? Buffer.from(binary, "binary").toString("base64")
+    : btoa(binary);
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 /**

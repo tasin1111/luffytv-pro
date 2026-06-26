@@ -92,7 +92,7 @@ export async function GET(req: Request) {
     ]);
 
     let stats = null;
-    let details = null;
+    let details: any = null;
 
     if (statsRes.status === "fulfilled" && statsRes.value.ok) {
       const rawStats = await statsRes.value.json();
@@ -103,7 +103,7 @@ export async function GET(req: Request) {
       const rawDetails = await detailsRes.value.json();
       details = deepToPrimitive(rawDetails);
       // Prepend WatchFooty base URL to relative image paths, then proxy them
-      if (details.teams) {
+      if (details && details.teams) {
         if (details.teams.home?.logoUrl) {
           if (!details.teams.home.logoUrl.startsWith("http")) details.teams.home.logoUrl = `https://api.watchfooty.st${details.teams.home.logoUrl}`;
           details.teams.home.logoUrl = proxyImageUrl(details.teams.home.logoUrl);
@@ -121,11 +121,11 @@ export async function GET(req: Request) {
           details.teams.away.logo = proxyImageUrl(details.teams.away.logo);
         }
       }
-      if (details.leagueLogo) {
+      if (details && details.leagueLogo) {
         if (!details.leagueLogo.startsWith("http")) details.leagueLogo = `https://api.watchfooty.st${details.leagueLogo}`;
         details.leagueLogo = proxyImageUrl(details.leagueLogo);
       }
-      if (details.poster) {
+      if (details && details.poster) {
         if (!details.poster.startsWith("http")) details.poster = `https://api.watchfooty.st${details.poster}`;
         details.poster = proxyImageUrl(details.poster);
       }
@@ -138,7 +138,7 @@ export async function GET(req: Request) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { error: "Failed to fetch match stats", details: error.message, matchId, details: null, statistics: null },
+      { error: "Failed to fetch match stats", errorMessage: error.message, matchId, details: null, statistics: null },
       { status: 500 }
     );
   }

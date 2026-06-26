@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "target": "ES2017",
+    "target": "ES2019",
     "lib": [
       "dom",
       "dom.iterable",
@@ -37,6 +37,15 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "myanime-backup",
+    "myanime",
+    "skills",
+    "animex-scraper",
+    "worker",
+    "scripts",
+    "tool-results",
+    "download",
+    "upload"
   ]
 }

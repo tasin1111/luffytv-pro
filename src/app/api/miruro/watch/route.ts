@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   try {
     // Try to fetch episodes data to get the providers map for auto-switching
-    let providersMap = undefined;
+    let providersMap: any = undefined;
     if (episodeNum) {
       const epData = await miruroEpisodes(id);
       if (epData.providersMap && Object.keys(epData.providersMap).length > 0) {

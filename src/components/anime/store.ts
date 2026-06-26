@@ -122,6 +122,8 @@ type Route =
   | { page: "novel-read"; novelId: string; novelTitle: string; chapterId: string; chapterNum: number; chapterTitle: string; totalChapters: number; novelSource: string }
   | { page: "signin" }
   | { page: "signup" }
+  | { page: "music" }
+  | { page: "torrent" }
   | { page: "scraper" }
   | { page: "scraper-anime"; id: string }
   | { page: "scraper-watch"; id: string; episode: string; site: string };
