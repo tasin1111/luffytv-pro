@@ -34,6 +34,7 @@ const ANIMANGA_FALLBACK_HOSTS = new Set([
   "vibeplayer.site",             // Miruro Bonk — aniwatchtv 403, animanga 200
   "vivibebe.site",               // mimi provider
   "9hjkrt.nekostream.site",      // AniLight Misa — worker 403, animanga 200
+  "nanobyte.bigdreamsmalldih.site", // AniLight quality variants — animanga proxy
 ]);
 
 // Referer map — encoded into the token so the proxy sends the correct Referer.
