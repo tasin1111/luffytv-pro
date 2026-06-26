@@ -35,6 +35,7 @@ import { fetchAnikageSources } from "@/lib/anikage-api";
 import { fetchMioAnimeSources } from "@/lib/mioanime-api";
 import { fetchAnistreamSources } from "@/lib/anistream-api";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 

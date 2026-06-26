@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { animexGetAnime, animexServers, animexSources } from "@/lib/animex-api";
 
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60; // 60s — generous timeout for batched fetching
 
