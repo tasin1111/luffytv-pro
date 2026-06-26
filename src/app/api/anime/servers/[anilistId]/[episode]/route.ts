@@ -34,6 +34,8 @@ import {
 import { fetchAnikageSources } from "@/lib/anikage-api";
 import { fetchMioAnimeSources } from "@/lib/mioanime-api";
 import { fetchAnistreamSources } from "@/lib/anistream-api";
+import { fetchAnikuroSources } from "@/lib/anikuro-api";
+import { fetchAniYubiSources } from "@/lib/aniyubi-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -83,7 +85,7 @@ const ANIMEX_REFERERS: Record<string, string> = {
 interface VerifiedServer {
   id: string;
   name: string;
-  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream";
+  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream" | "anikuro" | "aniyubi";
   provider: string;
   type: "sub" | "dub";
   quality: string;
@@ -156,8 +158,8 @@ export async function GET(
 
   // Fire AniDap resolver + sources fetch in parallel with the other sources.
   // AniDap gives us 11 providers × 2 types (sub/dub) — all verified playable.
-  // Also fire AniLight + Kyren in parallel — both return direct-playable streams.
-  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults, anistreamResults] = await Promise.allSettled([
+  // Also fire AniLight + Kyren + AniKuro + AniYubi in parallel — all return direct-playable streams.
+  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults, anistreamResults, anikuroResults, aniyubiResults] = await Promise.allSettled([
     fetchRawEpisodes(id),
     (async () => {
       const anime = await animexGetAnime(id);
@@ -175,6 +177,12 @@ export async function GET(
     // Returns DIRECT stream URLs — no XOR wrapper, no cdn.animex.su needed.
     // Has embed providers too (ok.ru, mp4upload) for some servers.
     fetchAnistreamSources(id, epNum, { sub: true, dub: true, timeoutMs: 6000 }),
+    // AniKuro.ru: Russian aggregator with 11 providers (animepahe, anikoto, animegg, etc.)
+    // Returns stream URLs through proxy.anikuro.ru (base64-encoded, CORS enabled).
+    fetchAnikuroSources(id, epNum, { sub: true, dub: true, timeoutMs: 6000 }),
+    // AniYubi.com: animepahe-based aggregator. Returns kwik.cx embed URLs.
+    // Played as iframe embeds (kwik.cx blocks server-side scraping).
+    fetchAniYubiSources(id, epNum, { timeoutMs: 6000 }),
   ]);
 
   // Miruro
@@ -409,6 +417,61 @@ export async function GET(
     console.log(`[Servers] Anistream: ${anistreamVerified.length} servers`);
   }
 
+  // AniKuro.ru (Russian aggregator — 11 providers: animepahe, anikoto, animegg, etc.)
+  // Returns proxy.anikuro.ru URLs (base64-encoded, CORS enabled, directly playable).
+  const anikuroVerified: VerifiedServer[] = [];
+  if (anikuroResults.status === "fulfilled" && anikuroResults.value) {
+    const PROVIDER_NAMES: Record<string, string> = {
+      animepahe: "AnimePahe", anikoto: "AniKoto", reanime: "ReAnime",
+      animedao: "AnimeDao", animegg: "AnimeGG", anidb: "AniDB",
+      animedunya: "AnimeDunya", animeverse: "AnimeVerse", allani: "AllAnime",
+      senshi: "Senshi", animix: "AniMix",
+    };
+    for (const r of anikuroResults.value) {
+      const provName = PROVIDER_NAMES[r.provider] || (r.provider[0].toUpperCase() + r.provider.slice(1));
+      const typeTag = r.type === "dub" ? " (Dub)" : "";
+      anikuroVerified.push({
+        id: `anikuro:${r.provider}:${r.type}`,
+        name: `AniKuro ${provName}${typeTag}`,
+        source: "anikuro",
+        provider: r.provider,
+        type: r.type,
+        quality: r.quality,
+        streamUrl: r.streamUrl,
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        hardsub: r.hardsub,
+        subtitleTracks: r.tracks,
+        intro: r.intro,
+        outro: r.outro,
+      });
+    }
+    console.log(`[Servers] AniKuro: ${anikuroVerified.length} servers`);
+  }
+
+  // AniYubi.com (animepahe-based — returns kwik.cx embed URLs)
+  // Played as iframe embeds (kwik.cx blocks server-side scraping).
+  const aniyubiVerified: VerifiedServer[] = [];
+  if (aniyubiResults.status === "fulfilled" && aniyubiResults.value) {
+    for (const r of aniyubiResults.value) {
+      aniyubiVerified.push({
+        id: `aniyubi:${r.provider}:sub`,
+        name: `AniYubi ${r.provider}`,
+        source: "aniyubi",
+        provider: r.provider,
+        type: "sub",
+        quality: r.quality,
+        streamUrl: r.streamUrl,
+        isM3U8: false,
+        isMP4: r.isMP4,
+        isEmbed: true,  // kwik.cx iframe
+        hardsub: r.hardsub,
+        subtitleTracks: [],
+      });
+    }
+    console.log(`[Servers] AniYubi: ${aniyubiVerified.length} servers`);
+  }
+
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
 
   // ─── Verify ALL in parallel (4s timeout each) ─────────────────────
@@ -566,23 +629,46 @@ export async function GET(
   verified.push(...mioanimeVerified);
   verified.push(...anixtvVerified);
   verified.push(...anistreamVerified);
+  verified.push(...anikuroVerified);
+  verified.push(...aniyubiVerified);
   // NOTE: Animex is NOT here — it's fetched separately via /api/anime/animex-servers
 
-  // ── STRICT FILTER: only show servers with a valid, non-empty streamUrl ────
+  // ── STRICT FILTER: only show servers with a playable stream URL ───────────
   // A server must have:
   //   1. A streamUrl that's > 10 chars (not empty/undefined)
   //   2. The URL must start with http://, https://, or / (relative proxy URL)
   //   3. Must NOT be a data: URI or blob:
+  //   4. Must be a playable format:
+  //      - HLS (m3u8) → isM3U8 must be true OR url contains .m3u8
+  //      - MP4 → isMP4 must be true OR url contains .mp4
+  //      - Embed (iframe) → isEmbed must be true (kwik.cx, ok.ru, mp4upload, anixtv)
+  //   5. If neither isM3U8, isMP4, nor isEmbed → reject (no playable format)
   const beforeFilter = verified.length;
   const filtered = verified.filter(s => {
     if (!s.streamUrl || s.streamUrl.length <= 10) return false;
     if (s.streamUrl.startsWith("data:") || s.streamUrl.startsWith("blob:")) return false;
     if (!s.streamUrl.startsWith("http") && !s.streamUrl.startsWith("/")) return false;
+
+    // Must have at least one playable format
+    const url = s.streamUrl.toLowerCase();
+    const isHls = s.isM3U8 === true || url.includes(".m3u8") || url.includes("/m3u8");
+    const isMp4 = s.isMP4 === true || url.includes(".mp4");
+    const isEmbed = s.isEmbed === true
+                  || url.includes("kwik.cx")
+                  || url.includes("ok.ru/videoembed")
+                  || url.includes("mp4upload.com/embed")
+                  || url.includes("streamlare.com/e/")
+                  || url.includes("streamsb.net/e/")
+                  || url.includes("anixtv.in")
+                  || url.includes("/embed/");
+    // Reject if no playable format detected
+    if (!isHls && !isMp4 && !isEmbed) return false;
+
     return true;
   });
 
-  const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length + anixtvVerified.length;
-  console.log(`[Servers] ${filtered.length}/${beforeFilter} servers (filtered ${beforeFilter - filtered.length} empty) — AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length}, AnixTV=${anixtvVerified.length}`);
+  const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length + anixtvVerified.length + anistreamVerified.length + anikuroVerified.length + aniyubiVerified.length;
+  console.log(`[Servers] ${filtered.length}/${beforeFilter} servers (filtered ${beforeFilter - filtered.length} empty/unplayable) — AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length}, AnixTV=${anixtvVerified.length}, Anistream=${anistreamVerified.length}, AniKuro=${anikuroVerified.length}, AniYubi=${aniyubiVerified.length}`);
 
   return NextResponse.json({ anilistId: id, episode: epNum, servers: filtered, total: filtered.length }, {
     headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
