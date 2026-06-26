@@ -34,6 +34,7 @@ import ScraperPage from "@/components/anime/scraper-page";
 import ScraperAnimePage from "@/components/anime/scraper-anime-page";
 import ScraperWatchPage from "@/components/anime/scraper-watch-page";
 import MusicPage from "@/components/anime/music-page";
+import TorrentPage from "@/components/anime/torrent-page";
 
 // Features page wrapper — scrolls to features section after mount
 function FeaturesScrollPage() {
@@ -255,6 +256,7 @@ export default function MainPage() {
       case "signin": return <SignInPage />;
       case "signup": return <SignInPage />;
       case "music": return <MusicPage />;
+      case "torrent": return <TorrentPage />;
       case "scraper": return <ScraperPage />;
       case "scraper-anime": return <ScraperAnimePage anilistId={route.id} />;
       case "scraper-watch": return <ScraperWatchPage anilistId={route.id} episodeId={route.episode} site={route.site} />;

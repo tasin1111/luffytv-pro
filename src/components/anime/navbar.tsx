@@ -133,6 +133,7 @@ export default function Navbar() {
     { label: "Browse", active: isAnimePage && (sectionSubPage === "browse" || sectionSubPage === "genres") },
     { label: "Schedule", active: isAnimePage && sectionSubPage === "schedule" },
     { label: "Music", active: page === "music" },
+    { label: "Torrent", active: page === "torrent" },
   ];
 
   const handleNavClick = (label: string) => {
@@ -147,6 +148,8 @@ export default function Navbar() {
       setSectionSubPage("schedule");
     } else if (label === "Music") {
       navigate({ page: "music" });
+    } else if (label === "Torrent") {
+      navigate({ page: "torrent" });
     }
     setMobileOpen(false);
   };
