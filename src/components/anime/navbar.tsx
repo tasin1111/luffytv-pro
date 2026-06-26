@@ -157,12 +157,22 @@ export default function Navbar() {
   return (
     <>
       <header className={`nav-header-container${scrolled ? " scrolled" : ""}`}>
-        {/* Left: Logo + Nav Links */}
+        {/* SINGLE floating black capsule: Logo + Nav Links + Search + Mobile Toggle */}
         <nav className="navbar-capsule">
+          {/* Logo — blue circle + LuffyTV text */}
           <button className="nav-logo" onClick={() => { navigate({ page: "dub" }); setSectionSubPage("home"); }}>
+            <span className="nav-logo-circle" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none" />
+              </svg>
+            </span>
             <span className="nav-logo-text">LuffyTV</span>
           </button>
 
+          {/* Divider */}
+          <span className="nav-divider" aria-hidden="true" />
+
+          {/* Nav Links */}
           <div className="nav-links">
             {navItems.map((item) => (
               <button
@@ -174,11 +184,11 @@ export default function Navbar() {
               </button>
             ))}
           </div>
-        </nav>
 
-        {/* Right: Search + Mobile Toggle */}
-        <div className="nav-header-actions">
-          {/* Inline Search Bar */}
+          {/* Divider */}
+          <span className="nav-divider" aria-hidden="true" />
+
+          {/* Search Bar — INSIDE the same capsule */}
           <div className="nav-search-wrapper" ref={searchRef}>
             <form className="nav-search" onSubmit={handleSearchSubmit}>
               <input
@@ -197,7 +207,7 @@ export default function Navbar() {
               <div className="nav-search-dropdown">
                 {searchLoading ? (
                   <div className="nav-search-loading">
-                    <div className="w-5 h-5 border-2 border-white/10 border-t-[#E4A85D] rounded-full animate-spin" />
+                    <div className="w-5 h-5 border-2 border-white/10 border-t-white rounded-full animate-spin" />
                     <span>Searching...</span>
                   </div>
                 ) : searchResults.length > 0 ? (
@@ -249,7 +259,7 @@ export default function Navbar() {
           >
             {mobileOpen ? <X size={22} /> : <Menu size={22} />}
           </button>
-        </div>
+        </nav>
       </header>
 
       {/* Mobile Menu */}
