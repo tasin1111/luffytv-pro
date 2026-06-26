@@ -61,15 +61,12 @@ const ANIVEXA_PROVIDERS = ["animegg", "allmanga", "anikoto", "anineko"] as const
  * stream proxy because Anikuro 500s on those.
  */
 /**
- * Build a playable URL for a stream.
- * Routes the DIRECT stream URL through our Cloudflare Worker.
- * The worker adds the correct Referer header (from REFERER_MAP) + CORS headers.
- * OLD approach used cdn.animex.su XOR wrapper — DEAD (DNS NXDOMAIN as of 2026-06-25).
+ * Build a playable URL for a stream using the 3-tier proxy system.
+ * Uses wrapM3u8UrlWithReferer so the source-provided Referer is encoded in the token.
  */
 function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = false): string {
-  // Use wrapM3u8Url for HLS (rewrites segment URLs), wrapStreamUrl for MP4.
-  // Both route through our worker when NEXT_PUBLIC_PROXY_BASE is set.
-  return isMP4 ? wrapStreamUrl(streamUrl) : wrapM3u8Url(streamUrl);
+  if (isMP4) return wrapStreamUrl(streamUrl);
+  return wrapM3u8UrlWithReferer(streamUrl, referer);
 }
 
 const ANIMEX_REFERERS: Record<string, string> = {

@@ -25,18 +25,14 @@ const WORKER_PREFERRED_HOSTS = new Set([
   "hls.anidb.app",      // Miruro Pewe — worker 200, aniwatchtv 403
 ]);
 
-// CDNs that aniwatchtv can't handle → use animanga.fun fallback
+// CDNs that need animanga.fun fallback (worker + aniwatchtv both return 403)
+// NOTE: Most of these now work through aniwatchtv with the correct Referer.
+// Only use animanga.fun as last resort for CDNs that block ALL other proxies.
 const ANIMANGA_FALLBACK_HOSTS = new Set([
-  "mt.nekostream.site",          // Miruro Bee — both 403, but animanga 200
-  "vibeplayer.site",             // Miruro Bonk — both 403
+  "mt.nekostream.site",          // Miruro Bee — aniwatchtv 403, animanga 200
+  "vibeplayer.site",             // Miruro Bonk — aniwatchtv 403, animanga 200
   "vivibebe.site",               // mimi provider
   "nanobyte.bigdreamsmalldih.site", // AniLight
-  "vault-16.owocdn.top",         // Miruro Kiwi
-  "vault-01.uwucdn.top",         // uwu provider
-  "cdn.mewstream.buzz",          // yuki provider
-  "playeng.animeapps.top",       // beep provider
-  "185.237.107.144",             // Miruro Ally (raw IP) — try animanga
-  "185.237.106.76",              // Miruro Ally alt (raw IP)
 ]);
 
 // Referer map — encoded into the token so the proxy sends the correct Referer.
@@ -108,8 +104,8 @@ function encodeAniwatchtvToken(url: string, referer: string): string {
 /**
  * Build a proxy URL using the best proxy for the CDN:
  * 1. Worker-preferred CDNs → our Cloudflare Worker (v3 with browser headers)
- * 2. Animanga-fallback CDNs → upcloud.animanga.fun (different TLS fingerprint)
- * 3. Everything else → aniwatchtv proxy (pro.aniwatchtv.site)
+ * 2. Animanga-fallback CDNs → upcloud.animanga.fun (last resort only)
+ * 3. Everything else → aniwatchtv proxy (pro.aniwatchtv.site) — PRIMARY
  */
 function buildProxyUrl(url: string): string {
   const referer = getRefererFor(url);
@@ -122,13 +118,13 @@ function buildProxyUrl(url: string): string {
     return `${WORKER_PROXY}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(referer)}`;
   }
 
-  // 2. Animanga-fallback CDNs (vibeplayer, mt.nekostream, raw IPs, etc.)
+  // 2. Animanga-fallback CDNs (LAST RESORT — only 4 CDNs that block everything else)
   if (ANIMANGA_FALLBACK_HOSTS.has(hostname)) {
     const headers = JSON.stringify({ Referer: referer });
     return `https://upcloud.animanga.fun/proxy?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(headers)}`;
   }
 
-  // 3. Default: aniwatchtv proxy
+  // 3. DEFAULT: aniwatchtv proxy (pro.aniwatchtv.site) — works for most CDNs
   const token = encodeAniwatchtvToken(url, referer);
   return `${ANIWATCHTV_PROXY}/${token}`;
 }
