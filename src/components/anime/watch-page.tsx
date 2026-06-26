@@ -1108,7 +1108,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   }
                   return 0;
                 })
-                .slice(0, 12)
+                .slice(0, 30)
                 .map(s => (
                   <button
                     key={s.id}
