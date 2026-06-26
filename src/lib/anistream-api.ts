@@ -51,6 +51,24 @@ function workerWrap(url: string): string {
   return `${WORKER_BASE}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent("https://anistream.one/")}`;
 }
 
+// ─── m3u8 verification ──────────────────────────────────────────────────────
+// Same as AniLight: fetch the proxied m3u8 and check if it starts with #EXTM3U.
+// Filters out servers whose CDN is down (returns Cloudflare error HTML).
+async function verifyM3u8Playable(proxiedUrl: string, timeoutMs = 5000): Promise<boolean> {
+  try {
+    const res = await Promise.race([
+      fetch(proxiedUrl, { headers: HEADERS, cache: "no-store" }),
+      new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
+    ]);
+    if (!res || !res.ok) return false;
+    const text = await res.text();
+    const trimmed = text.trimStart().replace(/^\uFEFF/, "");
+    return trimmed.startsWith("#EXTM3U");
+  } catch {
+    return false;
+  }
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface AnistreamProvider {
@@ -263,6 +281,15 @@ export async function fetchAnistreamSources(
 
       // Route through our worker — it adds the correct Referer from the response headers
       const streamUrl = isHls ? wrapM3u8Url(source.url) : wrapStreamUrl(source.url);
+
+      // Verify the m3u8 is actually playable (not a Cloudflare error page)
+      if (isHls) {
+        const isValid = await verifyM3u8Playable(streamUrl, 5000);
+        if (!isValid) {
+          console.log(`[Anistream] Server ${provider.id} (${type}) — m3u8 not playable, skipping`);
+          return null;
+        }
+      }
 
       const tracks = (data.tracks || []).filter(t => t?.url).map(t => ({
         url: t.url,
