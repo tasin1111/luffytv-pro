@@ -69,8 +69,7 @@ const CDN_REFERERS: Record<string, string> = {
   "soq6.harmonixwellnessgroup.store": "https://allanime.uns.bio/",
 };
 
-// Worker proxy (kept for API calls that need CF challenge bypass, NOT for streams)
-const WORKER_PROXY = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+// Worker proxy is already defined at line 21 — no duplicate needed here.
 
 function getRefererFor(url: string): string {
   try {
