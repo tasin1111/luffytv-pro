@@ -431,8 +431,8 @@ video::-webkit-media-controls { border-radius: 8px; }
 }
 .carousel-dot.active {
   width: 24px;
-  background: #D4A017;
-  box-shadow: 0 0 10px rgba(212, 160, 23, 0.4);
+  background: #ffffff;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.25);
 }
 
 /* ===== EPISODE LIST ITEM — anixtv style ===== */
@@ -670,13 +670,13 @@ video::-webkit-media-controls { border-radius: 8px; }
 
 /* ===== SELECTION ===== */
 ::selection {
-  background: rgba(212, 160, 23, 0.3);
+  background: rgba(255, 255, 255, 0.20);
   color: white;
 }
 
 /* ===== NAV ACTIVE ===== */
 .nav-link-active {
-  color: #D4A017;
+  color: #ffffff;
   position: relative;
 }
 .nav-link-active::after {
@@ -688,8 +688,8 @@ video::-webkit-media-controls { border-radius: 8px; }
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: #D4A017;
-  box-shadow: 0 0 12px rgba(212, 160, 23, 0.6);
+  background: #ffffff;
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.6);
 }
 
 /* ===== PLAY BUTTON PULSE ===== */
@@ -1777,10 +1777,10 @@ video::-webkit-media-controls { border-radius: 8px; }
 /* CSS Variables for navbar */
 :root {
   --nav-accent-gold: #ffffff;
-  --nav-accent-gold-light: #F5C97B;
+  --nav-accent-gold-light: rgba(255,255,255,0.7);
   --nav-accent-gold-dark: #C8924A;
-  --nav-accent-gold-dim: rgba(228, 168, 93, 0.12);
-  --nav-accent-gold-rgb: 228, 168, 93;
+  --nav-accent-gold-dim: rgba(255, 255, 255, 0.12);
+  --nav-accent-gold-rgb: 255, 255, 255;
   --nav-bg-primary-rgb: 0, 0, 0;
   --nav-bg-secondary-rgb: 10, 10, 12;
   --nav-bg-card-rgb: 13, 13, 15;
@@ -2269,7 +2269,7 @@ video::-webkit-media-controls { border-radius: 8px; }
   border-radius: 50%;
   background: radial-gradient(
     circle,
-    rgba(212, 160, 23, 0.18) 0%,
+    rgba(255, 255, 255, 0.18) 0%,
     rgba(201, 150, 26, 0.08) 40%,
     transparent 70%
   );
@@ -2298,8 +2298,8 @@ video::-webkit-media-controls { border-radius: 8px; }
   width: var(--size);
   height: var(--size);
   border-radius: 50%;
-  background: rgba(212, 160, 23, 0.6);
-  box-shadow: 0 0 6px rgba(212, 160, 23, 0.4);
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.25);
   animation: ltv-particle-drift var(--d) var(--delay) ease-in-out infinite;
   opacity: 0;
 }
@@ -2343,10 +2343,10 @@ video::-webkit-media-controls { border-radius: 8px; }
 }
 
 .ltv-ltr-brand {
-  color: #D4A017;
+  color: #ffffff;
   text-shadow:
-    0 0 20px rgba(212, 160, 23, 0.5),
-    0 0 60px rgba(212, 160, 23, 0.2);
+    0 0 20px rgba(255, 255, 255, 0.30),
+    0 0 60px rgba(255, 255, 255, 0.15);
 }
 
 .ltv-ltr-white {
@@ -2357,10 +2357,10 @@ video::-webkit-media-controls { border-radius: 8px; }
 }
 
 .ltv-ltr-gold {
-  color: #D4A017;
+  color: #ffffff;
   text-shadow:
-    0 0 20px rgba(212, 160, 23, 0.5),
-    0 0 60px rgba(212, 160, 23, 0.2);
+    0 0 20px rgba(255, 255, 255, 0.30),
+    0 0 60px rgba(255, 255, 255, 0.15);
 }
 
 @keyframes ltv-letter-reveal {
@@ -3199,8 +3199,8 @@ video::-webkit-media-controls { border-radius: 8px; }
   background: rgba(5, 5, 15, 0.55) !important;
   backdrop-filter: blur(36px) saturate(1.6) !important;
   -webkit-backdrop-filter: blur(36px) saturate(1.6) !important;
-  border-color: rgba(212, 160, 23, 0.25) !important;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(212, 160, 23, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.5), 0 0 30px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.08) !important;
 }
 
 /* ===== Sticky Glass Navbar (unused — keeping for reference) ===== */
@@ -3215,25 +3215,25 @@ video::-webkit-media-controls { border-radius: 8px; }
 }
 .nav-link-default:hover {
   color: #fff;
-  background: rgba(212, 160, 23, 0.08);
-  box-shadow: 0 0 16px rgba(212, 160, 23, 0.08);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.06);
 }
 .nav-link-active {
   color: #fff;
-  background: rgba(212, 160, 23, 0.14);
-  box-shadow: 0 0 20px rgba(212, 160, 23, 0.1), inset 0 0 12px rgba(212, 160, 23, 0.06);
+  background: rgba(255, 255, 255, 0.10);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.08), inset 0 0 12px rgba(255, 255, 255, 0.05);
 }
 
 /* Watch Now button — glass gold */
 .nav-watch-btn {
-  background: linear-gradient(135deg, #D4A017, #F5C842);
-  border: 1px solid rgba(212, 160, 23, 0.3);
-  box-shadow: 0 2px 16px rgba(212, 160, 23, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  background: linear-gradient(135deg, #ffffff, rgba(255,255,255,0.7));
+  border: 1px solid rgba(255, 255, 255, 0.20);
+  box-shadow: 0 2px 16px rgba(255, 255, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
 }
 .nav-watch-btn:hover {
   background: linear-gradient(135deg, #E8B923, #F5D562);
-  border-color: rgba(212, 160, 23, 0.5);
-  box-shadow: 0 4px 24px rgba(212, 160, 23, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.30);
+  box-shadow: 0 4px 24px rgba(255, 255, 255, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.15);
   transform: translateY(-1px);
 }
 
@@ -3319,7 +3319,7 @@ video::-webkit-media-controls { border-radius: 8px; }
 
 /* ===== GOLD STROKE OUTLINE TEXT ===== */
 .stroke-text-gold {
-  -webkit-text-stroke: 2px rgba(212, 160, 23, 0.5);
+  -webkit-text-stroke: 2px rgba(255, 255, 255, 0.30);
   -webkit-text-fill-color: transparent;
   color: transparent;
 }
@@ -7275,7 +7275,7 @@ video::-webkit-media-controls { border-radius: 8px; }
   --rd-text: #ffffff;
   --rd-text-muted: rgba(255,255,255,0.5);
   --rd-text-dim: rgba(255,255,255,0.3);
-  --rd-accent: #D4A017;
+  --rd-accent: #ffffff;
   --rd-accent-hover: #E8B923;
   --rd-accent-dim: rgba(212,160,23,0.12);
   --rd-radius-sm: 8px;
@@ -8069,7 +8069,7 @@ body, .lu-page, .fade-in {
   transition: color 0.2s !important;
 }
 .nav-link:hover { color: #fff !important; }
-.nav-link.active { color: #D4A017 !important; }
+.nav-link.active { color: #ffffff !important; }
 .nav-logo-text {
   color: #fff !important;
   font-weight: 800 !important;
@@ -8108,12 +8108,12 @@ body, .lu-page, .fade-in {
 .fade-in button.bg-\[\#ffffff\]\/10:hover {
   background: rgba(212,160,23,0.15) !important;
   border-color: rgba(212,160,23,0.4) !important;
-  color: #D4A017 !important;
+  color: #ffffff !important;
 }
 
 /* ─── Watch Now Button ─── */
 .fade-in button.bg-\[\#ffffff\] {
-  background: #D4A017 !important;
+  background: #ffffff !important;
   color: #000 !important;
   border-radius: 8px !important;
   font-weight: 700 !important;
@@ -8172,15 +8172,15 @@ body, .lu-page, .fade-in {
 .lu-page button.bg-\[\#7c3aed\],
 .watch-page button.bg-\[\#7c3aed\] {
   background: rgba(212,160,23,0.12) !important;
-  border: 1px solid #D4A017 !important;
-  color: #D4A017 !important;
+  border: 1px solid #ffffff !important;
+  color: #ffffff !important;
   box-shadow: 0 0 12px rgba(212,160,23,0.12) !important;
 }
 
 /* Audio toggle buttons */
-.lu-page button.bg-\[\#D4A017\],
-.watch-page button.bg-\[\#D4A017\] {
-  background: #D4A017 !important;
+.lu-page button.bg-\[\#ffffff\],
+.watch-page button.bg-\[\#ffffff\] {
+  background: #ffffff !important;
   color: #000 !important;
   font-weight: 700 !important;
 }
@@ -8203,7 +8203,7 @@ body, .lu-page, .fade-in {
 }
 .browse-anime-input:focus,
 .browse-genre-input:focus {
-  border-color: #D4A017 !important;
+  border-color: #ffffff !important;
   box-shadow: 0 0 0 2px rgba(212,160,23,0.12) !important;
 }
 .browse-results-grid {
