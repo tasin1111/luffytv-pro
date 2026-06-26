@@ -74,7 +74,7 @@ function CountdownTimer({ targetTime }: { targetTime: number }) {
   }, [targetTime]);
 
   return (
-    <span className={`text-[10px] font-bold tabular-nums ${urgent ? "text-rose-400 animate-pulse" : timeLeft === "Aired" ? "text-emerald-400" : "text-cyan-400"}`}>
+    <span className={`text-[10px] font-bold tabular-nums ${urgent ? "text-[#E63946] animate-pulse" : timeLeft === "Aired" ? "text-[#10B981]" : "text-[#4A90E2]"}`}>
       {timeLeft === "Aired" ? (
         <span className="flex items-center gap-1">
           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
@@ -105,7 +105,7 @@ function ScheduleCard({ item, index }: { item: AiringScheduleItem; index: number
 
   return (
     <div
-      className="group relative flex items-center gap-3 p-3 rounded-xl bg-[#131c26] border border-white/[0.04] hover:border-cyan-500/20 hover:bg-[#131c26]/80 transition-all duration-200 cursor-pointer"
+      className="group relative flex items-center gap-3 p-3 rounded-xl bg-white/[0.025] border border-white/[0.04] hover:border-[#4A90E2]/20 hover:bg-white/[0.025]/80 transition-all duration-200 cursor-pointer"
       style={{ animationDelay: `${index * 50}ms` }}
       onClick={() => navigate({ page: "anime", id: String(item.media.id) })}
     >
@@ -113,19 +113,19 @@ function ScheduleCard({ item, index }: { item: AiringScheduleItem; index: number
       <div className="flex flex-col items-center shrink-0">
         <div className={`w-2.5 h-2.5 rounded-full border-2 ${
           hasAired
-            ? "bg-emerald-500 border-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.4)]"
-            : "bg-cyan-500 border-cyan-400 shadow-[0_0_8px_rgba(0,168,225,0.4)] animate-pulse"
+            ? "bg-[#10B981] border-[#10B981] shadow-[0_0_8px_rgba(16,185,129,0.4)]"
+            : "bg-[#4A90E2] border-[#4A90E2] shadow-[0_0_8px_rgba(74,144,226,0.4)] animate-pulse"
         }`} />
         <div className="w-0.5 h-8 bg-gradient-to-b from-white/[0.06] to-transparent" />
       </div>
 
       {/* Image */}
-      <div className="shrink-0 w-12 h-16 rounded-lg overflow-hidden border border-white/[0.06] bg-[#1a2530]">
+      <div className="shrink-0 w-12 h-16 rounded-lg overflow-hidden border border-white/[0.06] bg-[#0d0d0d]">
         {image ? (
           <img src={image} alt={title} className="w-full h-full object-cover" loading="lazy" />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
-            <svg className="w-5 h-5 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <svg className="w-5 h-5 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
               <path d="M8 14s1.5 2 4 2 4-2 4-2" />
             </svg>
@@ -135,20 +135,20 @@ function ScheduleCard({ item, index }: { item: AiringScheduleItem; index: number
 
       {/* Info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white truncate group-hover:text-cyan-300 transition-colors">
+        <p className="text-sm font-medium text-white truncate group-hover:text-[#4A90E2] transition-colors">
           {title}
         </p>
         <div className="flex items-center gap-2 mt-1">
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
             hasAired
-              ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-              : "bg-cyan-500/10 text-cyan-400 border border-cyan-500/20"
+              ? "bg-[#10B981]/10 text-[#10B981] border border-[#10B981]/20"
+              : "bg-[#4A90E2]/10 text-[#4A90E2] border border-[#4A90E2]/20"
           }`}>
             EP {item.episode}
           </span>
-          <span className="text-[10px] text-zinc-500">{airTime}</span>
+          <span className="text-[10px] text-white/40">{airTime}</span>
           {item.media.format && (
-            <span className="text-[9px] text-zinc-600 uppercase">{item.media.format}</span>
+            <span className="text-[9px] text-white/30 uppercase">{item.media.format}</span>
           )}
         </div>
       </div>
@@ -312,7 +312,7 @@ export default function SchedulePage() {
       {/* Header */}
       <div className="space-y-3">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/25">
+          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#4A90E2] to-[#4A90E2] flex items-center justify-center shadow-lg shadow-[#4A90E2]/25">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
               <line x1="16" y1="2" x2="16" y2="6" />
@@ -322,13 +322,13 @@ export default function SchedulePage() {
           </div>
           <div>
             <h1 className="text-xl font-bold text-white">Airing Schedule</h1>
-            <p className="text-xs text-zinc-500">Upcoming anime episodes with countdown timers</p>
+            <p className="text-xs text-white/40">Upcoming anime episodes with countdown timers</p>
           </div>
         </div>
 
         {/* Next Airing Banner */}
         {nextAiring && (
-          <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-cyan-500/10 via-blue-500/5 to-red-500/10 border border-cyan-500/15 p-4">
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-[#4A90E2]/10 via-[#4A90E2]/5 to-[#E63946]/10 border border-[#4A90E2]/15 p-4">
             <div className="absolute inset-0 opacity-30">
               {nextAiring.media.coverImage?.extraLarge && (
                 <img
@@ -343,8 +343,8 @@ export default function SchedulePage() {
                 {nextAiring.media.coverImage?.medium ? (
                   <img src={nextAiring.media.coverImage.medium} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-[#1a2530] flex items-center justify-center">
-                    <svg className="w-6 h-6 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <div className="w-full h-full bg-[#0d0d0d] flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                       <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
                     </svg>
                   </div>
@@ -352,10 +352,10 @@ export default function SchedulePage() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/20 animate-pulse">
+                  <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[#4A90E2]/15 text-[#4A90E2] border border-[#4A90E2]/20 animate-pulse">
                     NEXT UP
                   </span>
-                  <span className="text-[10px] text-zinc-500">Episode {nextAiring.episode}</span>
+                  <span className="text-[10px] text-white/40">Episode {nextAiring.episode}</span>
                 </div>
                 <p className="text-sm font-bold text-white truncate">
                   {nextAiring.media.title?.english || nextAiring.media.title?.romaji || "Unknown"}
@@ -386,9 +386,9 @@ export default function SchedulePage() {
                 className={`shrink-0 flex flex-col items-center gap-1 px-4 py-2.5 rounded-xl transition-all border min-w-[70px] ${
                   activeDayIdx === idx
                     ? isToday
-                      ? "bg-cyan-500/15 border-cyan-500/30 text-cyan-300"
+                      ? "bg-[#4A90E2]/15 border-[#4A90E2]/30 text-[#4A90E2]"
                       : "bg-white/[0.06] border-white/[0.1] text-white"
-                    : "bg-[#131c26] border-white/[0.04] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.08]"
+                    : "bg-white/[0.025] border-white/[0.04] text-white/40 hover:text-white/75 hover:border-white/[0.08]"
                 }`}
               >
                 <span className="text-[10px] font-bold uppercase tracking-wider">
@@ -399,13 +399,13 @@ export default function SchedulePage() {
                 </span>
                 {hasAiring && (
                   <span className={`text-[9px] font-bold ${
-                    activeDayIdx === idx ? "text-cyan-400" : "text-zinc-600"
+                    activeDayIdx === idx ? "text-[#4A90E2]" : "text-white/30"
                   }`}>
                     {day.items.length} ep{day.items.length !== 1 ? "s" : ""}
                   </span>
                 )}
                 {isToday && (
-                  <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_rgba(0,168,225,0.6)]" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#4A90E2] shadow-[0_0_6px_rgba(0,168,225,0.6)]" />
                 )}
               </button>
             );
@@ -417,7 +417,7 @@ export default function SchedulePage() {
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-[#131c26] border border-white/[0.04]">
+            <div key={i} className="flex items-center gap-3 p-3 rounded-xl bg-white/[0.025] border border-white/[0.04]">
               <div className="w-2.5 h-2.5 rounded-full skeleton" />
               <div className="w-12 h-16 rounded-lg skeleton" />
               <div className="flex-1 space-y-2">
@@ -429,17 +429,17 @@ export default function SchedulePage() {
           ))}
         </div>
       ) : error ? (
-        <div className="text-center py-20 bg-[#151f2e] rounded-2xl border border-white/[0.04]">
+        <div className="text-center py-20 bg-white/[0.025] rounded-2xl border border-white/[0.04]">
           <div className="space-y-4">
-            <div className="w-16 h-16 mx-auto rounded-full bg-rose-500/10 flex items-center justify-center">
-              <svg className="w-8 h-8 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <div className="w-16 h-16 mx-auto rounded-full bg-[#E63946]/10 flex items-center justify-center">
+              <svg className="w-8 h-8 text-[#E63946]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
-            <p className="text-zinc-400 text-sm">{error}</p>
+            <p className="text-white/55 text-sm">{error}</p>
             <button
               onClick={() => window.location.reload()}
-              className="px-4 py-2 text-xs font-bold bg-cyan-500/15 text-cyan-300 rounded-full hover:bg-cyan-500/25 transition-all border border-cyan-500/20"
+              className="px-4 py-2 text-xs font-bold bg-[#4A90E2]/15 text-[#4A90E2] rounded-full hover:bg-[#4A90E2]/25 transition-all border border-[#4A90E2]/20"
             >
               Refresh
             </button>
@@ -451,7 +451,7 @@ export default function SchedulePage() {
           <div className="flex items-center gap-3 mb-4">
             <div className="section-header flex items-center gap-2">
               <h2 className="text-base font-bold text-white">{activeDay.label}</h2>
-              <span className="text-xs text-zinc-500">{activeDay.items.length} episode{activeDay.items.length !== 1 ? "s" : ""}</span>
+              <span className="text-xs text-white/40">{activeDay.items.length} episode{activeDay.items.length !== 1 ? "s" : ""}</span>
             </div>
             <div className="flex-1 h-px bg-gradient-to-r from-white/[0.06] to-transparent" />
           </div>
@@ -462,18 +462,18 @@ export default function SchedulePage() {
           ))}
         </div>
       ) : (
-        <div className="text-center py-20 bg-[#151f2e] rounded-2xl border border-white/[0.04]">
+        <div className="text-center py-20 bg-white/[0.025] rounded-2xl border border-white/[0.04]">
           <div className="space-y-4">
-            <div className="w-16 h-16 mx-auto rounded-full bg-cyan-500/10 flex items-center justify-center">
-              <svg className="w-8 h-8 text-cyan-400/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <div className="w-16 h-16 mx-auto rounded-full bg-[#4A90E2]/10 flex items-center justify-center">
+              <svg className="w-8 h-8 text-[#4A90E2]/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
                 <line x1="16" y1="2" x2="16" y2="6" />
                 <line x1="8" y1="2" x2="8" y2="6" />
                 <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
             </div>
-            <p className="text-zinc-400 text-sm">No episodes scheduled for this day</p>
-            <p className="text-zinc-600 text-xs">Check other days for upcoming anime</p>
+            <p className="text-white/55 text-sm">No episodes scheduled for this day</p>
+            <p className="text-white/30 text-xs">Check other days for upcoming anime</p>
           </div>
         </div>
       )}
@@ -481,31 +481,31 @@ export default function SchedulePage() {
       {/* Quick Stats */}
       {!loading && schedule.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="bg-[#131c26] rounded-xl p-3 border border-white/[0.04]">
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">This Week</p>
+          <div className="bg-white/[0.025] rounded-xl p-3 border border-white/[0.04]">
+            <p className="text-[10px] text-white/40 uppercase tracking-wider font-bold">This Week</p>
             <p className="text-xl font-bold text-white mt-1">{schedule.length}</p>
-            <p className="text-[10px] text-zinc-600">episodes</p>
+            <p className="text-[10px] text-white/30">episodes</p>
           </div>
-          <div className="bg-[#131c26] rounded-xl p-3 border border-white/[0.04]">
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Aired</p>
-            <p className="text-xl font-bold text-emerald-400 mt-1">
+          <div className="bg-white/[0.025] rounded-xl p-3 border border-white/[0.04]">
+            <p className="text-[10px] text-white/40 uppercase tracking-wider font-bold">Aired</p>
+            <p className="text-xl font-bold text-[#10B981] mt-1">
               {schedule.filter(i => i.airingAt <= now).length}
             </p>
-            <p className="text-[10px] text-zinc-600">episodes</p>
+            <p className="text-[10px] text-white/30">episodes</p>
           </div>
-          <div className="bg-[#131c26] rounded-xl p-3 border border-white/[0.04]">
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Upcoming</p>
-            <p className="text-xl font-bold text-cyan-400 mt-1">
+          <div className="bg-white/[0.025] rounded-xl p-3 border border-white/[0.04]">
+            <p className="text-[10px] text-white/40 uppercase tracking-wider font-bold">Upcoming</p>
+            <p className="text-xl font-bold text-[#4A90E2] mt-1">
               {schedule.filter(i => i.airingAt > now).length}
             </p>
-            <p className="text-[10px] text-zinc-600">episodes</p>
+            <p className="text-[10px] text-white/30">episodes</p>
           </div>
-          <div className="bg-[#131c26] rounded-xl p-3 border border-white/[0.04]">
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold">Anime</p>
-            <p className="text-xl font-bold text-red-400 mt-1">
+          <div className="bg-white/[0.025] rounded-xl p-3 border border-white/[0.04]">
+            <p className="text-[10px] text-white/40 uppercase tracking-wider font-bold">Anime</p>
+            <p className="text-xl font-bold text-[#E63946] mt-1">
               {new Set(schedule.map(i => i.media.id)).size}
             </p>
-            <p className="text-[10px] text-zinc-600">unique shows</p>
+            <p className="text-[10px] text-white/30">unique shows</p>
           </div>
         </div>
       )}

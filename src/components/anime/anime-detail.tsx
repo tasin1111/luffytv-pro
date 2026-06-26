@@ -427,17 +427,17 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
   if (loading) {
     return (
       <div className="fade-in">
-        <div className="relative h-[420px] bg-[#1A1A1A] animate-pulse" />
+        <div className="relative h-[420px] ltv-card-flat animate-pulse" />
         <div className="px-4 sm:px-6 lg:px-12 -mt-24 relative z-10">
           <div className="flex flex-col md:flex-row gap-6">
-            <div className="w-[180px] sm:w-[200px] aspect-[2/3] bg-[#1A1A1A] rounded-xl animate-pulse shrink-0" />
+            <div className="w-[180px] sm:w-[200px] aspect-[2/3] ltv-card-flat rounded-xl animate-pulse shrink-0" />
             <div className="flex-1 space-y-3 pt-4">
-              <div className="h-5 w-32 bg-[#1A1A1A] rounded animate-pulse" />
-              <div className="h-8 w-72 bg-[#1A1A1A] rounded animate-pulse" />
-              <div className="h-4 w-48 bg-[#1A1A1A] rounded animate-pulse" />
+              <div className="h-5 w-32 ltv-card-flat rounded animate-pulse" />
+              <div className="h-8 w-72 ltv-card-flat rounded animate-pulse" />
+              <div className="h-4 w-48 ltv-card-flat rounded animate-pulse" />
               <div className="flex gap-2 mt-4">
-                <div className="h-10 w-32 bg-[#1A1A1A] rounded-lg animate-pulse" />
-                <div className="h-10 w-28 bg-[#1A1A1A] rounded-lg animate-pulse" />
+                <div className="h-10 w-32 ltv-card-flat animate-pulse" />
+                <div className="h-10 w-28 ltv-card-flat animate-pulse" />
               </div>
             </div>
           </div>
@@ -542,29 +542,29 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
 
   // ── Render ──
   return (
-    <div className="fade-in bg-[#0D0D0D] min-h-screen">
+    <div className="fade-in ltv-v4 min-h-screen">
 
       {/* ═══════════════════════════════════════════════════════
-          HERO SECTION — Full-width banner with overlaid content
+          HERO SECTION — Pure black with cinematic banner
           ═══════════════════════════════════════════════════════ */}
       <div className="relative overflow-hidden">
         {/* Banner background */}
         <div className="absolute inset-0">
-          {banner && <img src={banner} alt="" className="w-full h-full object-cover" />}
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0D0D0D] via-[#0D0D0D]/85 to-[#0D0D0D]/50" />
-          <div className="absolute inset-0 bg-gradient-to-r from-[#0D0D0D]/90 via-transparent to-transparent" />
+          {banner && <img src={banner} alt="" className="w-full h-full object-cover opacity-50" />}
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-black/85 to-black/40" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black via-black/60 to-transparent" />
         </div>
 
         {/* Hero content */}
-        <div className="relative px-4 sm:px-6 lg:px-12 pt-20 sm:pt-24 pb-8 flex flex-col md:flex-row gap-6 lg:gap-10">
+        <div className="relative px-4 sm:px-6 lg:px-12 pt-20 sm:pt-24 pb-10 flex flex-col md:flex-row gap-6 lg:gap-10">
 
           {/* Poster */}
           {image && (
-            <div className="relative shrink-0 w-[160px] sm:w-[190px] md:w-[210px] self-center md:self-end">
+            <div className="relative shrink-0 w-[170px] sm:w-[200px] md:w-[220px] self-center md:self-end">
               <img
                 src={image}
                 alt={displayTitle}
-                className="w-full aspect-[2/3] object-cover rounded-xl border border-white/[0.08] shadow-[0_8px_40px_rgba(0,0,0,0.7)]"
+                className="w-full aspect-[2/3] object-cover rounded-xl border border-white/[0.08] shadow-[0_12px_50px_rgba(0,0,0,0.85)]"
               />
               {/* Score badge — circular gold ring */}
               {anilistScore && (
@@ -579,40 +579,36 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
           <div className="flex flex-col items-center md:items-start text-center md:text-left flex-1 min-w-0 pb-6">
             {/* Native/Japanese title */}
             {anilistTitleNative && (
-              <p className="text-[11px] sm:text-xs text-[#666666] tracking-wide mb-1 font-medium">{anilistTitleNative}</p>
+              <p className="text-[11px] sm:text-xs text-white/40 tracking-wide mb-1 font-medium">{anilistTitleNative}</p>
             )}
 
             {/* English title — large */}
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-white leading-tight mb-2">{displayTitle}</h1>
+            <h1 className="text-2xl sm:text-3xl lg:text-5xl font-extrabold text-white leading-[1.05] mb-2 tracking-tight">{displayTitle}</h1>
 
             {/* Romaji title if different */}
             {anilistTitleRomaji && anilistTitleRomaji !== displayTitle && (
-              <p className="text-xs sm:text-sm text-[#AAAAAA] mb-3 line-clamp-1">{anilistTitleRomaji}</p>
+              <p className="text-xs sm:text-sm text-white/55 mb-3 line-clamp-1">{anilistTitleRomaji}</p>
             )}
 
             {/* Metadata pills row */}
             <div className="flex items-center justify-center md:justify-start gap-2 flex-wrap mb-4">
               {season && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold bg-white/[0.06] text-[#AAAAAA] rounded-md border border-white/[0.08]">
+                <span className="ltv-pill">
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>
                   {season}
                 </span>
               )}
               {type && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold bg-white/[0.06] text-[#AAAAAA] rounded-md border border-white/[0.08]">
-                  {type}
-                </span>
+                <span className="ltv-pill">{type}</span>
               )}
               {episodesCount && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold bg-white/[0.06] text-[#AAAAAA] rounded-md border border-white/[0.08]">
-                  {episodesCount} Ep{episodesCount !== 1 ? "s" : ""}
-                </span>
+                <span className="ltv-pill">{episodesCount} Ep{episodesCount !== 1 ? "s" : ""}</span>
               )}
               {status && (() => {
                 const sc = statusColor(status);
                 return (
                   <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold rounded-md border ${sc.bg} ${sc.text} ${sc.border}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${status === "RELEASING" ? "bg-[#00D4AA] animate-pulse" : status === "FINISHED" ? "bg-[#4A90E2]" : "bg-[#FF8C00]"}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${status === "RELEASING" ? "bg-[#10B981] animate-pulse" : status === "FINISHED" ? "bg-[#4A90E2]" : "bg-[#FF8C00]"}`} />
                     {statusLabel(status)}
                   </span>
                 );
@@ -626,7 +622,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                   <button
                     key={g}
                     onClick={() => navigate({ page: "genre", genre: g })}
-                    className="px-2.5 py-0.5 text-[10px] font-semibold bg-[#E63946]/10 text-[#E63946]/80 rounded-full border border-[#E63946]/15 hover:bg-[#E63946]/20 hover:text-[#E63946] transition-all"
+                    className="ltv-genre"
                   >
                     {g}
                   </button>
@@ -640,7 +636,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
               {hasAnyEpisodes && (
                 <button
                   onClick={() => handleWatch(1)}
-                  className="inline-flex items-center gap-2 px-7 py-2.5 bg-[#E63946] text-white text-sm font-bold rounded-lg hover:bg-[#E63946]/80 transition-all shadow-lg shadow-[#E63946]/20 active:scale-95"
+                  className="ltv-btn ltv-btn-primary"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                   Watch Now
@@ -649,7 +645,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
               {/* Add to List — Glass button */}
               <button
                 onClick={toggleBookmark}
-                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/[0.06] backdrop-blur-md text-white border border-white/[0.10] rounded-lg hover:bg-white/[0.12] transition-all text-sm font-medium"
+                className="ltv-btn ltv-btn-ghost"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill={bookmarked ? "#FFB800" : "none"} stroke={bookmarked ? "#FFB800" : "currentColor"} strokeWidth={2}>
                   <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
@@ -665,7 +661,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                     navigator.clipboard.writeText(window.location.href);
                   }
                 }}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-white/[0.06] backdrop-blur-md text-white border border-white/[0.10] rounded-lg hover:bg-white/[0.12] transition-all text-sm font-medium"
+                className="ltv-btn ltv-btn-ghost"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" /></svg>
                 Share
@@ -676,7 +672,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                   href={`https://anilist.co/anime/${anilistId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-transparent text-[#4A90E2] border border-[#4A90E2]/30 rounded-lg hover:bg-[#4A90E2]/10 transition-all text-sm font-medium"
+                  className="ltv-btn ltv-btn-outline"
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M6.361 2.943L0 21.056h4.942l1.077-3.133H11.4l1.052 3.133H22.9c.71 0 1.1-.395 1.1-1.1V4.043c0-.71-.39-1.1-1.1-1.1h-4.465c-.71 0-1.1.39-1.1 1.1v8.076L11.26 2.943H6.361zm2.717 5.36l2.327 6.28H6.697l2.381-6.28z"/></svg>
                   AniList
@@ -688,7 +684,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                   href={`https://myanimelist.net/anime/${anilistId}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2.5 bg-transparent text-[#4A90E2] border border-[#4A90E2]/30 rounded-lg hover:bg-[#4A90E2]/10 transition-all text-sm font-medium"
+                  className="ltv-btn ltv-btn-outline"
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M8.273 7.247v8.423l-2.103-.003v-5.216l-2.03 2.404-1.989-2.458-.02 5.285H.001L0 7.247h2.203l1.865 2.545 2.015-2.546 2.19.001zm5.828 0v8.423H12l-.023-3.75-1.696 3.75H8.69l-1.67-3.75v3.75H4.863V7.247h2.46l2.123 4.444 2.126-4.444h2.529z"/></svg>
                   MAL
@@ -705,11 +701,11 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
       </div>
 
       {/* ═══════════════════════════════════════════════════════
-          TAB BAR — Glass style with red bottom border
+          TAB BAR — Modern underline style on pure black
           ═══════════════════════════════════════════════════════ */}
-      <div className="sticky top-0 z-30 bg-[#0D0D0D]/95 backdrop-blur-lg border-b border-white/[0.06]">
+      <div className="sticky top-0 z-30 bg-black/95 backdrop-blur-xl border-b border-white/[0.06]">
         <div className="w-full px-4 sm:px-6 lg:px-12">
-          <div className="flex items-center gap-0">
+          <div className="flex items-center gap-0 ltv-tab-bar" style={{ borderBottom: 'none' }}>
             {([
               { id: "overview" as DetailTab, label: "Overview" },
               { id: "episodes" as DetailTab, label: "Episodes", badge: episodesCount || (hasMiruroEps ? currentEps.length : episodes.length) || undefined },
@@ -719,23 +715,15 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
               <button
                 key={tab.id}
                 onClick={() => { setActiveTab(tab.id); setEpPage(1); }}
-                className={`relative flex items-center justify-center gap-2 px-5 py-3.5 text-[12px] font-bold transition-all ${
-                  activeTab === tab.id
-                    ? "text-white"
-                    : "text-[#666666] hover:text-[#AAAAAA]"
-                }`}
+                className={`ltv-tab${activeTab === tab.id ? " is-active" : ""}`}
               >
                 {tab.label}
                 {tab.badge && (
                   <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
-                    activeTab === tab.id ? "bg-[#E63946]/20 text-[#E63946]" : "bg-white/[0.06] text-[#666666]"
+                    activeTab === tab.id ? "bg-[#E63946]/20 text-[#E63946]" : "bg-white/[0.06] text-white/40"
                   }`}>
                     {tab.badge}
                   </span>
-                )}
-                {/* Red bottom border for active tab */}
-                {activeTab === tab.id && (
-                  <span className="absolute bottom-0 left-2 right-2 h-[2px] bg-[#E63946] rounded-full" />
                 )}
               </button>
             ))}
@@ -807,7 +795,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                   { icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>, label: "Studios", value: studioNames.length > 0 ? studioNames.join(", ") : "" },
                   { icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" /></svg>, label: "Country", value: country },
                 ].filter(item => item.value).map(item => (
-                  <div key={item.label} className="flex items-start gap-2.5 p-3 bg-[#1A1A1A] rounded-lg border border-white/[0.06]">
+                  <div key={item.label} className="flex items-start gap-2.5 p-3 ltv-card-flat">
                     <span className={item.color || "text-[#666666]"}>{item.icon}</span>
                     <div className="min-w-0">
                       <p className="text-[9px] text-[#666666] uppercase tracking-wider font-bold">{item.label}</p>
@@ -842,7 +830,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                         onClick={() => navigate({ page: "anime", id: String(r.id) })}
                         className="group relative shrink-0 w-[160px] sm:w-[180px] rounded-lg overflow-hidden border border-white/[0.06] hover:border-[#E63946]/30 transition-all"
                       >
-                        <div className="relative w-full aspect-[3/4] bg-[#1A1A1A] overflow-hidden">
+                        <div className="relative w-full aspect-[3/4] ltv-card-flat overflow-hidden">
                           {rImg ? (
                             <img src={rImg} alt={rTitle} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
                           ) : (
@@ -900,9 +888,9 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                     return (
                       <div
                         key={c.id}
-                        className="bg-[#1A1A1A] rounded-lg border border-white/[0.06] overflow-hidden group hover:border-[#FFB800]/20 transition-all"
+                        className="ltv-card-flat overflow-hidden group hover:border-[#FFB800]/20 transition-all"
                       >
-                        <div className="relative w-full aspect-[3/4] overflow-hidden bg-[#0D0D0D]">
+                        <div className="relative w-full aspect-[3/4] overflow-hidden bg-black">
                           {cImg ? (
                             <img src={cImg} alt={c.name.full} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
                           ) : (
@@ -947,7 +935,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                         onClick={() => navigate({ page: "anime", id: String(r.id) })}
                         className="group relative shrink-0 w-[160px] sm:w-[180px] rounded-lg overflow-hidden border border-white/[0.06] hover:border-[#4A90E2]/30 transition-all"
                       >
-                        <div className="relative w-full aspect-[3/4] bg-[#1A1A1A] overflow-hidden">
+                        <div className="relative w-full aspect-[3/4] ltv-card-flat overflow-hidden">
                           {rImg ? (
                             <img src={rImg} alt={rTitle} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
                           ) : (
@@ -993,7 +981,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                         onClick={() => navigate({ page: "anime", id: String(r.id) })}
                         className="group text-left"
                       >
-                        <div className="aspect-[3/4] rounded-lg overflow-hidden border border-white/[0.06] bg-[#1A1A1A] mb-1.5 relative">
+                        <div className="aspect-[3/4] rounded-lg overflow-hidden border border-white/[0.06] ltv-card-flat mb-1.5 relative">
                           {rImg ? (
                             <img src={rImg} alt={rTitle} className="w-full h-full object-cover group-hover:scale-105 transition-transform" loading="lazy" />
                           ) : (
@@ -1018,7 +1006,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
           <div className="space-y-4 fade-in">
             {/* Sub/Dub toggle */}
             {hasMiruroEps && miruroEps.dub.length > 0 && (
-              <div className="flex items-center gap-1 bg-[#1A1A1A] rounded-lg p-0.5 border border-white/[0.06] w-fit">
+              <div className="flex items-center gap-1 ltv-card-flat p-0.5 border border-white/[0.06] w-fit">
                 {(["sub", "dub"] as const).map(tab => (
                   <button
                     key={tab}
@@ -1043,7 +1031,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                 value={epSearch}
                 onChange={e => { setEpSearch(e.target.value); setEpPage(1); }}
                 placeholder="Search episodes..."
-                className="w-full pl-9 pr-4 py-2.5 bg-[#1A1A1A] border border-white/[0.08] rounded-lg text-sm text-white placeholder-[#666666] focus:outline-none focus:border-[#E63946]/40 transition-colors"
+                className="w-full pl-9 pr-4 py-2.5 ltv-card-flat border border-white/[0.08] rounded-lg text-sm text-white placeholder-[#666666] focus:outline-none focus:border-[#E63946]/40 transition-colors"
               />
             </div>
 
@@ -1065,12 +1053,12 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                     <button
                       key={`ep-${epNum}`}
                       onClick={() => handleWatch(epNum)}
-                      className={`group flex items-start gap-3 p-3 rounded-xl bg-[#1A1A1A] border transition-all text-left hover:bg-[#1A1A1A]/80 ${
+                      className={`group flex items-start gap-3 p-3 rounded-xl ltv-card-flat border transition-all text-left hover:ltv-card-flat/80 ${
                         isNextEp ? "border-[#FF8C00]/30 hover:border-[#FF8C00]/50" : "border-white/[0.06] hover:border-[#E63946]/30"
                       }`}
                     >
                       {/* Thumbnail with play overlay */}
-                      <div className="relative w-32 sm:w-36 shrink-0 aspect-video bg-[#0D0D0D] rounded-lg overflow-hidden">
+                      <div className="relative w-32 sm:w-36 shrink-0 aspect-video bg-black rounded-lg overflow-hidden">
                         {epThumb ? (
                           <img src={epThumb} alt={`Ep ${epNum}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" referrerPolicy="no-referrer" />
                         ) : fallbackImg ? (
@@ -1079,7 +1067,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/30" />
                           </>
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-[#1A1A1A]">
+                          <div className="w-full h-full flex items-center justify-center ltv-card-flat">
                             <span className="text-2xl font-extrabold text-white/[0.06] group-hover:text-[#E63946]/20 transition-colors">{epNum}</span>
                           </div>
                         )}
@@ -1129,18 +1117,18 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                     <button
                       key={`gen-${num}`}
                       onClick={() => handleWatch(num)}
-                      className={`group flex items-start gap-3 p-3 rounded-xl bg-[#1A1A1A] border transition-all text-left ${
+                      className={`group flex items-start gap-3 p-3 rounded-xl ltv-card-flat border transition-all text-left ${
                         isNextEp ? "border-[#FF8C00]/30 hover:border-[#FF8C00]/50" : "border-white/[0.06] hover:border-[#E63946]/30"
                       }`}
                     >
-                      <div className="relative w-32 sm:w-36 shrink-0 aspect-video bg-[#0D0D0D] rounded-lg overflow-hidden">
+                      <div className="relative w-32 sm:w-36 shrink-0 aspect-video bg-black rounded-lg overflow-hidden">
                         {fallbackImg ? (
                           <>
                             <img src={fallbackImg} alt={`Ep ${num}`} className="w-full h-full object-cover opacity-30 group-hover:scale-105 transition-transform duration-300" loading="lazy" referrerPolicy="no-referrer" />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/50 to-black/30" />
                           </>
                         ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-[#1A1A1A]">
+                          <div className="w-full h-full flex items-center justify-center ltv-card-flat">
                             <span className="text-2xl font-extrabold text-white/[0.06] group-hover:text-[#E63946]/20 transition-colors">{num}</span>
                           </div>
                         )}
@@ -1174,7 +1162,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                 })}
               </div>
             ) : (
-              <div className="text-center py-16 bg-[#1A1A1A] rounded-xl border border-white/[0.06]">
+              <div className="text-center py-16 ltv-card-flat">
                 <svg className="w-12 h-12 text-[#666666] mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path d="M15.536 8.464a5 5 0 010 7.072M18.364 5.636a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707A1 1 0 0112 5.586v12.828a1 1 0 01-1.707.707L5.586 15z" />
                 </svg>
@@ -1187,7 +1175,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
               <div className="flex justify-center">
                 <button
                   onClick={() => setEpPage(p => p + 1)}
-                  className="px-6 py-2.5 bg-[#1A1A1A] border border-white/[0.08] rounded-lg text-sm font-semibold text-[#AAAAAA] hover:text-white hover:border-[#E63946]/30 transition-all"
+                  className="px-6 py-2.5 ltv-card-flat border border-white/[0.08] rounded-lg text-sm font-semibold text-[#AAAAAA] hover:text-white hover:border-[#E63946]/30 transition-all"
                 >
                   Load More Episodes
                 </button>
@@ -1201,7 +1189,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
           <div className="space-y-4 fade-in">
             {/* Role filter */}
             {characters.length > 0 && (
-              <div className="flex items-center gap-1 bg-[#1A1A1A] rounded-lg p-0.5 border border-white/[0.06] w-fit">
+              <div className="flex items-center gap-1 ltv-card-flat p-0.5 border border-white/[0.06] w-fit">
                 {(["all", "MAIN", "SUPPORTING"] as const).map(filter => (
                   <button
                     key={filter}
@@ -1230,9 +1218,9 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                   return (
                     <div
                       key={c.id}
-                      className="bg-[#1A1A1A] rounded-lg border border-white/[0.06] overflow-hidden group hover:border-[#FFB800]/20 transition-all"
+                      className="ltv-card-flat overflow-hidden group hover:border-[#FFB800]/20 transition-all"
                     >
-                      <div className="relative w-full aspect-[3/4] overflow-hidden bg-[#0D0D0D]">
+                      <div className="relative w-full aspect-[3/4] overflow-hidden bg-black">
                         {cImg ? (
                           <img src={cImg} alt={c.name.full} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
                         ) : (
@@ -1263,7 +1251,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                 })}
               </div>
             ) : (
-              <div className="text-center py-16 bg-[#1A1A1A] rounded-xl border border-white/[0.06]">
+              <div className="text-center py-16 ltv-card-flat">
                 <svg className="w-12 h-12 text-[#666666] mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                   <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" /><circle cx="12" cy="7" r="4" />
                 </svg>
@@ -1276,7 +1264,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
               <div className="flex justify-center">
                 <button
                   onClick={() => setShowAllCharacters(!showAllCharacters)}
-                  className="px-6 py-2.5 bg-[#1A1A1A] border border-white/[0.08] rounded-lg text-sm font-semibold text-[#AAAAAA] hover:text-white hover:border-[#FFB800]/30 transition-all"
+                  className="px-6 py-2.5 ltv-card-flat border border-white/[0.08] rounded-lg text-sm font-semibold text-[#AAAAAA] hover:text-white hover:border-[#FFB800]/30 transition-all"
                 >
                   {showAllCharacters ? "Show Less" : `Show All (${filteredChars.length})`}
                 </button>
@@ -1309,7 +1297,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
 
         {/* No trailer available */}
         {activeTab === "trailer" && !hasTrailer && (
-          <div className="text-center py-16 bg-[#1A1A1A] rounded-xl border border-white/[0.06]">
+          <div className="text-center py-16 ltv-card-flat">
             <svg className="w-12 h-12 text-[#666666] mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <rect x="2" y="4" width="20" height="16" rx="2" />
               <polygon points="10 9 15 12 10 15" fill="currentColor" stroke="none" />

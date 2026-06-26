@@ -167,10 +167,10 @@ function SectionHeader({ title, tag, viewAllAction, children }: {
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
             </button>
           )}
-          <button onClick={() => scroll("left")} className="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors">
+          <button onClick={() => scroll("left")} className="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-white/40 hover:text-white hover:bg-white/[0.06] transition-colors">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
           </button>
-          <button onClick={() => scroll("right")} className="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors">
+          <button onClick={() => scroll("right")} className="p-2 rounded-lg bg-white/[0.03] border border-white/[0.06] text-white/40 hover:text-white hover:bg-white/[0.06] transition-colors">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
           </button>
         </div>
@@ -220,7 +220,7 @@ function FullScreenHero({ items }: { items: FeaturedAnime[] }) {
       {/* Multi-layered gradient overlays */}
       <div className="absolute inset-0 bg-gradient-to-r from-[#0D0D0D] via-[#0D0D0D]/70 to-transparent" />
       <div className="absolute inset-0 bg-gradient-to-t from-[#0D0D0D] via-[#0D0D0D]/40 to-transparent" />
-      <div className="absolute inset-0 bg-[#0D0D0D]/15" />
+      <div className="absolute inset-0 bg-black/15" />
 
       {/* Content at bottom-left */}
       <div className="absolute bottom-0 left-0 right-0 px-5 pb-20 sm:px-14 sm:pb-32 lg:px-14 lg:pb-36">
@@ -252,7 +252,7 @@ function FullScreenHero({ items }: { items: FeaturedAnime[] }) {
         {anime.genres && anime.genres.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 mb-4">
             {anime.genres.slice(0, 4).map(g => (
-              <span key={g} className="px-3 py-1 rounded-full text-[11px] font-medium bg-black/50 border border-white/10 text-zinc-300">
+              <span key={g} className="px-3 py-1 rounded-full text-[11px] font-medium bg-black/50 border border-white/10 text-white/75">
                 {g}
               </span>
             ))}
@@ -304,7 +304,7 @@ function FullScreenHero({ items }: { items: FeaturedAnime[] }) {
                 {thumb ? (
                   <img src={thumb} alt="" className="w-full h-full object-cover" />
                 ) : (
-                  <div className="w-full h-full bg-[#1A1A1A]" />
+                  <div className="w-full h-full ltv-card-flat" />
                 )}
                 {/* Rank number overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent flex items-end justify-center pb-0.5">
@@ -356,7 +356,7 @@ function FeaturedAnimeCard({ anime }: { anime: MiruroAnimeResult | null }) {
   const seasonYear = anime.seasonYear;
 
   return (
-    <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] bg-[#1A1A1A]/60 backdrop-blur-sm group">
+    <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] ltv-card-flat/60 backdrop-blur-sm group">
       {/* Background blur image */}
       {banner && (
         <div className="absolute inset-0 opacity-20">
@@ -727,7 +727,7 @@ function SchedulePage() {
           className={`shrink-0 flex flex-col items-center gap-1 px-4 py-3 rounded-xl border transition-all ${
             activeDay === ""
               ? "bg-[#4A90E2]/15 border-[#4A90E2]/25 text-white"
-              : "bg-white/[0.02] border-white/[0.04] text-[#666666] hover:bg-white/[0.05] hover:text-zinc-300"
+              : "bg-white/[0.02] border-white/[0.04] text-[#666666] hover:bg-white/[0.05] hover:text-white/75"
           }`}
         >
           <span className="text-[11px] font-semibold" style={{ fontFamily: GROTESK }}>All</span>
@@ -747,7 +747,7 @@ function SchedulePage() {
                   ? today
                     ? "bg-[#00D4AA]/15 border-[#00D4AA]/25 text-white"
                     : "bg-white/[0.08] border-white/[0.15] text-white"
-                  : "bg-white/[0.02] border-white/[0.04] text-[#666666] hover:bg-white/[0.05] hover:text-zinc-300"
+                  : "bg-white/[0.02] border-white/[0.04] text-[#666666] hover:bg-white/[0.05] hover:text-white/75"
               }`}
             >
               <span className="text-[11px] font-semibold" style={{ fontFamily: GROTESK }}>
@@ -779,7 +779,7 @@ function SchedulePage() {
           ))}
         </div>
       ) : (activeDay === "" ? Object.entries(schedule).flatMap(([, entries]) => entries) : dayEntries).length === 0 ? (
-        <div className="text-center py-16 bg-[#1A1A1A]/40 rounded-2xl border border-white/[0.06]">
+        <div className="text-center py-16 ltv-card-flat/40 rounded-2xl border border-white/[0.06]">
           <svg className="w-12 h-12 mx-auto text-[#666666] mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
             <line x1="16" y1="2" x2="16" y2="6" />
@@ -814,10 +814,10 @@ function SchedulePage() {
                     return (
                       <div
                         key={entry.id}
-                        className="flex items-start gap-4 p-4 rounded-xl bg-[#1A1A1A]/40 border border-white/[0.06] hover:bg-[#1A1A1A]/70 hover:border-white/[0.1] transition-all group"
+                        className="flex items-start gap-4 p-4 rounded-xl ltv-card-flat/40 border border-white/[0.06] hover:ltv-card-flat/70 hover:border-white/[0.1] transition-all group"
                       >
                         {/* Poster */}
-                        <div className="w-14 h-20 rounded-lg overflow-hidden shrink-0 bg-[#1A1A1A]">
+                        <div className="w-14 h-20 rounded-lg overflow-hidden shrink-0 ltv-card-flat">
                           {entryImage && <img src={entryImage} alt={entryTitle} className="w-full h-full object-cover" loading="lazy" />}
                         </div>
 
@@ -903,10 +903,10 @@ function SchedulePage() {
                   return (
                     <div
                       key={`${dayKey}-${entry.id}`}
-                      className="flex items-center gap-4 p-3 rounded-xl bg-[#1A1A1A]/40 border border-white/[0.06] hover:bg-[#1A1A1A]/70 transition-all group"
+                      className="flex items-center gap-4 p-3 rounded-xl ltv-card-flat/40 border border-white/[0.06] hover:ltv-card-flat/70 transition-all group"
                     >
                       <span className="shrink-0 text-[10px] font-bold text-[#666666] w-12" style={{ fontFamily: GROTESK }}>{entry.airTime}</span>
-                      <div className="w-10 h-14 rounded-md overflow-hidden shrink-0 bg-[#1A1A1A]">
+                      <div className="w-10 h-14 rounded-md overflow-hidden shrink-0 ltv-card-flat">
                         {entryImage && <img src={entryImage} alt={entryTitle} className="w-full h-full object-cover" loading="lazy" />}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -1056,7 +1056,7 @@ function BrowseGenresPage() {
               ))}
             </div>
           ) : (
-            <div className="text-center py-12 bg-[#1A1A1A]/40 rounded-2xl border border-white/[0.06]">
+            <div className="text-center py-12 ltv-card-flat/40 rounded-2xl border border-white/[0.06]">
               <p className="text-[#666666] text-sm">No anime found for this genre</p>
             </div>
           )}
@@ -1238,11 +1238,11 @@ export default function AnimeSectionPage() {
       {subPage === "home" && (
         <>
           {loading ? (
-            <div className="w-full h-[72vh] sm:h-[90vh] lg:h-[100dvh] bg-[#1A1A1A] skeleton" />
+            <div className="w-full h-[72vh] sm:h-[90vh] lg:h-[100dvh] ltv-card-flat skeleton" />
           ) : featured.length > 0 ? (
             <FullScreenHero items={featured} />
           ) : (
-            <div className="w-full h-[72vh] sm:h-[90vh] lg:h-[100dvh] bg-[#0D0D0D] flex items-center justify-center">
+            <div className="w-full h-[72vh] sm:h-[90vh] lg:h-[100dvh] bg-black flex items-center justify-center">
               <div className="text-center px-6">
                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white tracking-tight mb-4" style={{ fontFamily: GROTESK }}>
                   Discover Anime
@@ -1258,7 +1258,7 @@ export default function AnimeSectionPage() {
           <div className="relative z-20 -mt-16 sm:-mt-20 px-5 sm:px-14 lg:px-14 pb-4">
             <div ref={searchContainerRef} className="relative z-[100] max-w-2xl">
               <form onSubmit={handleSearch} className="flex items-center gap-3">
-                <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl bg-[#1A1A1A]/80 border border-white/[0.1] focus-within:border-[#E63946]/40 focus-within:bg-[#1A1A1A]/90 transition-all backdrop-blur-md">
+                <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl ltv-card-flat/80 border border-white/[0.1] focus-within:border-[#E63946]/40 focus-within:ltv-card-flat/90 transition-all backdrop-blur-md">
                   <svg className="w-4 h-4 text-[#666666] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <circle cx="11" cy="11" r="8" />
                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -1286,7 +1286,7 @@ export default function AnimeSectionPage() {
                 <button
                   type="button"
                   onClick={() => setSectionSubPage("genres")}
-                  className="shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl bg-[#1A1A1A]/80 border border-white/[0.1] hover:border-white/[0.15] text-[#666666] hover:text-white transition-colors backdrop-blur-md"
+                  className="shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl ltv-card-flat/80 border border-white/[0.1] hover:border-white/[0.15] text-[#666666] hover:text-white transition-colors backdrop-blur-md"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path d="M3 4h18M3 8h12M3 12h18M3 16h6" />
@@ -1300,7 +1300,7 @@ export default function AnimeSectionPage() {
                 const bgItem = searchResults.find(r => r.coverImage?.extraLarge) || searchResults[0];
                 const bgImage = bgItem?.coverImage?.extraLarge || bgItem?.coverImage?.large || "";
                 return (
-                <div className="absolute left-0 right-0 top-full mt-2 z-[200] rounded-xl border border-white/[0.08] shadow-[0_8px_40px_rgba(0,0,0,0.7)] overflow-hidden backdrop-blur-xl bg-[#1A1A1A]/95">
+                <div className="absolute left-0 right-0 top-full mt-2 z-[200] rounded-xl border border-white/[0.08] shadow-[0_8px_40px_rgba(0,0,0,0.7)] overflow-hidden backdrop-blur-xl ltv-card-flat/95">
                   <div className="relative z-10">
                     <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06]">
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-[#666666]" style={{ fontFamily: GROTESK }}>Results</span>
@@ -1330,7 +1330,7 @@ export default function AnimeSectionPage() {
                             }}
                             className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.06] transition-colors text-left group"
                           >
-                            <div className="w-10 h-14 rounded-md overflow-hidden shrink-0 bg-[#1A1A1A] border border-white/[0.04]">
+                            <div className="w-10 h-14 rounded-md overflow-hidden shrink-0 ltv-card-flat border border-white/[0.04]">
                               {thumb && <img src={thumb} alt={itemTitle} className="w-full h-full object-cover" loading="lazy" />}
                             </div>
                             <div className="flex-1 min-w-0">
@@ -1435,12 +1435,12 @@ export default function AnimeSectionPage() {
                 {(topRated.length > 0 || thisSeason.length > 0) && (
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {topRated.length > 0 && (
-                      <div className="bg-[#1A1A1A]/40 rounded-2xl border border-white/[0.06] p-4 sm:p-6">
+                      <div className="ltv-card-flat/40 rounded-2xl border border-white/[0.06] p-4 sm:p-6">
                         <Top10Section items={topRated} title="Top 10 Anime" />
                       </div>
                     )}
                     {thisSeason.length > 0 && (
-                      <div className="bg-[#1A1A1A]/40 rounded-2xl border border-white/[0.06] p-4 sm:p-6">
+                      <div className="ltv-card-flat/40 rounded-2xl border border-white/[0.06] p-4 sm:p-6">
                         <Top10Section items={thisSeason} title="Popular This Season" />
                       </div>
                     )}
@@ -1469,7 +1469,7 @@ export default function AnimeSectionPage() {
                       </h2>
                     </div>
                     {/* Tabs */}
-                    <div className="flex items-center gap-1 bg-[#1A1A1A]/60 rounded-full p-0.5 border border-white/[0.06]">
+                    <div className="flex items-center gap-1 ltv-card-flat/60 rounded-full p-0.5 border border-white/[0.06]">
                       {(["trending", "popular", "topRated"] as const).map(tab => {
                         const tabColors: Record<string, string> = {
                           trending: "#E63946",
@@ -1609,7 +1609,7 @@ export default function AnimeSectionPage() {
 
                 {/* Empty state */}
                 {!loading && trending.length === 0 && popular.length === 0 && topRated.length === 0 && (
-                  <div className="text-center py-20 bg-[#1A1A1A]/40 rounded-2xl border border-white/[0.06]">
+                  <div className="text-center py-20 ltv-card-flat/40 rounded-2xl border border-white/[0.06]">
                     <div className="space-y-4">
                       <div className="w-16 h-16 mx-auto rounded-full bg-[#E63946]/10 flex items-center justify-center">
                         <svg className="w-8 h-8 text-[#E63946]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>

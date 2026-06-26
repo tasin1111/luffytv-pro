@@ -27,7 +27,7 @@ const GENRE_COLORS: Record<string, string> = {
   Ecchi: "bg-[#FB7185]/20 text-[#FB7185] border-[#FB7185]/30",
   Isekai: "bg-[#2DD4BF]/20 text-[#2DD4BF] border-[#2DD4BF]/30",
 };
-const DEFAULT_GENRE_COLOR = "bg-white/[0.06] text-[#AAAAAA] border-white/[0.08]";
+const DEFAULT_GENRE_COLOR = "bg-white/[0.06] text-white/55 border-white/[0.08]";
 
 function getGenreColor(genre: string): string {
   return GENRE_COLORS[genre] || DEFAULT_GENRE_COLOR;
@@ -82,7 +82,7 @@ function getStatusBadgeStyle(status?: string): string {
   if (s === "FINISHED") return "bg-[#6366F1]/15 text-[#6366F1] border-[#6366F1]/30";
   if (s === "NOT_YET_RELEASED" || s === "NOT_YET_AIRED") return "bg-[#FF6B00]/15 text-[#FF6B00] border-[#FF6B00]/30";
   if (s === "CANCELLED") return "bg-[#E63946]/15 text-[#E63946] border-[#E63946]/30";
-  return "bg-white/[0.06] text-[#AAAAAA] border-white/[0.08]";
+  return "bg-white/[0.06] text-white/55 border-white/[0.08]";
 }
 
 interface ContentCardProps {
@@ -258,7 +258,7 @@ export default function ContentCard({ anime, tmdbItem, index = 0 }: ContentCardP
         onMouseMove={handleMouseMove}
       >
         {/* ── Card image container — 2:3 aspect ratio poster with 12px rounded corners ── */}
-        <div className={`relative aspect-[2/3] overflow-hidden bg-[#1A1A1A] border transition-all duration-300 ${
+        <div className={`relative aspect-[2/3] overflow-hidden bg-white/[0.025] border transition-all duration-300 ${
           isHovered ? "border-white/[0.12] -translate-y-1 shadow-[0_8px_24px_rgba(0,0,0,0.5)]" : "border-white/[0.06]"
         }`} style={{ borderRadius: "12px" }}>
           
@@ -312,7 +312,7 @@ export default function ContentCard({ anime, tmdbItem, index = 0 }: ContentCardP
           )}
 
           {/* ── Bottom gradient overlay ── */}
-          <div className={`absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-[#0A0A0A] via-[#0A0A0A]/70 to-transparent transition-opacity duration-300 ${
+          <div className={`absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-black via-black/70 to-transparent transition-opacity duration-300 ${
             isHovered ? "opacity-0" : "opacity-90"
           }`} />
 
@@ -410,7 +410,7 @@ export default function ContentCard({ anime, tmdbItem, index = 0 }: ContentCardP
               </>
             )}
             {(type || format) && (
-              <span className="text-[9px] text-[#AAAAAA] font-medium uppercase tracking-wide ml-auto">
+              <span className="text-[9px] text-white/55 font-medium uppercase tracking-wide ml-auto">
                 {format || type}
               </span>
             )}
@@ -445,7 +445,7 @@ export default function ContentCard({ anime, tmdbItem, index = 0 }: ContentCardP
             ...getPopupStyle(),
             animation: "fadeIn 0.15s ease-out",
           }}
-          className="bg-[#0D0D0D]/98 backdrop-blur-xl rounded-xl border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.7)] p-4 space-y-3"
+          className="bg-black/98 backdrop-blur-xl rounded-xl border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.7)] p-4 space-y-3"
         >
           {/* ── Red accent line at top ── */}
           <div className="h-[2px] rounded-full bg-[#E63946]" />
@@ -475,7 +475,7 @@ export default function ContentCard({ anime, tmdbItem, index = 0 }: ContentCardP
 
           {/* ── Synopsis ── */}
           {cleanDesc && (
-            <p className="text-[10px] text-[#AAAAAA] line-clamp-2 leading-relaxed">
+            <p className="text-[10px] text-white/55 line-clamp-2 leading-relaxed">
               {cleanDesc}...
             </p>
           )}

@@ -5,9 +5,8 @@ import { useAppStore } from "./store";
 import { Search, Play, Music as MusicIcon, ChevronLeft, Calendar, Disc, User, Loader2, AlertCircle, X } from "lucide-react";
 
 // ============================================================
-// ANIME MUSIC PAGE — Opening & Ending themes
+// ANIME MUSIC PAGE — Opening & Ending themes (modern v4)
 // Uses api.animethemes.moe (public API, no auth needed)
-// Adapted from github.com/Varomine/MioAnime Music.jsx
 // ============================================================
 
 export default function MusicPage() {
@@ -26,7 +25,6 @@ export default function MusicPage() {
   const [currentTheme, setCurrentTheme] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"OP" | "ED">("OP");
 
-  // Fetch featured anime on load
   useEffect(() => {
     const fetchFeatured = async () => {
       setLoading(true);
@@ -54,7 +52,6 @@ export default function MusicPage() {
       setSearchResults([]);
       return;
     }
-
     setLoading(true);
     setError(null);
     setSelectedAnime(null);
@@ -83,25 +80,15 @@ export default function MusicPage() {
       if (!res.ok) throw new Error("Failed to load anime theme details.");
       const json = await res.json();
       const animeDetails = json.anime;
-
       if (animeDetails) {
         setSelectedAnime(animeDetails);
         const animethemes = animeDetails.animethemes || [];
         setThemes(animethemes);
-
         const ops = animethemes.filter((t: any) => t.type?.startsWith("OP"));
         const eds = animethemes.filter((t: any) => t.type?.startsWith("ED"));
-
-        if (ops.length > 0) {
-          setActiveTab("OP");
-          setCurrentTheme(ops[0]);
-        } else if (eds.length > 0) {
-          setActiveTab("ED");
-          setCurrentTheme(eds[0]);
-        } else if (animethemes.length > 0) {
-          setActiveTab("OP");
-          setCurrentTheme(animethemes[0]);
-        }
+        if (ops.length > 0) { setActiveTab("OP"); setCurrentTheme(ops[0]); }
+        else if (eds.length > 0) { setActiveTab("ED"); setCurrentTheme(eds[0]); }
+        else if (animethemes.length > 0) { setActiveTab("OP"); setCurrentTheme(animethemes[0]); }
       }
     } catch (err) {
       console.error("Details fetch error:", err);
@@ -111,15 +98,8 @@ export default function MusicPage() {
     }
   };
 
-  const handlePlayTheme = (theme: any) => {
-    setCurrentTheme(theme);
-  };
-
-  const handleBackToList = () => {
-    setSelectedAnime(null);
-    setThemes([]);
-    setCurrentTheme(null);
-  };
+  const handlePlayTheme = (theme: any) => setCurrentTheme(theme);
+  const handleBackToList = () => { setSelectedAnime(null); setThemes([]); setCurrentTheme(null); };
 
   const getCoverImage = (animeItem: any) => {
     if (!animeItem) return "";
@@ -131,63 +111,46 @@ export default function MusicPage() {
     return "";
   };
 
-  const filteredThemes = themes.filter((t) => {
-    if (activeTab === "OP") return t.type?.startsWith("OP");
-    return t.type?.startsWith("ED");
-  });
-
+  const filteredThemes = themes.filter((t) => activeTab === "OP" ? t.type?.startsWith("OP") : t.type?.startsWith("ED"));
   const currentVideoUrl = currentTheme?.animethemeentries?.[0]?.videos?.[0]?.link || "";
   const currentAudioUrl = currentTheme?.animethemeentries?.[0]?.videos?.[0]?.audio?.link || "";
 
   return (
-    <div className="music-page" style={{ paddingTop: "80px", minHeight: "100vh", background: "#0a0a0c", color: "#fff" }}>
-      <div style={{ maxWidth: "1200px", margin: "0 auto", padding: "0 16px" }}>
+    <div className="ltv-v4 min-h-screen" style={{ paddingTop: "90px" }}>
+      <div className="max-w-[1200px] mx-auto px-4 lg:px-6">
+
         {/* Header */}
-        <div className="music-header" style={{ textAlign: "center", marginBottom: "32px" }}>
-          <h1 className="music-page-title" style={{
-            fontSize: "2.5rem", fontWeight: 800, letterSpacing: "-0.5px",
-            background: "linear-gradient(135deg, #D4A017, #F5C842)",
-            WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-            backgroundClip: "text", marginBottom: "8px"
-          }}>
+        <div className="text-center mb-10">
+          <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mb-3"
+              style={{ background: "linear-gradient(135deg, #fff 0%, rgba(255,255,255,0.5) 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
             Anime Themes
           </h1>
-          <p style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px", maxWidth: "600px", margin: "0 auto" }}>
+          <p className="text-white/50 text-sm max-w-[600px] mx-auto">
             Listen and watch clean Opening and Ending credits of your favorite anime series
           </p>
         </div>
 
         {/* Search bar */}
         {!selectedAnime && (
-          <form className="music-search-bar" onSubmit={handleSearchSubmit} style={{ display: "flex", gap: "12px", maxWidth: "720px", margin: "0 auto 48px" }}>
-            <div className="music-input-wrapper" style={{ position: "relative", flex: 1 }}>
-              <Search size={18} style={{ position: "absolute", left: "16px", top: "50%", transform: "translateY(-50%)", color: "rgba(255,255,255,0.3)", pointerEvents: "none" }} />
+          <form onSubmit={handleSearchSubmit} className="flex gap-3 max-w-[720px] mx-auto mb-12">
+            <div className="relative flex-1 ltv-search-input">
+              <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-white/40 pointer-events-none" />
               <input
                 type="text"
                 placeholder="Search anime themes (e.g. Naruto, Bleach, Attack on Titan)..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: "100%", height: "48px", padding: "0 48px 0 48px",
-                  background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)",
-                  borderRadius: "9999px", color: "#fff", fontSize: "14px", outline: "none",
-                  transition: "border-color 0.2s, box-shadow 0.2s"
-                }}
-                onFocus={(e) => { e.target.style.borderColor = "#D4A017"; e.target.style.boxShadow = "0 0 0 3px rgba(212,160,23,0.12)"; }}
-                onBlur={(e) => { e.target.style.borderColor = "rgba(255,255,255,0.08)"; e.target.style.boxShadow = "none"; }}
+                className="ltv-input"
+                style={{ height: "48px", paddingLeft: "44px", paddingRight: searchQuery ? "80px" : "16px", borderRadius: "9999px" }}
               />
               {searchQuery && (
                 <button type="button" onClick={() => { setSearchQuery(""); setSearchResults([]); setHasSearched(false); }}
-                  style={{ position: "absolute", right: "16px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: "rgba(255,255,255,0.4)", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}>
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/40 hover:text-white text-xs font-semibold">
                   Clear
                 </button>
               )}
             </div>
-            <button type="submit" style={{
-              height: "48px", padding: "0 32px", borderRadius: "9999px",
-              background: "linear-gradient(135deg, #D4A017, #C8924A)", border: "none",
-              color: "#000", fontSize: "14px", fontWeight: 700, cursor: "pointer", transition: "transform 0.2s"
-            }}>
+            <button type="submit" className="ltv-btn ltv-btn-primary" style={{ height: "48px", padding: "0 28px", borderRadius: "9999px" }}>
               Search
             </button>
           </form>
@@ -195,77 +158,69 @@ export default function MusicPage() {
 
         {/* Error */}
         {error && (
-          <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "16px", background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: "8px", color: "#ef4444", maxWidth: "720px", margin: "0 auto 16px", fontSize: "14px" }}>
+          <div className="flex items-center gap-3 p-4 mb-4 rounded-xl max-w-[720px] mx-auto"
+               style={{ background: "rgba(230,57,70,0.08)", border: "1px solid rgba(230,57,70,0.20)", color: "#E63946" }}>
             <AlertCircle size={20} />
-            <span>{error}</span>
+            <span className="text-sm">{error}</span>
           </div>
         )}
 
         {/* Loading */}
         {loading && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "64px 0" }}>
-            <Loader2 size={32} className="animate-spin" style={{ color: "#D4A017" }} />
-            <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px" }}>Fetching themes...</span>
+          <div className="flex flex-col items-center gap-3 py-16">
+            <div className="ltv-spinner ltv-spinner-lg" />
+            <span className="text-white/50 text-sm">Fetching themes...</span>
           </div>
         )}
 
         {/* Player view */}
         {selectedAnime && (
-          <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-            <button onClick={handleBackToList} style={{
-              alignSelf: "flex-start", display: "flex", alignItems: "center", gap: "8px",
-              padding: "8px 16px", borderRadius: "8px", background: "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.7)",
-              fontSize: "13px", fontWeight: 600, cursor: "pointer", transition: "all 0.2s"
-            }}>
+          <div className="flex flex-col gap-4">
+            <button onClick={handleBackToList}
+              className="ltv-btn ltv-btn-ghost self-start"
+              style={{ height: "36px", padding: "0 14px" }}>
               <ChevronLeft size={16} /> Back to List
             </button>
 
             {detailsLoading ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "64px 0" }}>
-                <Loader2 size={32} className="animate-spin" style={{ color: "#D4A017" }} />
-                <span style={{ color: "rgba(255,255,255,0.5)", fontSize: "14px" }}>Loading theme videos...</span>
+              <div className="flex flex-col items-center gap-3 py-16">
+                <div className="ltv-spinner ltv-spinner-lg" />
+                <span className="text-white/50 text-sm">Loading theme videos...</span>
               </div>
             ) : (
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: "20px", background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)", borderRadius: "16px", overflow: "hidden" }}>
+              <div className="grid lg:grid-cols-[1fr_340px] gap-5 ltv-card overflow-hidden" style={{ borderRadius: "16px" }}>
                 {/* Left: Video player */}
-                <div style={{ padding: "20px", display: "flex", flexDirection: "column", gap: "16px" }}>
+                <div className="p-5 flex flex-col gap-4">
                   {currentVideoUrl ? (
-                    <div style={{ aspectRatio: "16/9", background: "#000", borderRadius: "12px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.06)" }}>
-                      <video src={currentVideoUrl} controls autoPlay style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                    <div className="aspect-video bg-black rounded-xl overflow-hidden border border-white/[0.06]">
+                      <video src={currentVideoUrl} controls autoPlay className="w-full h-full object-contain" />
                     </div>
                   ) : (
-                    <div style={{ aspectRatio: "16/9", background: "#000", borderRadius: "12px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.3)", gap: "8px", border: "1px solid rgba(255,255,255,0.06)" }}>
+                    <div className="aspect-video bg-black rounded-xl flex flex-col items-center justify-center text-white/30 gap-2 border border-white/[0.06]">
                       <AlertCircle size={32} />
-                      <span>No video file available for this theme.</span>
+                      <span className="text-sm">No video file available for this theme.</span>
                     </div>
                   )}
 
                   {/* Now playing */}
                   {currentTheme && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                        <span style={{ fontWeight: 700, padding: "3px 8px", borderRadius: "4px", background: "rgba(212,160,23,0.15)", color: "#D4A017", fontSize: "12px" }}>
-                          {currentTheme.type}
-                        </span>
-                        <h2 style={{ fontSize: "20px", fontWeight: 700, color: "#fff", margin: 0 }}>
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="ltv-badge ltv-badge-red">{currentTheme.type}</span>
+                        <h2 className="text-xl font-bold text-white">
                           {currentTheme.song?.title || "Unknown Song"}
                         </h2>
                       </div>
                       {currentTheme.song?.artists?.length > 0 && (
-                        <div style={{ display: "flex", alignItems: "center", gap: "6px", color: "#D4A017", fontSize: "14px", fontWeight: 500 }}>
+                        <div className="flex items-center gap-1.5 text-[#FFB800] text-sm font-medium">
                           <User size={14} />
                           <span>{currentTheme.song.artists.map((a: any) => a.name).join(", ")}</span>
                         </div>
                       )}
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px", color: "rgba(255,255,255,0.4)", fontSize: "12px", marginTop: "4px" }}>
-                        <Disc size={14} />
-                        <span>{selectedAnime.name}</span>
+                      <div className="flex items-center gap-3 text-white/40 text-xs mt-1">
+                        <span className="flex items-center gap-1.5"><Disc size={14} /> {selectedAnime.name}</span>
                         {selectedAnime.year && (
-                          <>
-                            <Calendar size={14} style={{ marginLeft: "12px" }} />
-                            <span>{selectedAnime.year}</span>
-                          </>
+                          <span className="flex items-center gap-1.5"><Calendar size={14} /> {selectedAnime.year}</span>
                         )}
                       </div>
                     </div>
@@ -273,59 +228,51 @@ export default function MusicPage() {
                 </div>
 
                 {/* Right: Playlist */}
-                <div style={{ display: "flex", flexDirection: "column", background: "rgba(0,0,0,0.3)", borderLeft: "1px solid rgba(255,255,255,0.06)", maxHeight: "520px" }}>
-                  <div style={{ display: "flex", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-                    <button onClick={() => setActiveTab("OP")} style={{
-                      flex: 1, height: "48px", fontSize: "12px", fontWeight: 600,
-                      color: activeTab === "OP" ? "#D4A017" : "rgba(255,255,255,0.4)",
-                      borderBottom: activeTab === "OP" ? "2px solid #D4A017" : "2px solid transparent",
-                      background: "none", border: "none", cursor: "pointer", transition: "all 0.15s"
-                    }}>
+                <div className="flex flex-col bg-black/40 border-l border-white/[0.06] max-h-[520px]">
+                  <div className="flex border-b border-white/[0.06]">
+                    <button onClick={() => setActiveTab("OP")}
+                      className={`flex-1 h-12 text-xs font-bold transition-colors relative ${
+                        activeTab === "OP" ? "text-white" : "text-white/40 hover:text-white/70"
+                      }`}>
                       Openings (OP)
+                      {activeTab === "OP" && (
+                        <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#E63946] rounded-full" />
+                      )}
                     </button>
-                    <button onClick={() => setActiveTab("ED")} style={{
-                      flex: 1, height: "48px", fontSize: "12px", fontWeight: 600,
-                      color: activeTab === "ED" ? "#D4A017" : "rgba(255,255,255,0.4)",
-                      borderBottom: activeTab === "ED" ? "2px solid #D4A017" : "2px solid transparent",
-                      background: "none", border: "none", cursor: "pointer", transition: "all 0.15s"
-                    }}>
+                    <button onClick={() => setActiveTab("ED")}
+                      className={`flex-1 h-12 text-xs font-bold transition-colors relative ${
+                        activeTab === "ED" ? "text-white" : "text-white/40 hover:text-white/70"
+                      }`}>
                       Endings (ED)
+                      {activeTab === "ED" && (
+                        <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#E63946] rounded-full" />
+                      )}
                     </button>
                   </div>
-                  <div style={{ flex: 1, overflowY: "auto", padding: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2 ltv-scroll">
                     {filteredThemes.length > 0 ? filteredThemes.map((t) => {
                       const isPlaying = currentTheme?.id === t.id;
                       return (
-                        <button key={t.id} onClick={() => handlePlayTheme(t)} style={{
-                          display: "flex", alignItems: "center", gap: "12px", padding: "12px",
-                          background: isPlaying ? "rgba(212,160,23,0.1)" : "rgba(255,255,255,0.03)",
-                          border: `1px solid ${isPlaying ? "#D4A017" : "rgba(255,255,255,0.06)"}`,
-                          borderRadius: "8px", textAlign: "left", cursor: "pointer", width: "100%",
-                          transition: "all 0.2s"
-                        }}>
-                          <span style={{
-                            width: "28px", height: "28px", borderRadius: "9999px",
-                            background: isPlaying ? "#D4A017" : "rgba(255,255,255,0.05)",
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                            flexShrink: 0, color: isPlaying ? "#000" : "rgba(255,255,255,0.4)"
-                          }}>
-                            <Play size={14} fill={isPlaying ? "#000" : "none"} />
+                        <button key={t.id} onClick={() => handlePlayTheme(t)}
+                          className={`flex items-center gap-3 p-3 rounded-lg text-left cursor-pointer w-full transition-all ${
+                            isPlaying ? "ltv-music-card is-playing" : "ltv-music-card"
+                          }`}>
+                          <span className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                            isPlaying ? "bg-[#E63946] text-white" : "bg-white/[0.05] text-white/40"
+                          }`}>
+                            <Play size={12} fill={isPlaying ? "#fff" : "none"} />
                           </span>
-                          <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                            <span style={{ fontSize: "10px", fontWeight: 700, color: "#D4A017", textTransform: "uppercase", letterSpacing: "0.5px" }}>{t.type}</span>
-                            <span style={{ fontSize: "14px", fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                              {t.song?.title || "Unknown Song"}
-                            </span>
+                          <div className="flex flex-col min-w-0">
+                            <span className="text-[10px] font-bold text-[#E63946] uppercase tracking-wider">{t.type}</span>
+                            <span className="text-sm font-semibold text-white truncate">{t.song?.title || "Unknown Song"}</span>
                             {t.song?.artists?.length > 0 && (
-                              <span style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                {t.song.artists.map((a: any) => a.name).join(", ")}
-                              </span>
+                              <span className="text-xs text-white/40 truncate">{t.song.artists.map((a: any) => a.name).join(", ")}</span>
                             )}
                           </div>
                         </button>
                       );
                     }) : (
-                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "150px", textAlign: "center", color: "rgba(255,255,255,0.3)", fontSize: "14px" }}>
+                      <div className="flex items-center justify-center h-32 text-center text-white/30 text-sm">
                         No themes found in this category.
                       </div>
                     )}
@@ -339,56 +286,53 @@ export default function MusicPage() {
         {/* Anime grid */}
         {!selectedAnime && !loading && (
           <div>
-            <h2 style={{ fontSize: "20px", fontWeight: 700, marginBottom: "16px", borderLeft: "3px solid #D4A017", paddingLeft: "12px" }}>
+            <h2 className="ltv-section-title mb-4">
               {hasSearched ? `Search Results (${searchResults.length})` : "Popular Anime Themes"}
             </h2>
 
             {(hasSearched ? searchResults : featuredAnime).length > 0 ? (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: "20px" }}>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {(hasSearched ? searchResults : featuredAnime).map((anime) => {
                   const cover = getCoverImage(anime);
                   const title = anime.name;
                   const year = anime.year;
                   const type = anime.media_format;
                   return (
-                    <div key={anime.id} onClick={() => handleSelectAnime(anime)} style={{
-                      display: "flex", flexDirection: "column", borderRadius: "12px", overflow: "hidden",
-                      background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)",
-                      cursor: "pointer", transition: "all 0.2s"
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.borderColor = "#D4A017"; e.currentTarget.style.boxShadow = "0 8px 24px rgba(0,0,0,0.4)"; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.transform = "none"; e.currentTarget.style.borderColor = "rgba(255,255,255,0.06)"; e.currentTarget.style.boxShadow = "none"; }}
-                    >
-                      <div style={{ position: "relative", aspectRatio: "3/4", background: "#14141a", overflow: "hidden" }}>
+                    <button key={anime.id} onClick={() => handleSelectAnime(anime)}
+                      className="ltv-poster-card group">
+                      <div className="relative w-full ltv-aspect-poster overflow-hidden bg-[#14141a]">
                         {cover ? (
-                          <img src={cover} alt={title} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover", transition: "transform 0.3s" }} />
+                          <img src={cover} alt={title} loading="lazy" className="ltv-poster-img" />
                         ) : (
-                          <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", color: "rgba(255,255,255,0.15)" }}>
+                          <div className="w-full h-full flex items-center justify-center text-white/15">
                             <MusicIcon size={32} />
                           </div>
                         )}
-                        <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(2px)", display: "flex", alignItems: "center", justifyContent: "center", opacity: 0, transition: "opacity 0.2s" }}
-                          onMouseEnter={(e) => e.currentTarget.style.opacity = "1"}
-                          onMouseLeave={(e) => e.currentTarget.style.opacity = "0"}>
-                          <Play size={32} fill="#D4A017" />
+                        <div className="ltv-poster-overlay" />
+                        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <div className="w-12 h-12 rounded-full bg-[#E63946] flex items-center justify-center shadow-lg shadow-[#E63946]/40">
+                            <Play size={20} fill="#fff" className="text-white ml-0.5" />
+                          </div>
                         </div>
                       </div>
-                      <div style={{ padding: "12px", display: "flex", flexDirection: "column", gap: "2px" }}>
-                        <h3 style={{ fontSize: "14px", fontWeight: 600, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", margin: 0 }}>{title}</h3>
-                        <div style={{ fontSize: "12px", color: "rgba(255,255,255,0.4)" }}>
+                      <div className="p-3 flex flex-col gap-1">
+                        <h3 className="text-sm font-semibold text-white truncate">{title}</h3>
+                        <div className="text-xs text-white/40">
                           {year && <span>{year}</span>}
                           {type && <span> • {type}</span>}
                         </div>
                       </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", padding: "64px 0", color: "rgba(255,255,255,0.4)" }}>
-                <MusicIcon size={48} style={{ color: "rgba(255,255,255,0.15)", marginBottom: "8px", opacity: 0.5 }} />
-                <h3 style={{ fontSize: "16px", fontWeight: 600 }}>No anime found</h3>
-                <p style={{ fontSize: "14px" }}>Try searching for a different anime name to discover its themes.</p>
+              <div className="ltv-empty">
+                <div className="ltv-empty-icon">
+                  <MusicIcon size={28} />
+                </div>
+                <div className="ltv-empty-title">No anime found</div>
+                <div className="ltv-empty-desc">Try searching for a different anime name to discover its themes.</div>
               </div>
             )}
           </div>

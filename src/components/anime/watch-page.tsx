@@ -132,21 +132,21 @@ function EmbedPlayerWithFallback({
 
   if (embedFailed) {
     return (
-      <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0f] z-20">
+      <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
         <div className="text-center space-y-4 max-w-sm px-6">
-          <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
-            <svg className="w-6 h-6 text-red-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <div className="w-12 h-12 rounded-xl bg-[#E63946]/10 border border-[#E63946]/20 flex items-center justify-center mx-auto">
+            <svg className="w-6 h-6 text-[#E63946]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <p className="text-zinc-300 text-sm">This embed source is unavailable (410 Gone)</p>
+          <p className="text-white/75 text-sm">This embed source is unavailable (410 Gone)</p>
           {otherProviders.length > 0 ? (
             <div className="flex flex-wrap gap-2 justify-center">
               {otherProviders.map(p => (
                 <button
                   key={p}
                   onClick={() => onProviderSelect(p)}
-                  className="px-3 py-1.5 rounded-lg bg-[#D4A017] text-black text-xs font-bold hover:bg-[#c49515] transition-colors"
+                  className="px-3 py-1.5 rounded-lg bg-[#E63946] text-black text-xs font-bold hover:bg-[#c49515] transition-colors"
                 >
                   Try {getProviderDisplayName(p)}
                 </button>
@@ -155,7 +155,7 @@ function EmbedPlayerWithFallback({
           ) : (
             <button
               onClick={() => window.location.reload()}
-              className="px-5 py-2 rounded-lg bg-[#D4A017] text-black text-sm font-bold hover:bg-[#c49515] transition-colors"
+              className="px-5 py-2 rounded-lg bg-[#E63946] text-black text-sm font-bold hover:bg-[#c49515] transition-colors"
             >
               Refresh Page
             </button>
@@ -182,19 +182,19 @@ function EmbedPlayerWithFallback({
       {showServerOverlay && otherProviders.length > 0 && (
         <div className="absolute top-3 right-3 z-30">
           <div className="flex items-center gap-2 bg-black/80 backdrop-blur-md rounded-lg border border-white/[0.08] px-3 py-2 shadow-xl">
-            <span className="text-[10px] text-zinc-400">Embed not working?</span>
+            <span className="text-[10px] text-white/55">Embed not working?</span>
             {otherProviders.slice(0, 3).map(p => (
               <button
                 key={p}
                 onClick={() => onProviderSelect(p)}
-                className="px-2.5 py-1 rounded-md bg-[#D4A017] text-black text-[10px] font-bold hover:bg-[#c49515] transition-colors"
+                className="px-2.5 py-1 rounded-md bg-[#E63946] text-black text-[10px] font-bold hover:bg-[#c49515] transition-colors"
               >
                 {getProviderDisplayName(p)}
               </button>
             ))}
             <button
               onClick={() => setShowServerOverlay(false)}
-              className="p-1 text-zinc-500 hover:text-white transition-colors"
+              className="p-1 text-white/40 hover:text-white transition-colors"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -798,11 +798,11 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
   // ── RENDER ──
   return (
-    <div className="min-h-screen bg-[#0a0a0f]">
+    <div className="min-h-screen ltv-v4">
 
       {/* ─── PLAYER ZONE ─── */}
       <div className="w-full" style={{ maxWidth: "100vw" }}>
-        <div className="relative w-full bg-black" style={{ aspectRatio: "16 / 9" }}>
+        <div className="relative w-full bg-black ltv-v4" style={{ aspectRatio: "16 / 9" }}>
 
           {/* HLS Native Player */}
           {streamData && streamData.source_type === "hls" && streamData.video_link && (
@@ -860,11 +860,11 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
           {/* Loading state */}
           {streamLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0f] z-20">
+            <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
               <div className="text-center space-y-3">
-                <div className="w-10 h-10 border-[3px] border-white/10 border-t-[#D4A017] rounded-full animate-spin mx-auto" />
-                <p className="text-zinc-500 text-xs font-medium">
-                  Loading from <span className="text-[#D4A017]">{getProviderDisplayName(activeProvider)}</span>...
+                <div className="ltv-spinner ltv-spinner-lg mx-auto" />
+                <p className="text-white/50 text-xs font-medium">
+                  Loading from <span className="text-[#E63946]">{getProviderDisplayName(activeProvider)}</span>...
                 </p>
               </div>
             </div>
@@ -872,21 +872,21 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
           {/* Error state */}
           {streamError && !streamLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-[#0a0a0f] z-20">
+            <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
               <div className="text-center space-y-4 max-w-sm px-6">
-                <div className="w-12 h-12 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
-                  <svg className="w-6 h-6 text-red-400/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <div className="w-12 h-12 rounded-xl bg-[#E63946]/10 border border-[#E63946]/20 flex items-center justify-center mx-auto">
+                  <svg className="w-6 h-6 text-[#E63946]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                 </div>
-                <p className="text-zinc-300 text-sm">{streamError}</p>
+                <p className="text-white/80 text-sm">{streamError}</p>
                 <button
                   onClick={() => {
                     setStreamError(null);
                     setStreamLoading(true);
                     setScraperFallbackToken(t => t + 1);
                   }}
-                  className="px-5 py-2 rounded-lg bg-[#7c3aed] text-white text-sm font-bold hover:bg-[#6d28d9] transition-colors"
+                  className="ltv-btn ltv-btn-primary"
                 >
                   Retry
                 </button>
@@ -916,7 +916,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
                 state
                   ? "bg-white border-white"
-                  : "bg-transparent border-zinc-600 group-hover:border-zinc-400"
+                  : "bg-transparent border-white/20 group-hover:border-white/40"
               }`}>
                 {state && (
                   <svg className="w-3 h-3 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -925,7 +925,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 )}
               </div>
               <span className={`text-xs font-medium transition-colors ${
-                state ? "text-white" : "text-zinc-500 group-hover:text-zinc-300"
+                state ? "text-white" : "text-white/40 group-hover:text-white/70"
               }`}>{label}</span>
             </button>
           ))}
@@ -950,13 +950,13 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           <button
             onClick={() => setLightsOff(!lightsOff)}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg transition-colors ${
-              lightsOff ? "bg-amber-500/10" : "hover:bg-white/[0.06]"
+              lightsOff ? "bg-[#FFB800]/10" : "hover:bg-white/[0.06]"
             }`}
           >
-            <svg className={`w-4 h-4 ${lightsOff ? "text-amber-400" : "text-white"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg className={`w-4 h-4 ${lightsOff ? "text-[#FFB800]" : "text-white"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7c.6.5 1 1.3 1 2.1V18h6v-1.2c0-.8.4-1.6 1-2.1A7 7 0 0 0 12 2z" />
             </svg>
-            <span className={`text-xs font-medium ${lightsOff ? "text-amber-400" : "text-white"}`}>Lights Off</span>
+            <span className={`text-xs font-medium ${lightsOff ? "text-[#FFB800]" : "text-white"}`}>Lights Off</span>
           </button>
         </div>
       </div>
@@ -977,29 +977,29 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
             <div className="flex-1 min-w-0">
               <h1 className="text-lg sm:text-xl font-bold text-white truncate">{animeTitle}</h1>
               <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="text-sm text-zinc-400">
+                <span className="text-sm text-white/55">
                   Episode {episodeNum}{animeEpisodes ? ` of ${animeEpisodes}` : ""}
                   {animeDuration && ` · ${animeDuration}min`}
                 </span>
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                   translation === "hindi"
-                    ? "bg-purple-500/15 text-purple-400"
+                    ? "bg-[#9333EA]/15 text-[#9333EA]"
                     : translation === "dub"
-                    ? "bg-red-500/15 text-red-400"
+                    ? "bg-[#E63946]/15 text-[#E63946]"
                     : translation === "hardsub"
-                    ? "bg-orange-500/15 text-orange-400"
-                    : "bg-[#D4A017]/15 text-[#D4A017]"
+                    ? "bg-[#FF8C00]/15 text-[#FF8C00]"
+                    : "bg-[#E63946]/15 text-[#E63946]"
                 }`}>
                   {translation === "sub" ? "SOFT SUB" : translation === "hardsub" ? "HARD SUB" : translation === "dub" ? "DUB" : "HINDI DUB"}
                 </span>
                 {streamData && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.05] text-zinc-400">
+                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.05] text-white/55">
                     {getProviderDisplayName(streamData.provider)}
                   </span>
                 )}
                 {animeStatus === "RELEASING" && (
-                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="inline-flex items-center gap-1 text-[10px] text-[#10B981]">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
                     Airing
                   </span>
                 )}
@@ -1011,7 +1011,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               {prevEp && (
                 <button
                   onClick={() => switchEpisode(prevEp)}
-                  className="p-2 rounded-lg bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] hover:text-white transition-colors"
+                  className="p-2 rounded-lg bg-white/[0.05] text-white/55 hover:bg-white/[0.08] hover:text-white transition-colors"
                   title="Previous Episode (P)"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1022,7 +1022,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               {nextEp && (
                 <button
                   onClick={() => switchEpisode(nextEp)}
-                  className="p-2 rounded-lg bg-white/[0.05] text-zinc-400 hover:bg-white/[0.08] hover:text-white transition-colors"
+                  className="p-2 rounded-lg bg-white/[0.05] text-white/55 hover:bg-white/[0.08] hover:text-white transition-colors"
                   title="Next Episode (N)"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1034,8 +1034,8 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 onClick={() => setAutoNext(!autoNext)}
                 className={`p-2 rounded-lg transition-colors ${
                   autoNext
-                    ? "bg-[#D4A017]/15 text-[#D4A017]"
-                    : "bg-white/[0.05] text-zinc-500 hover:text-zinc-300"
+                    ? "bg-[#E63946]/15 text-[#E63946]"
+                    : "bg-white/[0.05] text-white/40 hover:text-white/75"
                 }`}
                 title={`Auto Next: ${autoNext ? "ON" : "OFF"}`}
               >
@@ -1049,31 +1049,91 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
         {/* ─── NEXT AIRING COUNTDOWN ─── */}
         {animeNextAiring && countdown && (
-          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-500/5 border border-amber-500/10">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-xs text-amber-400/80 font-semibold">
+          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#FFB800]/5 border border-[#FFB800]/10">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#FFB800] animate-pulse" />
+            <span className="text-xs text-[#FFB800]/80 font-semibold">
               Episode {animeNextAiring.episode} airs in
             </span>
-            <span className="text-xs font-extrabold text-amber-400 tracking-wide font-mono">
+            <span className="text-xs font-extrabold text-[#FFB800] tracking-wide font-mono">
               {countdown}
             </span>
           </div>
         )}
 
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        {/* ─── COMPACT SERVER SELECTOR (TOP — right after title) ─── */}
+        {/* ═══════════════════════════════════════════════════════════════ */}
+        <div className="mt-4 p-4 ltv-card-flat">
+          {/* Audio translation toggle */}
+          <div className="flex items-center gap-3 mb-3 flex-wrap">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Audio</span>
+            <div className="ltv-toggle-group">
+              <button onClick={() => handleTranslationChange("sub")}
+                className={`ltv-toggle${translation === "sub" ? " is-active" : ""}${!softsubAvailable ? " opacity-40 cursor-not-allowed" : ""}`}
+                disabled={!softsubAvailable}>SOFT SUB</button>
+              <button onClick={() => handleTranslationChange("hardsub")}
+                className={`ltv-toggle${translation === "hardsub" ? " is-active" : ""}${!hardsubAvailable ? " opacity-40 cursor-not-allowed" : ""}`}
+                disabled={!hardsubAvailable}>HARD SUB</button>
+              <button onClick={() => handleTranslationChange("dub")}
+                className={`ltv-toggle${translation === "dub" ? " is-active" : ""}${!dubAvailable ? " opacity-40 cursor-not-allowed" : ""}`}
+                disabled={!dubAvailable}>DUB</button>
+              <button onClick={() => handleTranslationChange("hindi")}
+                className={`ltv-toggle${translation === "hindi" ? " is-active" : ""}`}>HINDI</button>
+            </div>
+          </div>
+
+          {/* Server pills */}
+          {serverList.length > 0 ? (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Server</span>
+              {serverList
+                .filter(s => {
+                  if (translation === "hindi") return s.source === "anixtv";
+                  if (translation === "dub") return s.type === "dub" && s.source !== "anixtv";
+                  if (translation === "hardsub") return s.type === "sub" && s.hardsub === true;
+                  return s.type === "sub";
+                })
+                .sort((a, b) => {
+                  if (translation === "sub") {
+                    if (a.hardsub !== true && b.hardsub === true) return -1;
+                    if (a.hardsub === true && b.hardsub !== true) return 1;
+                  }
+                  return 0;
+                })
+                .slice(0, 12)
+                .map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => { setSelectedServer(s.id); setStreamError(null); }}
+                    className={`ltv-filter-chip${selectedServer === s.id ? " is-active" : ""}`}>
+                    {s.name}
+                  </button>
+                ))}
+            </div>
+          ) : (
+            <div className="text-center py-2">
+              <p className="text-white/40 text-xs">Loading servers...</p>
+            </div>
+          )}
+
+          {/* HINDI mode but no hindi servers available */}
+          {translation === "hindi" && serverList.length > 0 && !serverList.some(s => s.source === "anixtv") && !streamLoading && (
+            <div className="mt-3 text-center py-3 px-4 rounded-lg bg-[#9333EA]/5 border border-[#9333EA]/20">
+              <p className="text-[#9333EA] text-sm font-medium mb-1">Not in our Hindi database</p>
+              <p className="text-white/40 text-xs">This anime doesn&apos;t have a Hindi dub on AnixTV yet. Try SOFT SUB / HARD SUB / DUB instead.</p>
+            </div>
+          )}
+        </div>
+
         {/* ─── TABBED CONTENT ─── */}
         <div className="mt-6">
-          {/* Tab Bar */}
-          <div className="flex items-center gap-1 border-b border-white/[0.06] mb-4">
+          {/* Tab Bar — modern underline style */}
+          <div className="ltv-tab-bar mb-4">
             {(["episodes", "info", "relations"] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2.5 text-sm font-medium transition-colors relative ${
-                  activeTab === tab
-                    ? "text-[#D4A017]"
-                    : "text-zinc-500 hover:text-zinc-300"
-                }`}
-              >
+                className={`ltv-tab${activeTab === tab ? " is-active" : ""}`}>
                 {tab === "episodes" && (
                   <span className="flex items-center gap-1.5">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1081,7 +1141,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                     </svg>
                     Episodes
                     {episodeList.length > 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-zinc-500">
+                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-white/40">
                         {episodeList.length}
                       </span>
                     )}
@@ -1103,14 +1163,11 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                     </svg>
                     Relations
                     {relations.length > 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-zinc-500">
+                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-white/40">
                         {relations.length}
                       </span>
                     )}
                   </span>
-                )}
-                {activeTab === tab && (
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#D4A017] rounded-full" />
                 )}
               </button>
             ))}
@@ -1123,7 +1180,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               <div className="flex items-center gap-2 mb-4 flex-wrap">
                 {/* Search */}
                 <div className="relative flex-1 max-w-[200px]">
-                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
                   </svg>
                   <input
@@ -1131,7 +1188,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                     value={epSearch}
                     onChange={e => setEpSearch(e.target.value)}
                     placeholder="Search ep..."
-                    className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#111118] border border-white/[0.06] text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#D4A017]/30"
+                    className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#111118] border border-white/[0.06] text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#E63946]/30"
                   />
                 </div>
 
@@ -1153,7 +1210,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                       }
                     }}
                     placeholder="Go to ep"
-                    className="w-20 px-2 py-1.5 rounded-lg bg-[#111118] border border-white/[0.06] text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#D4A017]/30"
+                    className="w-20 px-2 py-1.5 rounded-lg bg-[#111118] border border-white/[0.06] text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#E63946]/30"
                   />
                   <button
                     onClick={() => {
@@ -1165,7 +1222,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                         }
                       }
                     }}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#D4A017] text-black text-xs font-bold hover:bg-[#c49515] transition-colors"
+                    className="px-2.5 py-1.5 rounded-lg bg-[#E63946] text-black text-xs font-bold hover:bg-[#c49515] transition-colors"
                   >
                     Go
                   </button>
@@ -1174,7 +1231,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 {/* Sort */}
                 <button
                   onClick={() => setEpSortOrder(prev => prev === "asc" ? "desc" : "asc")}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#111118] border border-white/[0.06] text-xs text-zinc-400 hover:text-white transition-colors"
+                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#111118] border border-white/[0.06] text-xs text-white/55 hover:text-white transition-colors"
                 >
                   <svg className={`w-3.5 h-3.5 transition-transform ${epSortOrder === "desc" ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
@@ -1183,35 +1240,29 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 </button>
               </div>
 
-              {/* Episode Grid */}
+              {/* Episode Grid — modern compact */}
               {filteredEps.length > 0 ? (
-                <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-1.5">
+                <div className="ltv-ep-grid">
                   {filteredEps.map(ep => {
                     const isActive = ep.number === episodeNum;
                     return (
                       <button
                         key={ep.number}
                         onClick={() => switchEpisode(ep.number)}
-                        className={`relative px-2 py-2 rounded-lg text-xs font-medium transition-colors text-center ${
-                          isActive
-                            ? "bg-[#D4A017] text-black shadow-lg shadow-[#D4A017]/20"
-                            : ep.filler
-                              ? "bg-amber-500/5 text-amber-400/70 border border-amber-500/10 hover:bg-amber-500/10"
-                              : "bg-[#111118] text-zinc-400 border border-white/[0.04] hover:bg-white/[0.06] hover:text-white"
-                        }`}
+                        className={`ltv-ep-btn${isActive ? " is-active" : ""}${ep.filler ? " is-filler" : ""}`}
                         title={ep.filler ? `Ep ${ep.number} (Filler)` : `Episode ${ep.number}`}
                       >
                         {ep.number}
                         {ep.filler && (
-                          <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-400/50" />
+                          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#FFB800]/60" />
                         )}
                       </button>
                     );
                   })}
                 </div>
               ) : (
-                <div className="py-12 text-center">
-                  <p className="text-zinc-500 text-sm">
+                <div className="ltv-empty" style={{ padding: "48px 16px" }}>
+                  <p className="ltv-empty-desc">
                     {episodeList.length === 0 ? "Loading episodes..." : "No episodes found"}
                   </p>
                 </div>
@@ -1245,27 +1296,27 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                       </span>
                     )}
                     {animeType && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-zinc-400">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-white/55">
                         {animeType}
                       </span>
                     )}
                     {animeSeason && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-zinc-400">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-white/55">
                         {animeSeason}
                       </span>
                     )}
                     {animeEpisodes && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-zinc-400">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-white/55">
                         {animeEpisodes} Episodes
                       </span>
                     )}
                     {animeDuration && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-zinc-400">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-white/55">
                         {animeDuration} min/ep
                       </span>
                     )}
                     {animeScore && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#D4A017]/10 text-[#D4A017]">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#E63946]/10 text-[#E63946]">
                         {animeScore > 10 ? Math.round(animeScore) : animeScore}%
                       </span>
                     )}
@@ -1274,8 +1325,8 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   {/* Studios */}
                   {animeStudios.length > 0 && (
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">Studio</span>
-                      <span className="text-sm text-zinc-400">{animeStudios.join(", ")}</span>
+                      <span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">Studio</span>
+                      <span className="text-sm text-white/55">{animeStudios.join(", ")}</span>
                     </div>
                   )}
 
@@ -1283,7 +1334,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   {animeGenres.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {animeGenres.map(g => (
-                        <span key={g} className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-white/[0.05] text-zinc-400 border border-white/[0.04]">
+                        <span key={g} className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-white/[0.05] text-white/55 border border-white/[0.04]">
                           {g}
                         </span>
                       ))}
@@ -1296,13 +1347,13 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               {animeDescription && (
                 <div>
                   <h3 className="text-sm font-semibold text-white mb-2">Synopsis</h3>
-                  <p className={`text-sm text-zinc-400 leading-relaxed ${!synopsisExpanded ? "line-clamp-4" : ""}`}>
+                  <p className={`text-sm text-white/55 leading-relaxed ${!synopsisExpanded ? "line-clamp-4" : ""}`}>
                     {animeDescription}
                   </p>
                   {animeDescription.length > 200 && (
                     <button
                       onClick={() => setSynopsisExpanded(!synopsisExpanded)}
-                      className="mt-1 text-xs font-medium text-[#D4A017] hover:text-[#c49515] transition-colors"
+                      className="mt-1 text-xs font-medium text-[#E63946] hover:text-[#c49515] transition-colors"
                     >
                       {synopsisExpanded ? "Show less" : "Read more"}
                     </button>
@@ -1340,15 +1391,15 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                           <p className="text-sm font-medium text-white truncate">{relTitle}</p>
                           <div className="flex items-center gap-2 mt-1">
                             {rel.relationType && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#D4A017]/10 text-[#D4A017]">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#E63946]/10 text-[#E63946]">
                                 {rel.relationType}
                               </span>
                             )}
                             {rel.format && (
-                              <span className="text-[11px] text-zinc-500">{rel.format}</span>
+                              <span className="text-[11px] text-white/40">{rel.format}</span>
                             )}
                             {rel.episodes && (
-                              <span className="text-[11px] text-zinc-500">{rel.episodes} eps</span>
+                              <span className="text-[11px] text-white/40">{rel.episodes} eps</span>
                             )}
                             {rel.status && (
                               <span className={`text-[11px] ${statusColor(rel.status)}`}>
@@ -1363,7 +1414,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 </div>
               ) : (
                 <div className="py-12 text-center">
-                  <p className="text-zinc-500 text-sm">No relations found</p>
+                  <p className="text-white/40 text-sm">No relations found</p>
                 </div>
               )}
             </div>
@@ -1371,143 +1422,8 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         </div>
 
         {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* ─── SERVER SELECTOR (BOTTOM) ─── */}
+        {/* ─── SERVER SELECTOR (BOTTOM — REMOVED, now at top) ─── */}
         {/* ═══════════════════════════════════════════════════════════════ */}
-        <div className="mt-8 pt-6 border-t border-white/[0.06]">
-          <div className="space-y-4">
-
-            {/* Section header */}
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4 text-[#D4A017]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2" />
-              </svg>
-              <h3 className="text-sm font-bold text-white">Servers</h3>
-            </div>
-
-            {/* SUB / HARD SUB / DUB Toggle — 3-way like AniDap/Anistream */}
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Audio</span>
-              <div className="flex rounded-lg overflow-hidden border border-white/[0.06]">
-                {/* Soft Sub */}
-                <button
-                  onClick={() => handleTranslationChange("sub")}
-                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${
-                    translation === "sub"
-                      ? "bg-[#D4A017] text-black"
-                      : "bg-[#111118] text-zinc-400 hover:text-white"
-                  } ${!softsubAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
-                  disabled={!softsubAvailable}
-                  title="Soft sub — subtitles as separate VTT track"
-                >
-                  SOFT SUB
-                </button>
-                {/* Hard Sub */}
-                <button
-                  onClick={() => handleTranslationChange("hardsub")}
-                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${
-                    translation === "hardsub"
-                      ? "bg-[#D4A017] text-black"
-                      : "bg-[#111118] text-zinc-400 hover:text-white"
-                  } ${!hardsubAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
-                  disabled={!hardsubAvailable}
-                  title="Hard sub — subtitles burned into video"
-                >
-                  HARD SUB
-                </button>
-                {/* Dub (English) */}
-                <button
-                  onClick={() => handleTranslationChange("dub")}
-                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${
-                    translation === "dub"
-                      ? "bg-[#D4A017] text-black"
-                      : "bg-[#111118] text-zinc-400 hover:text-white"
-                  } ${!dubAvailable ? "opacity-40 cursor-not-allowed" : ""}`}
-                  disabled={!dubAvailable}
-                  title="Dub — English dubbed audio"
-                >
-                  DUB
-                </button>
-                {/* Hindi Dub (AnixTV — multi-audio HLS with Hindi/Tamil/Telugu/Bengali/etc.)
-                    ALWAYS enabled — if no hindi servers, show "not in database" message
-                    instead of graying out the button. User should always be able to click
-                    HINDI to check availability. */}
-                <button
-                  onClick={() => handleTranslationChange("hindi")}
-                  className={`px-3 py-1.5 text-xs font-bold transition-colors ${
-                    translation === "hindi"
-                      ? "bg-[#D4A017] text-black"
-                      : "bg-[#111118] text-zinc-400 hover:text-white"
-                  }`}
-                  title="Hindi Dub — AnixTV multi-audio (Hindi/Tamil/Telugu/Bengali/Malayalam/Marathi/Kannada)"
-                >
-                  HINDI
-                </button>
-              </div>
-            </div>
-
-            {/* Provider Pills — filtered by current translation mode */}
-            {serverList.length > 0 && (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-[10px] font-semibold text-zinc-500 uppercase tracking-wider">Server</span>
-                {serverList
-                  .filter(s => {
-                    // Filter by translation mode:
-                    //   "sub"     → ALL sub servers (soft sub first, then hardsub as fallback)
-                    //               — shows every available sub server so the user has more choice
-                    //   "hardsub" → ONLY hard sub servers (type=sub, hardsub === true)
-                    //   "dub"     → ONLY English dub servers (type=dub, NOT anixtv)
-                    //   "hindi"   → ONLY AnixTV servers (Hindi/multi-audio dub from anixtv.in)
-                    if (translation === "hindi") return s.source === "anixtv";
-                    if (translation === "dub") return s.type === "dub" && s.source !== "anixtv";
-                    if (translation === "hardsub") return s.type === "sub" && s.hardsub === true;
-                    // "sub" → show ALL type=sub servers (both soft sub and hardsub)
-                    return s.type === "sub";
-                  })
-                  .sort((a, b) => {
-                    // In "sub" mode, sort soft-sub before hardsub (so user sees soft sub first)
-                    if (translation === "sub") {
-                      if (a.hardsub !== true && b.hardsub === true) return -1;
-                      if (a.hardsub === true && b.hardsub !== true) return 1;
-                    }
-                    return 0;
-                  })
-                  .map(s => (
-                    <button
-                      key={s.id}
-                      onClick={() => {
-                        setSelectedServer(s.id);
-                        setStreamError(null);
-                      }}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                        selectedServer === s.id
-                          ? "bg-[#7c3aed] text-white shadow-md shadow-[#7c3aed]/30"
-                          : "bg-[#111118] text-zinc-400 border border-white/[0.04] hover:bg-white/[0.06] hover:text-white hover:border-[#7c3aed]/30"
-                      }`}
-                    >
-                      {s.name}
-                    </button>
-                  ))}
-              </div>
-            )}
-
-            {/* No servers available */}
-            {serverList.length === 0 && !streamLoading && (
-              <div className="text-center py-4">
-                <p className="text-zinc-500 text-xs">Loading servers...</p>
-              </div>
-            )}
-
-            {/* HINDI mode but no hindi servers available — show "not in database" message */}
-            {translation === "hindi" && serverList.length > 0 && !serverList.some(s => s.source === "anixtv") && !streamLoading && (
-              <div className="text-center py-4 px-4 rounded-lg bg-purple-500/5 border border-purple-500/20">
-                <p className="text-purple-300 text-sm font-medium mb-1">Not in our Hindi database</p>
-                <p className="text-zinc-500 text-xs">
-                  This anime doesn't have a Hindi dub on AnixTV yet. Try SOFT SUB / HARD SUB / DUB instead.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
 
         {/* ─── KEYBOARD SHORTCUTS PANEL ─── */}
         {showShortcuts && (
@@ -1520,7 +1436,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 <h3 className="text-sm font-bold text-white">Keyboard Shortcuts</h3>
                 <button
                   onClick={() => setShowShortcuts(false)}
-                  className="p-1 rounded text-zinc-500 hover:text-white transition-colors"
+                  className="p-1 rounded text-white/40 hover:text-white transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -1542,7 +1458,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   { key: "Esc", desc: "Close this panel" },
                 ].map(s => (
                   <div key={s.key} className="flex items-center justify-between">
-                    <span className="text-xs text-zinc-400">{s.desc}</span>
+                    <span className="text-xs text-white/55">{s.desc}</span>
                     <kbd className="px-2 py-0.5 rounded bg-white/[0.06] text-[10px] font-mono font-bold text-white border border-white/[0.06]">
                       {s.key}
                     </kbd>
