@@ -434,8 +434,12 @@ async function fetchHAnime(title: string, epNum: number, timeoutMs: number): Pro
   } catch { return []; }
 }
 
-// ─── 8. Onsen (DASH/HLS) ─────────────────────────────────────────────────────
+// ─── 8. Onsen (DASH multi-language) ──────────────────────────────────────────
 // Source: https://github.com/Varomine/MioAnime/blob/main/src/services/onsenApi.js
+// API: https://anime-onsen-api.vercel.app
+// Returns DASH streams (.mpd) with subtitles in 8 languages:
+//   Arabic, German, English, Spanish, French, Italian, Portuguese, Russian
+// Also returns skip_intro (start/end timestamps)
 const ONSEN_API = "https://anime-onsen-api.vercel.app";
 
 async function fetchOnsen(malId: number | null, epNum: number, timeoutMs: number): Promise<MioSource[]> {
@@ -447,22 +451,44 @@ async function fetchOnsen(malId: number | null, epNum: number, timeoutMs: number
     ]);
     if (!res || !res.ok) return [];
     const data = await res.json();
-    const sources = data?.sources || data?.data?.sources || [];
-    const results: MioSource[] = [];
-    for (const src of sources) {
-      if (!src?.url) continue;
-      results.push({
-        id: `onsen:${malId}:${epNum}`,
-        name: "Onsen",
-        type: "sub",
-        streamUrl: wrapStreamUrl(src.url),
-        quality: src.quality || "auto",
-        isM3U8: src.url.includes(".m3u8") || src.type?.includes("mpegurl"),
-        isMP4: src.url.includes(".mp4"),
-        hardsub: false,
-        subtitleTracks: [],
-      });
+    if (data?.error) return [];
+
+    const streamUrl = data?.stream_url;
+    if (!streamUrl) return [];
+
+    // Onsen returns DASH (.mpd) — not m3u8 or mp4
+    const isDASH = streamUrl.includes(".mpd") || data?.stream_type === "dash";
+    const isMP4 = streamUrl.includes(".mp4");
+
+    // Build subtitle tracks from the response
+    const subtitleTracks: Array<{ url: string; lang: string; label: string }> = [];
+    const subs = data?.subtitles || {};
+    const subLangs = data?.subtitle_languages || {};
+    for (const [langCode, subUrl] of Object.entries(subs)) {
+      if (!subUrl) continue;
+      const label = subLangs[langCode] || langCode;
+      subtitleTracks.push({ url: subUrl as string, lang: langCode, label: label as string });
     }
+
+    // Build intro from skip_intro
+    const skipIntro = data?.skip_intro;
+    const intro = skipIntro ? { start: skipIntro.start, end: skipIntro.end } : null;
+
+    const results: MioSource[] = [{
+      id: `onsen:${malId}:${epNum}`,
+      name: "Onsen (Multi-Sub)",
+      type: "sub",
+      streamUrl: wrapStreamUrl(streamUrl),
+      quality: isDASH ? "DASH" : "auto",
+      isM3U8: false,
+      isMP4: isMP4,
+      hardsub: false,
+      subtitleTracks,
+    }];
+
+    // Store intro in the first result (MioSource doesn't have intro field,
+    // but the servers route reads it from result)
+    console.log(`[Onsen] MAL=${malId} ep${epNum}: stream=${streamUrl.slice(0, 60)}... subs=${subtitleTracks.length} intro=${intro ? `${intro.start}-${intro.end}` : "none"}`);
     return results;
   } catch { return []; }
 }
