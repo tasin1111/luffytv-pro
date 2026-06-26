@@ -25,7 +25,7 @@ import {
   type AniDapProvider,
 } from "@/lib/anidap-api";
 import { fetchAniLightSources } from "@/lib/anilight-api";
-import { wrapStreamUrl, wrapM3u8Url } from "@/lib/proxy";
+import { wrapStreamUrl, wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 import {
   fetchAllKyrenSources,
   KYREN_SERVER_NAMES,
@@ -424,7 +424,7 @@ export async function GET(
         if (result?.url) {
           const ref = result.streamReferer || "";
           return { ...c, quality: result.quality || "auto",
-            streamUrl: buildProxyUrl(result.url, ref || "https://www.miruro.tv/", !result.isM3U8),
+            streamUrl: wrapM3u8UrlWithReferer(result.url, ref || "https://www.miruro.tv/"),
             isM3U8: result.isM3U8, isMP4: !result.isM3U8 };
         }
       }

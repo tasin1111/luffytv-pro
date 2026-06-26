@@ -183,3 +183,35 @@ export function workerWrap(url: string): string {
   if (!WORKER_PROXY) return url;
   return `${WORKER_PROXY}/proxy?url=${encodeURIComponent(url)}`;
 }
+
+/**
+ * Wrap an m3u8 URL through the proxy WITH a custom referer.
+ * Use this when the source API (e.g., Miruro) provides the correct Referer.
+ * Falls back to getRefererFor() if no custom referer provided.
+ */
+export function wrapM3u8UrlWithReferer(url: string | null | undefined, customReferer?: string): string {
+  if (!url) return "";
+  if (typeof url !== "string") return "";
+  if (url.startsWith("/api/") || url.startsWith("/")) return url;
+  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+  if (url.startsWith(ANIWATCHTV_PROXY)) return url;
+
+  const referer = customReferer || getRefererFor(url);
+  let hostname = "";
+  try { hostname = new URL(url).hostname; } catch {}
+
+  // 1. Worker-preferred CDNs
+  if (WORKER_PROXY && WORKER_PREFERRED_HOSTS.has(hostname)) {
+    return `${WORKER_PROXY}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(referer)}`;
+  }
+
+  // 2. Animanga-fallback CDNs
+  if (ANIMANGA_FALLBACK_HOSTS.has(hostname)) {
+    const headers = JSON.stringify({ Referer: referer });
+    return `https://upcloud.animanga.fun/proxy?url=${encodeURIComponent(url)}&headers=${encodeURIComponent(headers)}`;
+  }
+
+  // 3. Default: aniwatchtv proxy with the CUSTOM referer
+  const token = encodeAniwatchtvToken(url, referer);
+  return `${ANIWATCHTV_PROXY}/${token}`;
+}
