@@ -90,35 +90,35 @@ const ANIME_GENRES = [
 
 const GENRE_COLORS: Record<string, string> = {
   Action: "#ef4444", Adventure: "#f59e0b", Comedy: "#eab308",
-  Drama: "#6366f1", Fantasy: "#E63946", Horror: "#dc2626",
+  Drama: "#6366f1", Fantasy: "#ffffff", Horror: "#dc2626",
   Mystery: "#0ea5e9", Romance: "#ec4899", "Sci-Fi": "#06b6d4",
   "Slice of Life": "#10b981", Sports: "#22c55e", Supernatural: "#a855f7",
   Thriller: "#f97316", Ecchi: "#f43f5e", Mecha: "#64748b",
-  Psychological: "#E63946", Shounen: "#ef4444", Seinen: "#6366f1",
-  Shoujo: "#ec4899", Isekai: "#E63946",
+  Psychological: "#ffffff", Shounen: "#ef4444", Seinen: "#6366f1",
+  Shoujo: "#ec4899", Isekai: "#ffffff",
 };
 
 const RANK_COLORS = [
-  "#E63946",
+  "#ffffff",
   "#FF6B00",
   "#FFB800",
   "#00D4AA",
   "#4A90E2",
   "#5dbbe4",
   "#e45d86",
-  "#E63946",
+  "#ffffff",
   "#6366f1",
   "#a855f7",
 ];
 
 /* ─── Section Tag Config ─── */
 const SECTION_TAGS: Record<string, { label: string; color: string }> = {
-  trending: { label: "HOT", color: "#E63946" },
+  trending: { label: "HOT", color: "#ffffff" },
   thisSeason: { label: "SEASONAL", color: "#00D4AA" },
   topRated: { label: "TOP", color: "#4A90E2" },
   nextSeason: { label: "UPCOMING", color: "#FF6B00" },
   topThisYear: { label: "TOP", color: "#4A90E2" },
-  popular: { label: "HOT", color: "#E63946" },
+  popular: { label: "HOT", color: "#ffffff" },
 };
 
 const GROTESK = "var(--font-space-grotesk), 'Space Grotesk', sans-serif";
@@ -226,7 +226,7 @@ function FullScreenHero({ items }: { items: FeaturedAnime[] }) {
       <div className="absolute bottom-0 left-0 right-0 px-5 pb-20 sm:px-14 sm:pb-32 lg:px-14 lg:pb-36">
         {/* Trending badge + Rating */}
         <div className="flex items-center gap-2 mb-4">
-          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#E63946]/20 text-[#E63946] border border-[#E63946]/25">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#ffffff]/20 text-[#ffffff] border border-[#ffffff]/25">
             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 23c-3.2 0-6-3.2-6-7.8 0-3 2.4-6.6 6-11.2 3.6 4.6 6 8.2 6 11.2 0 4.6-2.8 7.8-6 7.8z"/></svg>
             Trending
           </span>
@@ -270,7 +270,7 @@ function FullScreenHero({ items }: { items: FeaturedAnime[] }) {
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate({ page: "watch", id: String(anime.id), episode: 1 })}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#E63946] text-white text-sm font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#E63946]/25"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#ffffff] text-white text-sm font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#ffffff]/25"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
             Watch Now
@@ -297,7 +297,7 @@ function FullScreenHero({ items }: { items: FeaturedAnime[] }) {
                 onClick={() => setCurrent(i)}
                 className={`relative shrink-0 rounded-lg overflow-hidden transition-all duration-300 ${
                   isActive
-                    ? "w-[72px] h-[48px] sm:w-[90px] sm:h-[60px] ring-2 ring-[#E63946] ring-offset-1 ring-offset-[#0D0D0D]"
+                    ? "w-[72px] h-[48px] sm:w-[90px] sm:h-[60px] ring-2 ring-[#ffffff] ring-offset-1 ring-offset-[#0D0D0D]"
                     : "w-[48px] h-[32px] sm:w-[60px] sm:h-[40px] opacity-50 hover:opacity-80"
                 }`}
               >
@@ -377,7 +377,7 @@ function FeaturedAnimeCard({ anime }: { anime: MiruroAnimeResult | null }) {
         <div className="flex-1 min-w-0 py-1">
           {/* Tag + Score */}
           <div className="flex items-center gap-2 mb-3">
-            <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[#E63946]/15 text-[#E63946] border border-[#E63946]/25" style={{ fontFamily: GROTESK }}>
+            <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[#ffffff]/15 text-[#ffffff] border border-[#ffffff]/25" style={{ fontFamily: GROTESK }}>
               #1 Trending
             </span>
             {status === "RELEASING" && (
@@ -412,7 +412,7 @@ function FeaturedAnimeCard({ anime }: { anime: MiruroAnimeResult | null }) {
           {genres.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5 mb-3">
               {genres.slice(0, 5).map(g => {
-                const color = GENRE_COLORS[g] || "#E63946";
+                const color = GENRE_COLORS[g] || "#ffffff";
                 return (
                   <span
                     key={g}
@@ -442,7 +442,7 @@ function FeaturedAnimeCard({ anime }: { anime: MiruroAnimeResult | null }) {
           <div className="flex items-center gap-3">
             <button
               onClick={() => navigate({ page: "watch", id: String(anime.id), episode: 1 })}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#E63946] text-white text-sm font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#E63946]/20"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-[#ffffff] text-white text-sm font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#ffffff]/20"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
               Watch Now
@@ -469,7 +469,7 @@ function GenrePillsRow({ onGenreClick }: { onGenreClick: (genre: string) => void
   return (
     <div className="flex items-center gap-2 overflow-x-auto pb-2 scroll-container">
       {ANIME_GENRES.map(genre => {
-        const color = GENRE_COLORS[genre] || "#E63946";
+        const color = GENRE_COLORS[genre] || "#ffffff";
         return (
           <button
             key={genre}
@@ -859,7 +859,7 @@ function SchedulePage() {
                           {entryGenres.length > 0 && (
                             <div className="flex flex-wrap items-center gap-1.5 mt-2">
                               {entryGenres.slice(0, 3).map((g: string) => {
-                                const gc = GENRE_COLORS[g] || "#E63946";
+                                const gc = GENRE_COLORS[g] || "#ffffff";
                                 return (
                                   <span key={g} className="px-1.5 py-0.5 rounded-full text-[8px] font-medium" style={{ color: gc, backgroundColor: `${gc}10`, border: `1px solid ${gc}18` }}>
                                     {g}
@@ -875,7 +875,7 @@ function SchedulePage() {
                           <CountdownTimer airingAt={entry.airingAt} />
                           <button
                             onClick={() => navigate({ page: "watch", id: String(media.id), episode: Number(entry.episode) || 1 })}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#E63946]/15 border border-[#E63946]/25 text-[#E63946] text-[11px] font-medium hover:bg-[#E63946]/25 transition-colors"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#ffffff]/15 border border-[#ffffff]/25 text-[#ffffff] text-[11px] font-medium hover:bg-[#ffffff]/25 transition-colors"
                             style={{ fontFamily: GROTESK }}
                           >
                             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
@@ -989,7 +989,7 @@ function BrowseGenresPage() {
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         {ANIME_GENRES.map(genre => {
           const isActive = selectedGenre === genre;
-          const color = GENRE_COLORS[genre] || "#E63946";
+          const color = GENRE_COLORS[genre] || "#ffffff";
           return (
             <button
               key={genre}
@@ -1258,7 +1258,7 @@ export default function AnimeSectionPage() {
           <div className="relative z-20 -mt-16 sm:-mt-20 px-5 sm:px-14 lg:px-14 pb-4">
             <div ref={searchContainerRef} className="relative z-[100] max-w-2xl">
               <form onSubmit={handleSearch} className="flex items-center gap-3">
-                <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl ltv-card-flat/80 border border-white/[0.1] focus-within:border-[#E63946]/40 focus-within:ltv-card-flat/90 transition-all backdrop-blur-md">
+                <div className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl ltv-card-flat/80 border border-white/[0.1] focus-within:border-[#ffffff]/40 focus-within:ltv-card-flat/90 transition-all backdrop-blur-md">
                   <svg className="w-4 h-4 text-[#666666] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <circle cx="11" cy="11" r="8" />
                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
@@ -1272,7 +1272,7 @@ export default function AnimeSectionPage() {
                     style={{ fontFamily: INTER }}
                   />
                   {searchLoading && (
-                    <svg className="w-4 h-4 text-[#E63946] animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-[#ffffff] animate-spin shrink-0" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                     </svg>
@@ -1334,7 +1334,7 @@ export default function AnimeSectionPage() {
                               {thumb && <img src={thumb} alt={itemTitle} className="w-full h-full object-cover" loading="lazy" />}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-[13px] font-medium text-white line-clamp-1 group-hover:text-[#E63946] transition-colors">{itemTitle}</p>
+                              <p className="text-[13px] font-medium text-white line-clamp-1 group-hover:text-[#ffffff] transition-colors">{itemTitle}</p>
                               <p className="text-[11px] text-[#666666] mt-0.5" style={{ fontFamily: GROTESK }}>{metaParts.join(" · ")}</p>
                             </div>
                             {item.averageScore != null && item.averageScore > 0 && (
@@ -1343,13 +1343,13 @@ export default function AnimeSectionPage() {
                                 <span className="text-[11px] font-semibold text-[#FFB800]">{item.averageScore}%</span>
                               </div>
                             )}
-                            <svg className="w-3.5 h-3.5 text-[#666666] group-hover:text-[#E63946]/50 shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
+                            <svg className="w-3.5 h-3.5 text-[#666666] group-hover:text-[#ffffff]/50 shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
                           </button>
                         );
                       })}
                     </div>
                     <div className="border-t border-white/[0.06] px-4 py-2.5">
-                      <button type="button" onClick={() => { handleSearch(new Event("submit") as any); setSearchDropdownOpen(false); }} className="text-[10px] font-semibold uppercase tracking-wider text-[#E63946]/60 hover:text-[#E63946] transition-colors" style={{ fontFamily: GROTESK }}>
+                      <button type="button" onClick={() => { handleSearch(new Event("submit") as any); setSearchDropdownOpen(false); }} className="text-[10px] font-semibold uppercase tracking-wider text-[#ffffff]/60 hover:text-[#ffffff] transition-colors" style={{ fontFamily: GROTESK }}>
                         View all results →
                       </button>
                     </div>
@@ -1457,9 +1457,9 @@ export default function AnimeSectionPage() {
                         className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"
                         style={{
                           fontFamily: GROTESK,
-                          color: "#E63946",
-                          backgroundColor: "#E6394615",
-                          border: "1px solid #E6394625",
+                          color: "#ffffff",
+                          backgroundColor: "#ffffff15",
+                          border: "1px solid #ffffff25",
                         }}
                       >
                         HOT
@@ -1472,7 +1472,7 @@ export default function AnimeSectionPage() {
                     <div className="flex items-center gap-1 ltv-card-flat/60 rounded-full p-0.5 border border-white/[0.06]">
                       {(["trending", "popular", "topRated"] as const).map(tab => {
                         const tabColors: Record<string, string> = {
-                          trending: "#E63946",
+                          trending: "#ffffff",
                           popular: "#FF6B00",
                           topRated: "#4A90E2",
                         };
@@ -1567,9 +1567,9 @@ export default function AnimeSectionPage() {
                       className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider"
                       style={{
                         fontFamily: GROTESK,
-                        color: "#E63946",
-                        backgroundColor: "#E6394615",
-                        border: "1px solid #E6394625",
+                        color: "#ffffff",
+                        backgroundColor: "#ffffff15",
+                        border: "1px solid #ffffff25",
                       }}
                     >
                       GENRES
@@ -1580,7 +1580,7 @@ export default function AnimeSectionPage() {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {ANIME_GENRES.map(genre => {
-                      const color = GENRE_COLORS[genre] || "#E63946";
+                      const color = GENRE_COLORS[genre] || "#ffffff";
                       return (
                         <button
                           key={genre}
@@ -1611,15 +1611,15 @@ export default function AnimeSectionPage() {
                 {!loading && trending.length === 0 && popular.length === 0 && topRated.length === 0 && (
                   <div className="text-center py-20 ltv-card-flat/40 rounded-2xl border border-white/[0.06]">
                     <div className="space-y-4">
-                      <div className="w-16 h-16 mx-auto rounded-full bg-[#E63946]/10 flex items-center justify-center">
-                        <svg className="w-8 h-8 text-[#E63946]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <div className="w-16 h-16 mx-auto rounded-full bg-[#ffffff]/10 flex items-center justify-center">
+                        <svg className="w-8 h-8 text-[#ffffff]/50" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                         </svg>
                       </div>
                       <p className="text-[#666666] text-sm">Loading anime from backup sources...</p>
                       <button
                         onClick={() => window.location.reload()}
-                        className="px-4 py-2 text-xs font-medium bg-[#E63946]/15 text-[#E63946] rounded-full hover:bg-[#E63946]/25 transition-colors border border-[#E63946]/25"
+                        className="px-4 py-2 text-xs font-medium bg-[#ffffff]/15 text-[#ffffff] rounded-full hover:bg-[#ffffff]/25 transition-colors border border-[#ffffff]/25"
                         style={{ fontFamily: GROTESK }}
                       >
                         Refresh Page

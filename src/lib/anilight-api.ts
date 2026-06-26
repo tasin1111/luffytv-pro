@@ -61,10 +61,12 @@ const HEADERS: Record<string, string> = {
 // the "Just a moment..." CF challenge page instead of JSON.
 // Route ALL AniLight API calls through our Cloudflare Worker, which runs on
 // Cloudflare's own network and bypasses the challenge.
-const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+//
+// Fallback to the known worker URL if NEXT_PUBLIC_PROXY_BASE is not set
+// (e.g. in local dev where .env doesn't have it).
+const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
 
 function workerWrap(url: string): string {
-  if (!WORKER_BASE) return url;  // fallback: try direct (will fail on Vercel but works locally)
   return `${WORKER_BASE}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent("https://anilight.live/")}`;
 }
 
@@ -259,9 +261,10 @@ export async function getAniLightWatch(
   timeoutMs = 8000
 ): Promise<AniLightWatchResponse | null> {
   const url = `${ANILIGHT_API}/watch/mal?id=${malId}&epNum=${epNum}`;
+  const wrapped = workerWrap(url);
   try {
     const res = await Promise.race([
-      fetch(workerWrap(url), { headers: HEADERS, cache: "no-store" }),
+      fetch(wrapped, { headers: HEADERS, cache: "no-store" }),
       new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
     ]);
     if (!res || !res.ok) return null;

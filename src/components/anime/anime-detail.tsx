@@ -720,7 +720,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                 {tab.label}
                 {tab.badge && (
                   <span className={`px-1.5 py-0.5 text-[9px] font-bold rounded ${
-                    activeTab === tab.id ? "bg-[#E63946]/20 text-[#E63946]" : "bg-white/[0.06] text-white/40"
+                    activeTab === tab.id ? "bg-[#ffffff]/20 text-[#ffffff]" : "bg-white/[0.06] text-white/40"
                   }`}>
                     {tab.badge}
                   </span>
@@ -750,7 +750,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                 {description.length > 200 && (
                   <button
                     onClick={() => setSynopsisExpanded(!synopsisExpanded)}
-                    className="mt-1.5 text-xs font-semibold text-[#E63946] hover:text-[#E63946]/80 transition-colors"
+                    className="mt-1.5 text-xs font-semibold text-[#ffffff] hover:text-[#ffffff]/80 transition-colors"
                   >
                     {synopsisExpanded ? "Show Less" : "Show More"}
                   </button>
@@ -773,7 +773,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                 {altTitles.length > 2 && (
                   <button
                     onClick={() => setAliasesExpanded(!aliasesExpanded)}
-                    className="mt-1.5 text-xs font-semibold text-[#E63946] hover:text-[#E63946]/80 transition-colors"
+                    className="mt-1.5 text-xs font-semibold text-[#ffffff] hover:text-[#ffffff]/80 transition-colors"
                   >
                     {aliasesExpanded ? "Show Less" : `+${altTitles.length - 2} more`}
                   </button>
@@ -813,7 +813,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <div className="w-1 h-5 rounded-full bg-[#E63946]" />
+                    <div className="w-1 h-5 rounded-full bg-[#ffffff]" />
                     <h3 className="text-sm text-white font-bold">Seasons</h3>
                     <span className="text-[10px] text-[#666666] ml-1">({franchiseSeasons.length})</span>
                   </div>
@@ -828,7 +828,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                       <button
                         key={r.id}
                         onClick={() => navigate({ page: "anime", id: String(r.id) })}
-                        className="group relative shrink-0 w-[160px] sm:w-[180px] rounded-lg overflow-hidden border border-white/[0.06] hover:border-[#E63946]/30 transition-all"
+                        className="group relative shrink-0 w-[160px] sm:w-[180px] rounded-lg overflow-hidden border border-white/[0.06] hover:border-[#ffffff]/30 transition-all"
                       >
                         <div className="relative w-full aspect-[3/4] ltv-card-flat overflow-hidden">
                           {rImg ? (
@@ -839,7 +839,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                           <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
                           {/* Relation type badge */}
                           <span className={`absolute top-2 right-2 px-1.5 py-0.5 text-[8px] font-bold rounded ${
-                            isSequel ? "bg-[#E63946]/90 text-white" :
+                            isSequel ? "bg-[#ffffff]/90 text-white" :
                             isPrequel ? "bg-[#9333EA]/90 text-white" :
                             "bg-white/15 text-white/70 backdrop-blur-sm"
                           }`}>
@@ -847,7 +847,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                           </span>
                           {/* Info at bottom */}
                           <div className="absolute bottom-0 left-0 right-0 p-2.5">
-                            <p className="text-[11px] font-bold text-white line-clamp-2 group-hover:text-[#E63946] transition-colors leading-tight">{rTitle}</p>
+                            <p className="text-[11px] font-bold text-white line-clamp-2 group-hover:text-[#ffffff] transition-colors leading-tight">{rTitle}</p>
                             <div className="flex items-center gap-2 mt-1">
                               {r.format && <span className="text-[8px] text-white/40 font-medium">{r.format}</span>}
                               {r.episodes && <span className="text-[8px] text-white/30">{r.episodes} eps</span>}
@@ -875,7 +875,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                   {characters.length > 8 && (
                     <button
                       onClick={() => setActiveTab("characters")}
-                      className="text-[11px] font-semibold text-[#E63946] hover:text-[#E63946]/80 transition-colors"
+                      className="text-[11px] font-semibold text-[#ffffff] hover:text-[#ffffff]/80 transition-colors"
                     >
                       View All →
                     </button>
@@ -897,7 +897,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                             <div className="w-full h-full flex items-center justify-center text-sm text-white/10 font-bold">{c.name.full?.charAt(0) || "?"}</div>
                           )}
                           <span className={`absolute top-1 left-1 px-1.5 py-0.5 text-[7px] font-bold rounded ${
-                            c.role === "MAIN" ? "bg-[#E63946]/80 text-white" : "bg-white/15 text-white/60 backdrop-blur-sm"
+                            c.role === "MAIN" ? "bg-[#ffffff]/80 text-white" : "bg-white/15 text-white/60 backdrop-blur-sm"
                           }`}>
                             {c.role === "MAIN" ? "Main" : "Supporting"}
                           </span>
@@ -991,7 +991,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                             <span className="absolute bottom-1 right-1 px-1.5 py-0.5 text-[9px] font-bold bg-black/70 text-[#FFB800] rounded backdrop-blur-sm">{rScore.toFixed(1)}</span>
                           )}
                         </div>
-                        <p className="text-[10px] text-[#AAAAAA] font-medium line-clamp-2 group-hover:text-[#E63946] transition-colors">{rTitle}</p>
+                        <p className="text-[10px] text-[#AAAAAA] font-medium line-clamp-2 group-hover:text-[#ffffff] transition-colors">{rTitle}</p>
                       </button>
                     );
                   })}
@@ -1013,7 +1013,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                     onClick={() => { setActiveEpiTab(tab); setEpPage(1); }}
                     className={`px-5 py-2 text-[11px] font-bold rounded-md transition-all ${
                       activeEpiTab === tab
-                        ? "bg-[#E63946] text-white"
+                        ? "bg-[#ffffff] text-white"
                         : "text-[#666666] hover:text-[#AAAAAA]"
                     }`}
                   >
@@ -1031,7 +1031,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                 value={epSearch}
                 onChange={e => { setEpSearch(e.target.value); setEpPage(1); }}
                 placeholder="Search episodes..."
-                className="w-full pl-9 pr-4 py-2.5 ltv-card-flat border border-white/[0.08] rounded-lg text-sm text-white placeholder-[#666666] focus:outline-none focus:border-[#E63946]/40 transition-colors"
+                className="w-full pl-9 pr-4 py-2.5 ltv-card-flat border border-white/[0.08] rounded-lg text-sm text-white placeholder-[#666666] focus:outline-none focus:border-[#ffffff]/40 transition-colors"
               />
             </div>
 
@@ -1054,7 +1054,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                       key={`ep-${epNum}`}
                       onClick={() => handleWatch(epNum)}
                       className={`group flex items-start gap-3 p-3 rounded-xl ltv-card-flat border transition-all text-left hover:ltv-card-flat/80 ${
-                        isNextEp ? "border-[#FF8C00]/30 hover:border-[#FF8C00]/50" : "border-white/[0.06] hover:border-[#E63946]/30"
+                        isNextEp ? "border-[#FF8C00]/30 hover:border-[#FF8C00]/50" : "border-white/[0.06] hover:border-[#ffffff]/30"
                       }`}
                     >
                       {/* Thumbnail with play overlay */}
@@ -1068,18 +1068,18 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                           </>
                         ) : (
                           <div className="w-full h-full flex items-center justify-center ltv-card-flat">
-                            <span className="text-2xl font-extrabold text-white/[0.06] group-hover:text-[#E63946]/20 transition-colors">{epNum}</span>
+                            <span className="text-2xl font-extrabold text-white/[0.06] group-hover:text-[#ffffff]/20 transition-colors">{epNum}</span>
                           </div>
                         )}
                         {/* Play overlay */}
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
-                          <div className="w-9 h-9 rounded-full bg-[#E63946] flex items-center justify-center opacity-0 group-hover:opacity-100 scale-75 group-hover:scale-100 transition-all shadow-lg shadow-[#E63946]/30">
+                          <div className="w-9 h-9 rounded-full bg-[#ffffff] flex items-center justify-center opacity-0 group-hover:opacity-100 scale-75 group-hover:scale-100 transition-all shadow-lg shadow-[#ffffff]/30">
                             <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                           </div>
                         </div>
                         {/* Episode number badge */}
                         <span className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 text-[9px] font-extrabold rounded ${
-                          isNextEp ? "bg-[#FF8C00]/90 text-white" : "bg-[#E63946]/80 text-white"
+                          isNextEp ? "bg-[#FF8C00]/90 text-white" : "bg-[#ffffff]/80 text-white"
                         }`}>
                           {epNum}
                         </span>
@@ -1091,7 +1091,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
 
                       {/* Info */}
                       <div className="flex-1 min-w-0 py-0.5">
-                        <h4 className="text-sm font-bold text-white/90 line-clamp-2 group-hover:text-[#E63946] transition-colors leading-snug">
+                        <h4 className="text-sm font-bold text-white/90 line-clamp-2 group-hover:text-[#ffffff] transition-colors leading-snug">
                           {epTitle || `Episode ${epNum}`}
                         </h4>
                         {epDesc && (
@@ -1118,7 +1118,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                       key={`gen-${num}`}
                       onClick={() => handleWatch(num)}
                       className={`group flex items-start gap-3 p-3 rounded-xl ltv-card-flat border transition-all text-left ${
-                        isNextEp ? "border-[#FF8C00]/30 hover:border-[#FF8C00]/50" : "border-white/[0.06] hover:border-[#E63946]/30"
+                        isNextEp ? "border-[#FF8C00]/30 hover:border-[#FF8C00]/50" : "border-white/[0.06] hover:border-[#ffffff]/30"
                       }`}
                     >
                       <div className="relative w-32 sm:w-36 shrink-0 aspect-video bg-black rounded-lg overflow-hidden">
@@ -1129,16 +1129,16 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                           </>
                         ) : (
                           <div className="w-full h-full flex items-center justify-center ltv-card-flat">
-                            <span className="text-2xl font-extrabold text-white/[0.06] group-hover:text-[#E63946]/20 transition-colors">{num}</span>
+                            <span className="text-2xl font-extrabold text-white/[0.06] group-hover:text-[#ffffff]/20 transition-colors">{num}</span>
                           </div>
                         )}
                         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-all flex items-center justify-center">
-                          <div className="w-9 h-9 rounded-full bg-[#E63946] flex items-center justify-center opacity-0 group-hover:opacity-100 scale-75 group-hover:scale-100 transition-all shadow-lg shadow-[#E63946]/30">
+                          <div className="w-9 h-9 rounded-full bg-[#ffffff] flex items-center justify-center opacity-0 group-hover:opacity-100 scale-75 group-hover:scale-100 transition-all shadow-lg shadow-[#ffffff]/30">
                             <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                           </div>
                         </div>
                         <span className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 text-[9px] font-extrabold rounded ${
-                          isNextEp ? "bg-[#FF8C00]/90 text-white" : "bg-[#E63946]/80 text-white"
+                          isNextEp ? "bg-[#FF8C00]/90 text-white" : "bg-[#ffffff]/80 text-white"
                         }`}>
                           {num}
                         </span>
@@ -1147,7 +1147,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                         )}
                       </div>
                       <div className="flex-1 min-w-0 py-0.5">
-                        <h4 className="text-sm font-bold text-white/90 group-hover:text-[#E63946] transition-colors leading-snug">
+                        <h4 className="text-sm font-bold text-white/90 group-hover:text-[#ffffff] transition-colors leading-snug">
                           Episode {num}
                         </h4>
                         {isNextEp && (
@@ -1175,7 +1175,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
               <div className="flex justify-center">
                 <button
                   onClick={() => setEpPage(p => p + 1)}
-                  className="px-6 py-2.5 ltv-card-flat border border-white/[0.08] rounded-lg text-sm font-semibold text-[#AAAAAA] hover:text-white hover:border-[#E63946]/30 transition-all"
+                  className="px-6 py-2.5 ltv-card-flat border border-white/[0.08] rounded-lg text-sm font-semibold text-[#AAAAAA] hover:text-white hover:border-[#ffffff]/30 transition-all"
                 >
                   Load More Episodes
                 </button>
@@ -1196,7 +1196,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                     onClick={() => { setCharRoleFilter(filter); setShowAllCharacters(false); }}
                     className={`px-4 py-2 text-[11px] font-bold rounded-md transition-all ${
                       charRoleFilter === filter
-                        ? "bg-[#E63946] text-white"
+                        ? "bg-[#ffffff] text-white"
                         : "text-[#666666] hover:text-[#AAAAAA]"
                     }`}
                   >
@@ -1227,7 +1227,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                           <div className="w-full h-full flex items-center justify-center text-lg text-white/10 font-bold">{c.name.full?.charAt(0) || "?"}</div>
                         )}
                         <span className={`absolute top-1.5 left-1.5 px-1.5 py-0.5 text-[8px] font-bold rounded ${
-                          c.role === "MAIN" ? "bg-[#E63946]/80 text-white" : "bg-white/15 text-white/60 backdrop-blur-sm"
+                          c.role === "MAIN" ? "bg-[#ffffff]/80 text-white" : "bg-white/15 text-white/60 backdrop-blur-sm"
                         }`}>
                           {c.role === "MAIN" ? "Main" : "Supporting"}
                         </span>

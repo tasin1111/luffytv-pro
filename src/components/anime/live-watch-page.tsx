@@ -71,7 +71,7 @@ const sportIcons: Record<string, string> = {
 const sportColors: Record<string, string> = {
   football: "#22c55e", basketball: "#ef4444", "american-football": "#dc2626", hockey: "#06b6d4",
   baseball: "#3b82f6", tennis: "#a855f7", fight: "#f97316", "motor-sports": "#eab308",
-  rugby: "#10b981", golf: "#84cc16", cricket: "#f59e0b", billiards: "#E63946",
+  rugby: "#10b981", golf: "#84cc16", cricket: "#f59e0b", billiards: "#ffffff",
   afl: "#14b8a6", darts: "#f43f5e", other: "#6b7280",
 };
 
@@ -974,14 +974,14 @@ export default function LiveWatchPage(props: LiveWatchProps) {
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black z-20">
             {/* Spinner with progress ring */}
             <div className="relative">
-              <div className="w-16 h-16 rounded-full border-3 border-white/10 border-t-[#E63946] animate-spin" />
+              <div className="w-16 h-16 rounded-full border-3 border-white/10 border-t-[#ffffff] animate-spin" />
               {/* Progress arc — 20s max for embed, indeterminate for M3U8 */}
               {isEmbedStream && (
                 <svg className="absolute inset-0 w-16 h-16 -rotate-90" viewBox="0 0 64 64">
                   <circle
                     cx="32" cy="32" r="28"
                     fill="none"
-                    stroke="#E63946"
+                    stroke="#ffffff"
                     strokeWidth="2"
                     strokeDasharray={`${Math.min(iframeElapsed / 20, 1) * 176} 176`}
                     strokeLinecap="round"
@@ -1473,7 +1473,7 @@ export default function LiveWatchPage(props: LiveWatchProps) {
                       key={`${stream.id}-${idx}`}
                       onClick={() => switchStream(stream)}
                       className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-[11px] font-bold transition-all ${
-                        isActive ? "bg-[#E63946] text-white shadow-[0_0_16px_rgba(124,108,240,0.3)]" : "bg-white/[0.04] text-white/50 hover:text-white/70 hover:bg-white/[0.06] border border-white/[0.06]"
+                        isActive ? "bg-[#ffffff] text-white shadow-[0_0_16px_rgba(124,108,240,0.3)]" : "bg-white/[0.04] text-white/50 hover:text-white/70 hover:bg-white/[0.06] border border-white/[0.06]"
                       }`}
                     >
                       <div className="flex items-center gap-1.5 truncate">
@@ -1497,7 +1497,7 @@ export default function LiveWatchPage(props: LiveWatchProps) {
               </div>
             ) : (
               <div className="flex items-center gap-2 px-3 py-2">
-                <div className="w-4 h-4 rounded-full border border-[#E63946]/30 border-t-[#E63946] animate-spin" />
+                <div className="w-4 h-4 rounded-full border border-[#ffffff]/30 border-t-[#ffffff] animate-spin" />
                 <span className="text-[10px] text-white/30">Finding servers...</span>
               </div>
             )}

@@ -73,7 +73,7 @@ interface RelationAnime {
   status?: string;
 }
 
-type ContentTab = "episodes" | "info" | "relations";
+type ContentTab = "info" | "relations";
 type EpisodeSortOrder = "asc" | "desc";
 
 // ── Embed Player with auto-fallback on 410/dead links ──
@@ -134,8 +134,8 @@ function EmbedPlayerWithFallback({
     return (
       <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
         <div className="text-center space-y-4 max-w-sm px-6">
-          <div className="w-12 h-12 rounded-xl bg-[#E63946]/10 border border-[#E63946]/20 flex items-center justify-center mx-auto">
-            <svg className="w-6 h-6 text-[#E63946]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <div className="w-12 h-12 rounded-xl bg-[#ffffff]/10 border border-[#ffffff]/20 flex items-center justify-center mx-auto">
+            <svg className="w-6 h-6 text-[#ffffff]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
@@ -146,7 +146,7 @@ function EmbedPlayerWithFallback({
                 <button
                   key={p}
                   onClick={() => onProviderSelect(p)}
-                  className="px-3 py-1.5 rounded-lg bg-[#E63946] text-black text-xs font-bold hover:bg-[#c49515] transition-colors"
+                  className="px-3 py-1.5 rounded-lg bg-[#ffffff] text-black text-xs font-bold hover:bg-white/90 transition-colors"
                 >
                   Try {getProviderDisplayName(p)}
                 </button>
@@ -155,7 +155,7 @@ function EmbedPlayerWithFallback({
           ) : (
             <button
               onClick={() => window.location.reload()}
-              className="px-5 py-2 rounded-lg bg-[#E63946] text-black text-sm font-bold hover:bg-[#c49515] transition-colors"
+              className="px-5 py-2 rounded-lg bg-[#ffffff] text-black text-sm font-bold hover:bg-white/90 transition-colors"
             >
               Refresh Page
             </button>
@@ -187,7 +187,7 @@ function EmbedPlayerWithFallback({
               <button
                 key={p}
                 onClick={() => onProviderSelect(p)}
-                className="px-2.5 py-1 rounded-md bg-[#E63946] text-black text-[10px] font-bold hover:bg-[#c49515] transition-colors"
+                className="px-2.5 py-1 rounded-md bg-[#ffffff] text-black text-[10px] font-bold hover:bg-white/90 transition-colors"
               >
                 {getProviderDisplayName(p)}
               </button>
@@ -286,7 +286,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const [providersMap, setProvidersMap] = useState<Record<string, ProviderEpisodes>>({});
 
   // ── UI State ──
-  const [activeTab, setActiveTab] = useState<ContentTab>("episodes");
+  const [activeTab, setActiveTab] = useState<ContentTab>("info");
   const [epSortOrder, setEpSortOrder] = useState<EpisodeSortOrder>("asc");
   const [epSearch, setEpSearch] = useState("");
   const [synopsisExpanded, setSynopsisExpanded] = useState(false);
@@ -800,58 +800,69 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   return (
     <div className="min-h-screen ltv-v4">
 
-      {/* ─── PLAYER ZONE ─── */}
-      <div className="w-full" style={{ maxWidth: "100vw" }}>
-        <div className="relative w-full bg-black ltv-v4" style={{ aspectRatio: "16 / 9" }}>
+      {/* ═══════════════════════════════════════════════════════════════
+          2-COLUMN LAYOUT (animetsu-style):
+          [ PLAYER + TITLE + SERVERS + INFO/RELATIONS ]  |  [ EPISODE SIDEBAR ]
+          On mobile: sidebar collapses below player.
+          ═══════════════════════════════════════════════════════════════ */}
+      <div className="max-w-[1600px] mx-auto px-4 lg:px-6 pt-4">
+        <div className="grid lg:grid-cols-[1fr_340px] gap-4 lg:gap-6">
 
-          {/* HLS Native Player */}
-          {streamData && streamData.source_type === "hls" && streamData.video_link && (
-            <HLSPlayerNew
-              key={selectedServer}
-              url={proxifyM3u8(streamData.video_link)}
-              animeId={animeId}
-              episodeNum={episodeNum}
-              sourceType="hls"
-              intro={streamData.intro}
-              outro={streamData.outro}
-              allStreams={streamData.hls_sources.map(s => ({
-                url: proxifyM3u8(s.url),
-                quality: s.quality || "Auto",
-                label: s.label || s.quality || "Auto",
-              }))}
-              subtitleTracks={(streamData.subtitle_tracks || []).map(s => ({ url: proxify(s.url, "raw"), lang: s.label || "en", label: s.label || "English" }))}
-              onEnded={handleVideoEnded}
-              onProviderFailed={() => handleProviderFailed(activeProvider)}
-              autoplay={autoPlay}
-            />
-          )}
+          {/* ═══ LEFT COLUMN: Player + Title + Servers + Info ═══ */}
+          <div className="min-w-0 flex flex-col gap-4">
 
-          {/* MP4 Player */}
-          {streamData && streamData.source_type === "mp4" && streamData.video_link && (
-            <HLSPlayerNew
-              key={`mp4-${selectedServer}`}
-              url={proxify(streamData.video_link, "raw")}
-              animeId={animeId}
-              episodeNum={episodeNum}
-              sourceType="mp4"
-              intro={streamData.intro}
-              outro={streamData.outro}
-              onEnded={handleVideoEnded}
-              onProviderFailed={() => handleProviderFailed(activeProvider)}
-              autoplay={autoPlay}
-            />
-          )}
+            {/* ─── PLAYER ZONE ─── */}
+            <div className="w-full">
+              <div className="relative w-full bg-black" style={{ aspectRatio: "16 / 9" }}>
 
-          {/* Embed Player (for Megaplay/Hindi embeds) */}
-          {streamData && streamData.source_type === "embed" && streamData.video_link && (
-            <EmbedPlayerWithFallback
-              key={`embed-${activeProvider}-${episodeNum}-${translation}`}
-              src={streamData.video_link}
-              animeTitle={animeTitle}
-              episodeNum={episodeNum}
-              provider={activeProvider}
-              providersForCurrentEp={providersForCurrentEp}
-              failedProviders={failedProviders}
+                {/* HLS Native Player */}
+                {streamData && streamData.source_type === "hls" && streamData.video_link && (
+                  <HLSPlayerNew
+                    key={selectedServer}
+                    url={proxifyM3u8(streamData.video_link)}
+                    animeId={animeId}
+                    episodeNum={episodeNum}
+                    sourceType="hls"
+                    intro={streamData.intro}
+                    outro={streamData.outro}
+                    allStreams={streamData.hls_sources.map(s => ({
+                      url: proxifyM3u8(s.url),
+                      quality: s.quality || "Auto",
+                      label: s.label || s.quality || "Auto",
+                    }))}
+                    subtitleTracks={(streamData.subtitle_tracks || []).map(s => ({ url: proxify(s.url, "raw"), lang: s.label || "en", label: s.label || "English" }))}
+                    onEnded={handleVideoEnded}
+                    onProviderFailed={() => handleProviderFailed(activeProvider)}
+                    autoplay={autoPlay}
+                  />
+                )}
+
+                {/* MP4 Player */}
+                {streamData && streamData.source_type === "mp4" && streamData.video_link && (
+                  <HLSPlayerNew
+                    key={`mp4-${selectedServer}`}
+                    url={proxify(streamData.video_link, "raw")}
+                    animeId={animeId}
+                    episodeNum={episodeNum}
+                    sourceType="mp4"
+                    intro={streamData.intro}
+                    outro={streamData.outro}
+                    onEnded={handleVideoEnded}
+                    onProviderFailed={() => handleProviderFailed(activeProvider)}
+                    autoplay={autoPlay}
+                  />
+                )}
+
+                {/* Embed Player (for Megaplay/Hindi embeds) */}
+                {streamData && streamData.source_type === "embed" && streamData.video_link && (
+                  <EmbedPlayerWithFallback
+                    key={`embed-${activeProvider}-${episodeNum}-${translation}`}
+                    src={streamData.video_link}
+                    animeTitle={animeTitle}
+                    episodeNum={episodeNum}
+                    provider={activeProvider}
+                    providersForCurrentEp={providersForCurrentEp}
+                    failedProviders={failedProviders}
               onProviderFailed={handleProviderFailed}
               onProviderSelect={handleProviderSelect}
               getProviderDisplayName={getProviderDisplayName}
@@ -864,7 +875,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               <div className="text-center space-y-3">
                 <div className="ltv-spinner ltv-spinner-lg mx-auto" />
                 <p className="text-white/50 text-xs font-medium">
-                  Loading from <span className="text-[#E63946]">{getProviderDisplayName(activeProvider)}</span>...
+                  Loading from <span className="text-[#ffffff]">{getProviderDisplayName(activeProvider)}</span>...
                 </p>
               </div>
             </div>
@@ -874,8 +885,8 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           {streamError && !streamLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
               <div className="text-center space-y-4 max-w-sm px-6">
-                <div className="w-12 h-12 rounded-xl bg-[#E63946]/10 border border-[#E63946]/20 flex items-center justify-center mx-auto">
-                  <svg className="w-6 h-6 text-[#E63946]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <div className="w-12 h-12 rounded-xl bg-[#ffffff]/10 border border-[#ffffff]/20 flex items-center justify-center mx-auto">
+                  <svg className="w-6 h-6 text-[#ffffff]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                   </svg>
                 </div>
@@ -897,8 +908,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
       </div>
 
       {/* ─── PLAYER CONTROL BAR (CinemaOS-style) ─── */}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
-        <div className="flex items-center gap-4 py-3 px-4 bg-black border border-white/[0.06] rounded-xl mt-2 flex-wrap">
+      <div className="flex items-center gap-4 py-3 px-4 bg-black border border-white/[0.06] rounded-xl flex-wrap ltv-card-flat">
           {/* Toggle Switches */}
           {[
             { label: "Autoplay", state: autoPlay, setter: setAutoPlay },
@@ -959,7 +969,6 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
             <span className={`text-xs font-medium ${lightsOff ? "text-[#FFB800]" : "text-white"}`}>Lights Off</span>
           </button>
         </div>
-      </div>
 
       {/* Lights Off overlay */}
       {lightsOff && (
@@ -968,7 +977,6 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           style={{ backdropFilter: "blur(8px)" }}
         />
       )}
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 pb-12">
 
         {/* ─── CONTENT AREA ─── */}
         {/* ─── TITLE BAR ─── */}
@@ -985,10 +993,10 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   translation === "hindi"
                     ? "bg-[#9333EA]/15 text-[#9333EA]"
                     : translation === "dub"
-                    ? "bg-[#E63946]/15 text-[#E63946]"
+                    ? "bg-[#ffffff]/15 text-[#ffffff]"
                     : translation === "hardsub"
                     ? "bg-[#FF8C00]/15 text-[#FF8C00]"
-                    : "bg-[#E63946]/15 text-[#E63946]"
+                    : "bg-[#ffffff]/15 text-[#ffffff]"
                 }`}>
                   {translation === "sub" ? "SOFT SUB" : translation === "hardsub" ? "HARD SUB" : translation === "dub" ? "DUB" : "HINDI DUB"}
                 </span>
@@ -1034,7 +1042,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                 onClick={() => setAutoNext(!autoNext)}
                 className={`p-2 rounded-lg transition-colors ${
                   autoNext
-                    ? "bg-[#E63946]/15 text-[#E63946]"
+                    ? "bg-[#ffffff]/15 text-[#ffffff]"
                     : "bg-white/[0.05] text-white/40 hover:text-white/75"
                 }`}
                 title={`Auto Next: ${autoNext ? "ON" : "OFF"}`}
@@ -1126,27 +1134,14 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         </div>
 
         {/* ─── TABBED CONTENT ─── */}
-        <div className="mt-6">
-          {/* Tab Bar — modern underline style */}
+        <div className="mt-4">
+          {/* Tab Bar — modern underline style (Episodes moved to sidebar) */}
           <div className="ltv-tab-bar mb-4">
-            {(["episodes", "info", "relations"] as const).map(tab => (
+            {(["info", "relations"] as const).map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`ltv-tab${activeTab === tab ? " is-active" : ""}`}>
-                {tab === "episodes" && (
-                  <span className="flex items-center gap-1.5">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
-                    </svg>
-                    Episodes
-                    {episodeList.length > 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-white/40">
-                        {episodeList.length}
-                      </span>
-                    )}
-                  </span>
-                )}
                 {tab === "info" && (
                   <span className="flex items-center gap-1.5">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1173,102 +1168,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
             ))}
           </div>
 
-          {/* ─── EPISODES TAB ─── */}
-          {activeTab === "episodes" && (
-            <div>
-              {/* Controls */}
-              <div className="flex items-center gap-2 mb-4 flex-wrap">
-                {/* Search */}
-                <div className="relative flex-1 max-w-[200px]">
-                  <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-                  </svg>
-                  <input
-                    type="text"
-                    value={epSearch}
-                    onChange={e => setEpSearch(e.target.value)}
-                    placeholder="Search ep..."
-                    className="w-full pl-8 pr-3 py-1.5 rounded-lg bg-[#111118] border border-white/[0.06] text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#E63946]/30"
-                  />
-                </div>
-
-                {/* Jump to episode */}
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="number"
-                    min={1}
-                    max={animeEpisodes || episodeList.length || 999}
-                    value={jumpToEp}
-                    onChange={e => setJumpToEp(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === "Enter" && jumpToEp) {
-                        const epNum = parseInt(jumpToEp);
-                        if (episodeList.some(ep => ep.number === epNum)) {
-                          switchEpisode(epNum);
-                          setJumpToEp("");
-                        }
-                      }
-                    }}
-                    placeholder="Go to ep"
-                    className="w-20 px-2 py-1.5 rounded-lg bg-[#111118] border border-white/[0.06] text-xs text-white placeholder-white/40 focus:outline-none focus:border-[#E63946]/30"
-                  />
-                  <button
-                    onClick={() => {
-                      if (jumpToEp) {
-                        const epNum = parseInt(jumpToEp);
-                        if (episodeList.some(ep => ep.number === epNum)) {
-                          switchEpisode(epNum);
-                          setJumpToEp("");
-                        }
-                      }
-                    }}
-                    className="px-2.5 py-1.5 rounded-lg bg-[#E63946] text-black text-xs font-bold hover:bg-[#c49515] transition-colors"
-                  >
-                    Go
-                  </button>
-                </div>
-
-                {/* Sort */}
-                <button
-                  onClick={() => setEpSortOrder(prev => prev === "asc" ? "desc" : "asc")}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-[#111118] border border-white/[0.06] text-xs text-white/55 hover:text-white transition-colors"
-                >
-                  <svg className={`w-3.5 h-3.5 transition-transform ${epSortOrder === "desc" ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                  </svg>
-                  {epSortOrder === "asc" ? "1 → 24" : "24 → 1"}
-                </button>
-              </div>
-
-              {/* Episode Grid — modern compact */}
-              {filteredEps.length > 0 ? (
-                <div className="ltv-ep-grid">
-                  {filteredEps.map(ep => {
-                    const isActive = ep.number === episodeNum;
-                    return (
-                      <button
-                        key={ep.number}
-                        onClick={() => switchEpisode(ep.number)}
-                        className={`ltv-ep-btn${isActive ? " is-active" : ""}${ep.filler ? " is-filler" : ""}`}
-                        title={ep.filler ? `Ep ${ep.number} (Filler)` : `Episode ${ep.number}`}
-                      >
-                        {ep.number}
-                        {ep.filler && (
-                          <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-[#FFB800]/60" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="ltv-empty" style={{ padding: "48px 16px" }}>
-                  <p className="ltv-empty-desc">
-                    {episodeList.length === 0 ? "Loading episodes..." : "No episodes found"}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
+          {/* ─── EPISODES TAB — removed (now in right sidebar) ─── */}
 
           {/* ─── INFO TAB ─── */}
           {activeTab === "info" && (
@@ -1316,7 +1216,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                       </span>
                     )}
                     {animeScore && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#E63946]/10 text-[#E63946]">
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#ffffff]/10 text-[#ffffff]">
                         {animeScore > 10 ? Math.round(animeScore) : animeScore}%
                       </span>
                     )}
@@ -1353,7 +1253,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   {animeDescription.length > 200 && (
                     <button
                       onClick={() => setSynopsisExpanded(!synopsisExpanded)}
-                      className="mt-1 text-xs font-medium text-[#E63946] hover:text-[#c49515] transition-colors"
+                      className="mt-1 text-xs font-medium text-[#ffffff] hover:text-[#c49515] transition-colors"
                     >
                       {synopsisExpanded ? "Show less" : "Read more"}
                     </button>
@@ -1391,7 +1291,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                           <p className="text-sm font-medium text-white truncate">{relTitle}</p>
                           <div className="flex items-center gap-2 mt-1">
                             {rel.relationType && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#E63946]/10 text-[#E63946]">
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#ffffff]/10 text-[#ffffff]">
                                 {rel.relationType}
                               </span>
                             )}
@@ -1468,7 +1368,83 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
             </div>
           </div>
         )}
-      </div>
+
+          </div>{/* ═══ END LEFT COLUMN ═══ */}
+
+          {/* ═══ RIGHT COLUMN: Episode Sidebar (animetsu-style) ═══ */}
+          <aside className="ltv-sidebar flex flex-col">
+            {/* Sidebar Header */}
+            <div className="ltv-sidebar-header">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+                </svg>
+                <h3 className="text-sm font-bold text-white">Episodes</h3>
+                {episodeList.length > 0 && (
+                  <span className="text-[10px] font-bold text-white/40 bg-white/[0.05] px-1.5 py-0.5 rounded">{episodeList.length}</span>
+                )}
+              </div>
+              {/* Episode search */}
+              <div className="relative w-32">
+                <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                </svg>
+                <input
+                  type="text"
+                  value={epSearch}
+                  onChange={e => setEpSearch(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full pl-7 pr-2 py-1 rounded-md bg-white/[0.03] border border-white/[0.06] text-[11px] text-white placeholder-white/40 focus:outline-none focus:border-white/30"
+                />
+              </div>
+            </div>
+
+            {/* Episode List — scrollable */}
+            <div className="ltv-sidebar-list ltv-scroll p-2">
+              {filteredEps.length > 0 ? (
+                <div className="flex flex-col gap-1">
+                  {filteredEps.map(ep => {
+                    const isActive = ep.number === episodeNum;
+                    return (
+                      <button
+                        key={ep.number}
+                        onClick={() => switchEpisode(ep.number)}
+                        className={`ltv-ep-thumb${isActive ? " is-active" : ""}`}
+                      >
+                        <span className={`shrink-0 w-9 h-9 rounded-md flex items-center justify-center text-xs font-bold ${
+                          isActive ? "bg-white text-black" : "bg-white/[0.05] text-white/60"
+                        }`}>
+                          {ep.number}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-xs font-semibold truncate ${isActive ? "text-white" : "text-white/75"}`}>
+                            {ep.title || `Episode ${ep.number}`}
+                          </p>
+                          {ep.filler && (
+                            <span className="text-[9px] font-bold text-[#FF8C00] uppercase tracking-wider">Filler</span>
+                          )}
+                        </div>
+                        {isActive && (
+                          <svg className="w-3 h-3 text-white shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                            <polygon points="5 3 19 12 5 21 5 3" />
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="ltv-empty" style={{ padding: "32px 12px" }}>
+                  <p className="ltv-empty-desc text-xs">
+                    {episodeList.length === 0 ? "Loading episodes..." : "No episodes found"}
+                  </p>
+                </div>
+              )}
+            </div>
+          </aside>
+
+        </div>{/* ═══ END GRID ═══ */}
+      </div>{/* ═══ END OUTER WRAPPER ═══ */}
     </div>
   );
 }

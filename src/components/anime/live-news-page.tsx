@@ -36,7 +36,7 @@ interface NewsPagination {
 }
 
 const SPORT_FILTERS = [
-  { id: "all", label: "All Sports", icon: "📰", color: "#E63946" },
+  { id: "all", label: "All Sports", icon: "📰", color: "#ffffff" },
   { id: "football", label: "Football", icon: "⚽", color: "#22c55e" },
   { id: "basketball", label: "Basketball", icon: "🏀", color: "#ef4444" },
   { id: "american-football", label: "NFL", icon: "🏈", color: "#dc2626" },
@@ -155,7 +155,7 @@ function parseContent(content: string): React.ReactNode[] {
             href={embedUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="block my-4 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-[#E63946] hover:bg-white/[0.06] transition-all text-xs"
+            className="block my-4 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-[#ffffff] hover:bg-white/[0.06] transition-all text-xs"
           >
             🔗 View embedded content
           </a>
@@ -243,7 +243,7 @@ function renderNode(
           href={href}
           target={isExternal ? "_blank" : undefined}
           rel={isExternal ? "noopener noreferrer" : undefined}
-          className="text-[#E63946] hover:text-[#9d8ff5] underline underline-offset-2 transition-colors"
+          className="text-[#ffffff] hover:text-[#9d8ff5] underline underline-offset-2 transition-colors"
         >
           {text}
         </a>
@@ -448,7 +448,7 @@ export default function LiveNewsPage() {
           {/* Loading state */}
           {articleLoading ? (
             <div className="flex items-center justify-center py-12 gap-3">
-              <div className="w-8 h-8 rounded-full border-2 border-[#E63946]/30 border-t-[#E63946] animate-spin" />
+              <div className="w-8 h-8 rounded-full border-2 border-[#ffffff]/30 border-t-[#ffffff] animate-spin" />
               <span className="text-sm text-white/30">Loading full article...</span>
             </div>
           ) : (
@@ -494,7 +494,7 @@ export default function LiveNewsPage() {
                   href={selectedArticle.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[12px] font-bold bg-[#E63946]/15 text-[#E63946] hover:bg-[#E63946]/25 transition-all border border-[#E63946]/20"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-[12px] font-bold bg-[#ffffff]/15 text-[#ffffff] hover:bg-[#ffffff]/25 transition-all border border-[#ffffff]/20"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
@@ -571,7 +571,7 @@ export default function LiveNewsPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search news..."
-              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-white/25 outline-none focus:border-[#E63946]/40 focus:bg-white/[0.06] transition-all"
+              className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-white/25 outline-none focus:border-[#ffffff]/40 focus:bg-white/[0.06] transition-all"
               style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}
             />
             {searchInput && (
@@ -621,7 +621,7 @@ export default function LiveNewsPage() {
       {/* Loading State */}
       {loading && articles.length === 0 && (
         <div className="flex flex-col items-center justify-center py-20 gap-3">
-          <div className="w-12 h-12 rounded-full border-2 border-[#E63946]/30 border-t-[#E63946] animate-spin" />
+          <div className="w-12 h-12 rounded-full border-2 border-[#ffffff]/30 border-t-[#ffffff] animate-spin" />
           <p className="text-sm text-white/30">Loading news...</p>
           <p className="text-[10px] text-white/15">
             {selectedSport !== "all" ? `Fetching ${SPORT_FILTERS.find(f => f.id === selectedSport)?.label || selectedSport} news` : "Fetching latest sports news"}
@@ -673,7 +673,7 @@ export default function LiveNewsPage() {
 
                   {/* Featured badge */}
                   <div className="absolute top-3 left-3 z-10">
-                    <span className="px-2 py-0.5 rounded-md bg-[#E63946] text-white text-[8px] font-black uppercase tracking-wider">
+                    <span className="px-2 py-0.5 rounded-md bg-[#ffffff] text-white text-[8px] font-black uppercase tracking-wider">
                       Featured
                     </span>
                   </div>
@@ -689,7 +689,7 @@ export default function LiveNewsPage() {
                       </span>
                       <span className="text-[10px] text-white/40">{timeAgo(articles[0].publishedAt)}</span>
                     </div>
-                    <h2 className="text-base sm:text-lg font-bold text-white group-hover:text-[#E63946] transition-colors leading-snug mb-1" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
+                    <h2 className="text-base sm:text-lg font-bold text-white group-hover:text-[#ffffff] transition-colors leading-snug mb-1" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
                       {articles[0].headline}
                     </h2>
                     {articles[0].description && (

@@ -39,7 +39,7 @@ const GROTESK = "var(--font-space-grotesk), 'Space Grotesk', sans-serif";
 const INTER = "var(--font-inter), 'Inter', sans-serif";
 
 const GENRE_COLORS: Record<string, string> = {
-  "Action & Adventure": "#ef4444", Animation: "#E63946", Comedy: "#eab308",
+  "Action & Adventure": "#ef4444", Animation: "#ffffff", Comedy: "#eab308",
   Crime: "#6366f1", Documentary: "#10b981", Drama: "#6366f1",
   Family: "#ec4899", Kids: "#f59e0b", Mystery: "#0ea5e9",
   News: "#64748b", Reality: "#f97316", "Sci-Fi & Fantasy": "#06b6d4",
@@ -125,8 +125,8 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
             ) : (
               <div className="absolute inset-0 flex items-center justify-center bg-[#0D0D0D]">
                 <div className="text-center space-y-3">
-                  <div className="w-16 h-16 rounded-full bg-[#E63946]/10 flex items-center justify-center mx-auto">
-                    <svg className="w-8 h-8 text-[#E63946]" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                  <div className="w-16 h-16 rounded-full bg-[#ffffff]/10 flex items-center justify-center mx-auto">
+                    <svg className="w-8 h-8 text-[#ffffff]" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                   </div>
                   <p className="text-[#666666] text-sm">Select a server to start watching</p>
                 </div>
@@ -139,8 +139,8 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 mb-1">
-                  <div className="w-1.5 h-1.5 rounded-full bg-[#E63946] animate-pulse" />
-                  <span className="text-[10px] font-bold text-[#E63946] uppercase tracking-wider" style={{ fontFamily: GROTESK }}>Now Playing</span>
+                  <div className="w-1.5 h-1.5 rounded-full bg-[#ffffff] animate-pulse" />
+                  <span className="text-[10px] font-bold text-[#ffffff] uppercase tracking-wider" style={{ fontFamily: GROTESK }}>Now Playing</span>
                 </div>
                 <h3 className="text-sm font-bold text-white truncate" style={{ fontFamily: GROTESK }}>
                   S{currentSeason} E{currentEpisode}{currentEp ? ` - ${currentEp.name}` : ""}
@@ -173,12 +173,12 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
                     onClick={() => { setActiveServer(server.id); setIframeError(false); setUseDirectEmbed(true); }}
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all ${
                       activeServer === server.id
-                        ? "bg-[#E63946]/15 text-white border border-[#E63946]/30 shadow-sm shadow-[#E63946]/10"
+                        ? "bg-[#ffffff]/15 text-white border border-[#ffffff]/30 shadow-sm shadow-[#ffffff]/10"
                         : "bg-white/[0.04] text-[#AAAAAA] border border-white/[0.06] hover:bg-white/[0.08] hover:text-white"
                     }`}
                     style={{ fontFamily: GROTESK }}
                   >
-                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: activeServer === server.id ? "#E63946" : server.color }} />
+                    <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: activeServer === server.id ? "#ffffff" : server.color }} />
                     Server {idx + 1}
                   </button>
                 ))}
@@ -204,7 +204,7 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
             {show?.number_of_seasons && show.number_of_seasons > 1 && (
               <select value={currentSeason}
                 onChange={e => { const s = parseInt(e.target.value); setCurrentSeason(s); setCurrentEpisode(1); }}
-                className="bg-[#1A1A1A] text-[#AAAAAA] text-xs px-3 py-1.5 rounded-full border border-white/[0.06] outline-none focus:border-[#E63946]/30"
+                className="bg-[#1A1A1A] text-[#AAAAAA] text-xs px-3 py-1.5 rounded-full border border-white/[0.06] outline-none focus:border-[#ffffff]/30"
               >
                 {Array.from({ length: show.number_of_seasons }, (_, i) => (
                   <option key={i + 1} value={i + 1}>Season {i + 1}</option>
@@ -219,7 +219,7 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
                 onClick={() => { setCurrentEpisode(ep.episode_number); navigate({ page: "tv-watch", id: tvId, season: ep.season_number, episode: ep.episode_number }); setIframeError(false); }}
                 className={`w-full flex items-center gap-3 p-2.5 sm:p-3 text-left transition-all ${
                   currentEpisode === ep.episode_number
-                    ? "bg-[#E63946]/08 border-l-[3px] border-l-[#E63946]"
+                    ? "bg-[#ffffff]/08 border-l-[3px] border-l-[#ffffff]"
                     : "hover:bg-white/[0.02] border-l-[3px] border-l-transparent"
                 }`}
               >
@@ -233,12 +233,12 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
                 <div className="flex-1 min-w-0">
                   <p className={`text-xs font-medium line-clamp-1 ${currentEpisode === ep.episode_number ? "text-white" : "text-[#AAAAAA]"}`}>{ep.name}</p>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <span className="text-[9px] text-[#E63946] font-semibold" style={{ fontFamily: GROTESK }}>EP {ep.episode_number}</span>
+                    <span className="text-[9px] text-[#ffffff] font-semibold" style={{ fontFamily: GROTESK }}>EP {ep.episode_number}</span>
                     {ep.runtime && <span className="text-[9px] text-[#666666]">{ep.runtime}m</span>}
                   </div>
                 </div>
                 {currentEpisode === ep.episode_number && (
-                  <svg className="w-4 h-4 text-[#E63946] shrink-0 animate-pulse" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                  <svg className="w-4 h-4 text-[#ffffff] shrink-0 animate-pulse" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                 )}
               </button>
             )) : (
@@ -263,7 +263,7 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
             <div className="flex-1 min-w-0">
               <h3 className="text-base font-bold text-white" style={{ fontFamily: GROTESK }}>{show.name}</h3>
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#E63946]/15 text-[#E63946] border border-[#E63946]/25">TV SHOW</span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#ffffff]/15 text-[#ffffff] border border-[#ffffff]/25">TV SHOW</span>
                 {show.number_of_seasons && <span className="text-xs text-[#AAAAAA]">{show.number_of_seasons} Season{show.number_of_seasons > 1 ? "s" : ""}</span>}
                 {score > 0 && (
                   <span className="flex items-center gap-1">
@@ -276,13 +276,13 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
               {show.genres && (
                 <div className="flex gap-1.5 mt-2 flex-wrap">
                   {show.genres.slice(0, 4).map(g => {
-                    const color = GENRE_COLORS[g.name] || "#E63946";
+                    const color = GENRE_COLORS[g.name] || "#ffffff";
                     return <span key={g.id} className="px-2.5 py-0.5 text-[9px] font-semibold rounded-full" style={{ color, backgroundColor: `${color}15`, border: `1px solid ${color}20` }}>{g.name}</span>;
                   })}
                 </div>
               )}
               <button onClick={() => navigate({ page: "tv-detail", id: tvId })}
-                className="text-[11px] text-[#E63946]/70 hover:text-[#E63946] mt-2 transition-colors font-medium"
+                className="text-[11px] text-[#ffffff]/70 hover:text-[#ffffff] mt-2 transition-colors font-medium"
               >View Full Details →</button>
             </div>
           </div>

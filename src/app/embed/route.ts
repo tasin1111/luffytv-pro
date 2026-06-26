@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   const isHls = type === "hls" || url.includes(".m3u8");
   const isCdnProxy = url.includes("cdn-eu.1ani.me");
   const isOurProxy = url.includes("/api/stream");
-  const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+  const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
 
   // Build the video source URL
   let videoSrc: string;

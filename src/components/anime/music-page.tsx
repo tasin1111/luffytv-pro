@@ -159,7 +159,7 @@ export default function MusicPage() {
         {/* Error */}
         {error && (
           <div className="flex items-center gap-3 p-4 mb-4 rounded-xl max-w-[720px] mx-auto"
-               style={{ background: "rgba(230,57,70,0.08)", border: "1px solid rgba(230,57,70,0.20)", color: "#E63946" }}>
+               style={{ background: "rgba(230,57,70,0.08)", border: "1px solid rgba(230,57,70,0.20)", color: "#ffffff" }}>
             <AlertCircle size={20} />
             <span className="text-sm">{error}</span>
           </div>
@@ -236,7 +236,7 @@ export default function MusicPage() {
                       }`}>
                       Openings (OP)
                       {activeTab === "OP" && (
-                        <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#E63946] rounded-full" />
+                        <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#ffffff] rounded-full" />
                       )}
                     </button>
                     <button onClick={() => setActiveTab("ED")}
@@ -245,7 +245,7 @@ export default function MusicPage() {
                       }`}>
                       Endings (ED)
                       {activeTab === "ED" && (
-                        <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#E63946] rounded-full" />
+                        <span className="absolute bottom-0 left-4 right-4 h-0.5 bg-[#ffffff] rounded-full" />
                       )}
                     </button>
                   </div>
@@ -258,12 +258,12 @@ export default function MusicPage() {
                             isPlaying ? "ltv-music-card is-playing" : "ltv-music-card"
                           }`}>
                           <span className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
-                            isPlaying ? "bg-[#E63946] text-white" : "bg-white/[0.05] text-white/40"
+                            isPlaying ? "bg-[#ffffff] text-white" : "bg-white/[0.05] text-white/40"
                           }`}>
                             <Play size={12} fill={isPlaying ? "#fff" : "none"} />
                           </span>
                           <div className="flex flex-col min-w-0">
-                            <span className="text-[10px] font-bold text-[#E63946] uppercase tracking-wider">{t.type}</span>
+                            <span className="text-[10px] font-bold text-[#ffffff] uppercase tracking-wider">{t.type}</span>
                             <span className="text-sm font-semibold text-white truncate">{t.song?.title || "Unknown Song"}</span>
                             {t.song?.artists?.length > 0 && (
                               <span className="text-xs text-white/40 truncate">{t.song.artists.map((a: any) => a.name).join(", ")}</span>
@@ -310,7 +310,7 @@ export default function MusicPage() {
                         )}
                         <div className="ltv-poster-overlay" />
                         <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <div className="w-12 h-12 rounded-full bg-[#E63946] flex items-center justify-center shadow-lg shadow-[#E63946]/40">
+                          <div className="w-12 h-12 rounded-full bg-[#ffffff] flex items-center justify-center shadow-lg shadow-[#ffffff]/40">
                             <Play size={20} fill="#fff" className="text-white ml-0.5" />
                           </div>
                         </div>

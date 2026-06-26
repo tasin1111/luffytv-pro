@@ -88,10 +88,10 @@ export default function ScraperPage() {
     <div className="min-h-screen text-white">
       {/* Hero header */}
       <div className="relative overflow-hidden border-b border-white/5 mb-8">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#E63946]/10 via-transparent to-[#D4A017]/10 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#ffffff]/10 via-transparent to-[#D4A017]/10 pointer-events-none" />
         <div className="relative px-4 lg:px-8 py-10 lg:py-14 max-w-[1400px] mx-auto">
           <div className="flex items-center gap-3 mb-4">
-            <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[#E63946] to-[#D4A017] text-white font-bold text-sm">
+            <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-[#ffffff] to-[#D4A017] text-white font-bold text-sm">
               UI
             </span>
             <div>
@@ -110,13 +110,13 @@ export default function ScraperPage() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search anime by title..."
-              className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-[#E63946]/50 focus:bg-white/10 transition"
+              className="flex-1 px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-sm focus:outline-none focus:border-[#ffffff]/50 focus:bg-white/10 transition"
               autoFocus
             />
             <button
               type="submit"
               disabled={loading || !query.trim()}
-              className="px-5 py-3 bg-[#E63946] hover:bg-[#E63946]/90 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-bold transition"
+              className="px-5 py-3 bg-[#ffffff] hover:bg-[#ffffff]/90 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm font-bold transition"
             >
               {loading ? "Searching..." : "Search"}
             </button>

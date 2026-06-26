@@ -21,7 +21,7 @@ import LiveSchedulePage from "./live-schedule-page";
 const WF_BASE = "https://api.watchfooty.st";
 
 const defaultSportCategories = [
-  { id: "all", label: "All Sports", icon: "🏟️", color: "#E63946" },
+  { id: "all", label: "All Sports", icon: "🏟️", color: "#ffffff" },
   { id: "football", label: "Football", icon: "⚽", color: "#22c55e" },
   { id: "basketball", label: "Basketball", icon: "🏀", color: "#ef4444" },
   { id: "american-football", label: "NFL", icon: "🏈", color: "#dc2626" },
@@ -33,7 +33,7 @@ const defaultSportCategories = [
   { id: "rugby", label: "Rugby", icon: "🏉", color: "#10b981" },
   { id: "golf", label: "Golf", icon: "⛳", color: "#84cc16" },
   { id: "cricket", label: "Cricket", icon: "🏏", color: "#f59e0b" },
-  { id: "billiards", label: "Billiards", icon: "🎱", color: "#E63946" },
+  { id: "billiards", label: "Billiards", icon: "🎱", color: "#ffffff" },
   { id: "afl", label: "AFL", icon: "🏈", color: "#14b8a6" },
   { id: "darts", label: "Darts", icon: "🎯", color: "#f43f5e" },
   { id: "other", label: "Other", icon: "📺", color: "#6b7280" },
@@ -215,7 +215,7 @@ const SOURCE_BADGES: Record<string, { label: string; color: string; bg: string }
   espn: { label: "ESPN", color: "#ef4444", bg: "rgba(239,68,68,0.15)" },
   sportsembed: { label: "SportsEmbed", color: "#06b6d4", bg: "rgba(6,182,212,0.15)" },
   "ppv-to": { label: "PPV.to", color: "#eab308", bg: "rgba(234,179,8,0.15)" },
-  vipstreamed: { label: "VIPStreamed", color: "#E63946", bg: "rgba(139,92,246,0.15)" },
+  vipstreamed: { label: "VIPStreamed", color: "#ffffff", bg: "rgba(139,92,246,0.15)" },
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -1341,7 +1341,7 @@ export default function LivePage() {
               onClick={() => setSectionSubPage("sports")}
               className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
                 sectionSubPage === "sports" || !sectionSubPage || sectionSubPage === "home"
-                  ? "bg-[#E63946]/20 text-[#E63946] border border-[#E63946]/30"
+                  ? "bg-[#ffffff]/20 text-[#ffffff] border border-[#ffffff]/30"
                   : "text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
               }`}
               style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}
@@ -1476,7 +1476,7 @@ export default function LivePage() {
         {/* Loading */}
         {loading && matches.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="w-12 h-12 rounded-full border-2 border-[#E63946]/30 border-t-[#E63946] animate-spin" />
+            <div className="w-12 h-12 rounded-full border-2 border-[#ffffff]/30 border-t-[#ffffff] animate-spin" />
             <p className="text-sm text-white/30">Loading live sports...</p>
             <p className="text-[10px] text-white/15">Fetching from multiple sources</p>
           </div>
@@ -1530,7 +1530,7 @@ export default function LivePage() {
                           key={i}
                           onClick={() => setSlider247Index(i)}
                           className={`h-1.5 rounded-full transition-all duration-300 ${
-                            i === slider247Index ? 'w-6 bg-[#E63946]' : 'w-1.5 bg-white/20 hover:bg-white/40'
+                            i === slider247Index ? 'w-6 bg-[#ffffff]' : 'w-1.5 bg-white/20 hover:bg-white/40'
                           }`
                           }
                         />
@@ -1701,7 +1701,7 @@ export default function LivePage() {
 
               {newsLoading && newsArticles.length === 0 && (
                 <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <div className="w-10 h-10 rounded-full border-2 border-[#E63946]/30 border-t-[#E63946] animate-spin" />
+                  <div className="w-10 h-10 rounded-full border-2 border-[#ffffff]/30 border-t-[#ffffff] animate-spin" />
                   <p className="text-sm text-white/30">Loading news...</p>
                 </div>
               )}

@@ -728,7 +728,7 @@ export default function MangaPage() {
               <div key={si} className="mg-section">
                 <div className="mg-section-header">
                   <div className="flex items-center gap-2.5">
-                    <div className="w-1 h-5 bg-[#E63946] rounded-full" />
+                    <div className="w-1 h-5 bg-[#ffffff] rounded-full" />
                     <h2 className="mg-section-title">{section.title}</h2>
                     <span className="mg-section-count">({section.items.length})</span>
                   </div>
@@ -787,7 +787,7 @@ export default function MangaPage() {
                     <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
                   </svg>
                   <p className="text-zinc-400 text-sm">No manga found with current filters</p>
-                  <button onClick={clearFilters} className="mt-3 text-xs text-[#E63946] hover:underline">Clear filters</button>
+                  <button onClick={clearFilters} className="mt-3 text-xs text-[#ffffff] hover:underline">Clear filters</button>
                 </div>
               )}
             </div>
@@ -859,7 +859,7 @@ function MangaGridCard({ manga, rank, isFeatured, onClick }: { manga: MangaEntry
         {rank && rank <= 3 && (
           <div className="absolute top-2 left-2 z-10 flex items-center justify-center w-7 h-7 rounded-lg"
             style={{
-              background: rank === 1 ? "linear-gradient(135deg, #E63946, #FF6B6B)" :
+              background: rank === 1 ? "linear-gradient(135deg, #ffffff, #FF6B6B)" :
                           rank === 2 ? "linear-gradient(135deg, #6366F1, #818CF8)" :
                           "linear-gradient(135deg, #F59E0B, #FBBF24)",
               boxShadow: rank === 1 ? "0 0 12px rgba(230,57,70,0.4)" :
@@ -901,7 +901,7 @@ function MangaGridCard({ manga, rank, isFeatured, onClick }: { manga: MangaEntry
               ))}
             </div>
           )}
-          <span className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#E63946] hover:bg-red-700 text-white text-[11px] font-semibold rounded-full transition-all shadow-lg shadow-red-600/25">
+          <span className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#ffffff] hover:bg-red-700 text-white text-[11px] font-semibold rounded-full transition-all shadow-lg shadow-red-600/25">
             <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
@@ -977,7 +977,7 @@ function MangaListCard({ manga, rank, onClick }: { manga: MangaEntry; rank?: num
         )}
       </div>
       {/* Arrow */}
-      <svg className="w-4 h-4 text-zinc-600 group-hover:text-[#E63946] shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <svg className="w-4 h-4 text-zinc-600 group-hover:text-[#ffffff] shrink-0 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path d="M9 5l7 7-7 7" />
       </svg>
     </button>

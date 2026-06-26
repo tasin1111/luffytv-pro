@@ -74,7 +74,7 @@ function CountdownTimer({ targetTime }: { targetTime: number }) {
   }, [targetTime]);
 
   return (
-    <span className={`text-[10px] font-bold tabular-nums ${urgent ? "text-[#E63946] animate-pulse" : timeLeft === "Aired" ? "text-[#10B981]" : "text-[#4A90E2]"}`}>
+    <span className={`text-[10px] font-bold tabular-nums ${urgent ? "text-[#ffffff] animate-pulse" : timeLeft === "Aired" ? "text-[#10B981]" : "text-[#4A90E2]"}`}>
       {timeLeft === "Aired" ? (
         <span className="flex items-center gap-1">
           <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" /></svg>
@@ -328,7 +328,7 @@ export default function SchedulePage() {
 
         {/* Next Airing Banner */}
         {nextAiring && (
-          <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-[#4A90E2]/10 via-[#4A90E2]/5 to-[#E63946]/10 border border-[#4A90E2]/15 p-4">
+          <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-[#4A90E2]/10 via-[#4A90E2]/5 to-[#ffffff]/10 border border-[#4A90E2]/15 p-4">
             <div className="absolute inset-0 opacity-30">
               {nextAiring.media.coverImage?.extraLarge && (
                 <img
@@ -431,8 +431,8 @@ export default function SchedulePage() {
       ) : error ? (
         <div className="text-center py-20 bg-white/[0.025] rounded-2xl border border-white/[0.04]">
           <div className="space-y-4">
-            <div className="w-16 h-16 mx-auto rounded-full bg-[#E63946]/10 flex items-center justify-center">
-              <svg className="w-8 h-8 text-[#E63946]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <div className="w-16 h-16 mx-auto rounded-full bg-[#ffffff]/10 flex items-center justify-center">
+              <svg className="w-8 h-8 text-[#ffffff]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
@@ -502,7 +502,7 @@ export default function SchedulePage() {
           </div>
           <div className="bg-white/[0.025] rounded-xl p-3 border border-white/[0.04]">
             <p className="text-[10px] text-white/40 uppercase tracking-wider font-bold">Anime</p>
-            <p className="text-xl font-bold text-[#E63946] mt-1">
+            <p className="text-xl font-bold text-[#ffffff] mt-1">
               {new Set(schedule.map(i => i.media.id)).size}
             </p>
             <p className="text-[10px] text-white/30">unique shows</p>

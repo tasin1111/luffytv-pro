@@ -1189,7 +1189,7 @@ function capitalize(s: string): string { return s ? s.charAt(0).toUpperCase() + 
 // Routes external image URLs through Cloudflare Worker (NEXT_PUBLIC_PROXY_BASE)
 // Falls back to /api/image-proxy if worker URL not configured.
 // Bypasses CORS, referer blocking, and CSP issues in the browser.
-const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
 const PROXY_HOSTS = new Set([
   "dami-tv.pro", "api.watchfooty.st", "streamfree.app",
   "r2.thesportsdb.com", "streamed.pk", "sportsembed.su",

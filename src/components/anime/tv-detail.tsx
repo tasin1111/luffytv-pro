@@ -53,7 +53,7 @@ const GROTESK = "var(--font-space-grotesk), 'Space Grotesk', sans-serif";
 const INTER = "var(--font-inter), 'Inter', sans-serif";
 
 const GENRE_COLORS: Record<string, string> = {
-  "Action & Adventure": "#ef4444", Animation: "#E63946", Comedy: "#eab308",
+  "Action & Adventure": "#ef4444", Animation: "#ffffff", Comedy: "#eab308",
   Crime: "#6366f1", Documentary: "#10b981", Drama: "#6366f1",
   Family: "#ec4899", Kids: "#f59e0b", Mystery: "#0ea5e9",
   News: "#64748b", Reality: "#f97316", "Sci-Fi & Fantasy": "#06b6d4",
@@ -152,7 +152,7 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
               )}
               <div className="flex-1 min-w-0 space-y-2">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E63946]/20 text-[#E63946] border border-[#E63946]/25">TV SHOW</span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#ffffff]/20 text-[#ffffff] border border-[#ffffff]/25">TV SHOW</span>
                   {score > 0 && (
                     <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FFB800]/15 text-[#FFB800] border border-[#FFB800]/25">
                       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
@@ -165,7 +165,7 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
                 <h1 className="text-xl sm:text-3xl font-bold text-white line-clamp-2 tracking-tight" style={{ fontFamily: GROTESK }}>{show.name}</h1>
                 <div className="flex items-center gap-2 pt-1">
                   <button onClick={() => navigate({ page: "tv-watch", id: show.id, season: 1, episode: 1 })}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#E63946] text-white text-xs font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#E63946]/25">
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#ffffff] text-white text-xs font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#ffffff]/25">
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                     Watch
                   </button>
@@ -182,7 +182,7 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
             {/* Desktop: Info */}
             <div className="hidden lg:flex flex-1 flex-col items-start space-y-4">
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#E63946]/20 text-[#E63946] border border-[#E63946]/25">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#ffffff]/20 text-[#ffffff] border border-[#ffffff]/25">
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
                   TV SHOW
                 </span>
@@ -202,7 +202,7 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
               {show.genres && show.genres.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {show.genres.map(g => {
-                    const color = GENRE_COLORS[g.name] || "#E63946";
+                    const color = GENRE_COLORS[g.name] || "#ffffff";
                     return <span key={g.id} className="px-3 py-1 text-xs font-medium rounded-full" style={{ color, backgroundColor: `${color}15`, border: `1px solid ${color}25`, fontFamily: GROTESK }}>{g.name}</span>;
                   })}
                 </div>
@@ -210,7 +210,7 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
 
               <div className="flex items-center gap-3 pt-2">
                 <button onClick={() => navigate({ page: "tv-watch", id: show.id, season: 1, episode: 1 })}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#E63946] text-white text-sm font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#E63946]/25">
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#ffffff] text-white text-sm font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#ffffff]/25">
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                   Watch Now
                 </button>
@@ -244,7 +244,7 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
           {show.overview && (
             <div>
               <h3 className="text-sm font-semibold text-[#AAAAAA] mb-2 flex items-center gap-2" style={{ fontFamily: GROTESK }}>
-                <div className="w-1 h-4 rounded-full bg-[#E63946]" /> Overview
+                <div className="w-1 h-4 rounded-full bg-[#ffffff]" /> Overview
               </h3>
               <p className="text-sm text-[#AAAAAA] leading-relaxed" style={{ fontFamily: INTER }}>{show.overview}</p>
             </div>
@@ -297,7 +297,7 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
           </div>
           {show.number_of_seasons && show.number_of_seasons > 1 && (
             <select value={selectedSeason} onChange={e => setSelectedSeason(parseInt(e.target.value))}
-              className="bg-[#1A1A1A] text-[#AAAAAA] text-sm px-4 py-2 rounded-full border border-white/[0.06] outline-none focus:border-[#E63946]/30"
+              className="bg-[#1A1A1A] text-[#AAAAAA] text-sm px-4 py-2 rounded-full border border-white/[0.06] outline-none focus:border-[#ffffff]/30"
             >
               {Array.from({ length: show.number_of_seasons }, (_, i) => (
                 <option key={i + 1} value={i + 1}>Season {i + 1}</option>
@@ -319,13 +319,13 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
                   <div className="w-full h-full flex items-center justify-center text-xs font-bold text-[#666666]">{ep.episode_number}</div>
                 )}
                 <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
-                  <svg className="w-6 h-6 sm:w-8 sm:h-8 text-[#E63946]" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                  <svg className="w-6 h-6 sm:w-8 sm:h-8 text-[#ffffff]" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                 </div>
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-xs sm:text-sm font-medium text-white line-clamp-1">{ep.name}</p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[10px] text-[#E63946] font-semibold" style={{ fontFamily: GROTESK }}>EP {ep.episode_number}</span>
+                  <span className="text-[10px] text-[#ffffff] font-semibold" style={{ fontFamily: GROTESK }}>EP {ep.episode_number}</span>
                   {ep.runtime && <span className="text-[10px] text-[#666666]">{ep.runtime}m</span>}
                   {ep.air_date && <span className="text-[10px] text-[#666666] hidden sm:inline">{ep.air_date}</span>}
                 </div>
@@ -347,7 +347,7 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
       {show.similar?.results && show.similar.results.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center gap-2.5">
-            <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[#E63946]/15 text-[#E63946] border border-[#E63946]/25" style={{ fontFamily: GROTESK }}>SIMILAR</span>
+            <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[#ffffff]/15 text-[#ffffff] border border-[#ffffff]/25" style={{ fontFamily: GROTESK }}>SIMILAR</span>
             <h3 className="text-lg font-bold text-white" style={{ fontFamily: GROTESK }}>You May Also Like</h3>
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">

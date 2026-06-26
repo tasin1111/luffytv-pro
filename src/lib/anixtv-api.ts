@@ -78,7 +78,7 @@ export async function anixtvGetVideoId(
     // Route through our Cloudflare Worker — anixtv.in is Cloudflare-protected
     // and blocks direct fetch from Vercel IPs (returns CF challenge page).
     // The worker runs on Cloudflare's network → bypasses the challenge.
-    const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+    const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
     const fetchUrl = WORKER_BASE
       ? `${WORKER_BASE}/proxy/raw?url=${encodeURIComponent(watchUrl)}`
       : watchUrl;

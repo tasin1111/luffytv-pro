@@ -198,7 +198,7 @@ export default function ScraperWatchPage({
         {loading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center">
-              <div className="w-10 h-10 rounded-full border-2 border-white/10 border-t-[#E63946] animate-spin mx-auto mb-3" />
+              <div className="w-10 h-10 rounded-full border-2 border-white/10 border-t-[#ffffff] animate-spin mx-auto mb-3" />
               <p className="text-xs text-white/50">Fetching streams from {site}...</p>
             </div>
           </div>
@@ -209,7 +209,7 @@ export default function ScraperWatchPage({
               <p className="text-sm text-white/80 mb-3">{error}</p>
               <button
                 onClick={fetchSources}
-                className="px-4 py-2 bg-[#E63946] hover:bg-[#E63946]/90 rounded text-xs font-bold"
+                className="px-4 py-2 bg-[#ffffff] hover:bg-[#ffffff]/90 rounded text-xs font-bold"
               >
                 Retry
               </button>
@@ -262,7 +262,7 @@ export default function ScraperWatchPage({
                         !available
                           ? "opacity-30 cursor-not-allowed bg-white/5 border-white/10"
                           : active
-                          ? "bg-[#E63946] border-[#E63946] text-white"
+                          ? "bg-[#ffffff] border-[#ffffff] text-white"
                           : "bg-white/5 border-white/10 hover:bg-white/10"
                       }`}
                     >

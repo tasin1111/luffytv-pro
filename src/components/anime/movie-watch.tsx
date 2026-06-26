@@ -32,9 +32,9 @@ const GROTESK = "var(--font-space-grotesk), 'Space Grotesk', sans-serif";
 const INTER = "var(--font-inter), 'Inter', sans-serif";
 
 const GENRE_COLORS: Record<string, string> = {
-  Action: "#ef4444", Adventure: "#f59e0b", Animation: "#E63946",
+  Action: "#ef4444", Adventure: "#f59e0b", Animation: "#ffffff",
   Comedy: "#eab308", Crime: "#6366f1", Documentary: "#10b981",
-  Drama: "#6366f1", Family: "#ec4899", Fantasy: "#E63946",
+  Drama: "#6366f1", Family: "#ec4899", Fantasy: "#ffffff",
   History: "#a855f7", Horror: "#dc2626", Music: "#06b6d4",
   Mystery: "#0ea5e9", Romance: "#ec4899", "Science Fiction": "#06b6d4",
   "TV Movie": "#64748b", Thriller: "#f97316", War: "#64748b",
@@ -110,8 +110,8 @@ export default function MovieWatchPage({ movieId }: { movieId: number }) {
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-[#0D0D0D]">
             <div className="text-center space-y-3">
-              <div className="w-16 h-16 rounded-full bg-[#E63946]/10 flex items-center justify-center mx-auto">
-                <svg className="w-8 h-8 text-[#E63946]" viewBox="0 0 24 24" fill="currentColor">
+              <div className="w-16 h-16 rounded-full bg-[#ffffff]/10 flex items-center justify-center mx-auto">
+                <svg className="w-8 h-8 text-[#ffffff]" viewBox="0 0 24 24" fill="currentColor">
                   <polygon points="5 3 19 12 5 21 5 3" />
                 </svg>
               </div>
@@ -127,8 +127,8 @@ export default function MovieWatchPage({ movieId }: { movieId: number }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#E63946] animate-pulse" />
-              <span className="text-[10px] font-bold text-[#E63946] uppercase tracking-wider" style={{ fontFamily: GROTESK }}>Now Playing</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-[#ffffff] animate-pulse" />
+              <span className="text-[10px] font-bold text-[#ffffff] uppercase tracking-wider" style={{ fontFamily: GROTESK }}>Now Playing</span>
             </div>
             <h3 className="text-sm font-bold text-white truncate" style={{ fontFamily: GROTESK }}>{movie?.title || "Loading..."}</h3>
             {movie?.tagline && <p className="text-[10px] text-[#666666] italic mt-0.5">&quot;{movie.tagline}&quot;</p>}
@@ -165,12 +165,12 @@ export default function MovieWatchPage({ movieId }: { movieId: number }) {
                 onClick={() => { setActiveServer(server.id); setIframeError(false); setUseDirectEmbed(true); }}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all ${
                   activeServer === server.id
-                    ? "bg-[#E63946]/15 text-white border border-[#E63946]/30 shadow-sm shadow-[#E63946]/10"
+                    ? "bg-[#ffffff]/15 text-white border border-[#ffffff]/30 shadow-sm shadow-[#ffffff]/10"
                     : "bg-white/[0.04] text-[#AAAAAA] border border-white/[0.06] hover:bg-white/[0.08] hover:text-white"
                 }`}
                 style={{ fontFamily: GROTESK }}
               >
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: activeServer === server.id ? "#E63946" : server.color }} />
+                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: activeServer === server.id ? "#ffffff" : server.color }} />
                 Server {idx + 1}
               </button>
             ))}
@@ -207,7 +207,7 @@ export default function MovieWatchPage({ movieId }: { movieId: number }) {
               <h3 className="text-base font-bold text-white" style={{ fontFamily: GROTESK }}>{movie.title}</h3>
               {movie.tagline && <p className="text-[10px] text-[#666666] italic mt-0.5">&quot;{movie.tagline}&quot;</p>}
               <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#E63946]/15 text-[#E63946] border border-[#E63946]/25">MOVIE</span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#ffffff]/15 text-[#ffffff] border border-[#ffffff]/25">MOVIE</span>
                 {year && <span className="text-xs text-[#AAAAAA]">{year}</span>}
                 {movie.runtime ? <span className="text-xs text-[#AAAAAA]">{hours}h {minutes}m</span> : null}
                 {score > 0 && (
@@ -222,7 +222,7 @@ export default function MovieWatchPage({ movieId }: { movieId: number }) {
               {movie.genres && movie.genres.length > 0 && (
                 <div className="flex gap-1.5 mt-2 flex-wrap">
                   {movie.genres.map(g => {
-                    const color = GENRE_COLORS[g.name] || "#E63946";
+                    const color = GENRE_COLORS[g.name] || "#ffffff";
                     return (
                       <span key={g.id} className="px-2.5 py-0.5 text-[9px] font-semibold rounded-full"
                         style={{ color, backgroundColor: `${color}15`, border: `1px solid ${color}20` }}

@@ -11,7 +11,7 @@ const CATEGORIES = [
 ];
 
 const GENRES = [
-  { id: 10759, name: "Action & Adventure", color: "#ef4444" }, { id: 16, name: "Animation", color: "#E63946" },
+  { id: 10759, name: "Action & Adventure", color: "#ef4444" }, { id: 16, name: "Animation", color: "#ffffff" },
   { id: 35, name: "Comedy", color: "#eab308" }, { id: 80, name: "Crime", color: "#6366f1" },
   { id: 99, name: "Documentary", color: "#10b981" }, { id: 18, name: "Drama", color: "#6366f1" },
   { id: 10751, name: "Family", color: "#ec4899" }, { id: 10762, name: "Kids", color: "#f59e0b" },
@@ -88,7 +88,7 @@ export default function TVPage() {
           <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10 lg:p-14">
             <div className="max-w-2xl">
               <div className="flex items-center gap-2 mb-4">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#E63946]/20 text-[#E63946] border border-[#E63946]/25">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#ffffff]/20 text-[#ffffff] border border-[#ffffff]/25">
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
                   TV SHOW
                 </span>
@@ -102,7 +102,7 @@ export default function TVPage() {
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white line-clamp-2 mb-3 tracking-tight" style={{ fontFamily: GROTESK }}>{featuredTitle}</h1>
               {featuredOverview && <p className="text-sm text-[#AAAAAA] line-clamp-2 max-w-lg mb-5">{featuredOverview.slice(0, 180)}...</p>}
               <div className="flex items-center gap-3">
-                <button onClick={() => navigate({ page: "tv-watch", id: featured.id, season: 1, episode: 1 })} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#E63946] text-white text-sm font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#E63946]/25">
+                <button onClick={() => navigate({ page: "tv-watch", id: featured.id, season: 1, episode: 1 })} className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#ffffff] text-white text-sm font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#ffffff]/25">
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                   Watch Now
                 </button>
@@ -122,7 +122,7 @@ export default function TVPage() {
           <button key={cat.id} onClick={() => handleCategoryChange(cat.id)}
             className={`shrink-0 px-5 py-2.5 text-sm font-semibold rounded-full transition-all whitespace-nowrap ${
               category === cat.id && !genre
-                ? "bg-[#E63946] text-white shadow-lg shadow-[#E63946]/25"
+                ? "bg-[#ffffff] text-white shadow-lg shadow-[#ffffff]/25"
                 : "bg-white/[0.04] text-[#AAAAAA] hover:text-white hover:bg-white/[0.08] border border-white/[0.06]"
             }`}
             style={{ fontFamily: GROTESK }}
@@ -136,7 +136,7 @@ export default function TVPage() {
       <div className="flex items-center gap-2 overflow-x-auto scroll-container pb-2">
         <button onClick={() => handleGenreChange(null)}
           className={`shrink-0 px-4 py-2 text-xs font-semibold rounded-full transition-all whitespace-nowrap border ${
-            !genre ? "bg-[#E63946]/15 text-[#E63946] border-[#E63946]/30" : "bg-white/[0.03] text-[#666666] hover:text-[#AAAAAA] border-white/[0.04]"
+            !genre ? "bg-[#ffffff]/15 text-[#ffffff] border-[#ffffff]/30" : "bg-white/[0.03] text-[#666666] hover:text-[#AAAAAA] border-white/[0.04]"
           }`}
           style={{ fontFamily: GROTESK }}
         >

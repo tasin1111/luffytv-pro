@@ -10,15 +10,15 @@ const categories = [
     abbr: "ANI",
     title: "Anime",
     desc: "Watch the latest episodes and classic series in HD.",
-    color: "#E63946",
+    color: "#ffffff",
     glowColor: "rgba(124,106,240,0.6)",
     iconBg: "rgba(124,106,240,0.15)",
     iconBorder: "rgba(124,106,240,0.25)",
     page: "dub" as const,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-        <circle cx="12" cy="12" r="9" stroke="#E63946" strokeWidth="1.5" />
-        <path d="M10 8.5l6 3.5-6 3.5V8.5z" fill="#E63946" />
+        <circle cx="12" cy="12" r="9" stroke="#ffffff" strokeWidth="1.5" />
+        <path d="M10 8.5l6 3.5-6 3.5V8.5z" fill="#ffffff" />
       </svg>
     ),
   },
@@ -164,7 +164,7 @@ const categories = [
     abbr: "DSC",
     title: "Discord",
     desc: "Join our Discord community server.",
-    color: "#E63946",
+    color: "#ffffff",
     glowColor: "rgba(88,101,242,0.6)",
     iconBg: "rgba(88,101,242,0.15)",
     iconBorder: "rgba(88,101,242,0.3)",
@@ -173,11 +173,11 @@ const categories = [
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
         <path
           d="M9 10a1.5 1.5 0 100 3 1.5 1.5 0 000-3zM15 10a1.5 1.5 0 100 3 1.5 1.5 0 000-3z"
-          fill="#E63946"
+          fill="#ffffff"
         />
         <path
           d="M18.6 5.5C17.3 4.9 15.9 4.4 14.4 4.1l-.2.4c-1.5-.3-3-.3-4.5 0L9.5 4C8 4.4 6.7 4.9 5.4 5.5 2.9 9.2 2.1 12.8 2.5 16.3c1.6 1.2 3.2 1.9 4.8 2.4l.9-1.3c-.6-.2-1.1-.5-1.7-.8l.4-.4c3.2 1.5 6.7 1.5 9.9 0l.4.4c-.5.3-1.1.6-1.7.8l.9 1.3c1.6-.5 3.2-1.2 4.8-2.4.4-4-1.1-7.5-3.6-10.8z"
-          fill="#E63946"
+          fill="#ffffff"
         />
       </svg>
     ),

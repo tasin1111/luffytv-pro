@@ -372,7 +372,7 @@ export default function DubWatchPage({
                 </span>
               )}
               {info?.quality && (
-                <span className="px-2.5 py-1 rounded-lg bg-[#E63946]/10 text-[#E63946] border border-[#E63946]/10 font-medium">
+                <span className="px-2.5 py-1 rounded-lg bg-[#ffffff]/10 text-[#ffffff] border border-[#ffffff]/10 font-medium">
                   {info.quality}
                 </span>
               )}

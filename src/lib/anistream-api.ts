@@ -44,7 +44,7 @@ const HEADERS: Record<string, string> = {
 // api.anistream.one is Cloudflare-protected — returns {"error":"bot_detected"}
 // when fetched from Vercel IPs. Route ALL API calls through our Cloudflare
 // Worker, which runs on Cloudflare's network and bypasses bot detection.
-const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
 
 function workerWrap(url: string): string {
   if (!WORKER_BASE) return url;  // fallback: try direct (works locally, fails on Vercel)

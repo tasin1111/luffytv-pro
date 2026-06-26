@@ -178,7 +178,7 @@ export default function Live247Page() {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search 24/7 channels..."
-            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-white/25 outline-none focus:border-[#E63946]/40 focus:bg-white/[0.06] transition-all"
+            className="w-full bg-white/[0.04] border border-white/[0.08] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-white/25 outline-none focus:border-[#ffffff]/40 focus:bg-white/[0.06] transition-all"
             style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}
           />
         </div>

@@ -150,7 +150,7 @@ export default function HindiWatchPage({
                 <Globe className="w-2.5 h-2.5" /> 🇮🇳 Hindi Dub
               </span>
               {info?.type && (
-                <span className="px-2.5 py-1 rounded-lg bg-[#E63946]/10 text-[#E63946] border border-[#E63946]/10 font-medium">
+                <span className="px-2.5 py-1 rounded-lg bg-[#ffffff]/10 text-[#ffffff] border border-[#ffffff]/10 font-medium">
                   {info.type}
                 </span>
               )}
@@ -201,7 +201,7 @@ export default function HindiWatchPage({
                   disabled={!hasSub}
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
                     streamType === "sub"
-                      ? "bg-[#E63946]/15 text-[#E63946] border border-[#E63946]/20"
+                      ? "bg-[#ffffff]/15 text-[#ffffff] border border-[#ffffff]/20"
                       : "bg-white/[0.03] text-zinc-500 border border-white/[0.04] hover:text-white disabled:opacity-30"
                   }`}
                 >
@@ -337,7 +337,7 @@ export default function HindiWatchPage({
                         <span className="text-[8px] px-1 py-0.5 rounded bg-[#f59e0b]/10 text-[#f59e0b] font-bold">D</span>
                       )}
                       {hasEpSub && (
-                        <span className="text-[8px] px-1 py-0.5 rounded bg-[#E63946]/10 text-[#E63946] font-bold">S</span>
+                        <span className="text-[8px] px-1 py-0.5 rounded bg-[#ffffff]/10 text-[#ffffff] font-bold">S</span>
                       )}
                       {isActive && <Play className="w-2.5 h-2.5 text-[#f59e0b]" />}
                     </div>

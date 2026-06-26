@@ -5,7 +5,7 @@ import { useAppStore } from "./store";
 
 // Reuse same types and helpers from live-page
 const defaultSportCategories = [
-  { id: "all", label: "All Sports", icon: "🏟️", color: "#E63946" },
+  { id: "all", label: "All Sports", icon: "🏟️", color: "#ffffff" },
   { id: "football", label: "Football", icon: "⚽", color: "#22c55e" },
   { id: "basketball", label: "Basketball", icon: "🏀", color: "#ef4444" },
   { id: "american-football", label: "NFL", icon: "🏈", color: "#dc2626" },
@@ -189,7 +189,7 @@ export default function LiveSchedulePage() {
         <div className="max-w-[1400px] mx-auto space-y-8">
           {loading ? (
             <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 border-2 border-[#E63946] border-t-transparent rounded-full animate-spin" />
+              <div className="w-8 h-8 border-2 border-[#ffffff] border-t-transparent rounded-full animate-spin" />
             </div>
           ) : Object.keys(groupedByDay).length === 0 ? (
             <div className="text-center py-20">

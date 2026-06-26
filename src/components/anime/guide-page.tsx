@@ -197,10 +197,10 @@ function AccordionItem({ q, a, category, isOpen, onClick, index }: {
           {q}
         </span>
         <div className={`shrink-0 mt-1 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300 ${
-          isOpen ? "bg-[#E63946]/20 rotate-180" : "bg-white/[0.04] group-hover:bg-white/[0.08]"
+          isOpen ? "bg-[#ffffff]/20 rotate-180" : "bg-white/[0.04] group-hover:bg-white/[0.08]"
         }`}>
           <svg
-            className={`w-3.5 h-3.5 transition-colors duration-300 ${isOpen ? "text-[#E63946]" : "text-white/30"}`}
+            className={`w-3.5 h-3.5 transition-colors duration-300 ${isOpen ? "text-[#ffffff]" : "text-white/30"}`}
             fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
           >
             <path d="M19 9l-7 7-7-7" />
@@ -243,23 +243,23 @@ export default function GuidePage() {
       {/* Hero Section with gradient background */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-[500px] h-[500px] rounded-full bg-[#E63946]/[0.07] blur-[120px]" />
+          <div className="absolute top-0 left-1/4 w-[500px] h-[500px] rounded-full bg-[#ffffff]/[0.07] blur-[120px]" />
           <div className="absolute top-20 right-1/4 w-[400px] h-[400px] rounded-full bg-[#4CC9F0]/[0.05] blur-[100px]" />
           <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[1px] bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
         </div>
         <div className="relative pt-16 pb-12 px-6 text-center">
           <div className="flex items-center justify-center gap-3 mb-6">
-            <div className="h-px w-12 bg-gradient-to-r from-transparent to-[#E63946]/40" />
-            <div className="px-4 py-1.5 rounded-full border border-[#E63946]/20 bg-[#E63946]/[0.08]">
-              <span className="text-[11px] font-bold tracking-[0.15em] uppercase text-[#E63946]" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
+            <div className="h-px w-12 bg-gradient-to-r from-transparent to-[#ffffff]/40" />
+            <div className="px-4 py-1.5 rounded-full border border-[#ffffff]/20 bg-[#ffffff]/[0.08]">
+              <span className="text-[11px] font-bold tracking-[0.15em] uppercase text-[#ffffff]" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
                 Help Center
               </span>
             </div>
-            <div className="h-px w-12 bg-gradient-to-l from-transparent to-[#E63946]/40" />
+            <div className="h-px w-12 bg-gradient-to-l from-transparent to-[#ffffff]/40" />
           </div>
           <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
             How to Use{" "}
-            <span className="bg-gradient-to-r from-[#E63946] via-[#FF6B6B] to-[#4CC9F0] bg-clip-text text-transparent">Luffy TV</span>
+            <span className="bg-gradient-to-r from-[#ffffff] via-[#FF6B6B] to-[#4CC9F0] bg-clip-text text-transparent">Luffy TV</span>
           </h1>
           <p className="text-[15px] text-white/40 max-w-lg mx-auto leading-relaxed" style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}>
             Everything you need to know about streaming anime on Luffy TV. Free, ad-free, and effortless — just the way it should be.
@@ -271,8 +271,8 @@ export default function GuidePage() {
         {/* GET STARTED IN 3 STEPS */}
         <section>
           <div className="flex items-center gap-3 mb-8">
-            <div className="w-8 h-8 rounded-lg bg-[#E63946]/10 border border-[#E63946]/20 flex items-center justify-center">
-              <svg className="w-4 h-4 text-[#E63946]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <div className="w-8 h-8 rounded-lg bg-[#ffffff]/10 border border-[#ffffff]/20 flex items-center justify-center">
+              <svg className="w-4 h-4 text-[#ffffff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
               </svg>
             </div>
@@ -282,7 +282,7 @@ export default function GuidePage() {
             {quickSteps.map((step, i) => (
               <div key={step.step} className={`relative rounded-2xl border ${step.borderColor} bg-gradient-to-br ${step.gradient} p-6 group hover:scale-[1.02] transition-all duration-300`}>
                 <div className="absolute -top-3 -right-2 w-9 h-9 rounded-full bg-[#0a0a14] border border-white/[0.08] flex items-center justify-center">
-                  <span className="text-[13px] font-bold text-[#E63946]">{step.step}</span>
+                  <span className="text-[13px] font-bold text-[#ffffff]">{step.step}</span>
                 </div>
                 <div className={`mb-4 ${step.iconColor} group-hover:scale-110 transition-transform duration-300`}>{step.icon}</div>
                 <h3 className="text-base font-bold text-white mb-2" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>{step.title}</h3>
@@ -292,7 +292,7 @@ export default function GuidePage() {
             ))}
           </div>
           <div className="text-center mt-8">
-            <button onClick={() => navigate({ page: "watchnow" })} className="group relative inline-flex items-center gap-3 px-8 py-3.5 rounded-full text-[14px] font-bold uppercase tracking-wider bg-[#E63946] text-white hover:bg-[#6b5ce0] transition-all duration-300 hover:shadow-[0_0_30px_rgba(124,108,240,0.35)]" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
+            <button onClick={() => navigate({ page: "watchnow" })} className="group relative inline-flex items-center gap-3 px-8 py-3.5 rounded-full text-[14px] font-bold uppercase tracking-wider bg-[#ffffff] text-white hover:bg-[#6b5ce0] transition-all duration-300 hover:shadow-[0_0_30px_rgba(124,108,240,0.35)]" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
               <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
               Start Watching Now
             </button>
@@ -310,7 +310,7 @@ export default function GuidePage() {
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
             {features.map((feat, i) => (
               <div key={i} className="group rounded-2xl border border-white/[0.05] bg-white/[0.01] p-5 hover:bg-white/[0.03] hover:border-white/[0.1] transition-all duration-300">
-                <div className="w-10 h-10 rounded-xl bg-[#E63946]/10 border border-[#E63946]/15 flex items-center justify-center text-[#E63946] mb-3 group-hover:scale-110 group-hover:bg-[#E63946]/15 transition-all duration-300">{feat.icon}</div>
+                <div className="w-10 h-10 rounded-xl bg-[#ffffff]/10 border border-[#ffffff]/15 flex items-center justify-center text-[#ffffff] mb-3 group-hover:scale-110 group-hover:bg-[#ffffff]/15 transition-all duration-300">{feat.icon}</div>
                 <h4 className="text-[14px] font-bold text-white/90 mb-1" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>{feat.title}</h4>
                 <p className="text-[12px] text-white/35 leading-relaxed" style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}>{feat.desc}</p>
               </div>
@@ -329,11 +329,11 @@ export default function GuidePage() {
           <div className="space-y-4 mb-6">
             <div className="relative max-w-lg">
               <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-              <input type="text" value={searchFaq} onChange={e => setSearchFaq(e.target.value)} placeholder="Search questions..." className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[14px] text-white placeholder-white/25 outline-none focus:border-[#E63946]/40 focus:bg-white/[0.04] transition-all duration-300" style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }} />
+              <input type="text" value={searchFaq} onChange={e => setSearchFaq(e.target.value)} placeholder="Search questions..." className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[14px] text-white placeholder-white/25 outline-none focus:border-[#ffffff]/40 focus:bg-white/[0.04] transition-all duration-300" style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }} />
             </div>
             <div className="flex flex-wrap gap-2">
               {categories.map(cat => (
-                <button key={cat} onClick={() => setActiveCategory(activeCategory === cat ? null : cat)} className={`px-4 py-1.5 rounded-full text-[11px] font-bold tracking-wide uppercase transition-all duration-300 border ${(activeCategory === cat || (!activeCategory && cat === "All")) ? "bg-[#E63946]/15 border-[#E63946]/30 text-[#E63946]" : "bg-white/[0.02] border-white/[0.06] text-white/35 hover:text-white/60 hover:border-white/[0.12]"}`} style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>{cat}</button>
+                <button key={cat} onClick={() => setActiveCategory(activeCategory === cat ? null : cat)} className={`px-4 py-1.5 rounded-full text-[11px] font-bold tracking-wide uppercase transition-all duration-300 border ${(activeCategory === cat || (!activeCategory && cat === "All")) ? "bg-[#ffffff]/15 border-[#ffffff]/30 text-[#ffffff]" : "bg-white/[0.02] border-white/[0.06] text-white/35 hover:text-white/60 hover:border-white/[0.12]"}`} style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>{cat}</button>
               ))}
             </div>
           </div>
@@ -354,13 +354,13 @@ export default function GuidePage() {
         <section>
           <div className="relative rounded-2xl border border-white/[0.06] overflow-hidden">
             <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-0 right-0 w-[300px] h-[300px] rounded-full bg-[#E63946]/[0.06] blur-[80px]" />
+              <div className="absolute top-0 right-0 w-[300px] h-[300px] rounded-full bg-[#ffffff]/[0.06] blur-[80px]" />
               <div className="absolute bottom-0 left-0 w-[200px] h-[200px] rounded-full bg-[#4CC9F0]/[0.04] blur-[60px]" />
             </div>
             <div className="relative p-8 text-center space-y-4">
               <div className="flex justify-center mb-2">
-                <div className="w-12 h-12 rounded-2xl bg-[#E63946]/10 border border-[#E63946]/20 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#E63946]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+                <div className="w-12 h-12 rounded-2xl bg-[#ffffff]/10 border border-[#ffffff]/20 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-[#ffffff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
                 </div>
               </div>
               <h3 className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>Still need help?</h3>
@@ -370,7 +370,7 @@ export default function GuidePage() {
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
                   Contact Us
                 </button>
-                <button onClick={() => navigate({ page: "home" })} className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13px] font-bold uppercase tracking-wider bg-[#E63946]/10 border border-[#E63946]/20 text-[#E63946] hover:bg-[#E63946]/20 transition-all duration-300" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
+                <button onClick={() => navigate({ page: "home" })} className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13px] font-bold uppercase tracking-wider bg-[#ffffff]/10 border border-[#ffffff]/20 text-[#ffffff] hover:bg-[#ffffff]/20 transition-all duration-300" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
                   Back Home
                 </button>

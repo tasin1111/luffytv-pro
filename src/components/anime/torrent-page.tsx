@@ -101,10 +101,10 @@ export default function TorrentPage() {
         {/* Header */}
         <div className="text-center mb-2 flex flex-col items-center gap-2">
           <div className="w-12 h-12 rounded-xl bg-white/[0.03] border border-white/[0.08] flex items-center justify-center">
-            <Database size={24} className="text-[#E63946]" />
+            <Database size={24} className="text-[#ffffff]" />
           </div>
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight"
-              style={{ background: "linear-gradient(135deg, #fff 30%, #E63946 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
+              style={{ background: "linear-gradient(135deg, #fff 30%, #ffffff 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>
             Torrent Index
           </h1>
           <p className="text-white/50 text-sm max-w-[560px] leading-relaxed">
@@ -156,7 +156,7 @@ export default function TorrentPage() {
         ) : error ? (
           <div className="ltv-card p-8 flex flex-col items-center justify-center text-center gap-3"
                style={{ background: "rgba(230,57,70,0.05)", borderColor: "rgba(230,57,70,0.20)" }}>
-            <AlertTriangle size={32} className="text-[#E63946]" />
+            <AlertTriangle size={32} className="text-[#ffffff]" />
             <div>
               <h3 className="text-base font-bold mb-1">Search Failed</h3>
               <p className="text-white/50 text-sm">{error}</p>
@@ -204,8 +204,8 @@ export default function TorrentPage() {
 
                     {/* Leechers */}
                     <div className="flex items-center justify-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#E63946]" />
-                      <span className="text-xs font-bold text-[#E63946]">{torrent.leechers ?? 0}</span>
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#ffffff]" />
+                      <span className="text-xs font-bold text-[#ffffff]">{torrent.leechers ?? 0}</span>
                       <span className="text-[10px] text-white/40 uppercase tracking-wider">leech</span>
                     </div>
 

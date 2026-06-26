@@ -18,7 +18,7 @@ const ANIWATCHTV_PROXY = "https://pro.aniwatchtv.site/uwu";
 const XOR_KEY = "10b06cdc1ca48c9fb0b94af97cc040cf"; // 32 ASCII bytes
 
 // Worker proxy (v3 with browser impersonation headers)
-const WORKER_PROXY = process.env.NEXT_PUBLIC_PROXY_BASE || "";
+const WORKER_PROXY = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
 
 // CDNs that work better through our worker (aniwatchtv returns 403 for these)
 const WORKER_PREFERRED_HOSTS = new Set([

@@ -6,10 +6,10 @@ import { useAppStore, getAnimeTitle, getAnimeImage, getTMDBTitle, getTMDBImage, 
 
 // ── Genre color map for popup tags ──
 const GENRE_COLORS: Record<string, string> = {
-  Action: "bg-[#E63946]/20 text-[#E63946] border-[#E63946]/30",
+  Action: "bg-[#ffffff]/20 text-[#ffffff] border-[#ffffff]/30",
   Adventure: "bg-[#FF6B00]/20 text-[#FF6B00] border-[#FF6B00]/30",
   Comedy: "bg-[#FFB800]/20 text-[#FFB800] border-[#FFB800]/30",
-  Drama: "bg-[#E63946]/20 text-[#E63946] border-[#E63946]/30",
+  Drama: "bg-[#ffffff]/20 text-[#ffffff] border-[#ffffff]/30",
   Fantasy: "bg-[#4A90E2]/20 text-[#4A90E2] border-[#4A90E2]/30",
   Horror: "bg-[#9333EA]/20 text-[#9333EA] border-[#9333EA]/30",
   Romance: "bg-[#EC4899]/20 text-[#EC4899] border-[#EC4899]/30",
@@ -37,8 +37,8 @@ function getGenreColor(genre: string): string {
 function getFormatBadgeStyle(format: string): string {
   const f = format.toUpperCase();
   if (f === "TV" || f === "TV_SHORT") return "bg-[#4A90E2]/90 text-white";
-  if (f === "MOVIE") return "bg-[#E63946]/90 text-white";
-  if (f === "ONA") return "bg-[#E63946]/90 text-white";
+  if (f === "MOVIE") return "bg-[#ffffff]/90 text-white";
+  if (f === "ONA") return "bg-[#ffffff]/90 text-white";
   if (f === "OVA") return "bg-[#FF6B00]/90 text-white";
   if (f === "SPECIAL") return "bg-[#F59E0B]/90 text-black";
   if (f === "MUSIC") return "bg-[#EC4899]/90 text-white";
@@ -58,7 +58,7 @@ function getStatusColor(status?: string): string {
   if (s === "RELEASING" || s === "AIRING") return "bg-[#00D4AA]";
   if (s === "FINISHED") return "bg-[#6366F1]";
   if (s === "NOT_YET_RELEASED" || s === "NOT_YET_AIRED") return "bg-[#FF6B00]";
-  if (s === "CANCELLED") return "bg-[#E63946]";
+  if (s === "CANCELLED") return "bg-[#ffffff]";
   if (s === "HIATUS") return "bg-[#F59E0B]";
   return "bg-white/30";
 }
@@ -81,7 +81,7 @@ function getStatusBadgeStyle(status?: string): string {
   if (s === "RELEASING" || s === "AIRING") return "bg-[#00D4AA]/15 text-[#00D4AA] border-[#00D4AA]/30";
   if (s === "FINISHED") return "bg-[#6366F1]/15 text-[#6366F1] border-[#6366F1]/30";
   if (s === "NOT_YET_RELEASED" || s === "NOT_YET_AIRED") return "bg-[#FF6B00]/15 text-[#FF6B00] border-[#FF6B00]/30";
-  if (s === "CANCELLED") return "bg-[#E63946]/15 text-[#E63946] border-[#E63946]/30";
+  if (s === "CANCELLED") return "bg-[#ffffff]/15 text-[#ffffff] border-[#ffffff]/30";
   return "bg-white/[0.06] text-white/55 border-white/[0.08]";
 }
 
@@ -371,7 +371,7 @@ export default function ContentCard({ anime, tmdbItem, index = 0 }: ContentCardP
           }`}>
             <button
               onClick={(e) => { e.stopPropagation(); handleCardClick(); }}
-              className="flex items-center gap-1 px-3 py-1.5 bg-[#E63946] hover:bg-[#D32F3F] text-white text-[9px] font-semibold rounded-full transition-all cursor-pointer shadow-[0_2px_8px_rgba(230,57,70,0.3)]"
+              className="flex items-center gap-1 px-3 py-1.5 bg-[#ffffff] hover:bg-[#D32F3F] text-white text-[9px] font-semibold rounded-full transition-all cursor-pointer shadow-[0_2px_8px_rgba(230,57,70,0.3)]"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -425,7 +425,7 @@ export default function ContentCard({ anime, tmdbItem, index = 0 }: ContentCardP
                 </span>
               )}
               {hasDub && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-[#E63946]/15 text-[#E63946] border border-[#E63946]/20">
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold bg-[#ffffff]/15 text-[#ffffff] border border-[#ffffff]/20">
                   DUB
                 </span>
               )}
@@ -448,7 +448,7 @@ export default function ContentCard({ anime, tmdbItem, index = 0 }: ContentCardP
           className="bg-black/98 backdrop-blur-xl rounded-xl border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.7)] p-4 space-y-3"
         >
           {/* ── Red accent line at top ── */}
-          <div className="h-[2px] rounded-full bg-[#E63946]" />
+          <div className="h-[2px] rounded-full bg-[#ffffff]" />
 
           {/* ── Title ── */}
           <h4 className="text-sm font-bold text-white line-clamp-2 leading-snug">
@@ -524,7 +524,7 @@ export default function ContentCard({ anime, tmdbItem, index = 0 }: ContentCardP
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); handleCardClick(); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#E63946] hover:bg-[#D32F3F] text-white text-[10px] font-semibold rounded-full transition-all cursor-pointer shadow-[0_2px_8px_rgba(230,57,70,0.25)]"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-[#ffffff] hover:bg-[#D32F3F] text-white text-[10px] font-semibold rounded-full transition-all cursor-pointer shadow-[0_2px_8px_rgba(230,57,70,0.25)]"
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

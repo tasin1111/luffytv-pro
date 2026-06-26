@@ -798,7 +798,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                                     </div>
                                   </div>
                                   {/* Right arrow */}
-                                  <IconChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-[#E63946] shrink-0" />
+                                  <IconChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-[#ffffff] shrink-0" />
                                 </button>
                               ))}
                             </div>

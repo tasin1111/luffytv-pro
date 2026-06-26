@@ -13,10 +13,10 @@ const CATEGORIES = [
 
 const GENRES = [
   { id: 28, name: "Action", color: "#ef4444" }, { id: 12, name: "Adventure", color: "#f59e0b" },
-  { id: 16, name: "Animation", color: "#E63946" }, { id: 35, name: "Comedy", color: "#eab308" },
+  { id: 16, name: "Animation", color: "#ffffff" }, { id: 35, name: "Comedy", color: "#eab308" },
   { id: 80, name: "Crime", color: "#6366f1" }, { id: 99, name: "Documentary", color: "#10b981" },
   { id: 18, name: "Drama", color: "#6366f1" }, { id: 10751, name: "Family", color: "#ec4899" },
-  { id: 14, name: "Fantasy", color: "#E63946" }, { id: 36, name: "History", color: "#a855f7" },
+  { id: 14, name: "Fantasy", color: "#ffffff" }, { id: 36, name: "History", color: "#a855f7" },
   { id: 27, name: "Horror", color: "#dc2626" }, { id: 10402, name: "Music", color: "#06b6d4" },
   { id: 9648, name: "Mystery", color: "#0ea5e9" }, { id: 10749, name: "Romance", color: "#ec4899" },
   { id: 878, name: "Sci-Fi", color: "#06b6d4" }, { id: 10770, name: "TV Movie", color: "#64748b" },
@@ -102,7 +102,7 @@ export default function MoviesPage() {
             <div className="max-w-2xl">
               {/* Badges */}
               <div className="flex items-center gap-2 mb-4">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#E63946]/20 text-[#E63946] border border-[#E63946]/25">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#ffffff]/20 text-[#ffffff] border border-[#ffffff]/25">
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 23c-3.2 0-6-3.2-6-7.8 0-3 2.4-6.6 6-11.2 3.6 4.6 6 8.2 6 11.2 0 4.6-2.8 7.8-6 7.8z"/></svg>
                   Featured
                 </span>
@@ -135,7 +135,7 @@ export default function MoviesPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => navigate({ page: "movie-watch", id: featured.id })}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#E63946] text-white text-sm font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#E63946]/25"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#ffffff] text-white text-sm font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#ffffff]/25"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                   Watch Now
@@ -161,7 +161,7 @@ export default function MoviesPage() {
             onClick={() => handleCategoryChange(cat.id)}
             className={`shrink-0 px-5 py-2.5 text-sm font-semibold rounded-full transition-all whitespace-nowrap ${
               category === cat.id && !genre
-                ? "bg-[#E63946] text-white shadow-lg shadow-[#E63946]/25"
+                ? "bg-[#ffffff] text-white shadow-lg shadow-[#ffffff]/25"
                 : "bg-white/[0.04] text-[#AAAAAA] hover:text-white hover:bg-white/[0.08] border border-white/[0.06]"
             }`}
             style={{ fontFamily: GROTESK }}
@@ -177,7 +177,7 @@ export default function MoviesPage() {
           onClick={() => handleGenreChange(null)}
           className={`shrink-0 px-4 py-2 text-xs font-semibold rounded-full transition-all whitespace-nowrap border ${
             !genre
-              ? "bg-[#E63946]/15 text-[#E63946] border-[#E63946]/30"
+              ? "bg-[#ffffff]/15 text-[#ffffff] border-[#ffffff]/30"
               : "bg-white/[0.03] text-[#666666] hover:text-[#AAAAAA] border-white/[0.04] hover:border-white/[0.08]"
           }`}
           style={{ fontFamily: GROTESK }}

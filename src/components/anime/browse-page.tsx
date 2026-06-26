@@ -58,12 +58,12 @@ const YEAR_OPTIONS = (() => {
 
 const GENRE_COLORS: Record<string, string> = {
   Action: "#ef4444", Adventure: "#f59e0b", Comedy: "#eab308",
-  Drama: "#6366f1", Fantasy: "#E63946", Horror: "#dc2626",
+  Drama: "#6366f1", Fantasy: "#ffffff", Horror: "#dc2626",
   Mystery: "#0ea5e9", Romance: "#ec4899", "Sci-Fi": "#06b6d4",
   "Slice of Life": "#10b981", Sports: "#22c55e", Supernatural: "#a855f7",
   Thriller: "#f97316", Ecchi: "#f43f5e", Mecha: "#64748b",
-  Psychological: "#E63946", Shounen: "#ef4444", Seinen: "#6366f1",
-  Shoujo: "#ec4899", Josei: "#f472b6", Isekai: "#E63946",
+  Psychological: "#ffffff", Shounen: "#ef4444", Seinen: "#6366f1",
+  Shoujo: "#ec4899", Josei: "#f472b6", Isekai: "#ffffff",
   Music: "#14b8a6", "Mahou Shoujo": "#f9a8d4", Historical: "#92400e",
 };
 
@@ -191,7 +191,7 @@ function FilterPill({ label, onRemove, color }: {
         fontFamily: grok,
         ...(color
           ? { color, borderColor: `${color}25`, backgroundColor: `${color}15` }
-          : { color: "#E63946", borderColor: "rgba(230,57,70,0.25)", backgroundColor: "rgba(230,57,70,0.12)" }
+          : { color: "#ffffff", borderColor: "rgba(230,57,70,0.25)", backgroundColor: "rgba(230,57,70,0.12)" }
         ),
       }}
     >
@@ -362,16 +362,16 @@ export default function BrowsePage() {
               onClick={() => setSortBy(opt.id)}
               className={`w-full text-left px-3 py-2 rounded-lg text-[11px] font-bold transition-all ${
                 sortBy === opt.id
-                  ? "bg-[#E63946]/15 text-[#E63946] border border-[#E63946]/20"
+                  ? "bg-[#ffffff]/15 text-[#ffffff] border border-[#ffffff]/20"
                   : "text-[#AAAAAA] hover:text-white hover:bg-white/[0.04] border border-transparent"
               }`}
               style={{ fontFamily: grok }}
             >
               <span className="flex items-center gap-2.5">
                 <span className={`w-3 h-3 rounded-full border-2 flex items-center justify-center transition-all ${
-                  sortBy === opt.id ? "border-[#E63946]" : "border-[#666666]"
+                  sortBy === opt.id ? "border-[#ffffff]" : "border-[#666666]"
                 }`}>
-                  {sortBy === opt.id && <span className="w-1.5 h-1.5 rounded-full bg-[#E63946]" />}
+                  {sortBy === opt.id && <span className="w-1.5 h-1.5 rounded-full bg-[#ffffff]" />}
                 </span>
                 {opt.label}
               </span>
@@ -389,7 +389,7 @@ export default function BrowsePage() {
               onClick={() => setSelectedFormat(selectedFormat === opt.id ? "" : opt.id)}
               className={`px-2 py-2 rounded-lg text-[10px] font-bold transition-all border text-center ${
                 selectedFormat === opt.id
-                  ? "bg-[#E63946]/15 text-[#E63946] border-[#E63946]/25"
+                  ? "bg-[#ffffff]/15 text-[#ffffff] border-[#ffffff]/25"
                   : "bg-[#1A1A1A] text-[#AAAAAA] border-white/[0.06] hover:text-white hover:border-white/[0.12]"
               }`}
               style={{ fontFamily: grok }}
@@ -409,16 +409,16 @@ export default function BrowsePage() {
               onClick={() => setSelectedStatus(selectedStatus === opt.id ? "" : opt.id)}
               className={`w-full text-left px-3 py-2 rounded-lg text-[11px] font-bold transition-all ${
                 selectedStatus === opt.id
-                  ? "bg-[#E63946]/15 text-[#E63946] border border-[#E63946]/20"
+                  ? "bg-[#ffffff]/15 text-[#ffffff] border border-[#ffffff]/20"
                   : "text-[#AAAAAA] hover:text-white hover:bg-white/[0.04] border border-transparent"
               }`}
               style={{ fontFamily: grok }}
             >
               <span className="flex items-center gap-2.5">
                 <span className={`w-3 h-3 rounded-full border-2 flex items-center justify-center transition-all ${
-                  selectedStatus === opt.id ? "border-[#E63946]" : "border-[#666666]"
+                  selectedStatus === opt.id ? "border-[#ffffff]" : "border-[#666666]"
                 }`}>
-                  {selectedStatus === opt.id && <span className="w-1.5 h-1.5 rounded-full bg-[#E63946]" />}
+                  {selectedStatus === opt.id && <span className="w-1.5 h-1.5 rounded-full bg-[#ffffff]" />}
                 </span>
                 {opt.label}
               </span>
@@ -436,7 +436,7 @@ export default function BrowsePage() {
               onClick={() => setSelectedSeason(selectedSeason === opt.id ? "" : opt.id)}
               className={`px-3 py-2 rounded-lg text-[10px] font-bold transition-all border text-center ${
                 selectedSeason === opt.id
-                  ? "bg-[#E63946]/15 text-[#E63946] border-[#E63946]/25"
+                  ? "bg-[#ffffff]/15 text-[#ffffff] border-[#ffffff]/25"
                   : "bg-[#1A1A1A] text-[#AAAAAA] border-white/[0.06] hover:text-white hover:border-white/[0.12]"
               }`}
               style={{ fontFamily: grok }}
@@ -454,7 +454,7 @@ export default function BrowsePage() {
             onClick={() => setSelectedYear("")}
             className={`w-full text-left px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
               !selectedYear
-                ? "bg-[#E63946]/15 text-[#E63946] border border-[#E63946]/20"
+                ? "bg-[#ffffff]/15 text-[#ffffff] border border-[#ffffff]/20"
                 : "text-[#666666] hover:text-[#AAAAAA] hover:bg-white/[0.03] border border-transparent"
             }`}
             style={{ fontFamily: grok }}
@@ -467,7 +467,7 @@ export default function BrowsePage() {
               onClick={() => setSelectedYear(selectedYear === opt.id ? "" : opt.id)}
               className={`w-full text-left px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
                 selectedYear === opt.id
-                  ? "bg-[#E63946]/15 text-[#E63946] border border-[#E63946]/20"
+                  ? "bg-[#ffffff]/15 text-[#ffffff] border border-[#ffffff]/20"
                   : "text-[#666666] hover:text-[#AAAAAA] hover:bg-white/[0.03] border border-transparent"
               }`}
               style={{ fontFamily: grok }}
@@ -482,7 +482,7 @@ export default function BrowsePage() {
       <FilterSection title="Genre">
         <div className="flex flex-wrap gap-1.5">
           {GENRE_OPTIONS.map(genre => {
-            const color = GENRE_COLORS[genre] || "#E63946";
+            const color = GENRE_COLORS[genre] || "#ffffff";
             const isSelected = selectedGenre === genre;
             return (
               <button
@@ -515,7 +515,7 @@ export default function BrowsePage() {
       <div className="pt-5 space-y-2">
         <button
           onClick={handleApplyFilter}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#E63946] hover:bg-[#D32F3F] text-white shadow-lg shadow-[#E63946]/20 hover:shadow-[#E63946]/40 transition-all active:scale-[0.98]"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider bg-[#ffffff] hover:bg-[#D32F3F] text-white shadow-lg shadow-[#ffffff]/20 hover:shadow-[#ffffff]/40 transition-all active:scale-[0.98]"
           style={{ fontFamily: grok }}
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -559,8 +559,8 @@ export default function BrowsePage() {
       <div className="mb-6">
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3.5">
-            <div className="w-10 h-10 rounded-xl bg-[#E63946]/10 border border-[#E63946]/20 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5 text-[#E63946]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+            <div className="w-10 h-10 rounded-xl bg-[#ffffff]/10 border border-[#ffffff]/20 flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-[#ffffff]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
                 <circle cx="12" cy="12" r="10" />
                 <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
               </svg>
@@ -578,7 +578,7 @@ export default function BrowsePage() {
           {/* Mobile filter toggle */}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="lg:hidden flex items-center gap-2 px-3 py-2 rounded-xl bg-[#1A1A1A] border border-white/[0.06] text-[#AAAAAA] text-[10px] font-bold uppercase tracking-wider transition-all hover:text-white hover:border-[#E63946]/30 shrink-0"
+            className="lg:hidden flex items-center gap-2 px-3 py-2 rounded-xl bg-[#1A1A1A] border border-white/[0.06] text-[#AAAAAA] text-[10px] font-bold uppercase tracking-wider transition-all hover:text-white hover:border-[#ffffff]/30 shrink-0"
             style={{ fontFamily: grok }}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -586,7 +586,7 @@ export default function BrowsePage() {
             </svg>
             Filters
             {activeFilterCount > 0 && (
-              <span className="min-w-[18px] h-[18px] rounded-full bg-[#E63946] text-white text-[9px] flex items-center justify-center font-bold px-1">
+              <span className="min-w-[18px] h-[18px] rounded-full bg-[#ffffff] text-white text-[9px] flex items-center justify-center font-bold px-1">
                 {activeFilterCount}
               </span>
             )}
@@ -595,7 +595,7 @@ export default function BrowsePage() {
 
         {/* Search input — integrated into header */}
         <div className="mt-4">
-          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#1A1A1A] border border-white/[0.06] focus-within:border-[#E63946]/30 transition-all">
+          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#1A1A1A] border border-white/[0.06] focus-within:border-[#ffffff]/30 transition-all">
             <svg className="w-4 h-4 text-[#666666] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
             </svg>
@@ -614,7 +614,7 @@ export default function BrowsePage() {
             )}
             <button
               onClick={handleApplyFilter}
-              className="px-3 py-1 rounded-lg bg-[#E63946]/15 text-[#E63946] text-[10px] font-bold uppercase tracking-wider hover:bg-[#E63946]/25 transition-all border border-[#E63946]/20"
+              className="px-3 py-1 rounded-lg bg-[#ffffff]/15 text-[#ffffff] text-[10px] font-bold uppercase tracking-wider hover:bg-[#ffffff]/25 transition-all border border-[#ffffff]/20"
               style={{ fontFamily: grok }}
             >
               Go
@@ -645,8 +645,8 @@ export default function BrowsePage() {
               {/* Drawer header */}
               <div className="flex items-center justify-between mb-5 pb-4 border-b border-white/[0.06]">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-[#E63946]/10 flex items-center justify-center">
-                    <svg className="w-3.5 h-3.5 text-[#E63946]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <div className="w-7 h-7 rounded-lg bg-[#ffffff]/10 flex items-center justify-center">
+                    <svg className="w-3.5 h-3.5 text-[#ffffff]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                     </svg>
                   </div>
@@ -673,7 +673,7 @@ export default function BrowsePage() {
           {/* Results header bar */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-[#E63946]" style={{ fontFamily: grok }}>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#ffffff]" style={{ fontFamily: grok }}>
                 {activeSortLabel}
               </span>
               {totalCount > 0 && (
@@ -730,7 +730,7 @@ export default function BrowsePage() {
                   <button
                     onClick={handleLoadMore}
                     disabled={loading}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-[#E63946]/20 hover:border-[#E63946]/40 hover:bg-[#E63946]/10 text-[#E63946]/80 hover:text-[#E63946] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all border border-[#ffffff]/20 hover:border-[#ffffff]/40 hover:bg-[#ffffff]/10 text-[#ffffff]/80 hover:text-[#ffffff] disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
                     style={{ fontFamily: grok }}
                   >
                     {loading ? (
@@ -757,8 +757,8 @@ export default function BrowsePage() {
             /* Empty state */
             <div className="text-center py-20 bg-[#0D0D0D] rounded-2xl border border-white/[0.06]">
               <div className="space-y-4">
-                <div className="w-16 h-16 mx-auto rounded-full bg-[#E63946]/10 flex items-center justify-center">
-                  <svg className="w-8 h-8 text-[#E63946]/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <div className="w-16 h-16 mx-auto rounded-full bg-[#ffffff]/10 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-[#ffffff]/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <circle cx="12" cy="12" r="10" />
                     <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
                   </svg>
@@ -767,7 +767,7 @@ export default function BrowsePage() {
                 <p className="text-[#666666] text-xs" style={{ fontFamily: grok }}>Try adjusting your filters or search terms</p>
                 <button
                   onClick={handleClearFilters}
-                  className="px-4 py-2 text-xs font-bold bg-[#E63946]/15 text-[#E63946] rounded-full hover:bg-[#E63946]/25 transition-all border border-[#E63946]/20"
+                  className="px-4 py-2 text-xs font-bold bg-[#ffffff]/15 text-[#ffffff] rounded-full hover:bg-[#ffffff]/25 transition-all border border-[#ffffff]/20"
                   style={{ fontFamily: grok }}
                 >
                   Clear All Filters
@@ -780,7 +780,7 @@ export default function BrowsePage() {
           {loading && results.length > 0 && (
             <div className="flex justify-center mt-6">
               <div className="flex items-center gap-2 text-[10px] text-[#666666]" style={{ fontFamily: grok }}>
-                <svg className="w-4 h-4 animate-spin text-[#E63946]" fill="none" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 animate-spin text-[#ffffff]" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>

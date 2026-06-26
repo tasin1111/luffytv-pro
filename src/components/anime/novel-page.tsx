@@ -57,7 +57,7 @@ const genreColors: Record<string, string> = {
   Action: "#ef4444", Adventure: "#22c55e", Comedy: "#f59e0b", Drama: "#3b82f6",
   Fantasy: "#a855f7", Harem: "#ec4899", Isekai: "#6366f1", "Martial Arts": "#f97316",
   Mystery: "#06b6d4", Romance: "#f472b6", "Sci-Fi": "#10b981", "Slice of Life": "#84cc16",
-  Supernatural: "#E63946",
+  Supernatural: "#ffffff",
 };
 
 // ── Novel Card ──

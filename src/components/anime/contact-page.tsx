@@ -51,14 +51,14 @@ export default function ContactPage() {
             {[
               {
                 icon: (
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="#E63946" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="#ffffff" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
                     <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
                     <polyline points="22,6 12,13 2,6" />
                   </svg>
                 ),
                 title: "Email",
                 value: "support@luffytv.app",
-                color: "#E63946",
+                color: "#ffffff",
               },
               {
                 icon: (
@@ -110,11 +110,11 @@ export default function ContactPage() {
 
             {/* FAQ hint */}
             <div
-              className="lunar-fade-in-up p-5 rounded-2xl bg-[#E63946]/[0.04] border border-[#E63946]/10"
+              className="lunar-fade-in-up p-5 rounded-2xl bg-[#ffffff]/[0.04] border border-[#ffffff]/10"
               style={{ animationDelay: "0.7s", animationFillMode: "both" }}
             >
               <h3
-                className="text-sm font-bold text-[#E63946] mb-2"
+                className="text-sm font-bold text-[#ffffff] mb-2"
                 style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}
               >
                 Quick Answers
@@ -175,7 +175,7 @@ export default function ContactPage() {
                       value={formData.name}
                       onChange={e => setFormData({ ...formData, name: e.target.value })}
                       placeholder="Your name"
-                      className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-[#E63946]/30 focus:bg-white/[0.04] transition-all"
+                      className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-[#ffffff]/30 focus:bg-white/[0.04] transition-all"
                       style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}
                     />
                   </div>
@@ -192,7 +192,7 @@ export default function ContactPage() {
                       value={formData.email}
                       onChange={e => setFormData({ ...formData, email: e.target.value })}
                       placeholder="your@email.com"
-                      className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-[#E63946]/30 focus:bg-white/[0.04] transition-all"
+                      className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-[#ffffff]/30 focus:bg-white/[0.04] transition-all"
                       style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}
                     />
                   </div>
@@ -210,7 +210,7 @@ export default function ContactPage() {
                     value={formData.subject}
                     onChange={e => setFormData({ ...formData, subject: e.target.value })}
                     placeholder="What is this about?"
-                    className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-[#E63946]/30 focus:bg-white/[0.04] transition-all"
+                    className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-[#ffffff]/30 focus:bg-white/[0.04] transition-all"
                     style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}
                   />
                 </div>
@@ -228,7 +228,7 @@ export default function ContactPage() {
                     value={formData.message}
                     onChange={e => setFormData({ ...formData, message: e.target.value })}
                     placeholder="Tell us what's on your mind..."
-                    className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-[#E63946]/30 focus:bg-white/[0.04] transition-all resize-none"
+                    className="w-full bg-white/[0.03] border border-white/[0.07] rounded-xl px-4 py-3 text-sm text-white placeholder-white/20 outline-none focus:border-[#ffffff]/30 focus:bg-white/[0.04] transition-all resize-none"
                     style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}
                   />
                 </div>

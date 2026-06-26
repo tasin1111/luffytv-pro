@@ -35,9 +35,9 @@ const GROTESK = "var(--font-space-grotesk), 'Space Grotesk', sans-serif";
 const INTER = "var(--font-inter), 'Inter', sans-serif";
 
 const GENRE_COLORS: Record<string, string> = {
-  Action: "#ef4444", Adventure: "#f59e0b", Animation: "#E63946",
+  Action: "#ef4444", Adventure: "#f59e0b", Animation: "#ffffff",
   Comedy: "#eab308", Crime: "#6366f1", Documentary: "#10b981",
-  Drama: "#6366f1", Family: "#ec4899", Fantasy: "#E63946",
+  Drama: "#6366f1", Family: "#ec4899", Fantasy: "#ffffff",
   History: "#a855f7", Horror: "#dc2626", Music: "#06b6d4",
   Mystery: "#0ea5e9", Romance: "#ec4899", "Science Fiction": "#06b6d4",
   "TV Movie": "#64748b", Thriller: "#f97316", War: "#64748b",
@@ -145,7 +145,7 @@ export default function MovieDetailPage({ movieId }: { movieId: number }) {
               <div className="flex-1 min-w-0 space-y-2">
                 {/* Badges */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#E63946]/20 text-[#E63946] border border-[#E63946]/25">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#ffffff]/20 text-[#ffffff] border border-[#ffffff]/25">
                     MOVIE
                   </span>
                   {score > 0 && (
@@ -165,7 +165,7 @@ export default function MovieDetailPage({ movieId }: { movieId: number }) {
                 <div className="flex items-center gap-2 pt-1">
                   <button
                     onClick={() => navigate({ page: "movie-watch", id: movie.id })}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#E63946] text-white text-xs font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#E63946]/25"
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#ffffff] text-white text-xs font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#ffffff]/25"
                   >
                     <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                     Watch
@@ -187,7 +187,7 @@ export default function MovieDetailPage({ movieId }: { movieId: number }) {
             <div className="hidden lg:flex flex-1 flex-col items-start space-y-4">
               {/* Badges */}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#E63946]/20 text-[#E63946] border border-[#E63946]/25">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold bg-[#ffffff]/20 text-[#ffffff] border border-[#ffffff]/25">
                   <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16M17 4v16M3 8h4m10 0h4M3 12h18M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
                   MOVIE
                 </span>
@@ -214,7 +214,7 @@ export default function MovieDetailPage({ movieId }: { movieId: number }) {
               {movie.genres && movie.genres.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {movie.genres.map(g => {
-                    const color = GENRE_COLORS[g.name] || "#E63946";
+                    const color = GENRE_COLORS[g.name] || "#ffffff";
                     return (
                       <span key={g.id} className="px-3 py-1 text-xs font-medium rounded-full"
                         style={{
@@ -235,7 +235,7 @@ export default function MovieDetailPage({ movieId }: { movieId: number }) {
               <div className="flex items-center gap-3 pt-2">
                 <button
                   onClick={() => navigate({ page: "movie-watch", id: movie.id })}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#E63946] text-white text-sm font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#E63946]/25"
+                  className="inline-flex items-center gap-2 px-6 py-3 rounded-lg bg-[#ffffff] text-white text-sm font-semibold hover:bg-[#d32f3f] transition-colors shadow-lg shadow-[#ffffff]/25"
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                   Watch Now
@@ -282,7 +282,7 @@ export default function MovieDetailPage({ movieId }: { movieId: number }) {
           {movie.overview && (
             <div>
               <h3 className="text-sm font-semibold text-[#AAAAAA] mb-2 flex items-center gap-2" style={{ fontFamily: GROTESK }}>
-                <div className="w-1 h-4 rounded-full bg-[#E63946]" />
+                <div className="w-1 h-4 rounded-full bg-[#ffffff]" />
                 Overview
               </h3>
               <p className="text-sm text-[#AAAAAA] leading-relaxed" style={{ fontFamily: INTER }}>{movie.overview}</p>
@@ -343,7 +343,7 @@ export default function MovieDetailPage({ movieId }: { movieId: number }) {
       {movie.similar?.results && movie.similar.results.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center gap-2.5">
-            <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[#E63946]/15 text-[#E63946] border border-[#E63946]/25" style={{ fontFamily: GROTESK }}>
+            <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-[#ffffff]/15 text-[#ffffff] border border-[#ffffff]/25" style={{ fontFamily: GROTESK }}>
               SIMILAR
             </span>
             <h3 className="text-lg font-bold text-white" style={{ fontFamily: GROTESK }}>You May Also Like</h3>

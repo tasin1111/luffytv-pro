@@ -43,7 +43,7 @@ const genreColors: Record<string, string> = {
   Action: "#ef4444", Adventure: "#22c55e", Comedy: "#f59e0b", Drama: "#3b82f6",
   Fantasy: "#a855f7", Harem: "#ec4899", Isekai: "#6366f1", "Martial Arts": "#f97316",
   Mystery: "#06b6d4", Romance: "#f472b6", "Sci-Fi": "#10b981", "Slice of Life": "#84cc16",
-  Supernatural: "#E63946", Horror: "#dc2626", Historical: "#92400e", Mecha: "#0ea5e9",
+  Supernatural: "#ffffff", Horror: "#dc2626", Historical: "#92400e", Mecha: "#0ea5e9",
   Psychological: "#be185d", Seinen: "#475569", Shounen: "#f59e0b", Wuxia: "#b45309",
   Xianxia: "#D32F3F", Xuanhuan: "#0891b2", Josei: "#db2777", Shoujo: "#f472b6",
 };
