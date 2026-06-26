@@ -156,6 +156,12 @@ export async function GET(
   }
   const candidates: Candidate[] = [];
 
+  // ── INCREASED TIMEOUTS: each source gets more time to respond ──
+  // Old: AniDap=4s, others=5-6s. New: AniDap=8s, others=8-10s.
+  // This fixes AniDap servers not showing (4s was too short).
+  const ANIDAP_TIMEOUT = 8000;
+  const OTHER_TIMEOUT = 8000;
+
   // Fire AniDap resolver + sources fetch in parallel with the other sources.
   // AniDap gives us 11 providers × 2 types (sub/dub) — all verified playable.
   // Also fire AniLight + Kyren + AniKuro + AniYubi in parallel — all return direct-playable streams.
@@ -168,21 +174,21 @@ export async function GET(
     })(),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/sub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/dub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: 4000 }),
-    fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 6000 }),
-    fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 6000 }),
-    fetchAnikageSources(id, epNum, { timeoutMs: 5000 }),
-    fetchMioAnimeSources(id, epNum, { timeoutMs: 5000 }),
+    fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: ANIDAP_TIMEOUT }),
+    fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
+    fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
+    fetchAnikageSources(id, epNum, { timeoutMs: OTHER_TIMEOUT }),
+    fetchMioAnimeSources(id, epNum, { timeoutMs: OTHER_TIMEOUT }),
     // Anistream.one: uses api.anistream.one (OWN REST API, NOT Cloudflare-protected).
     // Returns DIRECT stream URLs — no XOR wrapper, no cdn.animex.su needed.
     // Has embed providers too (ok.ru, mp4upload) for some servers.
-    fetchAnistreamSources(id, epNum, { sub: true, dub: true, timeoutMs: 6000 }),
+    fetchAnistreamSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
     // AniKuro.ru: Russian aggregator with 11 providers (animepahe, anikoto, animegg, etc.)
     // Returns stream URLs through proxy.anikuro.ru (base64-encoded, CORS enabled).
-    fetchAnikuroSources(id, epNum, { sub: true, dub: true, timeoutMs: 6000 }),
+    fetchAnikuroSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
     // AniYubi.com: animepahe-based aggregator. Returns kwik.cx embed URLs.
     // Played as iframe embeds (kwik.cx blocks server-side scraping).
-    fetchAniYubiSources(id, epNum, { timeoutMs: 6000 }),
+    fetchAniYubiSources(id, epNum, { timeoutMs: OTHER_TIMEOUT }),
   ]);
 
   // Miruro
@@ -241,6 +247,11 @@ export async function GET(
       const meta = ANIDAP_PROVIDER_META[r.provider as AniDapProvider];
       const provName = meta?.name || (r.provider[0].toUpperCase() + r.provider.slice(1));
       const typeTag = r.type === "dub" ? " (Dub)" : (meta?.hardsub ? " (HS)" : "");
+      // Detect embed URLs (ok.ru, mp4upload) — these need iframe playback
+      const isEmbedUrl = r.streamUrl.includes("ok.ru/videoembed")
+                      || r.streamUrl.includes("mp4upload.com/embed")
+                      || r.streamUrl.includes("streamlare.com/e/")
+                      || r.streamUrl.includes("streamsb.net/e/");
       anidapVerified.push({
         id: `anidap:${r.provider}:${r.type}`,
         name: `AniDap ${provName}${typeTag}`,
@@ -251,6 +262,7 @@ export async function GET(
         streamUrl: r.streamUrl,
         isM3U8: r.isM3U8,
         isMP4: r.isMP4,
+        isEmbed: isEmbedUrl,
         // Mark hardsub servers — from AniDap's metadata
         hardsub: meta?.hardsub === true,
         subtitleTracks: r.tracks.map(t => ({ url: t.url, lang: t.lang, label: t.label })),

@@ -385,14 +385,11 @@ export async function discoverAniDapServers(
  * Fetch sources from EVERY provider in our catalog (10 sub + 7 dub).
  *
  * Strategy:
- *   - Try ALL providers in our catalog (vee, yuki, miku, neko, beep, meme,
- *     uwu, kuro, sax, yume for sub; mimi, yuki, miku, uwu, kuro, sax, yume
- *     for dub) — NOT just the ones /servers returns.
- *   - Reason: /servers doesn't always list every provider that has the
- *     episode. e.g. for One Piece ep 1, "sax" has the episode but isn't in
- *     the /servers response.
- *   - Batched 3-at-a-time with 700ms gap to dodge AniDap's per-IP rate
- *     limiter.
+ *   - First: get embed providers from /servers endpoint (sax, yume — type=embed).
+ *     These have DIRECT URLs (ok.ru, mp4upload) — no /sources call needed.
+ *     This gives us instant servers even when /sources is rate-limited.
+ *   - Then: try ALL providers from our catalog via /sources endpoint.
+ *     Batched 3-at-a-time with 700ms gap to dodge AniDap's rate limiter.
  *   - Providers that return "bot_detected" or "too_many_requests" are
  *     silently skipped (they're rate-limited, not absent).
  *
@@ -411,7 +408,48 @@ export async function fetchAllAniDapSources(
 
   const wantSub = options?.sub ?? true;
   const wantDub = options?.dub ?? true;
-  const timeoutMs = options?.timeoutMs ?? 5000;
+  const timeoutMs = options?.timeoutMs ?? 8000;
+
+  // ── STEP 1: Get embed providers from /servers endpoint (instant — no rate limit) ──
+  // These are direct iframe embeds (ok.ru, mp4upload) that don't need /sources call.
+  const embedResults: AniDapVerifiedResult[] = [];
+  try {
+    const serversResp = await Promise.race([
+      fetch(`https://chad.anidap.se/rest/api/servers?id=${anidapId}&epNum=${epNum}`, {
+        headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
+        cache: "no-store",
+      }),
+      new Promise<Response | null>(r => setTimeout(() => r(null), 5000)),
+    ]);
+    if (serversResp && serversResp.ok) {
+      const serversData = await serversResp.json();
+      const collectEmbeds = (list: any[], type: "sub" | "dub") => {
+        if (!Array.isArray(list)) return;
+        for (const p of list) {
+          if (p?.type === "embed" && p?.url) {
+            embedResults.push({
+              provider: p.id,
+              type,
+              sources: [],
+              tracks: [],
+              chapters: [],
+              intro: null,
+              outro: null,
+              streamUrl: p.url,
+              quality: "auto",
+              isM3U8: false,
+              isMP4: false,
+            });
+          }
+        }
+      };
+      if (wantSub) collectEmbeds(serversData.subProviders, "sub");
+      if (wantDub) collectEmbeds(serversData.dubProviders, "dub");
+      console.log(`[AniDap] ${embedResults.length} embed providers from /servers (instant)`);
+    }
+  } catch {
+    // /servers failed — continue with /sources approach
+  }
 
   // Build the full job list from our catalog — try EVERY provider, not just
   // the ones /servers reports. /servers is unreliable and often omits
@@ -504,5 +542,19 @@ export async function fetchAllAniDapSources(
   }
 
   console.log(`[AniDap] ${verified.length}/${jobs.length} API providers yielded playable streams`);
+
+  // ── Merge embed results (from /servers) with /sources results ──
+  // Dedupe by provider+type — if /sources already returned a stream for this
+  // provider, skip the embed version (m3u8/mp4 is better than iframe).
+  const seen = new Set(verified.map(v => `${v.provider}:${v.type}`));
+  for (const e of embedResults) {
+    const key = `${e.provider}:${e.type}`;
+    if (!seen.has(key)) {
+      verified.push(e);
+      seen.add(key);
+    }
+  }
+
+  console.log(`[AniDap] ${verified.length} total (${embedResults.length} embed + ${verified.length - embedResults.length} sources)`);
   return verified;
 }

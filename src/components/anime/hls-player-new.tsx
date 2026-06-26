@@ -205,8 +205,32 @@ export default function HLSPlayerNew({
       }
     };
     const onDur = () => setDuration(video.duration || 0);
-    const onWaiting = () => setLoading(true);
-    const onPlaying = () => setLoading(false);
+
+    // ── Smart loading: don't show spinner on minor buffer stalls ──
+    // The video fires 'waiting' on ANY buffer stall (even 100ms). This caused
+    // the "force loading" issue — the spinner kept flashing even though the
+    // video was playing fine. Now we only show loading if:
+    //   1. The video is actually paused (not just buffering briefly)
+    //   2. OR 1.5s have passed since the last 'waiting' event (real stall)
+    let waitingTimer: ReturnType<typeof setTimeout> | null = null;
+    const onWaiting = () => {
+      // Don't show loading immediately — wait 1.5s to see if it recovers
+      if (waitingTimer) clearTimeout(waitingTimer);
+      waitingTimer = setTimeout(() => {
+        // Only show loading if video is still stalled after 1.5s
+        if (video.readyState < 3) {  // HAVE_FUTURE_DATA = 3
+          setLoading(true);
+        }
+      }, 1500);
+    };
+    const onPlaying = () => {
+      if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
+      setLoading(false);
+    };
+    const onCanPlay = () => {
+      if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
+      setLoading(false);
+    };
     const onEnd = () => onEnded?.();
     const onErr = () => { setError('Playback error.'); setLoading(false); };
 
@@ -216,6 +240,7 @@ export default function HLSPlayerNew({
     video.addEventListener('durationchange', onDur);
     video.addEventListener('waiting', onWaiting);
     video.addEventListener('playing', onPlaying);
+    video.addEventListener('canplay', onCanPlay);
     video.addEventListener('ended', onEnd);
     video.addEventListener('error', onErr);
 
@@ -226,6 +251,7 @@ export default function HLSPlayerNew({
       video.removeEventListener('durationchange', onDur);
       video.removeEventListener('waiting', onWaiting);
       video.removeEventListener('playing', onPlaying);
+      video.removeEventListener('canplay', onCanPlay);
       video.removeEventListener('ended', onEnd);
       video.removeEventListener('error', onErr);
     };
@@ -369,10 +395,10 @@ export default function HLSPlayerNew({
         })}
       </video>
 
-      {/* Loading */}
-      {loading && !error && (
+      {/* Loading — only show if video is actually stalled (not just buffering briefly) */}
+      {loading && !error && !playing && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/30">
-          <div className="w-12 h-12 border-2 border-white/10 border-t-[#7c3aed] rounded-full animate-spin" />
+          <div className="w-12 h-12 border-2 border-white/10 border-t-white rounded-full animate-spin" />
         </div>
       )}
 
