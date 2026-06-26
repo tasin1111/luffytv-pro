@@ -23,6 +23,7 @@ const WORKER_PROXY = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-prox
 // CDNs that work better through our worker (aniwatchtv returns 403 for these)
 const WORKER_PREFERRED_HOSTS = new Set([
   "hls.anidb.app",      // Miruro Pewe — worker 200, aniwatchtv 403
+  "bd.24stream.xyz",    // AniLight Misora — worker 200 with proper m3u8 rewriting
 ]);
 
 // CDNs that need animanga.fun fallback (worker + aniwatchtv both return 403)
@@ -32,7 +33,7 @@ const ANIMANGA_FALLBACK_HOSTS = new Set([
   "mt.nekostream.site",          // Miruro Bee — aniwatchtv 403, animanga 200
   "vibeplayer.site",             // Miruro Bonk — aniwatchtv 403, animanga 200
   "vivibebe.site",               // mimi provider
-  "nanobyte.bigdreamsmalldih.site", // AniLight
+  "9hjkrt.nekostream.site",      // AniLight Misa — worker 403, animanga 200
 ]);
 
 // Referer map — encoded into the token so the proxy sends the correct Referer.
@@ -59,6 +60,7 @@ const CDN_REFERERS: Record<string, string> = {
   "megaplay.buzz":         "https://megaplay.buzz/",
   // AniLight quality variants
   "nanobyte.bigdreamsmalldih.site": "https://kwik.cx/",
+  "9hjkrt.nekostream.site":         "https://kwik.cx/",
   // Kwik — same-origin
   "kwik.cx":               "https://kwik.cx/",
   // AniKage
