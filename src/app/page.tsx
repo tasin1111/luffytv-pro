@@ -98,13 +98,13 @@ function LuffyIntro({ onComplete }: { onComplete: () => void }) {
   }, []);
 
   useEffect(() => {
-    // enter → hold after letters are in
-    const t1 = setTimeout(() => setPhase("hold"), 1800);
-    // hold → exit
+    // enter → hold after letters are in (reduced from 1800ms to 800ms)
+    const t1 = setTimeout(() => setPhase("hold"), 800);
+    // hold → exit (reduced from 3800ms to 1500ms total)
     const t2 = setTimeout(() => {
       setPhase("exit");
-      setTimeout(() => onCompleteRef.current(), 700);
-    }, 3800);
+      setTimeout(() => onCompleteRef.current(), 400);
+    }, 1500);
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
@@ -281,9 +281,9 @@ export default function MainPage() {
       {/* Floating Per-Page Navbar */}
       {showNavAndFooter && <Navbar />}
 
-      {/* Main Content */}
+      {/* Main Content — render immediately (even during splash) so fetches start early */}
       <ErrorBoundary>
-      <div className={`min-h-screen bg-[#000000] flex flex-col ${!showSplash ? "content-reveal" : "opacity-0"}`}>
+      <div className={`min-h-screen bg-[#000000] flex flex-col ${!showSplash ? "content-reveal" : "opacity-0 pointer-events-none"}`}>
         <main className={`${isWatchPage ? 'w-full px-4 lg:px-8 pt-4' : isMangaReader ? 'w-full' : isBrowseFullBleed ? 'w-full pt-[72px]' : showNavAndFooter ? 'w-full pt-[72px] px-4 lg:px-8' : isFullWidth ? 'w-full pt-4' : 'max-w-[1400px] mx-auto px-4 lg:px-8 pt-4'} ${isWatchPage || isMangaReader ? "" : "pb-28 lg:pb-12"} flex-1`}>
           {renderPage()}
         </main>
