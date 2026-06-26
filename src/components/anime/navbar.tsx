@@ -132,6 +132,7 @@ export default function Navbar() {
     { label: "Home", active: isAnimePage && sectionSubPage === "home" },
     { label: "Browse", active: isAnimePage && (sectionSubPage === "browse" || sectionSubPage === "genres") },
     { label: "Schedule", active: isAnimePage && sectionSubPage === "schedule" },
+    { label: "Music", active: page === "music" },
   ];
 
   const handleNavClick = (label: string) => {
@@ -144,6 +145,8 @@ export default function Navbar() {
     } else if (label === "Schedule") {
       navigate({ page: "dub" });
       setSectionSubPage("schedule");
+    } else if (label === "Music") {
+      navigate({ page: "music" });
     }
     setMobileOpen(false);
   };
