@@ -570,10 +570,18 @@ export async function GET(
   verified.push(...anistreamVerified);
   // NOTE: Animex is NOT here — it's fetched separately via /api/anime/animex-servers
 
-  // ── FILTER OUT servers with no streamUrl or empty streamUrl ──────────────
-  // Don't show servers that don't have a playable m3u8/mp4/embed URL.
+  // ── STRICT FILTER: only show servers with a valid, non-empty streamUrl ────
+  // A server must have:
+  //   1. A streamUrl that's > 10 chars (not empty/undefined)
+  //   2. The URL must start with http://, https://, or / (relative proxy URL)
+  //   3. Must NOT be a data: URI or blob:
   const beforeFilter = verified.length;
-  const filtered = verified.filter(s => s.streamUrl && s.streamUrl.length > 10);
+  const filtered = verified.filter(s => {
+    if (!s.streamUrl || s.streamUrl.length <= 10) return false;
+    if (s.streamUrl.startsWith("data:") || s.streamUrl.startsWith("blob:")) return false;
+    if (!s.streamUrl.startsWith("http") && !s.streamUrl.startsWith("/")) return false;
+    return true;
+  });
 
   const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length + anixtvVerified.length;
   console.log(`[Servers] ${filtered.length}/${beforeFilter} servers (filtered ${beforeFilter - filtered.length} empty) — AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length}, AnixTV=${anixtvVerified.length}`);

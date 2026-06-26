@@ -1,80 +1,35 @@
 /**
- * Anikage API Client (anikage.cc)
- * --------------------------------
- * Anikage has 5 servers: megg, kiss, miko, verse, neko
- * API endpoints (all Cloudflare-protected, need proper headers):
- *   - Search: /api/media/anime/advanced-search?query={q}
- *   - Episodes: /api/media/anime/{slug}/episodes
- *   - Servers: /api/media/anime/{slug}/episodes/{n}/servers
- *   - Streams: /api/media/anime/{slug}/episodes/{n}/sources?provider={server}&lang={sub|dub}
+ * AniKage API Client — REWRITTEN to use anikage-scraper-api
+ * ----------------------------------------------------------
+ * Uses https://anikage-scraper-api.sapis.workers.dev (dedicated scraper API)
+ * instead of scraping anikage.cc directly.
  *
- * Stream URLs are encoded IDs that go through prox.anikage.cc/stream/{id}/index.txt
- * prox.anikage.cc requires Origin: https://anikage.cc — we route through
- * cdn.animex.su with the correct referer.
+ * The scraper API returns:
+ *   - streamUrl: prox.anikage.cc/m3u8/{token} (already proxied!)
+ *   - embeds: multiple embed URLs (vibeplayer, streamsb, ok.ru, otakuhg, etc.)
+ *   - subtitles: proxied through prox.anikage.cc
+ *
+ * prox.anikage.cc is Cloudflare-protected → route through our worker.
+ *
+ * API flow:
+ *   1. Search: GET /api/search?q={query} → { data: { results: [{ slug, anilistId, title }] } }
+ *   2. Servers: GET /api/servers?slug={slug}&episode={ep} → [{ id, default }]
+ *   3. Streams: GET /api/streams?slug={slug}&episode={ep}&provider={id}&lang={sub|dub}
+ *      → { data: { sources: [{ streamUrl, quality, isM3U8 }], embeds: [{ url, type, server }], subtitles: [...] } }
  */
 
-import { wrapStreamUrl, workerWrap } from "./proxy";
+import { wrapStreamUrl } from "./proxy";
+
+const SCRAPER_API = "https://anikage-scraper-api.sapis.workers.dev";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
-
 const HEADERS: Record<string, string> = {
   "User-Agent": UA,
   Accept: "application/json, text/plain, */*",
   "Accept-Language": "en-US,en;q=0.9",
-  Referer: "https://anikage.cc/",
 };
 
-/**
- * fetch-based JSON fetcher with proper headers.
- * Replaces the old curl/execFile approach (which doesn't work on Vercel —
- * no shell access in serverless/edge runtime).
- *
- * anikage.cc is Cloudflare-protected and 403s direct fetches from Vercel IPs.
- * We use the prox.anikage.cc mirror which has more permissive bot policy.
- * If that also 403s, we fall back to wrapping through cdn.animex.su (CORS proxy).
- */
-async function fetchJson<T = any>(url: string, timeoutMs = 12000): Promise<T | null> {
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(workerWrap(url), {
-      headers: HEADERS,
-      signal: controller.signal,
-      cache: "no-store",
-    });
-    clearTimeout(timeout);
-    if (!res.ok) return null;
-    const text = await res.text();
-    if (!text || text.startsWith("<!DOCTYPE") || text.startsWith("<html")) return null;
-    return JSON.parse(text) as T;
-  } catch {
-    return null;
-  }
-}
-
-export interface AnikageServer {
-  id: string;
-  default: boolean;
-  label: string | null;
-}
-
-export interface AnikageSource {
-  url: string;
-  quality: string;
-  isM3U8: boolean;
-  type?: string;
-  embedUrl?: string;
-}
-
-export interface AnikageStreamResponse {
-  sources: AnikageSource[];
-  subtitles: any[];
-  intro?: { start: number; end: number };
-  outro?: { start: number; end: number };
-  headers?: string;
-  cached?: boolean;
-  error?: any;
-}
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface AnikageVerifiedResult {
   server: string;
@@ -83,39 +38,47 @@ export interface AnikageVerifiedResult {
   quality: string;
   isM3U8: boolean;
   isMP4: boolean;
+  isEmbed: boolean;
   hardsub: boolean;
   tracks: Array<{ url: string; lang: string; label: string }>;
   intro: { start: number; end: number } | null;
   outro: { start: number; end: number } | null;
 }
 
+// ─── Slug cache ──────────────────────────────────────────────────────────────
+
 const slugCache = new Map<number, string | null>();
 
-async function resolveSlug(anilistId: number, timeoutMs = 10000): Promise<string | null> {
+async function resolveSlug(anilistId: number): Promise<string | null> {
   if (slugCache.has(anilistId)) return slugCache.get(anilistId)!;
+
   try {
     // Get title from AniList
-    const res = await fetch("https://graphql.anilist.co", {
+    const titleRes = await fetch("https://graphql.anilist.co", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "User-Agent": UA },
       body: JSON.stringify({
-        query: "query($id:Int){Media(id:$id,type:ANIME){id title{romaji english}}}",
+        query: `query($id:Int){Media(id:$id,type:ANIME){id title{english romaji native}}}`,
         variables: { id: anilistId },
       }),
-      cache: "no-store",
+    });
+    if (!titleRes.ok) { slugCache.set(anilistId, null); return null; }
+    const titleData = await titleRes.json();
+    const title = titleData?.data?.Media?.title?.english || titleData?.data?.Media?.title?.romaji;
+    if (!title) { slugCache.set(anilistId, null); return null; }
+
+    // Search scraper API
+    const res = await fetch(`${SCRAPER_API}/api/search?q=${encodeURIComponent(title)}`, {
+      headers: HEADERS, cache: "no-store",
     });
     if (!res.ok) { slugCache.set(anilistId, null); return null; }
     const data = await res.json();
-    const title = data?.data?.Media?.title?.english || data?.data?.Media?.title?.romaji;
-    if (!title) { slugCache.set(anilistId, null); return null; }
-
-    // Search Anikage
-    const searchUrl = `https://anikage.cc/api/media/anime/advanced-search?query=${encodeURIComponent(title)}&sort=popularity&page=1&per_page=5&include_adult=true`;
-    const searchData: any = await fetchJson(searchUrl, timeoutMs);
-    const results = Array.isArray(searchData) ? searchData : (searchData?.results || searchData?.data || []);
+    const results = data?.data?.results || [];
     const match = results.find((r: any) => r.anilistId === anilistId) || results[0];
     if (!match?.slug) { slugCache.set(anilistId, null); return null; }
+
     slugCache.set(anilistId, match.slug);
+    console.log(`[AniKage] anilistId=${anilistId} → slug=${match.slug}`);
     return match.slug;
   } catch {
     slugCache.set(anilistId, null);
@@ -123,25 +86,46 @@ async function resolveSlug(anilistId: number, timeoutMs = 10000): Promise<string
   }
 }
 
+// ─── Fetch servers list ──────────────────────────────────────────────────────
+
+async function getServers(slug: string, epNum: number): Promise<string[]> {
+  try {
+    const res = await fetch(`${SCRAPER_API}/api/servers?slug=${slug}&episode=${epNum}`, {
+      headers: HEADERS, cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const servers = data?.data || [];
+    return servers.map((s: any) => s.id).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+// ─── Main: fetch ALL AniKage sources ─────────────────────────────────────────
+
 export async function fetchAnikageSources(
   anilistId: number,
   epNum: number,
   options?: { timeoutMs?: number }
 ): Promise<AnikageVerifiedResult[]> {
-  const timeoutMs = options?.timeoutMs ?? 10000;
+  const timeoutMs = options?.timeoutMs ?? 5000;
 
-  const slug = await resolveSlug(anilistId, timeoutMs);
-  if (!slug) return [];
+  const slug = await resolveSlug(anilistId);
+  if (!slug) {
+    console.log(`[AniKage] no slug for anilistId=${anilistId}`);
+    return [];
+  }
 
-  // Get servers
-  const serversUrl = `https://anikage.cc/api/media/anime/${slug}/episodes/${epNum}/servers`;
-  const serversData: any = await fetchJson(serversUrl, timeoutMs);
-  if (!Array.isArray(serversData)) return [];
+  const servers = await getServers(slug, epNum);
+  if (servers.length === 0) {
+    console.log(`[AniKage] no servers for slug=${slug} ep${epNum}`);
+    return [];
+  }
 
-  const servers: string[] = serversData.map((s: any) => s.id).filter(Boolean);
-  console.log(`[Anikage] ${slug} ep${epNum}: ${servers.length} servers — ${servers.join(", ")}`);
+  console.log(`[AniKage] ${slug} ep${epNum}: ${servers.length} servers — fetching streams`);
 
-  // Fetch streams for each server (both sub + dub)
+  // Fetch streams for each server in parallel (both sub + dub)
   const jobs: Array<{ server: string; lang: "sub" | "dub" }> = [];
   for (const s of servers) {
     jobs.push({ server: s, lang: "sub" });
@@ -149,47 +133,79 @@ export async function fetchAnikageSources(
   }
 
   const results = await Promise.allSettled(
-    jobs.map(async (job): Promise<AnikageVerifiedResult | null> => {
-      const streamUrl = `https://anikage.cc/api/media/anime/${slug}/episodes/${epNum}/sources?provider=${job.server}&lang=${job.lang}`;
-      const data: any = await fetchJson(streamUrl, timeoutMs);
-      if (!data?.sources?.length) return null;
+    jobs.map(async (job): Promise<AnikageVerifiedResult[]> => {
+      try {
+        const url = `${SCRAPER_API}/api/streams?slug=${slug}&episode=${epNum}&provider=${job.server}&lang=${job.lang}`;
+        const res = await Promise.race([
+          fetch(url, { headers: HEADERS, cache: "no-store" }),
+          new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
+        ]);
+        if (!res || !res.ok) return [];
+        const data = await res.json();
+        if (!data?.success) return [];
 
-      const src = data.sources[0];
-      if (!src?.url) return null;
+        const sources = data?.data?.sources || [];
+        const embeds = data?.data?.embeds || [];
+        const subtitles = data?.data?.subtitles || [];
+        const verified: AnikageVerifiedResult[] = [];
 
-      // Build proxied URL — route the anikage stream through our worker.
-      // prox.anikage.cc needs Origin: https://anikage.cc — our worker can add this
-      // via the REFERER_MAP. OLD approach used cdn.animex.su XOR wrapper — DEAD.
-      const anikageProxyUrl = `https://prox.anikage.cc/stream/${src.url}/index.txt`;
-      const finalUrl = wrapStreamUrl(anikageProxyUrl);
+        // Process HLS/MP4 sources (already proxied via prox.anikage.cc)
+        for (const src of sources) {
+          if (!src?.streamUrl) continue;
+          // prox.anikage.cc is CF-protected → wrap through our worker
+          const streamUrl = wrapStreamUrl(src.streamUrl);
+          verified.push({
+            server: `${job.server}-${src.quality || "auto"}`,
+            type: job.lang,
+            streamUrl,
+            quality: src.quality || "auto",
+            isM3U8: src.isM3U8 !== false,
+            isMP4: false,
+            isEmbed: false,
+            hardsub: src.type === "hardsub",
+            tracks: subtitles.filter((s: any) => s?.file).map((s: any) => ({
+              url: s.file,
+              lang: s.lang || "en",
+              label: s.label || "English",
+            })),
+            intro: null,
+            outro: null,
+          });
+        }
 
-      const isM3U8 = src.isM3U8 === true || src.quality?.includes("Hls");
-      const hardsub = src.type === "hardsub" || (job.server === "neko" && !isM3U8);
+        // Process embed URLs (vibeplayer, streamsb, ok.ru, otakuhg, etc.)
+        for (const embed of embeds) {
+          if (!embed?.url) continue;
+          verified.push({
+            server: `${job.server}-${embed.server || "embed"}`,
+            type: job.lang,
+            streamUrl: embed.url, // embed URL — loaded in iframe directly
+            quality: embed.type || "auto",
+            isM3U8: false,
+            isMP4: false,
+            isEmbed: true,
+            hardsub: embed.type === "hardsub",
+            tracks: [],
+            intro: null,
+            outro: null,
+          });
+        }
 
-      return {
-        server: job.server,
-        type: job.lang,
-        streamUrl: finalUrl,
-        quality: src.quality || "auto",
-        isM3U8,
-        isMP4: !isM3U8,
-        hardsub,
-        tracks: (data.subtitles || []).map((s: any) => ({
-          url: s.url || s.file || "",
-          lang: s.lang || "en",
-          label: s.label || s.lang || "English",
-        })).filter((t: any) => t.url),
-        intro: data.intro || null,
-        outro: data.outro || null,
-      };
+        return verified;
+      } catch {
+        return [];
+      }
     })
   );
 
-  const verified: AnikageVerifiedResult[] = [];
+  const allResults: AnikageVerifiedResult[] = [];
   for (const r of results) {
-    if (r.status === "fulfilled" && r.value) verified.push(r.value);
+    if (r.status === "fulfilled") allResults.push(...r.value);
   }
 
-  console.log(`[Anikage] ${verified.length}/${jobs.length} streams verified`);
-  return verified;
+  // STRICT FILTER: only return servers with a valid streamUrl
+  const filtered = allResults.filter(r => r.streamUrl && r.streamUrl.length > 10);
+
+  console.log(`[AniKage] ${filtered.length} servers verified (from ${jobs.length} jobs)`);
+  return filtered;
 }
