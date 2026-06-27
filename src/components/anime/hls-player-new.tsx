@@ -72,24 +72,22 @@ export default function HLSPlayerNew({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        // ─── Buffer settings — moderate buffer for proxy playback ───
-        // Too small (10s) = constant stalling because proxy can't deliver fast enough
-        // Too large (60s) = player tries to load too much, shows perpetual loading
-        // 30s is the sweet spot: enough buffer to absorb proxy latency
-        backBufferLength: 30,
-        maxBufferLength: 30,
-        maxMaxBufferLength: 60,
-        maxBufferSize: 30 * 1000 * 1000,
+        // ─── Buffer settings — large buffer since we start at LOW quality ───
+        // Low quality = small segments = proxy can deliver fast
+        // Large buffer = more cushion before stalling
+        backBufferLength: 60,
+        maxBufferLength: 60,
+        maxMaxBufferLength: 120,
+        maxBufferSize: 60 * 1000 * 1000,
         maxBufferHole: 0.5,
 
         // ─── ABR — start LOW, upgrade later ───
-        // Start at lowest quality so segments are small and load fast through proxy
-        startLevel: 0,              // start at LOWEST quality (fast load)
-        abrEwmaDefaultEstimate: 2000000,  // 2 Mbps initial (conservative)
-        abrBandWidthFactor: 0.7,
-        abrBandWidthUpFactor: 0.5,
-        maxStarvationDelay: 4,
-        abrEwmaDefaultEstimateMax: 5000000,
+        startLevel: 0,              // start at LOWEST quality (small segments)
+        abrEwmaDefaultEstimate: 1000000,  // 1 Mbps initial (very conservative)
+        abrBandWidthFactor: 0.5,
+        abrBandWidthUpFactor: 0.3,
+        maxStarvationDelay: 10,     // allow 10s before starving (was 4)
+        abrEwmaDefaultEstimateMax: 3000000,
 
         // ─── Timeouts ───
         manifestLoadingTimeOut: 20000,
@@ -111,19 +109,11 @@ export default function HLSPlayerNew({
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
         setQualities(data.levels);
         setLoading(false);
-        // NOTE: We no longer force the highest quality on manifest parse.
-        // Previously: hls.currentLevel = data.levels.length - 1
-        // That caused "force loading" when the proxy was slow — the player
-        // would try to buffer the highest quality, fail to keep up, and
-        // show a perpetual loading spinner even though video was playing.
-        // Now we let ABR (Adaptive Bitrate) pick the quality based on
-        // measured bandwidth. The user can still manually pick a higher
-        // quality from the settings menu.
-        if (data.levels.length > 0) {
-          // Set currentLevel to -1 (auto) — ABR will pick the best level
-          hls.currentLevel = -1;
-          setCurrentQuality(-1);
-        }
+        // Keep startLevel at 0 (lowest) — DO NOT switch to auto (-1) here.
+        // The player starts at lowest quality for fast loading through proxy.
+        // ABR will upgrade automatically once it measures bandwidth.
+        // Previous code set hls.currentLevel = -1 which overrode startLevel: 0
+        // and picked the HIGHEST quality → constant buffering through proxy.
         if (autoplay) {
           video.play().catch(() => {
             video.muted = true;
