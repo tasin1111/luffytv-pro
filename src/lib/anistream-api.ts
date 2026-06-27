@@ -54,7 +54,7 @@ function workerWrap(url: string): string {
 // ─── m3u8 verification ──────────────────────────────────────────────────────
 // Same as AniLight: fetch the proxied m3u8 and check if it starts with #EXTM3U.
 // Filters out servers whose CDN is down (returns Cloudflare error HTML).
-async function verifyM3u8Playable(proxiedUrl: string, timeoutMs = 5000): Promise<boolean> {
+async function verifyM3u8Playable(proxiedUrl: string, timeoutMs = 3000): Promise<boolean> {
   try {
     const res = await Promise.race([
       fetch(proxiedUrl, { headers: HEADERS, cache: "no-store" }),
@@ -284,7 +284,7 @@ export async function fetchAnistreamSources(
 
       // Verify the m3u8 is actually playable (not a Cloudflare error page)
       if (isHls) {
-        const isValid = await verifyM3u8Playable(streamUrl, 5000);
+        const isValid = await verifyM3u8Playable(streamUrl, 3000);
         if (!isValid) {
           console.log(`[Anistream] Server ${provider.id} (${type}) — m3u8 not playable, skipping`);
           return null;

@@ -74,7 +74,7 @@ function workerWrap(url: string): string {
 // Fetch the first few bytes of the proxied m3u8 URL and check if it starts
 // with #EXTM3U. If the CDN is down, the proxy returns a Cloudflare error page
 // (HTML) which does NOT start with #EXTM3U — so we filter it out.
-async function verifyM3u8Playable(proxiedUrl: string, timeoutMs = 5000): Promise<boolean> {
+async function verifyM3u8Playable(proxiedUrl: string, timeoutMs = 3000): Promise<boolean> {
   try {
     const res = await Promise.race([
       fetch(proxiedUrl, { headers: HEADERS, cache: "no-store" }),
@@ -466,28 +466,31 @@ export async function fetchAniLightSources(
 
     const collectQualities = async (side: AniLightStreamSide, type: "sub" | "dub") => {
       if (!side?.success || !side.qualities?.length) return;
-      for (const q of side.qualities) {
-        if (!q.url) continue;
-
-        // Verify the m3u8 is actually playable (not a Cloudflare error page)
+      // Verify ALL qualities in PARALLEL (not sequential) to save time
+      const checks = side.qualities.filter(q => q.url).map(async (q) => {
         const wrappedUrl = wrapM3u8Url(q.url);
-        const isValid = await verifyM3u8Playable(wrappedUrl, 5000);
+        const isValid = await verifyM3u8Playable(wrappedUrl, 3000);
         if (!isValid) {
           console.log(`[AniLight] Quality ${q.quality} (${type}) — m3u8 not playable, skipping`);
-          continue;
+          return null;
         }
-
-        verified.push({
-          server: q.quality,  // "1080p", "720p", "360p"
+        return {
+          server: q.quality,
           type,
           streamUrl: wrappedUrl,
           quality: q.quality,
           isM3U8: true,
           isMP4: false,
-          hardsub: false,     // quality variants are soft sub (have VTT tracks)
+          hardsub: false,
           tracks,
-        });
-        qualityCount++;
+        };
+      });
+      const results = await Promise.allSettled(checks);
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value) {
+          verified.push(r.value);
+          qualityCount++;
+        }
       }
     };
 
@@ -538,7 +541,7 @@ export async function fetchAniLightSources(
 
         // Verify the m3u8 is actually playable (not a Cloudflare error page)
         if (isHls) {
-          const isValid = await verifyM3u8Playable(streamUrl, 5000);
+          const isValid = await verifyM3u8Playable(streamUrl, 3000);
           if (!isValid) {
             console.log(`[AniLight] Server ${job.server} (${job.type}) — m3u8 not playable, skipping`);
             return null;

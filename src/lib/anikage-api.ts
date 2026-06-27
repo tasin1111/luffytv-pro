@@ -110,7 +110,7 @@ export async function fetchAnikageSources(
   epNum: number,
   options?: { timeoutMs?: number }
 ): Promise<AnikageVerifiedResult[]> {
-  const timeoutMs = options?.timeoutMs ?? 5000;
+  const timeoutMs = options?.timeoutMs ?? 8000;
 
   const slug = await resolveSlug(anilistId);
   if (!slug) {
@@ -151,7 +151,7 @@ export async function fetchAnikageSources(
         const verified: AnikageVerifiedResult[] = [];
 
         // ── m3u8 verification helper ──
-        async function verifyM3u8(url: string, timeout = 5000): Promise<boolean> {
+        async function verifyM3u8(url: string, timeout = 3000): Promise<boolean> {
           try {
             const r = await Promise.race([
               fetch(url, { headers: HEADERS, cache: "no-store" }),
