@@ -66,32 +66,35 @@ const HEADERS: Record<string, string> = {
 };
 
 /**
- * Fetch a URL using curl (bypasses Cloudflare's TLS fingerprint challenge
- * that blocks Node's fetch / undici). Returns parsed JSON or null on error.
+ * Fetch a URL using our Cloudflare Worker proxy (bypasses Cloudflare's
+ * TLS fingerprint challenge that blocks Node's fetch / undici).
+ * The worker runs on Cloudflare's network and can access kyren.moe.
  */
-async function curlFetchJson<T = any>(url: string, timeoutMs = 12000): Promise<T | null> {
+const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
+
+async function workerFetchJson<T = any>(url: string, timeoutMs = 10000): Promise<T | null> {
   try {
-    const args = ["-s", "--max-time", String(Math.floor(timeoutMs / 1000))];
-    for (const [key, val] of Object.entries(HEADERS)) {
-      args.push("-H", `${key}: ${val}`);
-    }
-    args.push(url);
-
-    const { stdout } = await execFileAsync("curl", args, {
-      encoding: "utf-8",
-      timeout: timeoutMs,
-      maxBuffer: 5 * 1024 * 1024, // 5MB
-    });
-
-    if (!stdout || stdout.startsWith("<!DOCTYPE") || stdout.startsWith("<html")) {
-      // Got HTML (Cloudflare challenge page) — not JSON
-      return null;
-    }
-    return JSON.parse(stdout) as T;
+    const wrapped = `${WORKER_BASE}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent("https://kyren.moe/")}`;
+    const res = await Promise.race([
+      fetch(wrapped, { headers: { "Accept": "application/json" }, cache: "no-store" }),
+      new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
+    ]);
+    if (!res || !res.ok) return null;
+    const text = await res.text();
+    if (!text || text.startsWith("<!DOCTYPE") || text.startsWith("<html")) return null;
+    return JSON.parse(text) as T;
   } catch (e: any) {
-    console.error(`[Kyren] curlFetchJson failed for ${url.slice(0, 80)}:`, e?.message || e);
+    console.error(`[Kyren] workerFetchJson failed for ${url.slice(0, 80)}:`, e?.message || e);
     return null;
   }
+}
+
+/**
+ * Wrap a Kyren stream URL (api.kyren.moe) through our worker proxy.
+ * The worker adds Referer: https://kyren.moe/ and rewrites m3u8 segments.
+ */
+function wrapKyrenStream(url: string): string {
+  return `${WORKER_BASE}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent("https://kyren.moe/")}`;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -224,7 +227,7 @@ export async function resolveKyrenAnime(
     }
 
     // Step 2: Search Kyren by title (using curl to bypass CF challenge)
-    const data = await curlFetchJson<KyrenSearchResponse>(
+    const data = await workerFetchJson<KyrenSearchResponse>(
       `${KYREN_API}/anime/search?q=${encodeURIComponent(title)}`,
       timeoutMs
     );
@@ -273,7 +276,7 @@ export async function getKyrenStream(
   const url = `${KYREN_API}/stream/${anilistId}/${epNum}?${params.toString()}`;
 
   try {
-    const data = await curlFetchJson<KyrenStreamResponse>(url, timeoutMs);
+    const data = await workerFetchJson<KyrenStreamResponse>(url, timeoutMs);
     if (!data?.ok || !data?.sources?.length) return null;
     return data;
   } catch {
@@ -342,7 +345,7 @@ export async function fetchAllKyrenSources(
       return {
         server: job.server,
         type: job.type,
-        streamUrl: hls.url,
+        streamUrl: wrapKyrenStream(hls.url),  // wrap through worker (CF-protected)
         quality: hls.quality || "auto",
         isM3U8: true,
         isMP4: false,

@@ -693,7 +693,37 @@ export async function GET(
   const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length + anixtvVerified.length + anistreamVerified.length + anikuroVerified.length + aniyubiVerified.length;
   console.log(`[Servers] ${filtered.length}/${beforeFilter} servers (filtered ${beforeFilter - filtered.length} empty/unplayable) — AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length}, AnixTV=${anixtvVerified.length}, Anistream=${anistreamVerified.length}, AniKuro=${anikuroVerified.length}, AniYubi=${aniyubiVerified.length}`);
 
-  return NextResponse.json({ anilistId: id, episode: epNum, servers: filtered, total: filtered.length }, {
+  // ── SORT by priority: Animex → AniDap → AniKuro → Miruro → AniKoto → AniNeko → others ──
+  // User requested this specific order so the best servers appear first.
+  const SOURCE_PRIORITY: Record<string, number> = {
+    animex: 1,     // Animex (fetched separately, appended client-side)
+    anidap: 2,     // AniDap (m3u8 + embed)
+    anikuro: 3,    // AniKuro (m3u8 via proxy.anikuro.ru)
+    miruro: 4,     // Miruro (m3u8 via aniwatchtv)
+    anikage: 5,    // AniKage (m3u8 via prox.anikage.cc)
+    kyren: 6,      // Kyren (m3u8 via worker)
+    anilight: 7,   // AniLight (m3u8 via proxy)
+    anivexa: 8,    // AniVexa (m3u8/mp4)
+    mioanime: 9,   // MioAnime (m3u8 + embed)
+    aniyubi: 10,   // AniYubi (kwik.cx embed)
+    anistream: 11, // Anistream (m3u8 + embed)
+    anixtv: 12,    // AnixTV (Hindi embed)
+  };
+  // Sort: sub before dub, then by source priority, then by quality
+  const sorted = filtered.sort((a, b) => {
+    // Sub first, then dub
+    if (a.type !== b.type) return a.type === "sub" ? -1 : 1;
+    // By source priority
+    const pa = SOURCE_PRIORITY[a.source] || 99;
+    const pb = SOURCE_PRIORITY[b.source] || 99;
+    if (pa !== pb) return pa - pb;
+    // By quality (1080p > 720p > 360p > auto)
+    const qa = parseInt((a.quality || "").match(/(\d{3,4})/)?.[1] || "0", 10);
+    const qb = parseInt((b.quality || "").match(/(\d{3,4})/)?.[1] || "0", 10);
+    return qb - qa;
+  });
+
+  return NextResponse.json({ anilistId: id, episode: epNum, servers: sorted, total: sorted.length }, {
     headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
   });
 }
