@@ -72,32 +72,34 @@ export default function HLSPlayerNew({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        // ─── Buffer settings — small initial buffer, grows as needed ───
-        // The key insight: maxBufferLength controls how much to buffer AHEAD.
-        // Through a proxy, large buffer = long wait before playback starts.
-        // Use small buffer (15s) so video starts fast, then grows naturally.
-        backBufferLength: 30,
-        maxBufferLength: 15,         // start with 15s buffer (fast start)
-        maxMaxBufferLength: 60,      // can grow up to 60s if bandwidth allows
-        maxBufferSize: 30 * 1000 * 1000,
+        // ─── PROXY-OPTIMIZED BUFFER ───
+        // Proxies add 200-500ms per segment request. Need large buffer
+        // to absorb this latency. Low quality segments are small (200-500KB)
+        // so buffering 90s is only ~5-15MB total — manageable.
+        backBufferLength: 90,        // keep 90s behind (don't discard quickly)
+        maxBufferLength: 90,         // buffer 90s ahead
+        maxMaxBufferLength: 180,     // can grow to 180s
+        maxBufferSize: 90 * 1000 * 1000, // 90MB
         maxBufferHole: 0.5,
 
-        // ─── ABR — start LOW, upgrade SLOWLY ───
-        startLevel: 0,              // start at LOWEST quality (small segments, fast load)
-        abrEwmaDefaultEstimate: 1000000,  // 1 Mbps initial (very conservative)
-        abrBandWidthFactor: 0.5,
-        abrBandWidthUpFactor: 0.3,
-        maxStarvationDelay: 10,     // allow 10s before starving
-        abrEwmaDefaultEstimateMax: 3000000,
+        // ─── LOCK TO LOWEST QUALITY ───
+        // Do NOT let ABR upgrade — upgrading causes rebuffering through proxy.
+        // User can manually switch quality from the settings menu.
+        startLevel: 0,              // lowest quality (tiny segments)
+        abrEwmaDefaultEstimate: 500000,   // 0.5 Mbps (very conservative)
+        abrBandWidthFactor: 0.3,
+        abrBandWidthUpFactor: 0.1,   // very slow to upgrade
+        maxStarvationDelay: 20,     // allow 20s before stalling
+        abrEwmaDefaultEstimateMax: 1000000,
 
-        // ─── Timeouts ───
+        // ─── Timeouts — generous for proxies ───
         manifestLoadingTimeOut: 20000,
         manifestLoadingMaxRetry: 4,
         levelLoadingTimeOut: 20000,
         levelLoadingMaxRetry: 4,
-        fragLoadingTimeOut: 30000,
-        fragLoadingMaxRetry: 6,      // more retries for slow proxies
-        fragLoadingRetryDelay: 500,
+        fragLoadingTimeOut: 45000,  // 45s per fragment (proxies can be slow)
+        fragLoadingMaxRetry: 8,     // 8 retries (don't give up easily)
+        fragLoadingRetryDelay: 1000,
 
         // ─── Other ───
         enableWebVTT: true,
@@ -201,14 +203,14 @@ export default function HLSPlayerNew({
     //   2. OR 1.5s have passed since the last 'waiting' event (real stall)
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
     const onWaiting = () => {
-      // Don't show loading immediately — wait 3s to see if it recovers
-      // With 30s buffer, brief stalls are normal and should not show loading
+      // Don't show loading for 5 seconds — proxies have latency spikes
+      // and the 90s buffer should absorb most stalls
       if (waitingTimer) clearTimeout(waitingTimer);
       waitingTimer = setTimeout(() => {
         if (video.readyState < 3) {
           setLoading(true);
         }
-      }, 3000);
+      }, 5000);
     };
     const onPlaying = () => {
       if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
