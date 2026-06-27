@@ -22,6 +22,7 @@ export default function Navbar() {
   const [searchResults, setSearchResults] = useState<QuickResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -42,7 +43,7 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Real-time search with debounce — use useCallback to avoid re-render lag
+  // Real-time search with debounce
   const doSearch = useCallback(async (q: string) => {
     try {
       const res = await fetch(`/api/anime/search?q=${encodeURIComponent(q)}&page=1`);
@@ -66,7 +67,6 @@ export default function Navbar() {
     }
   }, []);
 
-  // Use a ref for the query to avoid re-running effect on every keystroke
   const queryRef = useRef("");
   useEffect(() => {
     queryRef.current = searchQuery;
@@ -80,7 +80,6 @@ export default function Navbar() {
     }
     setSearchLoading(true);
     setShowSearchResults(true);
-    // Longer debounce (500ms) for smoother typing
     searchTimerRef.current = setTimeout(() => doSearch(q), 500);
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current); };
   }, [searchQuery, doSearch]);
@@ -92,6 +91,7 @@ export default function Navbar() {
       navigate({ page: "search", query: trimmed });
       setSearchQuery("");
       setShowSearchResults(false);
+      setShowSearchModal(false);
       setMobileOpen(false);
     }
   };
@@ -100,8 +100,34 @@ export default function Navbar() {
     navigate({ page: "anime", id: String(id) });
     setSearchQuery("");
     setShowSearchResults(false);
+    setShowSearchModal(false);
     setMobileOpen(false);
   };
+
+  // Keyboard shortcut: Ctrl+K or /
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "s")) {
+        e.preventDefault();
+        setShowSearchModal(true);
+        setTimeout(() => searchInputRef.current?.focus(), 100);
+      }
+      // Slash key (when not typing in an input)
+      if (e.key === "/" && !showSearchModal) {
+        const target = e.target as HTMLElement;
+        if (target.tagName !== "INPUT" && target.tagName !== "TEXTAREA") {
+          e.preventDefault();
+          setShowSearchModal(true);
+          setTimeout(() => searchInputRef.current?.focus(), 100);
+        }
+      }
+      if (e.key === "Escape") {
+        setShowSearchModal(false);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [showSearchModal]);
 
   useEffect(() => {
     const handleResize = () => { if (window.innerWidth > 768) setMobileOpen(false); };
@@ -109,24 +135,12 @@ export default function Navbar() {
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Keyboard shortcut: Ctrl+K
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "s")) {
-        e.preventDefault();
-        searchInputRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
-
   const page = route.page;
   const isWatchPage = ["watch", "movie-watch", "tv-watch", "live-watch", "live-tv-watch"].includes(page);
   const isMangaReader = page === "manga-read" || page === "novel-read";
   if (isWatchPage || isMangaReader || page === "signin" || page === "signup") return null;
 
-  // Only 3 nav items: Home (anime home), Browse, Schedule
+  // Only nav items: Home, Browse, Schedule, Music, Torrent
   const isAnimePage = ["dub", "anime", "watch", "genre", "bookmarks", "history"].includes(page);
   const navItems = [
     { label: "Home", active: isAnimePage && sectionSubPage === "home" },
@@ -156,41 +170,105 @@ export default function Navbar() {
 
   return (
     <>
-      <header className={`nav-header-container${scrolled ? " scrolled" : ""}`}>
-        {/* SINGLE floating black capsule: Logo + Nav Links + Search + Mobile Toggle */}
-        <nav className="navbar-capsule">
-          {/* Logo — blue circle + LuffyTV text */}
-          <button className="nav-logo" onClick={() => { navigate({ page: "dub" }); setSectionSubPage("home"); }}>
-            <span className="nav-logo-circle" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-                <polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none" />
-              </svg>
-            </span>
-            <span className="nav-logo-text">LuffyTV</span>
-          </button>
+      {/* ═══ LOGO — standalone, far left, italic white text ═══ */}
+      <button
+        className="ltv-nav-logo"
+        onClick={() => { navigate({ page: "dub" }); setSectionSubPage("home"); }}
+        aria-label="LuffyTV Home"
+      >
+        LuffyTV
+      </button>
 
-          {/* Divider */}
-          <span className="nav-divider" aria-hidden="true" />
+      {/* ═══ NAVBAR PILL — center, glassmorphism, contains links + divider + search ═══ */}
+      <nav className={`ltv-nav-pill${scrolled ? " scrolled" : ""}`}>
+        {/* Nav Links */}
+        <div className="ltv-nav-links">
+          {navItems.map((item) => (
+            <button
+              key={item.label}
+              className={`ltv-nav-link${item.active ? " active" : ""}`}
+              onClick={() => handleNavClick(item.label)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
 
-          {/* Nav Links */}
-          <div className="nav-links">
-            {navItems.map((item) => (
-              <button
-                key={item.label}
-                className={`nav-link${item.active ? " active" : ""}`}
-                onClick={() => handleNavClick(item.label)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+        {/* Divider */}
+        <span className="ltv-nav-divider" />
 
-          {/* Divider */}
-          <span className="nav-divider" aria-hidden="true" />
+        {/* Search Button (opens modal) */}
+        <button
+          className="ltv-nav-search-btn"
+          onClick={() => { setShowSearchModal(true); setTimeout(() => searchInputRef.current?.focus(), 100); }}
+        >
+          <Search size={15} strokeWidth={2} />
+          <span>Search</span>
+          <kbd className="ltv-slash-badge">/</kbd>
+        </button>
+      </nav>
 
-          {/* Search Bar — INSIDE the same capsule */}
-          <div className="nav-search-wrapper" ref={searchRef}>
-            <form className="nav-search" onSubmit={handleSearchSubmit}>
+      {/* ═══ RIGHT ICONS — separate pill, far right ═══ */}
+      <div className={`ltv-nav-right-icons${scrolled ? " scrolled" : ""}`}>
+        {/* Discord */}
+        <a
+          href="https://discord.gg/Svc9yFjQBq"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="ltv-nav-icon-btn ltv-nav-discord"
+          title="Discord"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
+            <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/>
+          </svg>
+        </a>
+
+        {/* Bookmarks */}
+        <button
+          className="ltv-nav-icon-btn"
+          title="Bookmarks"
+          onClick={() => navigate({ page: "bookmarks" })}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+            <path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z" />
+          </svg>
+        </button>
+
+        {/* History */}
+        <button
+          className="ltv-nav-icon-btn"
+          title="History"
+          onClick={() => navigate({ page: "history" })}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+        </button>
+
+        {/* Mobile Toggle */}
+        <button
+          className="ltv-nav-icon-btn ltv-nav-mobile-toggle"
+          onClick={() => setMobileOpen(!mobileOpen)}
+          aria-label="Toggle menu"
+        >
+          {mobileOpen ? <X size={18} /> : <Menu size={18} />}
+        </button>
+      </div>
+
+      {/* ═══ SEARCH MODAL — opens on / or Ctrl+K ═══ */}
+      {showSearchModal && (
+        <div
+          className="ltv-search-modal-overlay"
+          onClick={() => setShowSearchModal(false)}
+        >
+          <div
+            className="ltv-search-modal"
+            onClick={(e) => e.stopPropagation()}
+            ref={searchRef}
+          >
+            <form onSubmit={handleSearchSubmit} className="ltv-search-modal-input-row">
+              <Search size={20} className="ltv-search-modal-icon" />
               <input
                 ref={searchInputRef}
                 type="text"
@@ -198,15 +276,17 @@ export default function Navbar() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => { if (searchQuery.trim().length >= 2) setShowSearchResults(true); }}
+                className="ltv-search-modal-input"
+                autoFocus
               />
-              <Search size={16} className="nav-search-icon" />
+              <kbd className="ltv-slash-badge">ESC</kbd>
             </form>
 
             {/* Search Dropdown */}
             {showSearchResults && (
-              <div className="nav-search-dropdown">
+              <div className="ltv-search-modal-results">
                 {searchLoading ? (
-                  <div className="nav-search-loading">
+                  <div className="ltv-search-modal-loading">
                     <div className="w-5 h-5 border-2 border-white/10 border-t-white rounded-full animate-spin" />
                     <span>Searching...</span>
                   </div>
@@ -215,19 +295,19 @@ export default function Navbar() {
                     {searchResults.map((item) => (
                       <button
                         key={item.id}
-                        className="nav-search-result"
+                        className="ltv-search-modal-result"
                         onClick={() => handleResultClick(item.id)}
                       >
                         <img
                           src={item.image || ""}
                           alt={item.title}
-                          className="nav-search-result-img"
+                          className="ltv-search-modal-result-img"
                           loading="lazy"
                           onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
                         />
-                        <div className="nav-search-result-info">
-                          <span className="nav-search-result-title">{item.title}</span>
-                          <span className="nav-search-result-meta">
+                        <div className="ltv-search-modal-result-info">
+                          <span className="ltv-search-modal-result-title">{item.title}</span>
+                          <span className="ltv-search-modal-result-meta">
                             {item.format && item.format !== "TV_SHORT" ? item.format : "TV"}
                             {item.episodes ? ` • ${item.episodes} eps` : ""}
                             {item.seasonYear ? ` • ${item.seasonYear}` : ""}
@@ -238,51 +318,35 @@ export default function Navbar() {
                     ))}
                     <button
                       type="button"
-                      className="nav-search-view-all"
+                      className="ltv-search-modal-view-all"
                       onClick={handleSearchSubmit as any}
                     >
                       View all results for &ldquo;{searchQuery}&rdquo;
                     </button>
                   </>
                 ) : (
-                  <div className="nav-search-no-results">No results found</div>
+                  <div className="ltv-search-modal-no-results">No results found</div>
                 )}
               </div>
             )}
           </div>
+        </div>
+      )}
 
-          {/* Mobile Toggle */}
-          <button
-            className="nav-mobile-toggle"
-            onClick={() => setMobileOpen(!mobileOpen)}
-            aria-label="Toggle menu"
-          >
-            {mobileOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
-        </nav>
-      </header>
-
-      {/* Mobile Menu */}
-      <div className={`nav-menu-mobile${mobileOpen ? " open" : ""}`}>
-        {navItems.map((item) => (
-          <button
-            key={item.label}
-            className={`nav-link${item.active ? " active" : ""}`}
-            onClick={() => handleNavClick(item.label)}
-          >
-            {item.label}
-          </button>
-        ))}
-        <form className="nav-search" onSubmit={handleSearchSubmit} style={{ marginTop: 8 }}>
-          <input
-            type="text"
-            placeholder="Search anime..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
-          <Search size={16} className="nav-search-icon" />
-        </form>
-      </div>
+      {/* ═══ MOBILE MENU ═══ */}
+      {mobileOpen && (
+        <div className="ltv-nav-menu-mobile">
+          {navItems.map((item) => (
+            <button
+              key={item.label}
+              className={`ltv-nav-link${item.active ? " active" : ""}`}
+              onClick={() => handleNavClick(item.label)}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      )}
     </>
   );
 }

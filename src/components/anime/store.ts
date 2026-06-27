@@ -122,8 +122,6 @@ type Route =
   | { page: "novel-read"; novelId: string; novelTitle: string; chapterId: string; chapterNum: number; chapterTitle: string; totalChapters: number; novelSource: string }
   | { page: "signin" }
   | { page: "signup" }
-  | { page: "music" }
-  | { page: "torrent" }
   | { page: "scraper" }
   | { page: "scraper-anime"; id: string }
   | { page: "scraper-watch"; id: string; episode: string; site: string };
@@ -196,6 +194,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       else if (route.page === "novel-read") window.location.hash = `read-novel/${encodeURIComponent(route.novelId)}/${route.chapterNum}`;
       else if (route.page === "signin") window.location.hash = "signin";
       else if (route.page === "signup") window.location.hash = "signup";
+      else if (route.page === "music") window.location.hash = "music";
+      else if (route.page === "torrent") window.location.hash = "torrent";
       else if (route.page === "scraper") window.location.hash = "scraper";
       else if (route.page === "scraper-anime") window.location.hash = `scraper/anime/${route.id}`;
       else if (route.page === "scraper-watch") window.location.hash = `scraper/watch/${route.site}/${route.id}/${encodeURIComponent(route.episode)}`;
@@ -297,6 +297,8 @@ export function parseHash(hash: string): Route {
   if (parts[0] === "scraper" && parts[1] === "watch" && parts[2] && parts[3] && parts[4])
     return { page: "scraper-watch", site: parts[2], id: parts[3], episode: decodeURIComponent(parts[4]) };
   if (parts[0] === "scraper") return { page: "scraper" };
+  if (parts[0] === "music") return { page: "music" };
+  if (parts[0] === "torrent") return { page: "torrent" };
   return { page: "home" };
 }
 
