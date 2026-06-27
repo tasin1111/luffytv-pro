@@ -250,7 +250,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   interface ServerEntry {
     id: string;
     name: string;
-    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream" | "anikuro" | "aniyubi" | "anipm";
+    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream" | "anikuro" | "anipm";
     provider: string;
     type: "sub" | "dub";
     quality?: string;

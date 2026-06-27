@@ -72,22 +72,19 @@ export default function HLSPlayerNew({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        // ─── Buffer settings (fix for Miruro Kiwi "force loading" issue) ───
-        // The previous settings (30s buffer) were too aggressive — when the
-        // proxy is slow, the player would buffer ahead, get stuck, and show
-        // a loading spinner even though the video was playing. Now we use
-        // a smaller buffer + allow ABR to downgrade quality if the proxy
-        // can't keep up.
-        backBufferLength: 30,
-        maxBufferLength: 60,        // buffer up to 60s ahead (was 30)
-        maxMaxBufferLength: 120,    // hard cap (was default 600)
-        maxBufferSize: 60 * 1000 * 1000, // 60MB max buffer
-        maxBufferHole: 0.5,         // tolerate 0.5s gaps
+        // ─── Buffer settings — SMALL buffer to prevent unnecessary loading ───
+        // Large buffer (60s) caused constant loading through proxies — the player
+        // would try to buffer ahead, the proxy couldn't keep up, and showed a
+        // perpetual loading spinner even though video was playing.
+        // Small buffer (10s) means the player only loads a few seconds ahead,
+        // starts playing faster, and doesn't show unnecessary loading.
+        backBufferLength: 10,        // keep only 10s behind (was 30)
+        maxBufferLength: 10,         // buffer 10s ahead (was 60)
+        maxMaxBufferLength: 30,      // hard cap 30s (was 120)
+        maxBufferSize: 15 * 1000 * 1000, // 15MB max buffer (was 60MB)
+        maxBufferHole: 0.5,          // tolerate 0.5s gaps
 
         // ─── ABR (Adaptive Bitrate) settings ───
-        // Don't force highest quality anymore — let ABR pick based on bandwidth.
-        // The previous code forced the highest level on MANIFEST_PARSED, which
-        // caused "force loading" when the proxy was slow.
         startLevel: -1,             // auto-select starting level
         abrEwmaDefaultEstimate: 5000000,  // 5 Mbps initial estimate
         abrBandWidthFactor: 0.95,
@@ -100,9 +97,9 @@ export default function HLSPlayerNew({
         manifestLoadingMaxRetry: 4,
         levelLoadingTimeOut: 20000,
         levelLoadingMaxRetry: 4,
-        fragLoadingTimeOut: 45000,   // was 30s — proxies can be slow
-        fragLoadingMaxRetry: 6,      // was 4 — more retries for flaky proxies
-        fragLoadingRetryDelay: 1000, // 1s between retries
+        fragLoadingTimeOut: 30000,   // 30s (was 45s)
+        fragLoadingMaxRetry: 4,      // 4 retries (was 6)
+        fragLoadingRetryDelay: 500,  // 0.5s between retries (was 1s)
 
         // ─── Other ───
         enableWebVTT: true,
