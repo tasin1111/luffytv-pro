@@ -156,6 +156,26 @@ export async function fetchAnimetsuSources(
         ? master.url
         : `${SCRAPER_BASE}${master.url}`;
 
+      // Verify the m3u8 is actually playable (not a 502/403 error page)
+      try {
+        const checkRes = await Promise.race([
+          fetch(streamUrl, { headers: HEADERS, cache: "no-store" }),
+          new Promise<Response | null>(r => setTimeout(() => r(null), 3000)),
+        ]);
+        if (!checkRes || !checkRes.ok) {
+          console.log(`[Animetsu] ${job.server} (${job.type}) — m3u8 check failed (${checkRes?.status || 'timeout'}), skipping`);
+          return null;
+        }
+        const text = await checkRes.text();
+        if (!text.trimStart().replace(/^\uFEFF/, "").startsWith("#EXTM3U")) {
+          console.log(`[Animetsu] ${job.server} (${job.type}) — not valid m3u8, skipping`);
+          return null;
+        }
+      } catch {
+        console.log(`[Animetsu] ${job.server} (${job.type}) — m3u8 check error, skipping`);
+        return null;
+      }
+
       // Parse subtitles
       const tracks = (data.subtitles || []).filter(s => s?.url).map(s => ({
         url: s.url.startsWith("http") ? s.url : `${SCRAPER_BASE}${s.url}`,

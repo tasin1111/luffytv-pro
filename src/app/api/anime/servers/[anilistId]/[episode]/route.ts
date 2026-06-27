@@ -741,13 +741,13 @@ export async function GET(
   // User requested this specific order so the best servers appear first.
   const SOURCE_PRIORITY: Record<string, number> = {
     animex: 1,     // Animex (fetched separately, appended client-side)
-    animetsu: 2,   // Animetsu (kite, dio, sage, meg) — TOP PRIORITY
-    anidap: 3,     // AniDap (m3u8 + embed)
-    anikuro: 4,    // AniKuro (m3u8 via proxy.anikuro.ru)
-    miruro: 5,     // Miruro (m3u8 via aniwatchtv)
-    anikage: 6,    // AniKage (m3u8 via prox.anikage.cc)
-    kyren: 7,      // Kyren (m3u8 via worker)
-    anipm: 8,      // AniPm
+    animetsu: 8,   // Animetsu (CDN can be flaky)
+    anidap: 2,     // AniDap (m3u8 + embed)
+    anikuro: 3,    // AniKuro (m3u8 via proxy.anikuro.ru)
+    miruro: 4,     // Miruro (m3u8 via aniwatchtv)
+    anikage: 5,    // AniKage (m3u8 via prox.anikage.cc)
+    kyren: 6,      // Kyren (m3u8 via worker)
+    anipm: 7,      // AniPm
     anilight: 9,   // AniLight (m3u8 via proxy)
     anivexa: 10,   // AniVexa (m3u8/mp4)
     mioanime: 11,  // MioAnime (m3u8 + embed)
