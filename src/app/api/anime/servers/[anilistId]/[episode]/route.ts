@@ -36,6 +36,7 @@ import { fetchMioAnimeSources } from "@/lib/mioanime-api";
 import { fetchAnistreamSources } from "@/lib/anistream-api";
 import { fetchAnikuroSources } from "@/lib/anikuro-api";
 import { fetchAniYubiSources } from "@/lib/aniyubi-api";
+import { fetchAniPmSources } from "@/lib/anipm-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -85,7 +86,7 @@ const ANIMEX_REFERERS: Record<string, string> = {
 interface VerifiedServer {
   id: string;
   name: string;
-  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream" | "anikuro" | "aniyubi";
+  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream" | "anikuro" | "aniyubi" | "anipm";
   provider: string;
   type: "sub" | "dub";
   quality: string;
@@ -165,7 +166,7 @@ export async function GET(
   // Fire AniDap resolver + sources fetch in parallel with the other sources.
   // AniDap gives us 11 providers × 2 types (sub/dub) — all verified playable.
   // Also fire AniLight + Kyren + AniKuro + AniYubi in parallel — all return direct-playable streams.
-  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults, anistreamResults, anikuroResults, aniyubiResults] = await Promise.allSettled([
+  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults, anistreamResults, anikuroResults, aniyubiResults, anipmResults] = await Promise.allSettled([
     fetchRawEpisodes(id),
     (async () => {
       const anime = await animexGetAnime(id);
@@ -189,6 +190,9 @@ export async function GET(
     // AniYubi.com: animepahe-based aggregator. Returns kwik.cx embed URLs.
     // Played as iframe embeds (kwik.cx blocks server-side scraping).
     fetchAniYubiSources(id, epNum, { timeoutMs: OTHER_TIMEOUT }),
+    // Ani.pm: Full scraper with categorized servers (Nova, Halo, Lyra, Cobalt, Orion, etc.)
+    // Returns HLS (via worker proxy), MP4, and embed URLs.
+    fetchAniPmSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
   ]);
 
   // Miruro
@@ -485,6 +489,31 @@ export async function GET(
     console.log(`[Servers] AniYubi: ${aniyubiVerified.length} servers`);
   }
 
+  // Ani.pm results — categorized servers (Nova, Halo, Lyra, Cobalt, Orion, Onyx, Vega)
+  // Returns HLS (via worker), MP4, and embed URLs. All categorized by subtitle type.
+  const anipmVerified: VerifiedServer[] = [];
+  if (anipmResults.status === "fulfilled" && anipmResults.value) {
+    for (const r of anipmResults.value) {
+      anipmVerified.push({
+        id: `anipm:${r.provider}:${r.type}`,
+        name: `AniPm ${r.name}`,
+        source: "anipm",
+        provider: r.provider,
+        type: r.type,
+        quality: r.quality,
+        streamUrl: r.streamUrl,
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        isEmbed: r.isEmbed,
+        hardsub: r.hardsub,
+        subtitleTracks: r.tracks,
+        intro: null,
+        outro: null,
+      });
+    }
+    console.log(`[Servers] AniPm: ${anipmVerified.length} servers`);
+  }
+
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
 
   // ─── Verify ALL in parallel (4s timeout each) ─────────────────────
@@ -644,6 +673,7 @@ export async function GET(
   verified.push(...anistreamVerified);
   verified.push(...anikuroVerified);
   verified.push(...aniyubiVerified);
+  verified.push(...anipmVerified);
   // NOTE: Animex is NOT here — it's fetched separately via /api/anime/animex-servers
 
   // ── STRICT FILTER: only show servers with a playable stream URL ───────────
@@ -691,7 +721,7 @@ export async function GET(
   });
 
   const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length + anixtvVerified.length + anistreamVerified.length + anikuroVerified.length + aniyubiVerified.length;
-  console.log(`[Servers] ${filtered.length}/${beforeFilter} servers (filtered ${beforeFilter - filtered.length} empty/unplayable) — AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length}, AnixTV=${anixtvVerified.length}, Anistream=${anistreamVerified.length}, AniKuro=${anikuroVerified.length}, AniYubi=${aniyubiVerified.length}`);
+  console.log(`[Servers] ${filtered.length}/${beforeFilter} servers (filtered ${beforeFilter - filtered.length} empty/unplayable) — AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length}, AnixTV=${anixtvVerified.length}, Anistream=${anistreamVerified.length}, AniKuro=${anikuroVerified.length}, AniYubi=${aniyubiVerified.length}, AniPm=${anipmVerified.length}`);
 
   // ── SORT by priority: Animex → AniDap → AniKuro → Miruro → AniKoto → AniNeko → others ──
   // User requested this specific order so the best servers appear first.
@@ -702,12 +732,13 @@ export async function GET(
     miruro: 4,     // Miruro (m3u8 via aniwatchtv)
     anikage: 5,    // AniKage (m3u8 via prox.anikage.cc)
     kyren: 6,      // Kyren (m3u8 via worker)
-    anilight: 7,   // AniLight (m3u8 via proxy)
-    anivexa: 8,    // AniVexa (m3u8/mp4)
-    mioanime: 9,   // MioAnime (m3u8 + embed)
-    aniyubi: 10,   // AniYubi (kwik.cx embed)
-    anistream: 11, // Anistream (m3u8 + embed)
-    anixtv: 12,    // AnixTV (Hindi embed)
+    anipm: 7,      // AniPm (m3u8 + embed via worker)
+    anilight: 8,   // AniLight (m3u8 via proxy)
+    anivexa: 9,    // AniVexa (m3u8/mp4)
+    mioanime: 10,  // MioAnime (m3u8 + embed)
+    aniyubi: 11,   // AniYubi (kwik.cx embed)
+    anistream: 12, // Anistream (m3u8 + embed)
+    anixtv: 13,    // AnixTV (Hindi embed)
   };
   // Sort: sub before dub, then by source priority, then by quality
   const sorted = filtered.sort((a, b) => {
