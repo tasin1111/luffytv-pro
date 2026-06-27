@@ -72,34 +72,33 @@ export default function HLSPlayerNew({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        // ─── Buffer settings — SMALL buffer to prevent unnecessary loading ───
-        // Large buffer (60s) caused constant loading through proxies — the player
-        // would try to buffer ahead, the proxy couldn't keep up, and showed a
-        // perpetual loading spinner even though video was playing.
-        // Small buffer (10s) means the player only loads a few seconds ahead,
-        // starts playing faster, and doesn't show unnecessary loading.
-        backBufferLength: 10,        // keep only 10s behind (was 30)
-        maxBufferLength: 10,         // buffer 10s ahead (was 60)
-        maxMaxBufferLength: 30,      // hard cap 30s (was 120)
-        maxBufferSize: 15 * 1000 * 1000, // 15MB max buffer (was 60MB)
-        maxBufferHole: 0.5,          // tolerate 0.5s gaps
+        // ─── Buffer settings — moderate buffer for proxy playback ───
+        // Too small (10s) = constant stalling because proxy can't deliver fast enough
+        // Too large (60s) = player tries to load too much, shows perpetual loading
+        // 30s is the sweet spot: enough buffer to absorb proxy latency
+        backBufferLength: 30,
+        maxBufferLength: 30,
+        maxMaxBufferLength: 60,
+        maxBufferSize: 30 * 1000 * 1000,
+        maxBufferHole: 0.5,
 
-        // ─── ABR (Adaptive Bitrate) settings ───
-        startLevel: -1,             // auto-select starting level
-        abrEwmaDefaultEstimate: 5000000,  // 5 Mbps initial estimate
-        abrBandWidthFactor: 0.95,
-        abrBandWidthUpFactor: 0.7,
+        // ─── ABR — start LOW, upgrade later ───
+        // Start at lowest quality so segments are small and load fast through proxy
+        startLevel: 0,              // start at LOWEST quality (fast load)
+        abrEwmaDefaultEstimate: 2000000,  // 2 Mbps initial (conservative)
+        abrBandWidthFactor: 0.7,
+        abrBandWidthUpFactor: 0.5,
         maxStarvationDelay: 4,
         abrEwmaDefaultEstimateMax: 5000000,
 
-        // ─── Timeouts (generous for slow proxies) ───
+        // ─── Timeouts ───
         manifestLoadingTimeOut: 20000,
         manifestLoadingMaxRetry: 4,
         levelLoadingTimeOut: 20000,
         levelLoadingMaxRetry: 4,
-        fragLoadingTimeOut: 30000,   // 30s (was 45s)
-        fragLoadingMaxRetry: 4,      // 4 retries (was 6)
-        fragLoadingRetryDelay: 500,  // 0.5s between retries (was 1s)
+        fragLoadingTimeOut: 30000,
+        fragLoadingMaxRetry: 6,      // more retries for slow proxies
+        fragLoadingRetryDelay: 500,
 
         // ─── Other ───
         enableWebVTT: true,
@@ -211,14 +210,14 @@ export default function HLSPlayerNew({
     //   2. OR 1.5s have passed since the last 'waiting' event (real stall)
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
     const onWaiting = () => {
-      // Don't show loading immediately — wait 1.5s to see if it recovers
+      // Don't show loading immediately — wait 3s to see if it recovers
+      // With 30s buffer, brief stalls are normal and should not show loading
       if (waitingTimer) clearTimeout(waitingTimer);
       waitingTimer = setTimeout(() => {
-        // Only show loading if video is still stalled after 1.5s
-        if (video.readyState < 3) {  // HAVE_FUTURE_DATA = 3
+        if (video.readyState < 3) {
           setLoading(true);
         }
-      }, 1500);
+      }, 3000);
     };
     const onPlaying = () => {
       if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
