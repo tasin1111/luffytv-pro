@@ -1090,33 +1090,35 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
             </div>
           </div>
 
-          {/* Server pills */}
+          {/* Server pills — scrollable horizontal list */}
           {serverList.length > 0 ? (
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Server</span>
-              {serverList
-                .filter(s => {
-                  if (translation === "hindi") return s.source === "anixtv";
-                  if (translation === "dub") return s.type === "dub" && s.source !== "anixtv";
-                  if (translation === "hardsub") return s.type === "sub" && s.hardsub === true;
-                  return s.type === "sub";
-                })
-                .sort((a, b) => {
-                  if (translation === "sub") {
-                    if (a.hardsub !== true && b.hardsub === true) return -1;
-                    if (a.hardsub === true && b.hardsub !== true) return 1;
-                  }
-                  return 0;
-                })
-                .slice(0, 50)
-                .map(s => (
-                  <button
-                    key={s.id}
-                    onClick={() => { setSelectedServer(s.id); setStreamError(null); }}
-                    className={`ltv-filter-chip${selectedServer === s.id ? " is-active" : ""}`}>
-                    {s.name}
-                  </button>
-                ))}
+            <div className="flex items-start gap-2">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider shrink-0 pt-1.5">Server</span>
+              <div className="flex items-center gap-2 flex-wrap overflow-y-auto" style={{ maxHeight: "120px" }}>
+                {serverList
+                  .filter(s => {
+                    if (translation === "hindi") return s.source === "anixtv";
+                    if (translation === "dub") return s.type === "dub" && s.source !== "anixtv";
+                    if (translation === "hardsub") return s.type === "sub" && s.hardsub === true;
+                    return s.type === "sub";
+                  })
+                  .sort((a, b) => {
+                    if (translation === "sub") {
+                      if (a.hardsub !== true && b.hardsub === true) return -1;
+                      if (a.hardsub === true && b.hardsub !== true) return 1;
+                    }
+                    return 0;
+                  })
+                  .slice(0, 50)
+                  .map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => { setSelectedServer(s.id); setStreamError(null); }}
+                      className={`ltv-filter-chip${selectedServer === s.id ? " is-active" : ""}`}>
+                      {s.name}
+                    </button>
+                  ))}
+              </div>
             </div>
           ) : (
             <div className="text-center py-2">

@@ -83,6 +83,35 @@ const CDN_RULES = [
   // Raw IP addresses (Miruro Ally uses 185.237.x.x)
   { test: h => /^\d+\.\d+\.\d+\.\d+$/.test(h),
     referer: 'https://www.miruro.tv/', origin: 'https://www.miruro.tv', secSite: 'cross-site' },
+
+  // ─── NEW SOURCES (added 2026-06-27) ───
+  // Kyren (kyren.moe + api.kyren.moe) — CF-protected, needs kyren.moe referer
+  { test: h => h === 'kyren.moe' || h.endsWith('.kyren.moe') ||
+               h === 'api.kyren.moe' || h.endsWith('.api.kyren.moe'),
+    referer: 'https://kyren.moe/', origin: 'https://kyren.moe', secSite: 'same-origin' },
+  // Ani.pm (ani.pm API + streams) — CF-protected
+  { test: h => h === 'ani.pm' || h.endsWith('.ani.pm'),
+    referer: 'https://ani.pm/', origin: 'https://ani.pm', secSite: 'same-origin' },
+  // AniLight (api.anilight.live) — CF-protected
+  { test: h => h === 'api.anilight.live' || h.endsWith('.anilight.live'),
+    referer: 'https://anilight.live/', origin: 'https://anilight.live', secSite: 'cross-site' },
+  // Anistream (api.anistream.one) — CF-protected
+  { test: h => h === 'api.anistream.one' || h.endsWith('.anistream.one'),
+    referer: 'https://anistream.one/', origin: 'https://anistream.one', secSite: 'cross-site' },
+  // AniKuro (anikuro.ru API + proxy.anikuro.ru streams)
+  { test: h => h === 'anikuro.ru' || h.endsWith('.anikuro.ru') ||
+               h === 'proxy.anikuro.ru',
+    referer: 'https://anikuro.ru/', origin: 'https://anikuro.ru', secSite: 'same-origin' },
+  // Animetsu scraper (animetsu-scraper-jade.vercel.app)
+  { test: h => h === 'animetsu-scraper-jade.vercel.app',
+    referer: 'https://animetsu.live/', origin: 'https://animetsu.live', secSite: 'cross-site' },
+  // swiftstream.top (Animetsu stream CDN) — CF-protected
+  { test: h => h === 'swiftstream.top' || h.endsWith('.swiftstream.top'),
+    referer: 'https://animetsu.live/', origin: 'https://animetsu.live', secSite: 'cross-site' },
+  // Animeyubi (animeyubi.com API)
+  { test: h => h === 'animeyubi.com' || h.endsWith('.animeyubi.com'),
+    referer: 'https://animeyubi.com/', origin: 'https://animeyubi.com', secSite: 'same-origin' },
+
   // Catch-all: default to megaplay.buzz referer (works for most anime CDNs)
   { test: h => true,
     referer: 'https://megaplay.buzz/', origin: 'https://megaplay.buzz', secSite: 'cross-site' },
