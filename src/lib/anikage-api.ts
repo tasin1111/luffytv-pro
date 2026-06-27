@@ -146,43 +146,20 @@ export async function fetchAnikageSources(
         if (!data?.success) return [];
 
         const sources = data?.data?.sources || [];
-        const embeds = data?.data?.embeds || [];
+        const embeds = []; // Skip embeds — only show m3u8 sources as user requested
         const subtitles = data?.data?.subtitles || [];
         const verified: AnikageVerifiedResult[] = [];
 
-        // ── m3u8 verification helper ──
-        async function verifyM3u8(url: string, timeout = 3000): Promise<boolean> {
-          try {
-            const r = await Promise.race([
-              fetch(url, { headers: HEADERS, cache: "no-store" }),
-              new Promise<Response | null>(res => setTimeout(() => res(null), timeout)),
-            ]);
-            if (!r || !r.ok) return false;
-            const text = await r.text();
-            return text.trimStart().replace(/^\uFEFF/, "").startsWith("#EXTM3U");
-          } catch { return false; }
-        }
-
-        // Process HLS/MP4 sources (prox.anikage.cc/m3u8/{token})
-        // prox.anikage.cc is AniKage's OWN proxy — it handles Referer + CORS.
-        // Do NOT wrap through aniwatchtv (returns "invalid payload").
-        // Do NOT wrap through our worker (returns 502 — prox.anikage.cc blocks it).
-        // Use the URL directly — the browser will fetch it with proper CORS.
+        // Process HLS/MP4 sources (prox.anikage.cc/m3u8/{token} or /stream/{token})
+        // These are AniKage's OWN proxy URLs — used directly by the browser.
+        // NO m3u8 verification (was too slow and prox.anikage.cc blocks server-side fetch).
+        // The player will handle errors if a stream is dead.
         for (const src of sources) {
           if (!src?.streamUrl) continue;
-          const streamUrl = src.streamUrl;  // use directly, no wrapping
-
-          // Verify the m3u8 is actually playable (prox.anikage.cc may be down)
-          const isValid = await verifyM3u8(streamUrl);
-          if (!isValid) {
-            console.log(`[AniKage] ${job.server} ${src.quality} — m3u8 not playable, skipping`);
-            continue;
-          }
-
           verified.push({
             server: `${job.server}-${src.quality || "auto"}`,
             type: job.lang,
-            streamUrl,
+            streamUrl: src.streamUrl,
             quality: src.quality || "auto",
             isM3U8: src.isM3U8 !== false,
             isMP4: false,
@@ -198,24 +175,8 @@ export async function fetchAnikageSources(
           });
         }
 
-        // Process embed URLs (vibeplayer, streamsb, ok.ru, otakuhg, otakuvid, etc.)
-        // These are iframe embeds — loaded directly in the browser, no proxy needed.
-        for (const embed of embeds) {
-          if (!embed?.url) continue;
-          verified.push({
-            server: `${job.server}-${embed.server || "embed"}`,
-            type: job.lang,
-            streamUrl: embed.url, // embed URL — loaded in iframe directly
-            quality: embed.type || "auto",
-            isM3U8: false,
-            isMP4: false,
-            isEmbed: true,
-            hardsub: embed.type === "hardsub",
-            tracks: [],
-            intro: null,
-            outro: null,
-          });
-        }
+        // Embeds are SKIPPED — user only wants m3u8 servers
+        // for (const embed of embeds) { ... }
 
         return verified;
       } catch {
