@@ -463,13 +463,25 @@ export async function GET(
     console.log(`[Servers] AniKuro: ${anikuroVerified.length} servers`);
   }
 
-  // Ani.pm results — categorized servers (Nova, Halo, Lyra, Cobalt, Orion, Onyx, Vega)
-  // Returns HLS (via worker), MP4, and embed URLs. All categorized by subtitle type.
+  // Ani.pm results — only HLS + MP4 servers (skip embeds to avoid duplicates)
+  // Each server gets a unique ID based on provider + name + type to prevent
+  // the watch page from treating different servers as the same one.
   const anipmVerified: VerifiedServer[] = [];
   if (anipmResults.status === "fulfilled" && anipmResults.value) {
+    const seenAnipm = new Set<string>();  // dedupe by provider+name+type
     for (const r of anipmResults.value) {
+      // Skip embed URLs — they duplicate the HLS servers and cause confusion
+      if (r.isEmbed) continue;
+
+      // Dedupe by provider+name+type (in case API returns same server twice)
+      const dedupeKey = `${r.provider}:${r.name}:${r.type}`;
+      if (seenAnipm.has(dedupeKey)) continue;
+      seenAnipm.add(dedupeKey);
+
+      // Unique ID: anipm:provider:name:type (e.g. anipm:Lyra:Lyra·3:sub)
+      const safeName = r.name.replace(/[^a-zA-Z0-9]/g, "");
       anipmVerified.push({
-        id: `anipm:${r.provider}:${r.type}`,
+        id: `anipm:${r.provider}:${safeName}:${r.type}`,
         name: `AniPm ${r.name}`,
         source: "anipm",
         provider: r.provider,
@@ -478,14 +490,14 @@ export async function GET(
         streamUrl: r.streamUrl,
         isM3U8: r.isM3U8,
         isMP4: r.isMP4,
-        isEmbed: r.isEmbed,
+        isEmbed: false,
         hardsub: r.hardsub,
         subtitleTracks: r.tracks,
         intro: null,
         outro: null,
       });
     }
-    console.log(`[Servers] AniPm: ${anipmVerified.length} servers`);
+    console.log(`[Servers] AniPm: ${anipmVerified.length} servers (HLS only, deduped)`);
   }
 
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
