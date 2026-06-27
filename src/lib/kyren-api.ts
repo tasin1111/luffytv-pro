@@ -90,11 +90,13 @@ async function workerFetchJson<T = any>(url: string, timeoutMs = 10000): Promise
 }
 
 /**
- * Wrap a Kyren stream URL (api.kyren.moe) through our worker proxy.
- * The worker adds Referer: https://kyren.moe/ and rewrites m3u8 segments.
+ * Wrap a Kyren stream URL through aniwatchtv proxy (NOT the worker).
+ * aniwatchtv handles Referer + CORS + m3u8 segment rewriting.
  */
 function wrapKyrenStream(url: string): string {
-  return `${WORKER_BASE}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent("https://kyren.moe/")}`;
+  // Use the shared proxy helper which routes through aniwatchtv
+  const { wrapM3u8Url } = require("./proxy");
+  return wrapM3u8Url(url);
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────

@@ -1,8 +1,9 @@
 /**
  * Proxy helper for LuffyTV.
  *
- * Uses pro.aniwatchtv.site as the universal proxy for ALL anime streams.
- * This proxy handles Referer spoofing, CORS, and m3u8 segment rewriting.
+ * Uses pro.aniwatchtv.site as the ONLY proxy for ALL anime streams.
+ * No worker proxy, no animanga proxy — aniwatchtv handles everything.
+ * Animetsu streams go through their own scraper proxy (animetsu-scraper-jade.vercel.app).
  *
  * Encoding: XOR(url + "\0" + referer, key) → base64url → /uwu/{token}
  * Key: "10b06cdc1ca48c9fb0b94af97cc040cf" (32 ASCII bytes)
@@ -12,30 +13,19 @@
  */
 
 // ─────────────────────────────────────────────────────────────────────
-// PROXY CONFIG — pro.aniwatchtv.site
+// PROXY CONFIG — pro.aniwatchtv.site (THE ONLY PROXY)
 // ─────────────────────────────────────────────────────────────────────
 const ANIWATCHTV_PROXY = "https://pro.aniwatchtv.site/uwu";
 const XOR_KEY = "10b06cdc1ca48c9fb0b94af97cc040cf"; // 32 ASCII bytes
 
-// Worker proxy (v3 with browser impersonation headers)
+// Worker proxy kept only for API calls (not streams) — Kyren, AniLight, AniKuro API
 const WORKER_PROXY = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
 
-// CDNs that work better through our worker (aniwatchtv returns 403 for these)
-const WORKER_PREFERRED_HOSTS = new Set([
-  "hls.anidb.app",      // Miruro Pewe — worker 200, aniwatchtv 403
-  "bd.24stream.xyz",    // AniLight Misora — worker 200 with proper m3u8 rewriting
-]);
+// NO worker preferred hosts — everything goes through aniwatchtv
+const WORKER_PREFERRED_HOSTS = new Set([]);
 
-// CDNs that need animanga.fun fallback (worker + aniwatchtv both return 403)
-// NOTE: Most of these now work through aniwatchtv with the correct Referer.
-// Only use animanga.fun as last resort for CDNs that block ALL other proxies.
-const ANIMANGA_FALLBACK_HOSTS = new Set([
-  "mt.nekostream.site",          // Miruro Bee — aniwatchtv 403, animanga 200
-  "vibeplayer.site",             // Miruro Bonk — aniwatchtv 403, animanga 200
-  "vivibebe.site",               // mimi provider
-  "9hjkrt.nekostream.site",      // AniLight Misa — worker 403, animanga 200
-  "nanobyte.bigdreamsmalldih.site", // AniLight quality variants — animanga proxy
-]);
+// NO animanga fallback — everything goes through aniwatchtv
+const ANIMANGA_FALLBACK_HOSTS = new Set([]);
 
 // Referer map — encoded into the token so the proxy sends the correct Referer.
 const CDN_REFERERS: Record<string, string> = {
@@ -66,6 +56,9 @@ const CDN_REFERERS: Record<string, string> = {
   "kwik.cx":               "https://kwik.cx/",
   // AniKage
   "prox.anikage.cc":       "https://anikage.cc/",
+  // Kyren
+  "api.kyren.moe":         "https://kyren.moe/",
+  "kyren.moe":             "https://kyren.moe/",
   // allanime — same-origin
   "allanime.uns.bio":      "https://allanime.uns.bio/",
   // harmonix (miku) — allanime referer
