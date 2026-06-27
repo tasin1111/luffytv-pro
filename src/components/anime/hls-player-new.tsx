@@ -72,21 +72,22 @@ export default function HLSPlayerNew({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        // ─── Buffer settings — large buffer since we start at LOW quality ───
-        // Low quality = small segments = proxy can deliver fast
-        // Large buffer = more cushion before stalling
-        backBufferLength: 60,
-        maxBufferLength: 60,
-        maxMaxBufferLength: 120,
-        maxBufferSize: 60 * 1000 * 1000,
+        // ─── Buffer settings — small initial buffer, grows as needed ───
+        // The key insight: maxBufferLength controls how much to buffer AHEAD.
+        // Through a proxy, large buffer = long wait before playback starts.
+        // Use small buffer (15s) so video starts fast, then grows naturally.
+        backBufferLength: 30,
+        maxBufferLength: 15,         // start with 15s buffer (fast start)
+        maxMaxBufferLength: 60,      // can grow up to 60s if bandwidth allows
+        maxBufferSize: 30 * 1000 * 1000,
         maxBufferHole: 0.5,
 
-        // ─── ABR — start LOW, upgrade later ───
-        startLevel: 0,              // start at LOWEST quality (small segments)
+        // ─── ABR — start LOW, upgrade SLOWLY ───
+        startLevel: 0,              // start at LOWEST quality (small segments, fast load)
         abrEwmaDefaultEstimate: 1000000,  // 1 Mbps initial (very conservative)
         abrBandWidthFactor: 0.5,
         abrBandWidthUpFactor: 0.3,
-        maxStarvationDelay: 10,     // allow 10s before starving (was 4)
+        maxStarvationDelay: 10,     // allow 10s before starving
         abrEwmaDefaultEstimateMax: 3000000,
 
         // ─── Timeouts ───
