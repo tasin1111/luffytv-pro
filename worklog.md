@@ -33,3 +33,26 @@ Stage Summary:
 - ID mapping working: AniList ID → GraphQL → Internal Slug → REST API
 - Watch flow tested and working: auto-races providers with correct headers
 - Existing Next.js project updated with all missing providers and headers
+
+---
+Task ID: fix-browse-schedule-wistoria
+Agent: Main Agent
+Task: Fix three issues reported by user — (1) Wistoria Season 3 still appearing in home hero banner carousel; (2) Browse page showing only placeholder text "Browse page content..." instead of real content; (3) Schedule page showing only placeholder text "Schedule page content..." instead of real content.
+
+Work Log:
+- Investigated home page carousel dedup logic in src/components/anime/anime-section-page.tsx — the existing dedupe function strips "Season X" / "Cour X" / "Part X" suffixes but this only catches entries where the season number is explicitly written in those forms. Wistoria entries with alternative formats (Roman numerals, "3rd", "S3", "Vol. 3") still passed through.
+- Discovered the Browse and Schedule sub-pages were stubbed with literal placeholder text: `BrowsePageInline` returned `<p>Browse page content...</p>` and `ScheduleInline` returned `<p>Schedule page content...</p>`. The real `BrowsePage` (src/components/anime/browse-page.tsx, 795 lines, full filter sidebar + AniList pagination) and `SchedulePage` (src/components/anime/schedule-page.tsx, 514 lines, live airing schedule with countdown timers, day selector, next-airing banner) existed but were never imported.
+- Edited src/components/anime/anime-section-page.tsx:
+  * Added imports for BrowsePage and SchedulePage at top of file
+  * Added `isWistoriaSeason3()` filter that checks title for "wistoria" + any of: "season 3", "cour 3", "part 3", "iii", "3rd", "vol. 3", "s3" (case-insensitive, word-boundary anchored)
+  * Featured pool now excludes Wistoria S3 (with fallback to unfiltered list if fewer than 8 items remain after filtering)
+  * Replaced `BrowsePageInline` stub with `<BrowsePage />` wrapped in proper container (88px top padding for navbar, black bg, 16px bottom padding)
+  * Replaced `ScheduleInline` stub with `<SchedulePage />` wrapped in same container
+  * Removed the now-unused `BrowsePageInline` and `ScheduleInline` function definitions
+- Confirmed no new TypeScript errors introduced by the edits (the 3 pre-existing errors on lines 245-267 about HistoryItem.episode are unrelated and were already there).
+
+Stage Summary:
+- Wistoria Season 3 will no longer appear in the home page hero carousel (featured items)
+- Browse page now renders the full BrowsePage component: sidebar with Sort/Format/Status/Season/Year/Genre filters, search box, anime poster grid with pagination via /api/anime/browse (AniList-backed)
+- Schedule page now renders the full SchedulePage component: live airing schedule pulled from AniList GraphQL for next 7 days, day selector pills, countdown timers, "Next Up" banner, quick stats (aired/upcoming/unique shows count)
+- All changes confined to a single file: src/components/anime/anime-section-page.tsx

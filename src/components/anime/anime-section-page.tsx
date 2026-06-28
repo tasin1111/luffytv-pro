@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAppStore } from "./store";
 import type { MiruroAnimeResult } from "@/lib/miruro-api";
+import BrowsePage from "./browse-page";
+import SchedulePage from "./schedule-page";
 
 type DiscoverTab = "season" | "topRated" | "popular";
 type SubPage = "home" | "browse" | "schedule";
@@ -573,7 +575,26 @@ export default function AnimeSectionPage() {
           });
         };
 
-        const trend = dedupe(data.trending || data.all || data.media || []);
+        // Filter out Wistoria Season 3 from featured carousel (user request)
+        const isWistoriaSeason3 = (a: any) => {
+          const title = getTitle(a).toLowerCase();
+          if (!title.includes("wistoria")) return false;
+          // Match any form of season 3 marking
+          return (
+            /\bseason\s*3\b/i.test(title) ||
+            /\bcour\s*3\b/i.test(title) ||
+            /\bpart\s*3\b/i.test(title) ||
+            /\biii\b/i.test(title) ||
+            /\b3rd\b/i.test(title) ||
+            /\bvol\.?\s*3\b/i.test(title) ||
+            /\bs3\b/i.test(title)
+          );
+        };
+
+        // Dedupe, then strip out Wistoria Season 3 entirely from the home page
+        // (banner carousel, Trending Now, Discover, Sidebar — everywhere on home)
+        let trend = dedupe(data.trending || data.all || data.media || []);
+        trend = trend.filter(a => !isWistoriaSeason3(a));
 
         if (trend.length > 0) setFeatured(trend.slice(0, 8));
         if (trend.length > 0) setTrending(trend);
@@ -592,20 +613,24 @@ export default function AnimeSectionPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // If sub-page is browse, show browse page
+  // If sub-page is browse, show the REAL BrowsePage (full filter UI + AniList results)
   if (sectionSubPage === "browse") {
     return (
-      <div className="w-full" style={{ paddingTop: "0" }}>
-        <BrowsePageInline navigate={navigate} />
+      <div className="w-full bg-black text-white" style={{ paddingTop: "88px", minHeight: "100vh" }}>
+        <div className="px-4 lg:px-8 pb-16">
+          <BrowsePage />
+        </div>
       </div>
     );
   }
 
-  // If sub-page is schedule, show schedule inline
+  // If sub-page is schedule, show the REAL SchedulePage (live airing schedule from AniList)
   if (sectionSubPage === "schedule") {
     return (
-      <div className="w-full" style={{ paddingTop: "0" }}>
-        <ScheduleInline navigate={navigate} />
+      <div className="w-full bg-black text-white" style={{ paddingTop: "88px", minHeight: "100vh" }}>
+        <div className="px-4 lg:px-8 pb-16">
+          <SchedulePage />
+        </div>
       </div>
     );
   }
@@ -654,28 +679,5 @@ export default function AnimeSectionPage() {
   );
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   INLINE BROWSE PAGE — simplified
-   ═══════════════════════════════════════════════════════════════ */
-
-function BrowsePageInline({ navigate }: { navigate: (r: any) => void }) {
-  return (
-    <div className="w-full bg-black text-white px-6 md:px-12 lg:px-16 py-8" style={{ paddingTop: "80px" }}>
-      <h1 className="text-2xl font-bold mb-6">Browse</h1>
-      <p className="text-white/40">Browse page content...</p>
-    </div>
-  );
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   INLINE SCHEDULE PAGE — simplified
-   ═══════════════════════════════════════════════════════════════ */
-
-function ScheduleInline({ navigate }: { navigate: (r: any) => void }) {
-  return (
-    <div className="w-full bg-black text-white px-6 md:px-12 lg:px-16 py-8" style={{ paddingTop: "80px" }}>
-      <h1 className="text-2xl font-bold mb-6">Schedule</h1>
-      <p className="text-white/40">Schedule page content...</p>
-    </div>
-  );
-}
+// Browse and Schedule sub-pages now use the real BrowsePage / SchedulePage components
+// imported at the top of this file.
