@@ -71,7 +71,25 @@ function getScore(a: any): number {
 function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (r: any) => void }) {
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [logos, setLogos] = useState<Record<number, string>>({});
+  const [backdrops, setBackdrops] = useState<Record<number, string>>({});
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Fetch TMDB logos + backdrops for featured anime
+  useEffect(() => {
+    items.forEach(async (anime) => {
+      if (logos[anime.id]) return;
+      try {
+        const title = getTitle(anime);
+        const res = await fetch(`/api/anime/tmdb-images?anilistId=${anime.id}&title=${encodeURIComponent(title)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.logoUrl) setLogos(prev => ({ ...prev, [anime.id]: data.logoUrl }));
+          if (data.backdropUrl) setBackdrops(prev => ({ ...prev, [anime.id]: data.backdropUrl }));
+        }
+      } catch {}
+    });
+  }, [items]);
 
   useEffect(() => {
     if (paused || items.length === 0) return;
@@ -90,7 +108,10 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
   }
 
   const anime = items[current];
-  const banner = getBanner(anime);
+  const anilistBanner = getBanner(anime);
+  // Prefer TMDB backdrop (higher quality), fall back to AniList banner
+  const banner = backdrops[anime.id] || anilistBanner;
+  const logoUrl = logos[anime.id];
   const title = getTitle(anime);
   const score = getScore(anime);
   const seasonStr = anime.season && anime.seasonYear ? `${anime.season} ${anime.seasonYear}` : anime.seasonYear ? String(anime.seasonYear) : "";
@@ -101,7 +122,7 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      {/* Background image — FULL SCREEN, high quality */}
+      {/* Background image — FULL SCREEN, high quality TMDB backdrop */}
       {banner && (
         <img
           src={banner}
@@ -112,16 +133,28 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
         />
       )}
       {/* Gradient overlays — darker at bottom for text readability */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/20" />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-transparent to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-transparent to-transparent" />
 
       {/* Content — bottom left */}
       <div className="absolute bottom-0 left-0 right-0 p-6 md:p-12 lg:p-16 pb-16">
         <div className="max-w-2xl space-y-4">
-          {/* Title — large, white */}
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.05] tracking-tight">
-            {title}
-          </h1>
+          {/* TMDB Logo — big transparent PNG on the right side */}
+          {logoUrl && (
+            <img
+              src={logoUrl}
+              alt={title}
+              className="w-full max-w-md mb-4 drop-shadow-2xl"
+              style={{ maxHeight: "200px", objectFit: "contain", objectPosition: "left" }}
+            />
+          )}
+
+          {/* Title — large, white (shown if no logo) */}
+          {!logoUrl && (
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.05] tracking-tight">
+              {title}
+            </h1>
+          )}
 
           {/* Meta row */}
           <div className="flex items-center gap-3 flex-wrap text-sm text-white/70">
