@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Search TMDB by title
+    // Search TMDB by title — no year filter (anime can be old)
     const searchUrl = `${TMDB_BASE}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&include_adult=false`;
     const searchRes = await fetch(searchUrl, { cache: "no-store" });
     if (!searchRes.ok) return NextResponse.json({ logoUrl: "", backdropUrl: "" });
@@ -40,7 +40,11 @@ export async function GET(request: NextRequest) {
     const results = searchData?.results || [];
     if (results.length === 0) return NextResponse.json({ logoUrl: "", backdropUrl: "" });
 
-    const tmdbId = results[0].id;
+    // Filter: prefer Japanese anime (origin_country JP) or animation genre (genre_ids includes 16)
+    const animeResults = results.filter((r: any) => 
+      r.origin_country?.includes("JP") || r.genre_ids?.includes(16)
+    );
+    const tmdbId = (animeResults[0] || results[0]).id;
 
     // Get images
     const imagesUrl = `${TMDB_BASE}/tv/${tmdbId}/images?api_key=${TMDB_API_KEY}&include_image_language=en,null`;

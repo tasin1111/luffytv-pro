@@ -139,13 +139,13 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
       {/* Content — bottom left */}
       <div className="absolute bottom-0 left-0 right-0 p-6 md:p-12 lg:p-16 pb-16">
         <div className="max-w-2xl space-y-4">
-          {/* TMDB Logo — big transparent PNG on the right side */}
+          {/* TMDB Logo — smaller, cleaner */}
           {logoUrl && (
             <img
               src={logoUrl}
               alt={title}
-              className="w-full max-w-md mb-4 drop-shadow-2xl"
-              style={{ maxHeight: "200px", objectFit: "contain", objectPosition: "left" }}
+              className="max-w-[240px] max-h-[80px] mb-3 drop-shadow-lg"
+              style={{ objectFit: "contain", objectPosition: "left" }}
             />
           )}
 
