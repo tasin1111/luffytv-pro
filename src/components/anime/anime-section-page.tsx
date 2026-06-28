@@ -47,7 +47,11 @@ function getTitle(a: any): string {
 }
 
 function getBanner(a: any): string {
-  return a?.bannerImage || a?.coverImage?.extraLarge || a?.coverImage?.large || "";
+  // Prefer bannerImage (high quality), then extraLarge cover
+  const banner = a?.bannerImage;
+  if (banner) return banner;
+  // Fallback to cover image (extra large)
+  return a?.coverImage?.extraLarge || a?.coverImage?.large || "";
 }
 
 function getCover(a: any): string {
@@ -79,7 +83,7 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
 
   if (items.length === 0) {
     return (
-      <div className="relative w-full h-[80vh] min-h-[500px] bg-black flex items-center justify-center">
+      <div className="relative w-full h-screen bg-black flex items-center justify-center">
         <div className="w-10 h-10 border-2 border-white/10 border-t-white rounded-full animate-spin" />
       </div>
     );
@@ -93,23 +97,23 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
 
   return (
     <div
-      className="relative w-full h-[80vh] min-h-[500px] overflow-hidden bg-black"
+      className="relative w-full h-screen overflow-hidden bg-black"
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      {/* Background image — full screen */}
+      {/* Background image — FULL SCREEN, high quality */}
       {banner && (
         <img
           src={banner}
           alt=""
-          className="absolute inset-0 w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover object-center"
           style={{ animation: "ltv-hero-fade 0.8s ease-out" }}
           key={current}
         />
       )}
-      {/* Gradient overlays */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-transparent" />
-      <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/40 to-transparent" />
+      {/* Gradient overlays — darker at bottom for text readability */}
+      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-black/20" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-transparent to-transparent" />
 
       {/* Content — bottom left */}
       <div className="absolute bottom-0 left-0 right-0 p-6 md:p-12 lg:p-16 pb-16">
