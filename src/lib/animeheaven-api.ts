@@ -14,7 +14,6 @@
  */
 
 const BASE = "https://animeheaven.me";
-const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
@@ -24,6 +23,9 @@ const HEADERS: Record<string, string> = {
   "Accept-Language": "en-US,en;q=0.9",
   "Referer": "https://animeheaven.me/",
 };
+
+// Use aniwatchtv proxy (same as all other sources) — NOT the worker
+import { wrapStreamUrl } from "./proxy";
 
 export interface AnimeHeavenResult {
   provider: string;
@@ -155,8 +157,8 @@ export async function fetchAnimeHeavenSources(
 
   console.log(`[AnimeHeaven] found MP4: ${mp4Url.slice(0, 80)}...`);
 
-  // Wrap through worker proxy for CORS
-  const streamUrl = `${WORKER_BASE}/proxy?url=${encodeURIComponent(mp4Url)}&ref=${encodeURIComponent("https://animeheaven.me/")}`;
+  // Wrap through aniwatchtv proxy (same as all other sources)
+  const streamUrl = wrapStreamUrl(mp4Url);
 
   return [{
     provider: "animeheaven",

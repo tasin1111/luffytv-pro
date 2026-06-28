@@ -59,6 +59,12 @@ const CDN_REFERERS: Record<string, string> = {
   // Kyren
   "api.kyren.moe":         "https://kyren.moe/",
   "kyren.moe":             "https://kyren.moe/",
+  // AnimeHeaven CDNs
+  "py.animeheaven.me":     "https://animeheaven.me/",
+  "ct.animeheaven.me":     "https://animeheaven.me/",
+  "ck.animeheaven.me":     "https://animeheaven.me/",
+  "rt.animeheaven.me":     "https://animeheaven.me/",
+  "cx.animeheaven.me":     "https://animeheaven.me/",
   // allanime — same-origin
   "allanime.uns.bio":      "https://allanime.uns.bio/",
   // harmonix (miku) — allanime referer
