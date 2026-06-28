@@ -109,7 +109,8 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
 
   const anime = items[current];
   // Use TMDB backdrop if available, otherwise AniList banner
-  const banner = backdrops[anime.id] || getBanner(anime);
+  // TMDB backdrop only — NO AniList fallback (user requested removal)
+  const banner = backdrops[anime.id] || "";
   const logoUrl = logos[anime.id];
   const title = getTitle(anime);
   const score = getScore(anime);
@@ -144,7 +145,7 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
             <img
               src={logoUrl}
               alt={title}
-              className="max-w-[180px] max-h-[60px] mb-2 drop-shadow-lg"
+              className="max-w-[280px] max-h-[90px] mb-3 drop-shadow-lg"
               style={{ objectFit: "contain", objectPosition: "left" }}
             />
           )}
@@ -188,9 +189,9 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
             </div>
           )}
 
-          {/* Synopsis — always show */}
+          {/* Synopsis — always show, clearly visible */}
           {description && (
-            <p className="text-sm md:text-base text-white/50 leading-relaxed line-clamp-3 max-w-xl">
+            <p className="text-sm md:text-base text-white/70 leading-relaxed line-clamp-3 max-w-xl drop-shadow-md">
               {description}
             </p>
           )}
