@@ -197,6 +197,8 @@ export async function GET(
     fetchAnimetsuSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
     // AnimeHeaven.me — direct MP4 streams
     fetchAnimeHeavenSources(id, epNum, { timeoutMs: OTHER_TIMEOUT }),
+    // AniWaves.ru — embed-based servers (sub + dub)
+    fetchAniWavesSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
     // AniWaves.ru — embed servers (Vidplay, MyCloud, etc.)
     fetchAniWavesSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
   ]);
@@ -575,8 +577,8 @@ export async function GET(
         isEmbed: true,
         hardsub: false,
         subtitleTracks: [],
-        intro: r.intro,
-        outro: r.outro,
+        intro: null,
+        outro: null,
       });
     }
     console.log(`[Servers] AniWaves: ${aniwavesVerified.length} servers`);
