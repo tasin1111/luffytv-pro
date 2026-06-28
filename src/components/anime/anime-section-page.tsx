@@ -108,13 +108,13 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
   }
 
   const anime = items[current];
-  const anilistBanner = getBanner(anime);
-  // Prefer TMDB backdrop (higher quality), fall back to AniList banner
-  const banner = backdrops[anime.id] || anilistBanner;
+  // Use TMDB backdrop if available, otherwise AniList banner
+  const banner = backdrops[anime.id] || getBanner(anime);
   const logoUrl = logos[anime.id];
   const title = getTitle(anime);
   const score = getScore(anime);
   const seasonStr = anime.season && anime.seasonYear ? `${anime.season} ${anime.seasonYear}` : anime.seasonYear ? String(anime.seasonYear) : "";
+  const description = anime.description ? anime.description.replace(/<[^>]*>/g, "") : "";
 
   return (
     <div
@@ -138,20 +138,20 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
 
       {/* Content — bottom left */}
       <div className="absolute bottom-0 left-0 right-0 p-6 md:p-12 lg:p-16 pb-16">
-        <div className="max-w-2xl space-y-4">
-          {/* TMDB Logo — smaller, cleaner */}
+        <div className="max-w-2xl space-y-3">
+          {/* TMDB Logo — small like AniLight */}
           {logoUrl && (
             <img
               src={logoUrl}
               alt={title}
-              className="max-w-[240px] max-h-[80px] mb-3 drop-shadow-lg"
+              className="max-w-[180px] max-h-[60px] mb-2 drop-shadow-lg"
               style={{ objectFit: "contain", objectPosition: "left" }}
             />
           )}
 
-          {/* Title — large, white (shown if no logo) */}
+          {/* Title — shown if no TMDB logo */}
           {!logoUrl && (
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white leading-[1.05] tracking-tight">
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold text-white leading-[1.05] tracking-tight">
               {title}
             </h1>
           )}
@@ -188,10 +188,10 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
             </div>
           )}
 
-          {/* Synopsis */}
-          {anime.description && (
-            <p className="text-sm md:text-base text-white/60 leading-relaxed line-clamp-3 max-w-xl">
-              {anime.description.replace(/<[^>]*>/g, "")}
+          {/* Synopsis — always show */}
+          {description && (
+            <p className="text-sm md:text-base text-white/50 leading-relaxed line-clamp-3 max-w-xl">
+              {description}
             </p>
           )}
 

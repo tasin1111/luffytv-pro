@@ -32,16 +32,34 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Search TMDB by title — no year filter (anime can be old)
+    // Search TMDB by title — try multiple search strategies
+    let results: any[] = [];
+
+    // Strategy 1: Direct title search
     const searchUrl = `${TMDB_BASE}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(title)}&include_adult=false`;
     const searchRes = await fetch(searchUrl, { cache: "no-store" });
-    if (!searchRes.ok) return NextResponse.json({ logoUrl: "", backdropUrl: "" });
-    const searchData = await searchRes.json();
-    const results = searchData?.results || [];
+    if (searchRes.ok) {
+      const searchData = await searchRes.json();
+      results = searchData?.results || [];
+    }
+
+    // Strategy 2: If no results, try shortened title (remove "Season X", "Cour X", etc.)
+    if (results.length === 0) {
+      const shortTitle = title.replace(/\s*(Season|Cour|Part)\s*\d+/gi, "").replace(/\s*:\s*.*/g, "").trim();
+      if (shortTitle && shortTitle !== title) {
+        const searchUrl2 = `${TMDB_BASE}/search/tv?api_key=${TMDB_API_KEY}&query=${encodeURIComponent(shortTitle)}&include_adult=false`;
+        const searchRes2 = await fetch(searchUrl2, { cache: "no-store" });
+        if (searchRes2.ok) {
+          const searchData2 = await searchRes2.json();
+          results = searchData2?.results || [];
+        }
+      }
+    }
+
     if (results.length === 0) return NextResponse.json({ logoUrl: "", backdropUrl: "" });
 
     // Filter: prefer Japanese anime (origin_country JP) or animation genre (genre_ids includes 16)
-    const animeResults = results.filter((r: any) => 
+    const animeResults = results.filter((r: any) =>
       r.origin_country?.includes("JP") || r.genre_ids?.includes(16)
     );
     const tmdbId = (animeResults[0] || results[0]).id;

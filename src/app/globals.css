@@ -1980,10 +1980,10 @@ video::-webkit-media-controls { border-radius: 8px; }
 
 /* Discord icon — purple tint */
 .ltv-nav-discord {
-  background: rgba(88, 101, 242, 0.35);
+  background: rgba(255, 255, 255, 0.08);
 }
 .ltv-nav-discord:hover {
-  background: rgba(88, 101, 242, 0.55);
+  background: rgba(255, 255, 255, 0.16);
   color: #fff;
 }
 
