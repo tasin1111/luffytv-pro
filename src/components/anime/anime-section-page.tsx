@@ -145,7 +145,7 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
             <img
               src={logoUrl}
               alt={title}
-              className="max-w-[280px] max-h-[90px] mb-3 drop-shadow-lg"
+              className="max-w-[340px] max-h-[110px] mb-3 drop-shadow-lg"
               style={{ objectFit: "contain", objectPosition: "left" }}
             />
           )}
@@ -555,13 +555,23 @@ export default function AnimeSectionPage() {
         const data = await res.json();
         if (cancelled) return;
 
-        const all = data.all || data.trending || data.media || [];
-        const trend = data.trending || all;
-        const pop = data.popular || all;
-        const top = data.topRated || all;
-        const seas = data.season || all;
+        // Dedupe all arrays by anime ID — no duplicates
+        const dedupe = (arr: any[]) => {
+          const seen = new Set();
+          return arr.filter(a => {
+            if (!a?.id || seen.has(a.id)) return false;
+            seen.add(a.id);
+            return true;
+          });
+        };
 
-        if (trend.length > 0) setFeatured(trend.slice(0, 6));
+        const all = dedupe(data.all || data.trending || data.media || []);
+        const trend = dedupe(data.trending || all);
+        const pop = dedupe(data.popular || all);
+        const top = dedupe(data.topRated || all);
+        const seas = dedupe(data.season || all);
+
+        if (trend.length > 0) setFeatured(trend.slice(0, 8));
         if (trend.length > 0) setTrending(trend);
         if (pop.length > 0) setPopular(pop);
         if (top.length > 0) setTopRated(top);
