@@ -198,15 +198,32 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
             </p>
           )}
 
-          {/* Watch button — square shaped */}
-          <button
-            onClick={() => navigate({ page: "anime", id: String(anime.id) })}
-            className="inline-flex items-center gap-2 px-8 py-3 bg-white text-black font-bold text-sm hover:bg-white/90 transition-colors"
-            style={{ borderRadius: "4px" }}
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-            Watch Now
-          </button>
+          {/* Action buttons — square shaped, Netflix-style */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {/* Watch Now — starts playing episode 1 */}
+            <button
+              onClick={() => navigate({ page: "watch", id: String(anime.id), episode: 1, title: title, image: getCover(anime) })}
+              className="inline-flex items-center gap-2 px-8 py-3 bg-white text-black font-bold text-sm hover:bg-white/90 transition-colors"
+              style={{ borderRadius: "4px" }}
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+              Watch Now
+            </button>
+
+            {/* More Info — goes to anime detail/info page */}
+            <button
+              onClick={() => navigate({ page: "anime", id: String(anime.id) })}
+              className="inline-flex items-center gap-2 px-6 py-3 bg-white/15 text-white font-bold text-sm hover:bg-white/25 backdrop-blur-sm transition-colors border border-white/20"
+              style={{ borderRadius: "4px" }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              More Info
+            </button>
+          </div>
         </div>
       </div>
 
