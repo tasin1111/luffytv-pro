@@ -550,35 +550,38 @@ export default function AnimeSectionPage() {
     let cancelled = false;
     async function load() {
       try {
-        const res = await fetch("/api/anime/anilist-trending");
+        // Fetch trending only (faster, doesn't timeout)
+        const res = await fetch("/api/anime/anilist-trending?section=trending");
         if (!res.ok) return;
         const data = await res.json();
         if (cancelled) return;
 
-        // Dedupe all arrays by anime ID — no duplicates
+        // Dedupe by ID AND by base title (remove "Season X" suffix for comparison)
         const dedupe = (arr: any[]) => {
-          const seen = new Set();
+          const seenIds = new Set();
+          const seenTitles = new Set();
           return arr.filter(a => {
-            if (!a?.id || seen.has(a.id)) return false;
-            seen.add(a.id);
+            if (!a?.id) return false;
+            // Dedupe by ID
+            if (seenIds.has(a.id)) return false;
+            seenIds.add(a.id);
+            // Dedupe by base title (e.g. "Wistoria Season 2" and "Wistoria Season 3" = same base)
+            const title = getTitle(a).toLowerCase().replace(/\s*(season|cour|part)\s*\d+/gi, "").replace(/:\s*.*/g, "").trim();
+            if (title && seenTitles.has(title)) return false;
+            seenTitles.add(title);
             return true;
           });
         };
 
-        const all = dedupe(data.all || data.trending || data.media || []);
-        const trend = dedupe(data.trending || all);
-        const pop = dedupe(data.popular || all);
-        const top = dedupe(data.topRated || all);
-        const seas = dedupe(data.season || all);
+        const trend = dedupe(data.trending || data.all || data.media || []);
 
         if (trend.length > 0) setFeatured(trend.slice(0, 8));
         if (trend.length > 0) setTrending(trend);
-        if (pop.length > 0) setPopular(pop);
-        if (top.length > 0) setTopRated(top);
-        if (seas.length > 0) setSeason(seas);
-
-        // Use trending as "recently added" fallback
-        setRecent(all.length > 0 ? all : trend);
+        // Use trending for all sections (single fetch, no timeout)
+        setPopular(trend);
+        setTopRated([...trend].sort((a, b) => getScore(b) - getScore(a)));
+        setSeason(trend);
+        setRecent(trend);
       } catch (e) {
         console.error("Home page load error:", e);
       } finally {
