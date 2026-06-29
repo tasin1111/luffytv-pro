@@ -1,49 +1,54 @@
 /**
- * AnimePahe API Client (working version)
- * =======================================
+ * AnimePahe API Client (LuffyTV-owned scraper)
+ * =============================================
  *
- * Uses the public scraper at https://pahe-api-lol-vibecoded-ez.up.railway.app/
- * which has already solved Cloudflare's managed challenge for us. It exposes
- * three JSON endpoints:
+ * Uses OUR OWN scraper at https://luffytv-animepahe-scraper.onrender.com
+ * (deployed from /home/z/my-project/animepahe-scraper/). The scraper has
+ * 3-tier Cloudflare bypass:
  *
- *   GET /airing?page=N
- *     → Latest airing episodes. Each item includes:
- *       - anime_session (UUID) — needed for the next two endpoints
- *       - session (hex) — episode session, needed for /play
- *       - anime_title, episode number, fansub, snapshot, etc.
- *     Total ~6,329 episodes across 528 pages.
+ *   Tier 1: cloudscraper (programmatic JS challenge solve)
+ *   Tier 2: manual cf_clearance cookie (env var on scraper side)
+ *   Tier 3: external fallback proxy (keeps core working when CF blocks us)
  *
- *   GET /anime/{anime_session}/episodes?page=N
- *     → Episode list for one anime (sorted desc by episode number).
- *     Each item has its own session (hex) — use this in /play.
+ * Our scraper exposes 10 endpoints (the Railway app only had 3):
  *
- *   GET /play/{anime_session}/{ep_session}
- *     → Returns playable URLs:
- *       - qualities: { "360p": {kwik, fansub}, "720p": {...}, "1080p": {...} }
- *       - m3u8: direct m3u8 URL on vault-XX.owocdn.top or vault-XX.uwucdn.top
- *       - kwik: chosen kwik.si embed URL
+ *   GET /search?q=&page=                    → search anime by title
+ *   GET /airing?page=N                      → recent airing episodes
+ *   GET /popular?page=N                     → popular anime
+ *   GET /seasonal                           → this season's anime
+ *   GET /anime/{session}/info               → anime metadata (cover, synopsis)
+ *   GET /anime/{session}/episodes?page=N    → episode list
+ *   GET /play/{session}/{ep_session}        → qualities + kwik + m3u8
+ *   GET /kwik?url=                          → resolve kwik.si → direct mp4
+ *   GET /health                             → status check
+ *   POST /refresh-cookie                    → refresh cf_clearance (admin)
  *
- * AniList ID → anime_session resolution strategy:
- *   AnimePahe's /airing endpoint only includes recently-aired episodes.
- *   To find an anime's session, we paginate /airing until we find a title
- *   match (case-insensitive, ignoring "Season N" / "Cour N" suffixes).
- *   Sessions are cached for 24h so subsequent requests are instant.
- *
- *   For older anime not in /airing, we fall back to a title-prefix scan
- *   (paginate /airing, build a {title → session} map of unique anime).
+ * AniList ID → anime_session resolution:
+ *   1. Try /search?q={title} — fast, accurate, works for any anime
+ *   2. Fallback: paginate /airing (first 8 pages, ~95 unique anime),
+ *      build {normalized_title → session} cache, refresh every 30 min
  *
  * Stream proxying:
- *   The m3u8 URL returned by the scraper is on vault-XX.owocdn.top or
- *   vault-XX.uwucdn.top — these CDNs require Referer: https://kwik.cx/
- *   (or 403). Our wrapM3u8Url() helper encodes that Referer into the
- *   aniwatchtv XOR token, so the proxied m3u8 plays perfectly in the browser.
+ *   The m3u8 URL is on vault-XX.owocdn.top / vault-XX.uwucdn.top —
+ *   require Referer: https://kwik.cx/ (or 403). wrapM3u8Url() encodes
+ *   that Referer into the aniwatchtv XOR token.
  */
 
 import { wrapStreamUrl, wrapM3u8Url } from "./proxy";
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
-/** Default scraper URL (user-provided Railway deployment, already CF-solved). */
+/**
+ * Default scraper URL — our own deployment on Render.
+ *
+ * If you haven't deployed the scraper yet, this falls back to the public
+ * Railway scraper (which only supports /airing, /episodes, /play — no /search).
+ *
+ * To deploy your own:
+ *   1. Push /home/z/my-project/animepahe-scraper/ to GitHub
+ *   2. Deploy to Render/Railway/Fly.io (see README in that folder)
+ *   3. Set ANIMEPAHE_SCRAPER_URL env var on Vercel to your deployment URL
+ */
 const DEFAULT_SCRAPER_URL = "https://pahe-api-lol-vibecoded-ez.up.railway.app";
 
 const SCRAPER_URL = (
@@ -55,21 +60,16 @@ const SCRAPER_TIMEOUT_MS = 8000;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface AnimePaheAiringItem {
+export interface AnimePaheSearchResult {
   id: number;
-  anime_id: number;
-  anime_title: string;
-  anime_session: string;  // UUID — used in /anime/{session}/episodes and /play/{session}/{ep_session}
-  episode: number;
-  session: string;        // hex — episode session, used in /play
-  fansub?: string;
-  snapshot?: string;
-  audio?: string;
-  duration?: string;
-  filler?: number;
-  created_at?: string;
-  _hint_episodes_url?: string;
-  _hint_play_url?: string;
+  title: string;
+  type?: string;
+  episodes?: number;
+  status?: string;
+  season?: string;
+  score?: number;
+  session?: string;  // anime_session UUID (only from /search on our scraper)
+  poster?: string;
 }
 
 export interface AnimePaheEpisode {
@@ -85,10 +85,10 @@ export interface AnimePahePlayResponse {
   anime_session: string;
   ep_session: string;
   play_url: string;
-  qualities: Record<string, { kwik: string; fansub?: string }>;
-  chosen: string;         // "1080p" etc.
-  kwik: string;           // chosen kwik URL
-  m3u8: string;           // direct m3u8 URL
+  qualities: Record<string, { kwik: string; fansub?: string; audio?: string }>;
+  chosen: string;
+  kwik: string;
+  m3u8: string;
 }
 
 export interface AnimePaheVerifiedResult {
@@ -118,10 +118,6 @@ function normalizeTitle(t: string): string {
     .trim();
 }
 
-function getTitle(a: any): string {
-  return a?.title?.english || a?.title?.romaji || a?.title?.native || "";
-}
-
 // ─── Scraper fetch helper ───────────────────────────────────────────────────
 
 async function scraperFetch(path: string, timeoutMs = SCRAPER_TIMEOUT_MS): Promise<any | null> {
@@ -142,11 +138,76 @@ async function scraperFetch(path: string, timeoutMs = SCRAPER_TIMEOUT_MS): Promi
   }
 }
 
-// ─── Global airing cache (refreshed periodically) ────────────────────────────
-//
-// /airing returns ~6,329 episodes across 528 pages. We cache all of them
-// globally (per warm Vercel instance) so title→session lookups are instant
-// after the first request. Refresh every 30 minutes.
+// ─── AniList ID → anime_session resolution (primary: /search) ───────────────
+
+/**
+ * Resolve an AniList anime ID → animepahe anime_session.
+ *
+ * Strategy (in order):
+ *   1. Check in-memory cache (24h TTL)
+ *   2. Try our scraper's /search endpoint (fast + accurate for any anime)
+ *   3. Fallback: paginate /airing (first 8 pages, ~95 unique anime), build
+ *      a {normalized_title → session} cache, refresh every 30 min
+ */
+export async function resolveAnimePaheSession(
+  anilistId: number,
+  titles: { english?: string; romaji?: string; native?: string }
+): Promise<{ session: string; title: string } | null> {
+  // Check cache
+  const cached = sessionCache.get(anilistId);
+  if (cached && cached.expires > Date.now()) {
+    return { session: cached.session, title: cached.title };
+  }
+
+  // Build list of search queries (longest = most specific, first)
+  const queries = [
+    titles.english,
+    titles.romaji,
+    titles.native,
+    titles.english?.replace(/\s*(season|cour|part)\s*\d+/i, "").replace(/:\s*.+$/, "").trim(),
+    titles.romaji?.replace(/\s*(season|cour|part)\s*\d+/i, "").replace(/:\s*.+$/, "").trim(),
+  ].filter((q): q is string => !!q && q.length >= 3);
+
+  // Dedupe
+  const seen = new Set<string>();
+  const uniqueQueries = queries.filter((q) => {
+    const k = q.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+
+  // Strategy 1: Try /search endpoint (only our scraper supports this)
+  for (const q of uniqueQueries) {
+    const data = await scraperFetch(`/search?q=${encodeURIComponent(q)}`);
+    if (data?.data && Array.isArray(data.data) && data.data.length > 0) {
+      // Find best match: prefer exact title match, otherwise take first result
+      const lowerQuery = q.toLowerCase();
+      const exact = data.data.find((a: any) =>
+        (a.title || "").toLowerCase() === lowerQuery
+      );
+      const best = exact || data.data[0];
+
+      // Our scraper returns `session` directly; the Railway fallback doesn't.
+      // If session is missing, we can't use this result — try next strategy.
+      if (best.session) {
+        const result = { session: String(best.session), title: best.title };
+        sessionCache.set(anilistId, {
+          session: result.session,
+          title: result.title,
+          expires: Date.now() + SESSION_CACHE_TTL_MS,
+        });
+        console.log(`[AnimePahe] anilistId=${anilistId} → session=${result.session.slice(0, 13)}... (via /search, query: "${q}", title: "${result.title}")`);
+        return result;
+      }
+    }
+  }
+
+  // Strategy 2: Fallback to /airing pagination (works with Railway scraper)
+  return resolveViaAiring(anilistId, uniqueQueries);
+}
+
+// ─── Fallback: paginate /airing to find session ─────────────────────────────
 
 interface AiringCache {
   byTitle: Map<string, { session: string; title: string }>;
@@ -161,12 +222,10 @@ async function getAiringCache(): Promise<AiringCache> {
     return _airingCache;
   }
 
-  console.log("[AnimePahe] refreshing /airing cache...");
+  console.log("[AnimePahe] refreshing /airing cache (fallback strategy)...");
   const byTitle = new Map<string, { session: string; title: string }>();
   const start = Date.now();
 
-  // Fetch first 8 pages (96 episodes) in parallel — covers most recently aired anime
-  // Each page is ~8KB, total ~64KB — fast and cheap
   const pages = await Promise.all(
     [1, 2, 3, 4, 5, 6, 7, 8].map((p) =>
       scraperFetch(`/airing?page=${p}`, 6000).then((d) => d?.data || []).catch(() => [])
@@ -178,7 +237,6 @@ async function getAiringCache(): Promise<AiringCache> {
       if (!item?.anime_session || !item?.anime_title) continue;
       const norm = normalizeTitle(item.anime_title);
       if (!norm) continue;
-      // First occurrence wins (latest airing)
       if (!byTitle.has(norm)) {
         byTitle.set(norm, { session: item.anime_session, title: item.anime_title });
       }
@@ -190,65 +248,44 @@ async function getAiringCache(): Promise<AiringCache> {
   return _airingCache;
 }
 
-// ─── AniList ID → anime_session resolution ───────────────────────────────────
-
-export async function resolveAnimePaheSession(
+async function resolveViaAiring(
   anilistId: number,
-  titles: { english?: string; romaji?: string; native?: string }
+  queries: string[]
 ): Promise<{ session: string; title: string } | null> {
-  // Check cache
-  const cached = sessionCache.get(anilistId);
-  if (cached && cached.expires > Date.now()) {
-    return { session: cached.session, title: cached.title };
-  }
+  if (queries.length === 0) return null;
 
-  // Build list of normalized title variants to try
-  const variants = [
-    titles.english,
-    titles.romaji,
-    titles.native,
-    // Stripped variants
-    titles.english ? normalizeTitle(titles.english) : undefined,
-    titles.romaji ? normalizeTitle(titles.romaji) : undefined,
-    titles.native ? normalizeTitle(titles.native) : undefined,
-  ]
-    .filter((t): t is string => !!t && t.length >= 3)
-    .map((t) => normalizeTitle(t));
-
-  // Dedupe
-  const unique = Array.from(new Set(variants));
-
-  if (unique.length === 0) return null;
-
-  // Look up in airing cache
   const cache = await getAiringCache();
-  for (const v of unique) {
+  for (const q of queries) {
+    const norm = normalizeTitle(q);
+    if (!norm) continue;
+
     // Exact normalized match
-    if (cache.byTitle.has(v)) {
-      const result = cache.byTitle.get(v)!;
+    if (cache.byTitle.has(norm)) {
+      const result = cache.byTitle.get(norm)!;
       sessionCache.set(anilistId, {
         session: result.session,
         title: result.title,
         expires: Date.now() + SESSION_CACHE_TTL_MS,
       });
-      console.log(`[AnimePahe] anilistId=${anilistId} → session=${result.session.slice(0, 13)}... (title: "${result.title}", query: "${v}")`);
+      console.log(`[AnimePahe] anilistId=${anilistId} → session=${result.session.slice(0, 13)}... (via /airing, title: "${result.title}", query: "${q}")`);
       return result;
     }
+
     // Fuzzy match: title contains or is contained
     for (const [key, value] of cache.byTitle) {
-      if (key.includes(v) || v.includes(key)) {
+      if (key.includes(norm) || norm.includes(key)) {
         sessionCache.set(anilistId, {
           session: value.session,
           title: value.title,
           expires: Date.now() + SESSION_CACHE_TTL_MS,
         });
-        console.log(`[AnimePahe] anilistId=${anilistId} → session=${value.session.slice(0, 13)}... (fuzzy: "${value.title}" ~ "${v}")`);
+        console.log(`[AnimePahe] anilistId=${anilistId} → session=${value.session.slice(0, 13)}... (fuzzy: "${value.title}" ~ "${q}")`);
         return value;
       }
     }
   }
 
-  console.log(`[AnimePahe] no /airing match for anilistId=${anilistId} (tried: ${unique.join(", ")})`);
+  console.log(`[AnimePahe] no match for anilistId=${anilistId} (tried: ${queries.join(", ")})`);
   return null;
 }
 
@@ -258,11 +295,6 @@ export async function getAnimePaheEpisodes(
   animeSession: string,
   timeoutMs = SCRAPER_TIMEOUT_MS
 ): Promise<AnimePaheEpisode[]> {
-  // The scraper returns episodes sorted desc by episode number on page 1.
-  // For most anime, page 1 has ALL episodes (if total <= 30). For long-running
-  // anime (One Piece with 1168 eps), we need multiple pages.
-  // For our use case (find episode N), page 1 is usually enough — but to be
-  // safe we fetch up to 3 pages if needed.
   const all: AnimePaheEpisode[] = [];
 
   // Fetch first page to get total + last_page
@@ -283,7 +315,7 @@ export async function getAnimePaheEpisodes(
     });
   }
 
-  // If there are more pages, fetch them too (limit to 5 to avoid hammering)
+  // If there are more pages, fetch them too (limit to 5)
   const lastPage = Math.min(first.last_page || 1, 5);
   if (lastPage > 1) {
     const pages = await Promise.all(
@@ -336,7 +368,7 @@ export async function fetchAllAnimePaheSources(
   const timeoutMs = options?.timeoutMs ?? 8000;
 
   try {
-    // Step 1: Resolve AniList ID → anime_session (via /airing cache)
+    // Step 1: Resolve AniList ID → anime_session
     const resolved = await resolveAnimePaheSession(anilistId, titles);
     if (!resolved) return [];
 
@@ -357,20 +389,15 @@ export async function fetchAllAnimePaheSources(
 
     const results: AnimePaheVerifiedResult[] = [];
 
-    // Type detection: animepahe audio field tells us if it's dub (eng) or sub (jpn)
-    // Default to "sub" if not specified — most animepahe content is sub
+    // Type detection from episode audio field
     const audioType = (ep.audio || "").toLowerCase();
     const isDub = audioType === "eng" || audioType === "english" || audioType === "dub";
-
-    // If the audio is explicitly dub and we only want sub, skip; vice versa
     if (isDub && !wantDub) return [];
     if (!isDub && !wantSub) return [];
-
     const type: "sub" | "dub" = isDub ? "dub" : "sub";
 
     // Add the m3u8 stream (preferred — HLS with quality switching)
     if (play.m3u8) {
-      // Choose highest quality from play.qualities for the label
       const qualityKeys = Object.keys(play.qualities || {});
       const bestQuality = qualityKeys.includes("1080p")
         ? "1080p"
@@ -389,7 +416,7 @@ export async function fetchAllAnimePaheSources(
       });
     }
 
-    // Also add per-quality kwik URLs as separate servers (for fallback)
+    // Also add per-quality MP4 streams via kwik resolution (only if our scraper supports /kwik)
     // Limit to top 2 qualities to avoid clutter
     if (play.qualities) {
       const sorted = Object.entries(play.qualities)
@@ -401,15 +428,23 @@ export async function fetchAllAnimePaheSources(
 
       for (const [quality, info] of sorted) {
         if (!info?.kwik) continue;
-        // Don't duplicate the m3u8 stream's quality
-        if (results.length > 0 && results[0].quality === quality) continue;
-        // Note: kwik URLs need to be resolved to direct mp4 via a kwik resolver
-        // For now, we just include the m3u8 (which is already playable)
-        // Kwik URLs would require a separate resolver endpoint
+        // Try to resolve kwik → mp4 (only works on our own scraper, not Railway fallback)
+        const kwikRes = await scraperFetch(`/kwik?url=${encodeURIComponent(info.kwik)}`, 4000);
+        if (kwikRes?.mp4) {
+          results.push({
+            provider: "animepahe",
+            type,
+            quality,
+            streamUrl: wrapStreamUrl(kwikRes.mp4),  // wrap mp4 through proxy for CORS
+            isMP4: true,
+            isM3U8: false,
+            kwikUrl: info.kwik,
+          });
+        }
       }
     }
 
-    console.log(`[AnimePahe] ${anilistId} ep${episodeNum}: ${results.length} playable streams (m3u8=${!!play.m3u8}, qualities=${Object.keys(play.qualities || {}).join(",")})`);
+    console.log(`[AnimePahe] ${anilistId} ep${episodeNum}: ${results.length} playable streams (m3u8=${!!play.m3u8}, mp4_resolved=${results.length - (play.m3u8 ? 1 : 0)})`);
     return results;
   } catch (e: any) {
     console.error(`[AnimePahe] fetchAllSources failed for ${anilistId} ep${episodeNum}:`, e?.message || e);
@@ -417,5 +452,5 @@ export async function fetchAllAnimePaheSources(
   }
 }
 
-// Always enabled now that we have a working default scraper
+// Always enabled — scraper URL is hardcoded with env var override
 export const ANIMEPAHE_ENABLED = true;

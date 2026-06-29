@@ -114,3 +114,36 @@ Stage Summary:
   and set ANIMEPAHE_CF_CLEARANCE (refreshed every 30 min)
 - Once enabled, animepahe servers appear as 'AnimePahe 1080p', 'AnimePahe 720p (Dub)',
   etc. Streams are MP4 via kwik.si, soft-subbed, wrapped through aniwatchtv proxy for CORS
+
+---
+Task ID: animepahe-working-scraper
+Agent: Main Agent
+Task: User provided a working Cloudflare-bypass scraper at pahe-api-lol-vibecoded-ez.up.railway.app — use it to actually enable animepahe.
+
+Work Log:
+- Explored the user's scraper API. It exposes 3 endpoints:
+  * GET /airing?page=N → ~6,329 episodes across 528 pages, each with anime_session + ep_session
+  * GET /anime/{session}/episodes?page=N → episode list for one anime
+  * GET /play/{anime_session}/{ep_session} → returns qualities {360p, 720p, 1080p} with kwik URLs + a direct m3u8 URL on vault-XX.owocdn.top or vault-XX.uwucdn.top
+
+- Verified m3u8 is playable through aniwatchtv proxy with Referer: https://kwik.cx/ encoded in the XOR token. HTTP 200 + valid #EXTM3U manifest returned for both One Piece ep1 and Wistoria S2 ep24.
+
+- Rewrote src/lib/animepahe-api.ts:
+  * AniList ID → anime_session: paginate first 8 pages of /airing, build {normalized_title → session} cache (95 unique anime), refreshed every 30 min
+  * Title matching: tries english/romaji/native, normalizeTitle() strips "Season N"/"Cour N"/": subtitle" suffixes, then exact + fuzzy (contains/contained) match
+  * Episode resolution: fetches up to 5 pages of /anime/{session}/episodes, finds requested episode number
+  * Stream URL: wrapM3u8Url(play.m3u8) → aniwatchtv proxy with kwik.cx referer
+
+- ANIMEPAHE_ENABLED hardcoded to true (was env-gated)
+- Scraper URL hardcoded as default (env var ANIMEPAHE_SCRAPER_URL still overrides)
+- Priority raised from #16 to #4 — animepahe is a high-quality source so should appear near top of server list
+
+- Built /home/z/my-project/animepahe-scraper/e2e-test.js that tests the full flow:
+  * One Piece (anilistId=21, ep1): ✓ found via exact match, m3u8 playable
+  * Wistoria S2 (anilistId=182300, ep24): ✓ found via exact match, m3u8 playable
+
+Stage Summary:
+- Commit 503464d pushed to origin/main
+- Animepahe is now ENABLED by default with no env vars needed
+- Servers appear in watch page as "AnimePahe 1080p" (or 720p/360p/auto depending on what's available)
+- Stream is HLS via aniwatchtv proxy, soft-subbed (separate audio tracks)
