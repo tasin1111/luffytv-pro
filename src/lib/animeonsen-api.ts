@@ -29,7 +29,7 @@ import { wrapStreamUrl, wrapM3u8Url, workerWrap } from "./proxy";
 
 const ONSEN_HOME = "https://www.animeonsen.xyz/";
 const ONSEN_API = "https://api.animeonsen.xyz";
-const SCRAPER_TIMEOUT_MS = 8000;
+const SCRAPER_TIMEOUT_MS = 5000;
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
@@ -96,18 +96,21 @@ async function getSession(): Promise<OnsenSession> {
   console.log("[AnimeOnsen] acquiring fresh session...");
   const start = Date.now();
 
-  // Step 1: Visit home page to get ao.session cookie
-  const homeRes = await fetch(ONSEN_HOME, {
-    headers: {
-      "User-Agent": UA,
-      Accept: "text/html,application/xhtml+xml",
-      "Accept-Language": "en-US,en;q=0.9",
-    },
-    cache: "no-store",
-  });
+  // Step 1: Visit home page to get ao.session cookie (5s timeout)
+  const homeRes = await Promise.race([
+    fetch(ONSEN_HOME, {
+      headers: {
+        "User-Agent": UA,
+        Accept: "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      cache: "no-store",
+    }),
+    new Promise<Response | null>(r => setTimeout(() => r(null), 5000)),
+  ]);
 
-  if (!homeRes.ok) {
-    throw new Error(`Failed to fetch animeonsen.xyz home: HTTP ${homeRes.status}`);
+  if (!homeRes || !homeRes.ok) {
+    throw new Error(`Failed to fetch animeonsen.xyz home: ${homeRes ? `HTTP ${homeRes.status}` : 'timeout'}`);
   }
 
   // Extract ao.session cookie from Set-Cookie header

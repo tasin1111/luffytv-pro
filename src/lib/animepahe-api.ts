@@ -56,7 +56,7 @@ const SCRAPER_URL = (
   DEFAULT_SCRAPER_URL
 ).replace(/\/$/, "");
 
-const SCRAPER_TIMEOUT_MS = 8000;
+const SCRAPER_TIMEOUT_MS = 5000;
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -227,9 +227,12 @@ async function getAiringCache(): Promise<AiringCache> {
   const byTitle = new Map<string, { session: string; title: string }>();
   const start = Date.now();
 
+  // Reduced from 8 pages to 3 pages to avoid timeout.
+  // 3 pages × 4s = 12s worst case (was 8 pages × 6s = 48s).
+  // 3 pages = 36 episodes = ~30 unique anime (enough for most recently-aired).
   const pages = await Promise.all(
-    [1, 2, 3, 4, 5, 6, 7, 8].map((p) =>
-      scraperFetch(`/airing?page=${p}`, 6000).then((d) => d?.data || []).catch(() => [])
+    [1, 2, 3].map((p) =>
+      scraperFetch(`/airing?page=${p}`, 4000).then((d) => d?.data || []).catch(() => [])
     )
   );
 
@@ -316,8 +319,8 @@ export async function getAnimePaheEpisodes(
     });
   }
 
-  // If there are more pages, fetch them too (limit to 5)
-  const lastPage = Math.min(first.last_page || 1, 5);
+  // If there are more pages, fetch them too (limit to 2 to avoid timeout)
+  const lastPage = Math.min(first.last_page || 1, 2);
   if (lastPage > 1) {
     const pages = await Promise.all(
       Array.from({ length: lastPage - 1 }, (_, i) => i + 2).map((p) =>
