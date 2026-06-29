@@ -353,6 +353,8 @@ const PROVIDER_PRIORITY = [
 
 export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const navigate = useAppStore(s => s.navigate);
+  const addToHistory = useAppStore(s => s.addToHistory);
+  const updateHistoryProgress = useAppStore(s => s.updateHistoryProgress);
 
   // ── AniList ID ──
   const parsedId = (() => {
@@ -912,7 +914,54 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     setStreamData(newStreamData);
     setStreamLoading(false);
     setStreamError(null);
+
+    // ── Save to history (Continue Watching) ──
+    // Adds this episode to the history store so it appears in the
+    // "Continue Watching" section on the home page. Progress is 0 on
+    // initial load — the progress update effect below keeps it in sync.
+    if (animeTitle && animeId) {
+      addToHistory({
+        animeId,
+        animeName: animeTitle,
+        thumbnail: animeImage || undefined,
+        episodeNum,
+        progress: 0,
+        duration: 0,
+      });
+    }
   }, [selectedServer, serverList]);
+
+  // ── Track playback progress for Continue Watching ──
+  // Listens to the video element's timeupdate event and saves progress
+  // to the history store every 10 seconds (throttled to avoid spamming).
+  useEffect(() => {
+    if (!animeId || !episodeNum) return;
+    let lastSave = 0;
+    const handleTimeUpdate = () => {
+      const video = document.querySelector("video");
+      if (!video) return;
+      const now = Date.now();
+      // Throttle: save at most every 10 seconds
+      if (now - lastSave < 10000) return;
+      lastSave = now;
+      const progress = video.duration > 0 ? (video.currentTime / video.duration) * 100 : 0;
+      updateHistoryProgress(animeId, episodeNum, progress, video.duration || 0);
+    };
+    // Poll for the video element every 2 seconds (it may not exist yet
+    // when this effect first runs — the player loads asynchronously)
+    const pollInterval = setInterval(() => {
+      const video = document.querySelector("video");
+      if (video) {
+        video.addEventListener("timeupdate", handleTimeUpdate);
+        clearInterval(pollInterval);
+      }
+    }, 2000);
+    return () => {
+      clearInterval(pollInterval);
+      const video = document.querySelector("video");
+      if (video) video.removeEventListener("timeupdate", handleTimeUpdate);
+    };
+  }, [animeId, episodeNum, updateHistoryProgress]);
 
   // ── Next airing countdown ──
   useEffect(() => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 
 // ============================================================
 // Anime Types (from AllAnime + Miruro)
@@ -142,10 +143,23 @@ interface AppState {
   setBookmarks: (items: BookmarkItem[]) => void;
   history: HistoryItem[];
   setHistory: (items: HistoryItem[]) => void;
+  /** Add or update a history entry (called when user starts/resumes watching) */
+  addToHistory: (item: {
+    animeId: string;
+    animeName: string;
+    thumbnail?: string;
+    episodeNum: number;
+    progress?: number;
+    duration?: number;
+  }) => void;
+  /** Update progress for an existing history entry (called periodically during playback) */
+  updateHistoryProgress: (animeId: string, episodeNum: number, progress: number, duration: number) => void;
   isBookmarked: (animeId: string) => boolean;
 }
 
-export const useAppStore = create<AppState>((set, get) => ({
+export const useAppStore = create<AppState>()(
+  persist(
+    (set, get) => ({
   route: { page: "home" },
   sectionSubPage: "home",
   setSectionSubPage: (subPage) => set({ sectionSubPage: subPage }),
@@ -206,8 +220,44 @@ export const useAppStore = create<AppState>((set, get) => ({
   setBookmarks: (items) => set({ bookmarks: items }),
   history: [],
   setHistory: (items) => set({ history: items }),
+  addToHistory: (item) => set((state) => {
+    const id = `${item.animeId}-${item.episodeNum}`;
+    const now = new Date().toISOString();
+    // Remove any existing entry for this anime+episode, then prepend
+    const filtered = state.history.filter(
+      (h) => !(h.animeId === item.animeId && h.episodeNum === item.episodeNum)
+    );
+    const newEntry: HistoryItem = {
+      id,
+      animeId: item.animeId,
+      animeName: item.animeName,
+      thumbnail: item.thumbnail,
+      episodeNum: item.episodeNum,
+      progress: item.progress || 0,
+      duration: item.duration || 0,
+      updatedAt: now,
+    };
+    // Keep at most 50 entries
+    return { history: [newEntry, ...filtered].slice(0, 50) };
+  }),
+  updateHistoryProgress: (animeId, episodeNum, progress, duration) => set((state) => ({
+    history: state.history.map((h) =>
+      h.animeId === animeId && h.episodeNum === episodeNum
+        ? { ...h, progress, duration, updatedAt: new Date().toISOString() }
+        : h
+    ),
+  })),
   isBookmarked: (animeId) => get().bookmarks.some((b) => b.animeId === animeId),
-}));
+    }),
+    {
+      name: "luffytv-store",
+      partialize: (state) => ({
+        history: state.history,
+        bookmarks: state.bookmarks,
+      }),
+    }
+  )
+);
 
 // Get the section-specific nav links based on current route
 export function getSectionNavLinks(route: Route): { id: SectionSubPage; label: string }[] {

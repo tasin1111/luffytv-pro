@@ -247,7 +247,7 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
 
 function ContinueWatching({ navigate }: { navigate: (r: any) => void }) {
   const history = useAppStore(s => s.history);
-  const recent = history.slice(0, 6);
+  const recent = history.slice(0, 10);
 
   if (recent.length === 0) return null;
 
@@ -255,36 +255,56 @@ function ContinueWatching({ navigate }: { navigate: (r: any) => void }) {
     <section className="px-6 md:px-12 lg:px-16 py-8">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-xl font-bold text-white">Continue Watching</h2>
+        <button
+          onClick={() => navigate({ page: "history" })}
+          className="text-xs text-white/40 hover:text-white transition-colors"
+        >
+          View All
+        </button>
       </div>
       <div className="flex gap-4 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
-        {recent.map(h => (
-          <button
-            key={h.animeId + h.episode}
-            onClick={() => navigate({ page: "watch", id: h.animeId, episode: h.episode, title: h.animeName, image: h.thumbnail })}
-            className="group shrink-0 w-[280px] text-left"
-          >
-            <div className="relative w-full aspect-video bg-white/5 overflow-hidden" style={{ borderRadius: "4px" }}>
-              {h.thumbnail && (
-                <img src={h.thumbnail} alt="" className="w-full h-full object-cover" loading="lazy" />
-              )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
-              {/* Progress bar */}
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
-                <div className="h-full bg-white" style={{ width: "30%" }} />
-              </div>
-              {/* Play button overlay */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="w-12 h-12 rounded-full bg-white/90 flex items-center justify-center">
-                  <svg className="w-5 h-5 text-black ml-0.5" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+        {recent.map(h => {
+          const progressPercent = h.duration > 0 ? Math.min((h.progress / h.duration) * 100, 100) : (h.progress || 0);
+          const remainingMin = h.duration > 0 ? Math.max(0, Math.round((h.duration - (h.progress / 100) * h.duration) / 60)) : 0;
+          return (
+            <button
+              key={h.animeId + h.episode}
+              onClick={() => navigate({ page: "watch", id: h.animeId, episode: h.episode, title: h.animeName, image: h.thumbnail })}
+              className="group shrink-0 w-[300px] text-left"
+            >
+              <div className="relative w-full aspect-video bg-white/5 overflow-hidden" style={{ borderRadius: "4px" }}>
+                {h.thumbnail && (
+                  <img src={h.thumbnail} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                )}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                {/* Play button overlay */}
+                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center">
+                    <svg className="w-6 h-6 text-black ml-1" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                  </div>
+                </div>
+                {/* Progress bar */}
+                <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-white/20">
+                  <div className="h-full bg-white" style={{ width: `${progressPercent}%` }} />
+                </div>
+                {/* Episode badge */}
+                <div className="absolute top-2 right-2 px-2 py-0.5 bg-black/80 backdrop-blur-sm text-[10px] font-bold text-white" style={{ borderRadius: "3px" }}>
+                  EP {h.episode}
                 </div>
               </div>
-            </div>
-            <div className="mt-2">
-              <p className="text-sm font-semibold text-white truncate">{h.animeName}</p>
-              <p className="text-xs text-white/40">Episode {h.episode}</p>
-            </div>
-          </button>
-        ))}
+              <div className="mt-2.5">
+                <p className="text-sm font-semibold text-white truncate group-hover:text-white/80 transition-colors">{h.animeName}</p>
+                <div className="flex items-center justify-between mt-1">
+                  <p className="text-xs text-white/40">Episode {h.episode}</p>
+                  <p className="text-xs text-white/30">
+                    {progressPercent > 0 ? `${Math.round(progressPercent)}%` : "Just started"}
+                    {remainingMin > 0 && progressPercent < 95 ? ` · ${remainingMin}m left` : ""}
+                  </p>
+                </div>
+              </div>
+            </button>
+          );
+        })}
       </div>
     </section>
   );
