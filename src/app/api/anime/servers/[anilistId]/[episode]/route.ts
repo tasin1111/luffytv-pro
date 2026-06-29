@@ -50,8 +50,11 @@ const ANIVAULT_API = "https://anivault-scraper.up.railway.app/api/watch/animehea
 const ANIVEXA_API = "https://anivexa-api-tawny.vercel.app";
 const ANIVAULT_SENSHI = "https://anivault-scraper.up.railway.app/api/watch/senshi"; // broken — CF blocks
 
-// AniVexa providers that work (tested)
-const ANIVEXA_PROVIDERS = ["animegg", "allmanga", "anikoto", "anineko"] as const;
+// AniVexa providers that work (tested) — reduced to 2 to avoid 60s timeout.
+// Each provider × 2 types = 4 candidates, each with up to 8s API + 5s clock.json
+// = 13s worst case per candidate. 4 candidates × 13s = 52s (under 60s limit).
+// Original 4 providers × 2 = 8 candidates × 13s = 104s (OVER limit → 500 error).
+const ANIVEXA_PROVIDERS = ["allmanga", "anineko"] as const;
 
 /**
  * Build a proxy URL using proxy.anikuro.to — the same proxy that was working
@@ -140,15 +143,18 @@ export async function GET(
   let animeTitle = "Anime";
   let animeTitles: { english?: string; romaji?: string; native?: string } = {};
   try {
-    const titleRes = await fetch("https://graphql.anilist.co", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: `query($id:Int){Media(id:$id,type:ANIME){id title{english romaji native}}}`,
-        variables: { id },
+    const titleRes = await Promise.race([
+      fetch("https://graphql.anilist.co", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `query($id:Int){Media(id:$id,type:ANIME){id title{english romaji native}}}`,
+          variables: { id },
+        }),
       }),
-    });
-    if (titleRes.ok) {
+      new Promise<Response | null>(r => setTimeout(() => r(null), 5000)),
+    ]);
+    if (titleRes && titleRes.ok) {
       const titleData = await titleRes.json();
       const t = titleData?.data?.Media?.title;
       animeTitles = { english: t?.english, romaji: t?.romaji, native: t?.native };
@@ -256,9 +262,8 @@ export async function GET(
   }
 
   // Senshi via AniVault anikoto source (CF bypass)
-  // Only add 2 servers (sub + dub) to keep verification fast
+  // Only add 1 server (sub) to keep verification fast — dub is rarely used
   candidates.push({ id: "senshi:VidPlay-1:sub", name: "Senshi", source: "senshi", provider: "VidPlay-1", type: "sub" });
-  candidates.push({ id: "senshi:VidPlay-1:dub", name: "Senshi (Dub)", source: "senshi", provider: "VidPlay-1", type: "dub" });
 
   // AniDap results are ALREADY verified playable (fetchAllAniDapSources filters out
   // providers with no playable stream). We push them straight into the final list
@@ -602,7 +607,7 @@ export async function GET(
       if (c.source === "miruro") {
         const result = await Promise.race([
           getSourceFromProvider(id, epNum, c.type, c.provider),
-          new Promise<null>(r => setTimeout(() => r(null), 10000)),
+          new Promise<null>(r => setTimeout(() => r(null), 6000)),
         ]);
         if (result?.url) {
           const ref = result.streamReferer || "";
@@ -619,10 +624,10 @@ export async function GET(
         }
       }
       if (c.source === "anivexa") {
-        // Fetch from AniVexa API (increased timeout from 5s to 8s — was too short)
+        // Fetch from AniVexa API (5s timeout — was 8s, caused 60s limit breaches)
         const res = await Promise.race([
           fetch(`${ANIVEXA_API}/watch/${c.provider}/${id}/${c.type}/${c.provider}-${epNum}`).then(r => r.ok ? r.json() : null),
-          new Promise<null>(r => setTimeout(() => r(null), 8000)),
+          new Promise<null>(r => setTimeout(() => r(null), 5000)),
         ]);
         if (res) {
           let streamUrl: string | null = null;
@@ -660,7 +665,7 @@ export async function GET(
               try {
                 const clockRes = await Promise.race([
                   fetch(cs.url, { headers: { Referer: ref, "User-Agent": ua }, cache: "no-store" }).then(r => r.ok ? r.json() : null),
-                  new Promise<null>(r => setTimeout(() => r(null), 5000)),
+                  new Promise<null>(r => setTimeout(() => r(null), 3000)),
                 ]);
                 if (clockRes?.links?.length) {
                   const hlsLink = clockRes.links.find((l: any) => l.hls) || clockRes.links[0];

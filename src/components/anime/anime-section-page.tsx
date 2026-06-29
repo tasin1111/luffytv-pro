@@ -295,7 +295,7 @@ function ContinueWatching({ navigate }: { navigate: (r: any) => void }) {
               <div className="mt-2.5">
                 <p className="text-sm font-semibold text-white truncate group-hover:text-white/80 transition-colors">{h.animeName}</p>
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-white/40">Episode {h.episode}</p>
+                  <p className="text-xs font-medium text-white/60">Episode {h.episode}</p>
                   <p className="text-xs text-white/30">
                     {progressPercent > 0 ? `${Math.round(progressPercent)}%` : "Just started"}
                     {remainingMin > 0 && progressPercent < 95 ? ` · ${remainingMin}m left` : ""}
