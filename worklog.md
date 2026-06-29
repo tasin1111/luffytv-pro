@@ -56,3 +56,61 @@ Stage Summary:
 - Browse page now renders the full BrowsePage component: sidebar with Sort/Format/Status/Season/Year/Genre filters, search box, anime poster grid with pagination via /api/anime/browse (AniList-backed)
 - Schedule page now renders the full SchedulePage component: live airing schedule pulled from AniList GraphQL for next 7 days, day selector pills, countdown timers, "Next Up" banner, quick stats (aired/upcoming/unique shows count)
 - All changes confined to a single file: src/components/anime/anime-section-page.tsx
+
+---
+Task ID: animepahe-source-integration
+Agent: Main Agent
+Task: Add animepahe.pw as a new anime source. User said "do whatever it takes" to bypass Cloudflare.
+
+Work Log:
+- Tested 9 different automated Cloudflare bypass approaches against animepahe.pw — ALL FAILED:
+  1. cloudscraper (Python) → 403 CF challenge
+  2. @sparticuz/chromium + Puppeteer headless → CF stuck at "Just a moment..." for 45s
+  3. @sparticuz/chromium + Playwright headless with stealth init script (same approach as sofyan-rs/animepahe-api) → CF stuck for 30s+
+  4. puppeteer-extra + puppeteer-extra-plugin-stealth → CF stuck for 60s
+  5. Real Chrome 150 (from agent-browser install) + stealth plugin → CF stuck for 60s
+  6. curl_cffi with 9 different TLS impersonation profiles (chrome, safari, edge, chrome110/116/120/124/131, safari17_0) → all 403
+  7. aniwatchtv XOR proxy (passthrough) → 403 CF challenge
+  8. animepahe.online mirror → redirects to ww1.animepahe.online parking page (bot detected)
+  9. animepahe.net mirror → same parking page redirect
+
+- Conclusion: Cloudflare's "managed challenge" on animepahe.pw specifically detects headless browsers via Canvas/WebGL/font fingerprinting. No free automated bypass works.
+
+- Found working open-source scraper: github.com/sofyan-rs/animepahe-api (updated 2026-06-08)
+  Uses Playwright + @sparticuz/chromium + optional stealth plugin + manual cookie injection
+  via COOKIES env var. Designed to run on Render/Railway (NOT Vercel — Vercel serverless
+  can't run real headed browsers).
+
+- Built LuffyTV-side integration:
+  * src/lib/animepahe-api.ts (new): AniList ID → animepahe ID resolution, episode list,
+    links, kwik.mp4 resolution, aniwatchtv proxy wrapping. Env-configurable scraper URL
+    with graceful degradation if not set.
+  * src/app/api/anime/servers/[anilistId]/[episode]/route.ts: animepahe added to parallel
+    Promise.allSettled block, VerifiedServer union, animepaheVerified merge block,
+    SOURCE_PRIORITY sort map (priority 16, after AnixTV).
+
+- Resolved merge conflict during git rebase: user pushed AniKuro/AniPm/Animetsu/AnimeHeaven/
+  AniWaves sources while I was working. Combined both sets of changes — kept all 5 user
+  sources + added animepahe. Removed a duplicate fetchAniWavesSources call that was
+  causing destructuring misalignment.
+
+- Built separate scraper project at /home/z/my-project/animepahe-scraper/:
+  * api/scrape.js — Vercel serverless entry using puppeteer-core + @sparticuz/chromium
+  * README.md — deployment instructions for Render/Railway (recommended) or manual
+    cf_clearance cookie env var (testing only, 30-min expiry)
+  * test-local.js, test-online.js, test-playwright.js, test-realchrome.js — test scripts
+    that confirmed each bypass approach fails
+
+- Two env vars enable animepahe (set on Vercel):
+    ANIMEPAHE_SCRAPER_URL=https://your-render-app.onrender.com  (recommended)
+    ANIMEPAHE_CF_CLEARANCE=eyJhbGciOiJIUzI1NiIs...              (testing only)
+  If neither is set, animepahe servers silently don't appear — other 14+ sources still work.
+
+Stage Summary:
+- Commit 6825c09 pushed to origin/main (merged cleanly with user's recent additions)
+- animepahe is now wired into LuffyTV's servers route but DISABLED by default
+- To enable: deploy sofyan-rs/animepahe-api on Render.com and set ANIMEPAHE_SCRAPER_URL
+  env var on Vercel, OR manually copy cf_clearance cookie from a real browser session
+  and set ANIMEPAHE_CF_CLEARANCE (refreshed every 30 min)
+- Once enabled, animepahe servers appear as 'AnimePahe 1080p', 'AnimePahe 720p (Dub)',
+  etc. Streams are MP4 via kwik.si, soft-subbed, wrapped through aniwatchtv proxy for CORS

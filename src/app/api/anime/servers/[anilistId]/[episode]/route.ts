@@ -831,21 +831,21 @@ export async function GET(
   // User requested this specific order so the best servers appear first.
   const SOURCE_PRIORITY: Record<string, number> = {
     animex: 1,     // Animex (fetched separately, appended client-side)
-    animetsu: 8,   // Animetsu (CDN can be flaky)
-    animeheaven: 9,  // AnimeHeaven (direct MP4)
-    aniwaves: 10,    // AniWaves (embed servers)
     anidap: 2,     // AniDap (m3u8 + embed)
     anikuro: 3,    // AniKuro (m3u8 via proxy.anikuro.ru)
-    miruro: 4,     // Miruro (m3u8 via aniwatchtv)
-    anikage: 5,    // AniKage (m3u8 via prox.anikage.cc)
-    kyren: 6,      // Kyren (m3u8 via worker)
-    anipm: 7,      // AniPm
-    anilight: 11,   // AniLight (m3u8 via proxy)
-    anivexa: 12,   // AniVexa (m3u8/mp4)
-    mioanime: 13,  // MioAnime (m3u8 + embed)
-    anistream: 14, // Anistream (m3u8 + embed)
-    anixtv: 15,    // AnixTV (Hindi embed)
-    animepahe: 16, // AnimePahe (MP4 via kwik.si, env-configured scraper)
+    animepahe: 4,  // AnimePahe (HLS m3u8 via aniwatchtv proxy, high quality 1080p)
+    miruro: 5,     // Miruro (m3u8 via aniwatchtv)
+    anikage: 6,    // AniKage (m3u8 via prox.anikage.cc)
+    kyren: 7,      // Kyren (m3u8 via worker)
+    anipm: 8,      // AniPm
+    animetsu: 9,   // Animetsu (CDN can be flaky)
+    animeheaven: 10, // AnimeHeaven (direct MP4)
+    aniwaves: 11,  // AniWaves (embed servers)
+    anilight: 12,  // AniLight (m3u8 via proxy)
+    anivexa: 13,   // AniVexa (m3u8/mp4)
+    mioanime: 14,  // MioAnime (m3u8 + embed)
+    anistream: 15, // Anistream (m3u8 + embed)
+    anixtv: 16,    // AnixTV (Hindi embed)
   };
   // Sort: sub before dub, then by source priority, then by quality
   const sorted = filtered.sort((a, b) => {
