@@ -73,12 +73,38 @@ const CDN_REFERERS: Record<string, string> = {
 
 // Worker proxy is already defined at line 21 — no duplicate needed here.
 
+// Wildcard referer patterns — matched against the URL hostname.
+// Format: { regex: referer }
+// Used when a CDN serves content from many numbered subdomains
+// (e.g. vault-01.uwucdn.top, vault-99.owocdn.top) — adding each one
+// individually is unscalable.
+const CDN_REFERER_PATTERNS: Array<{ regex: RegExp; referer: string }> = [
+  // AnimePahe CDNs — kwik.si is the player, so kwik.cx referer is required.
+  // Without it, vault-XX.{owocdn,uwucdn}.top returns 403.
+  { regex: /^vault-\d+\.owocdn\.top$/i, referer: "https://kwik.cx/" },
+  { regex: /^vault-\d+\.uwucdn\.top$/i, referer: "https://kwik.cx/" },
+  // Also catch eu-XX.uwucdn.top and other regional variants
+  { regex: /^eu-\d+\.uwucdn\.top$/i,    referer: "https://kwik.cx/" },
+  { regex: /^us-\d+\.uwucdn\.top$/i,    referer: "https://kwik.cx/" },
+  { regex: /^[a-z]{2}-\d+\.(owocdn|uwucdn)\.top$/i, referer: "https://kwik.cx/" },
+];
+
 function getRefererFor(url: string): string {
   try {
     const parsed = new URL(url);
-    if (CDN_REFERERS[parsed.hostname]) return CDN_REFERERS[parsed.hostname];
+    const hostname = parsed.hostname;
+
+    // 1. Exact hostname match
+    if (CDN_REFERERS[hostname]) return CDN_REFERERS[hostname];
+
+    // 2. Suffix match (e.g. "cdn.example.com" matches "example.com")
     for (const h of Object.keys(CDN_REFERERS)) {
-      if (parsed.hostname.endsWith("." + h)) return CDN_REFERERS[h];
+      if (hostname.endsWith("." + h)) return CDN_REFERERS[h];
+    }
+
+    // 3. Wildcard pattern match (for vault-XX.{owocdn,uwucdn}.top etc.)
+    for (const { regex, referer } of CDN_REFERER_PATTERNS) {
+      if (regex.test(hostname)) return referer;
     }
   } catch {}
   return "https://www.miruro.tv/"; // default

@@ -738,13 +738,16 @@ export async function GET(
     if (r.status === "fulfilled" && r.value) verified.push(r.value);
   }
 
-  // ─── AnimePahe — pre-verified MP4 streams via kwik.si ──────────────────────
-  // (only fires if ANIMEPAHE_SCRAPER_URL or ANIMEPAHE_CF_CLEARANCE is set)
+  // ─── AnimePahe — pre-verified HLS m3u8 + MP4 streams via kwik.si ───────────
+  // (always fires — scraper URL is hardcoded with env var override)
   const animepaheVerified: VerifiedServer[] = [];
   if (animepaheResults.status === "fulfilled" && Array.isArray(animepaheResults.value)) {
     for (const r of animepaheResults.value) {
       const qualityLabel = r.quality || "auto";
       const typeTag = r.type === "dub" ? " (Dub)" : "";
+      // Detect embed URLs (kwik.cx raw embed fallback)
+      const isEmbed = r.isEmbed === true
+                    || r.streamUrl.includes("kwik.cx/e/");
       animepaheVerified.push({
         id: `animepahe:${r.type}:${qualityLabel}`,
         name: `AnimePahe ${qualityLabel}${typeTag}`,
@@ -755,6 +758,7 @@ export async function GET(
         streamUrl: r.streamUrl,
         isM3U8: r.isM3U8,
         isMP4: r.isMP4,
+        isEmbed,
         hardsub: false,  // animepahe subs are soft (separate audio track available)
       });
     }

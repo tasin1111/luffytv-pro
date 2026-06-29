@@ -98,6 +98,7 @@ export interface AnimePaheVerifiedResult {
   streamUrl: string;     // ready-to-play (proxied)
   isMP4: boolean;
   isM3U8: boolean;
+  isEmbed?: boolean;     // true for raw kwik.cx embed URLs (iframe)
   kwikUrl?: string;
 }
 
@@ -397,6 +398,9 @@ export async function fetchAllAnimePaheSources(
     const type: "sub" | "dub" = isDub ? "dub" : "sub";
 
     // Add the m3u8 stream (preferred — HLS with quality switching)
+    // This is the primary playable stream. It works through aniwatchtv proxy
+    // with the correct kwik.cx referer (now handled by CDN_REFERER_PATTERNS
+    // in proxy.ts for vault-XX.{owocdn,uwucdn}.top hostnames).
     if (play.m3u8) {
       const qualityKeys = Object.keys(play.qualities || {});
       const bestQuality = qualityKeys.includes("1080p")
@@ -416,8 +420,11 @@ export async function fetchAllAnimePaheSources(
       });
     }
 
-    // Also add per-quality MP4 streams via kwik resolution (only if our scraper supports /kwik)
-    // Limit to top 2 qualities to avoid clutter
+    // Also add per-quality MP4 streams via kwik resolution.
+    // Strategy: try our scraper's /kwik endpoint first; if it fails (kwik.cx
+    // blocks server-side fetches without cf_clearance), skip silently — the
+    // m3u8 stream above is already playable and contains the same content.
+    // Limit to top 2 qualities to avoid clutter.
     if (play.qualities) {
       const sorted = Object.entries(play.qualities)
         .sort(([a], [b]) => {
@@ -426,22 +433,46 @@ export async function fetchAllAnimePaheSources(
         })
         .slice(0, 2);
 
-      for (const [quality, info] of sorted) {
-        if (!info?.kwik) continue;
-        // Try to resolve kwik → mp4 (only works on our own scraper, not Railway fallback)
-        const kwikRes = await scraperFetch(`/kwik?url=${encodeURIComponent(info.kwik)}`, 4000);
-        if (kwikRes?.mp4) {
-          results.push({
-            provider: "animepahe",
-            type,
-            quality,
-            streamUrl: wrapStreamUrl(kwikRes.mp4),  // wrap mp4 through proxy for CORS
-            isMP4: true,
-            isM3U8: false,
-            kwikUrl: info.kwik,
-          });
-        }
+      // Run kwik resolution in parallel for speed
+      const mp4Results = await Promise.allSettled(
+        sorted.map(async ([quality, info]) => {
+          if (!info?.kwik) return null;
+          // Try our scraper's /kwik resolver (only works when scraper has cf_clearance)
+          const kwikRes = await scraperFetch(`/kwik?url=${encodeURIComponent(info.kwik)}`, 4000);
+          if (!kwikRes?.mp4) return null;
+          return { quality, kwik: info.kwik, mp4: kwikRes.mp4 };
+        })
+      );
+
+      for (const r of mp4Results) {
+        if (r.status !== "fulfilled" || !r.value) continue;
+        const { quality, kwik, mp4 } = r.value;
+        results.push({
+          provider: "animepahe",
+          type,
+          quality,
+          streamUrl: wrapStreamUrl(mp4),  // wrap mp4 through proxy for CORS
+          isMP4: true,
+          isM3U8: false,
+          kwikUrl: kwik,
+        });
       }
+    }
+
+    // If we have NO playable streams at all (no m3u8 + no MP4), make a
+    // last-ditch effort: use the kwik embed URL directly as an embed stream.
+    // The LuffyTV watch page supports iframe embeds for kwik.cx URLs.
+    if (results.length === 0 && play.kwik) {
+      results.push({
+        provider: "animepahe",
+        type,
+        quality: "auto",
+        streamUrl: play.kwik,  // raw kwik URL — watch page can iframe-embed it
+        isMP4: false,
+        isM3U8: false,
+        isEmbed: true,
+        kwikUrl: play.kwik,
+      });
     }
 
     console.log(`[AnimePahe] ${anilistId} ep${episodeNum}: ${results.length} playable streams (m3u8=${!!play.m3u8}, mp4_resolved=${results.length - (play.m3u8 ? 1 : 0)})`);
