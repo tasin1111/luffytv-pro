@@ -242,6 +242,102 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   TOP TRENDING — with ranking numbers (Netflix-style)
+   Large white numbers overlap the bottom-left of each poster card.
+   ═══════════════════════════════════════════════════════════════ */
+
+function TopTrending({ items, navigate }: { items: AnimeItem[]; navigate: (r: any) => void }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const top10 = items.slice(0, 10);
+
+  if (top10.length === 0) return null;
+
+  const scroll = (dir: "left" | "right") => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollBy({ left: dir === "right" ? 600 : -600, behavior: "smooth" });
+    }
+  };
+
+  return (
+    <section className="pl-6 md:pl-12 lg:pl-16 pr-0 py-8 overflow-hidden">
+      <div className="flex items-center justify-between mb-4 pr-6 md:pr-12 lg:pr-16">
+        <div className="flex items-center gap-2">
+          <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M13.5.67s.74 2.65.74 4.8c0 2.06-1.35 3.73-3.41 3.73-2.07 0-3.63-1.67-3.63-3.73l.03-.36C5.21 7.51 4 10.62 4 14c0 4.42 3.58 8 8 8s8-3.58 8-8C20 8.61 17.41 3.8 13.5.67zM11.71 19c-1.78 0-3.22-1.4-3.22-3.14 0-1.62 1.05-2.76 2.81-3.12 1.77-.36 3.6-1.21 4.62-2.58.39 1.29.59 2.65.59 4.04 0 2.65-2.15 4.8-4.8 4.8z" />
+          </svg>
+          <h2 className="text-xl font-bold text-white">Top Trending</h2>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => scroll("left")} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <button onClick={() => scroll("right")} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 hover:text-white transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+      </div>
+      <div ref={scrollRef} className="flex gap-2 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
+        {top10.map((anime, idx) => {
+          const cover = getCover(anime);
+          const title = getTitle(anime);
+          const score = getScore(anime);
+          const rank = idx + 1;
+          return (
+            <button
+              key={anime.id}
+              onClick={() => navigate({ page: "anime", id: String(anime.id) })}
+              className="group shrink-0 relative flex items-end"
+              style={{ width: "200px" }}
+            >
+              {/* Poster image */}
+              <div className="relative w-[120px] aspect-[2/3] bg-white/5 overflow-hidden shrink-0 z-10" style={{ borderRadius: "4px" }}>
+                {cover ? (
+                  <img src={cover} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-white/10 font-bold text-2xl">{title.charAt(0)}</div>
+                )}
+                {/* Score badge */}
+                {score > 0 && (
+                  <div className="absolute top-2 right-2 px-2 py-0.5 bg-black/80 backdrop-blur-sm text-xs font-bold text-white" style={{ borderRadius: "3px" }}>
+                    ★ {score}%
+                  </div>
+                )}
+              </div>
+              {/* Ranking number — overlaps bottom-left, extends to the left of the poster */}
+              <span
+                className="absolute font-black text-white leading-none select-none"
+                style={{
+                  fontSize: "110px",
+                  lineHeight: "0.8",
+                  left: "-30px",
+                  bottom: "-12px",
+                  WebkitTextStroke: "3px black",
+                  textShadow: "2px 2px 4px rgba(0,0,0,0.5)",
+                  fontFamily: "Arial Black, Arial, sans-serif",
+                  zIndex: 5,
+                  letterSpacing: "-0.05em",
+                }}
+              >
+                {rank}
+              </span>
+              {/* Title + meta below the card */}
+              <div className="absolute -bottom-14 left-0 right-0 text-left pl-[130px]">
+                <p className="text-xs font-semibold text-white truncate group-hover:text-white/80 transition-colors">{title}</p>
+                <p className="text-[10px] text-white/40 mt-0.5">
+                  {anime.format || "TV"} {anime.seasonYear ? `· ${anime.seasonYear}` : ""}
+                </p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      {/* Spacer for the title/meta below cards */}
+      <div className="h-12" />
+    </section>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
    CONTINUE WATCHING — From history
    ═══════════════════════════════════════════════════════════════ */
 
@@ -679,6 +775,9 @@ export default function AnimeSectionPage() {
 
       {/* Continue Watching */}
       <ContinueWatching navigate={navigate} />
+
+      {/* Top Trending — with ranking numbers (Netflix-style) */}
+      <TopTrending items={trending} navigate={navigate} />
 
       {/* Trending Now */}
       <Carousel
