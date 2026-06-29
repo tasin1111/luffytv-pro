@@ -182,7 +182,10 @@ export async function GET(
     })(),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/sub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
     fetch(`${ANIVAULT_API}/${id}/${epNum}/dub?server=AnimeHeaven`).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: ANIDAP_TIMEOUT }),
+    // AniDap, AniKuro, Animetsu now fetched SEPARATELY via dedicated endpoints
+    // (they're slow and were blocking the main servers route).
+    // Watch page fetches them in parallel via /api/anime/{anidap,anikuro,animetsu}-servers/
+    Promise.resolve([]),  // anidapResults — fetched separately
     fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
     fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
     fetchAnikageSources(id, epNum, { timeoutMs: OTHER_TIMEOUT }),
@@ -191,15 +194,12 @@ export async function GET(
     // Returns DIRECT stream URLs — no XOR wrapper, no cdn.animex.su needed.
     // Has embed providers too (ok.ru, mp4upload) for some servers.
     fetchAnistreamSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
-    // AniKuro.ru: Russian aggregator with 11 providers (animepahe, anikoto, animegg, etc.)
-    // Returns stream URLs through proxy.anikuro.ru (base64-encoded, CORS enabled).
-    fetchAnikuroSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
+    Promise.resolve([]),  // anikuroResults — fetched separately
     // Played as iframe embeds (kwik.cx blocks server-side scraping).
     // Ani.pm: Full scraper with categorized servers (Nova, Halo, Lyra, Cobalt, Orion, etc.)
     // Returns HLS (via worker proxy), MP4, and embed URLs.
     fetchAniPmSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
-    // Animetsu: 4 providers (kite, dio, sage, meg) with 360p/720p/1080p + subtitles + intro/outro
-    fetchAnimetsuSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
+    Promise.resolve([]),  // animetsuResults — fetched separately
     // AnimeHeaven.me — direct MP4 streams
     fetchAnimeHeavenSources(id, epNum, { timeoutMs: OTHER_TIMEOUT }),
     // AnimePahe: external scraper with Cloudflare bypass (env-configured).

@@ -802,6 +802,59 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         console.log("[WatchPage] Animex servers failed to load (non-critical)");
       });
 
+    // ── Fetch AniDap servers SEPARATELY (13+ providers, batched — slow) ──
+    fetch(`/api/anime/anidap-servers/${anilistId}/${episodeNum}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(anidapData => {
+        if (cancelled || !anidapData?.servers?.length) return;
+        setServerList(prev => {
+          const existingIds = new Set(prev.map(s => s.id));
+          const newServers = anidapData.servers.filter((s: ServerEntry) => !existingIds.has(s.id));
+          const combined = [...prev, ...newServers];
+          const hasDub = combined.some((s: ServerEntry) => s.type === "dub" && s.source !== "anixtv");
+          const hasHardsub = combined.some((s: ServerEntry) => s.type === "sub" && s.hardsub === true);
+          const hasSoftsub = combined.some((s: ServerEntry) => s.type === "sub" && s.hardsub !== true);
+          setDubAvailable(hasDub);
+          setHardsubAvailable(hasHardsub);
+          setSoftsubAvailable(hasSoftsub);
+          console.log(`[WatchPage] AniDap servers loaded: +${newServers.length} (total: ${combined.length})`);
+          return combined;
+        });
+      })
+      .catch(() => console.log("[WatchPage] AniDap servers failed to load (non-critical)"));
+
+    // ── Fetch AniKuro servers SEPARATELY (11 providers via proxy.anikuro.ru) ──
+    fetch(`/api/anime/anikuro-servers/${anilistId}/${episodeNum}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(anikuroData => {
+        if (cancelled || !anikuroData?.servers?.length) return;
+        setServerList(prev => {
+          const existingIds = new Set(prev.map(s => s.id));
+          const newServers = anikuroData.servers.filter((s: ServerEntry) => !existingIds.has(s.id));
+          const combined = [...prev, ...newServers];
+          const hasDub = combined.some((s: ServerEntry) => s.type === "dub" && s.source !== "anixtv");
+          setDubAvailable(hasDub);
+          console.log(`[WatchPage] AniKuro servers loaded: +${newServers.length} (total: ${combined.length})`);
+          return combined;
+        });
+      })
+      .catch(() => console.log("[WatchPage] AniKuro servers failed to load (non-critical)"));
+
+    // ── Fetch Animetsu servers SEPARATELY (4 providers via scraper proxy) ──
+    fetch(`/api/anime/animetsu-servers/${anilistId}/${episodeNum}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(animetsuData => {
+        if (cancelled || !animetsuData?.servers?.length) return;
+        setServerList(prev => {
+          const existingIds = new Set(prev.map(s => s.id));
+          const newServers = animetsuData.servers.filter((s: ServerEntry) => !existingIds.has(s.id));
+          const combined = [...prev, ...newServers];
+          console.log(`[WatchPage] Animetsu servers loaded: +${newServers.length} (total: ${combined.length})`);
+          return combined;
+        });
+      })
+      .catch(() => console.log("[WatchPage] Animetsu servers failed to load (non-critical)"));
+
     return () => { cancelled = true; };
   }, [anilistId, episodeNum]);
 
