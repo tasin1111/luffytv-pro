@@ -297,21 +297,22 @@ function TopTrending({ items, navigate }: { items: AnimeItem[]; navigate: (r: an
                   <div className="w-full h-full flex items-center justify-center text-white/10 font-bold text-2xl">{title.charAt(0)}</div>
                 )}
                 {/* Gradient overlay at bottom for number readability */}
-                <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/70 to-transparent" />
-                {/* Ranking number — ON TOP of poster, italic, bottom-left */}
+                <div className="absolute bottom-0 left-0 right-0 h-1/2 bg-gradient-to-t from-black/60 to-transparent" />
+                {/* Ranking number — ON TOP of poster, large, bold, with shadow */}
                 <span
-                  className="absolute font-black text-white select-none"
+                  className="absolute font-black select-none"
                   style={{
-                    fontSize: "72px",
-                    fontStyle: "italic",
-                    left: "8px",
-                    bottom: "4px",
-                    lineHeight: "1",
-                    WebkitTextStroke: "2px black",
-                    textShadow: "3px 3px 6px rgba(0,0,0,0.8)",
-                    fontFamily: "Arial Black, Arial, sans-serif",
+                    fontSize: "80px",
+                    left: "12px",
+                    bottom: "8px",
+                    lineHeight: "0.85",
+                    color: "#c0c0c0",
+                    WebkitTextStroke: "1.5px #1a1a1a",
+                    textShadow: "4px 4px 8px rgba(0,0,0,0.9), 2px 2px 3px rgba(0,0,0,0.7)",
+                    fontFamily: "Arial Black, Impact, Arial, sans-serif",
                     zIndex: 10,
-                    transform: "skewX(-8deg)",
+                    fontWeight: 900,
+                    letterSpacing: "-0.04em",
                   }}
                 >
                   {rank}
