@@ -7,6 +7,145 @@ import { getProviderDisplayName } from "@/lib/miruro-api";
 import { proxifyM3u8, proxify } from "@/lib/proxy";
 
 // ============================================================
+// DASH PLAYER — for AnimeOnsen .mpd streams
+// Dynamically loads dash.js from CDN, plays .mpd manifest
+// ============================================================
+
+declare global {
+  interface Window { dashjs: any; }
+}
+
+function loadDashJs(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (window.dashjs) return resolve();
+    const existing = document.querySelector('script[src*="dash.mediaplayer"]') as HTMLScriptElement | null;
+    if (existing) {
+      existing.addEventListener("load", () => resolve());
+      existing.addEventListener("error", () => reject(new Error("dash.js load error")));
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/dashjs@4.7.4/dist/dash.mediaplayer.min.js";
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error("Failed to load dash.js"));
+    document.head.appendChild(script);
+  });
+}
+
+function DashPlayer({
+  url,
+  subtitleTracks,
+  onEnded,
+  autoplay = true,
+}: {
+  url: string;
+  subtitleTracks?: Array<{ url: string; label: string; lang?: string }>;
+  onEnded?: () => void;
+  autoplay?: boolean;
+}) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function init() {
+      try {
+        await loadDashJs();
+        if (cancelled || !videoRef.current) return;
+
+        const video = videoRef.current;
+        const player = window.dashjs.MediaPlayer().create();
+        player.initialize(video, url, autoplay);
+        player.updateSettings({
+          streaming: {
+            buffer: {
+              fastSwitchEnabled: true,
+              bufferTimeAtTopQuality: 30,
+              bufferTimeAtTopQualityLongForm: 60,
+            },
+          },
+        });
+        playerRef.current = player;
+        setLoading(false);
+      } catch (e: any) {
+        if (!cancelled) {
+          setError(e?.message || "Failed to load DASH player");
+          setLoading(false);
+        }
+      }
+    }
+
+    init();
+
+    return () => {
+      cancelled = true;
+      if (playerRef.current) {
+        try { playerRef.current.reset(); } catch {}
+        playerRef.current = null;
+      }
+    };
+  }, [url, autoplay]);
+
+  return (
+    <div className="absolute inset-0 w-full h-full bg-black">
+      {loading && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="ltv-spinner ltv-spinner-lg" />
+        </div>
+      )}
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="text-center space-y-2">
+            <p className="text-rose-400 text-sm">{error}</p>
+            <button onClick={() => window.location.reload()} className="text-xs text-white/60 hover:text-white">
+              Reload
+            </button>
+          </div>
+        </div>
+      )}
+      <video
+        ref={videoRef}
+        className="w-full h-full"
+        controls
+        onEnded={onEnded}
+        crossOrigin="anonymous"
+      />
+      {subtitleTracks && subtitleTracks.length > 0 && videoRef.current && (
+        <div className="absolute bottom-14 right-4 z-10 flex gap-1">
+          {subtitleTracks.slice(0, 5).map((s) => (
+            <button
+              key={s.lang || s.label}
+              onClick={() => {
+                const video = videoRef.current;
+                if (!video) return;
+                // Remove existing text tracks
+                while (video.textTracks.length > 0) {
+                  video.removeChild(video.textTracks[0] as any);
+                }
+                const track = document.createElement("track");
+                track.kind = "subtitles";
+                track.label = s.label;
+                track.srclang = s.lang || "en";
+                track.src = s.url;
+                track.default = true;
+                video.appendChild(track);
+              }}
+              className="px-2 py-1 text-[10px] font-bold bg-black/60 text-white/70 hover:bg-white/20 hover:text-white rounded transition-colors"
+            >
+              {s.lang || s.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // WATCH PAGE — Redesigned layout
 // Player → Title/Nav → Tabs (Episodes/Info/Relations) → Servers
 // ============================================================
@@ -18,7 +157,7 @@ interface WatchPageProps {
 
 interface StreamData {
   video_link: string;
-  source_type: "hls" | "embed" | "mp4";
+  source_type: "hls" | "embed" | "mp4" | "dash";
   hls_sources: Array<{
     url: string;
     quality: string;
@@ -686,6 +825,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     const isM3U8 = (server as any).isM3U8 !== false;
     const isMP4 = (server as any).isMP4 === true;
     const isEmbed = (server as any).isEmbed === true;
+    const isDASH = (server as any).isDASH === true;
 
     // AniDap streams come with their own WebVTT subtitle tracks (for softsub
     // providers like vee/yuki/miku/neko) and intro/outro chapters. Pass them
@@ -696,7 +836,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
     const newStreamData: StreamData = {
       video_link: streamUrl,
-      source_type: isEmbed ? "embed" : (isMP4 ? "mp4" : "hls"),
+      source_type: isEmbed ? "embed" : (isDASH ? "dash" : (isMP4 ? "mp4" : "hls")),
       hls_sources: [{
         url: streamUrl,
         quality,
@@ -868,6 +1008,17 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
               getProviderDisplayName={getProviderDisplayName}
             />
           )}
+
+                {/* DASH Player (for AnimeOnsen .mpd streams) */}
+                {streamData && streamData.source_type === "dash" && streamData.video_link && (
+                  <DashPlayer
+                    key={`dash-${selectedServer}`}
+                    url={streamData.video_link}
+                    subtitleTracks={streamData.subtitle_tracks || []}
+                    onEnded={handleVideoEnded}
+                    autoplay={autoPlay}
+                  />
+                )}
 
           {/* Loading state */}
           {streamLoading && (

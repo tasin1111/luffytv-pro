@@ -87,6 +87,9 @@ const CDN_REFERER_PATTERNS: Array<{ regex: RegExp; referer: string }> = [
   { regex: /^eu-\d+\.uwucdn\.top$/i,    referer: "https://kwik.cx/" },
   { regex: /^us-\d+\.uwucdn\.top$/i,    referer: "https://kwik.cx/" },
   { regex: /^[a-z]{2}-\d+\.(owocdn|uwucdn)\.top$/i, referer: "https://kwik.cx/" },
+  // AnimeOnsen CDN — requires same-origin referer
+  { regex: /\.animeonsen\.xyz$/i, referer: "https://www.animeonsen.xyz/" },
+  { regex: /^cdn\.animeonsen\.xyz$/i, referer: "https://www.animeonsen.xyz/" },
 ];
 
 function getRefererFor(url: string): string {
