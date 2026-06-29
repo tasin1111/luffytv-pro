@@ -459,10 +459,23 @@ export async function fetchAllAnimePaheSources(
       }
     }
 
-    // If we have NO playable streams at all (no m3u8 + no MP4), return empty.
-    // DO NOT fall back to the raw kwik.cx embed URL — it shows the animepahe
-    // watermark (kwik.si player overlay) which the user doesn't want.
-    // Better to show no animepahe server than a watermarked one.
+    // Also add the raw kwik.cx embed URL as a separate server option.
+    // User explicitly requested this: "add it also ok" — they want ALL options
+    // available including the watermarked kwik embed.
+    // The kwik embed shows the "animepahe" watermark (kwik.si player overlay)
+    // but it's a reliable fallback if the m3u8 stream has issues.
+    if (play.kwik) {
+      results.push({
+        provider: "animepahe",
+        type,
+        quality: "embed",
+        streamUrl: play.kwik,  // raw kwik URL — watch page iframes it
+        isMP4: false,
+        isM3U8: false,
+        isEmbed: true,
+        kwikUrl: play.kwik,
+      });
+    }
 
     console.log(`[AnimePahe] ${anilistId} ep${episodeNum}: ${results.length} playable streams (m3u8=${!!play.m3u8}, mp4_resolved=${results.length - (play.m3u8 ? 1 : 0)})`);
     return results;

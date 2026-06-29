@@ -210,23 +210,32 @@ const ALLANIME_API = "https://allanime-api.mdtahseen7378.workers.dev";
 
 async function fetchAllAnime(title: string, epNum: number, timeoutMs: number): Promise<MioSource[]> {
   try {
-    const searchRes = await fetch(`${ALLANIME_API}/search?query=${encodeURIComponent(title)}`, {
-      headers: HEADERS, cache: "no-store",
-    });
-    if (!searchRes.ok) return [];
+    // Search with timeout
+    const searchRes = await Promise.race([
+      fetch(`${ALLANIME_API}/search?query=${encodeURIComponent(title)}`, {
+        headers: HEADERS, cache: "no-store",
+      }),
+      new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
+    ]);
+    if (!searchRes || !searchRes.ok) return [];
     const searchData = await searchRes.json();
     if (!Array.isArray(searchData) || !searchData.length) return [];
 
-    const anime = searchData[0];
+    // Find best match (exact title match preferred, otherwise first result)
+    const lowerTitle = title.toLowerCase();
+    const anime = searchData.find((a: any) =>
+      (a.title || "").toLowerCase() === lowerTitle
+    ) || searchData[0];
     const showId = anime.id;
 
-    // Use /episode_url endpoint — returns the actual CDN URL (wixstatic.com)
-    // The /play endpoint returns the raw MP4 binary (600MB+) which is too heavy
-    // to proxy through the API worker.
-    const urlRes = await fetch(`${ALLANIME_API}/episode_url?show_id=${showId}&ep_no=${epNum}&quality=best&mode=sub`, {
-      headers: HEADERS, cache: "no-store",
-    });
-    if (!urlRes.ok) return [];
+    // Get episode URL with timeout
+    const urlRes = await Promise.race([
+      fetch(`${ALLANIME_API}/episode_url?show_id=${showId}&ep_no=${epNum}&quality=best&mode=sub`, {
+        headers: HEADERS, cache: "no-store",
+      }),
+      new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
+    ]);
+    if (!urlRes || !urlRes.ok) return [];
     const urlData = await urlRes.json();
     const mp4Url = urlData?.episode_url;
     if (!mp4Url) return [];
@@ -235,7 +244,7 @@ async function fetchAllAnime(title: string, epNum: number, timeoutMs: number): P
       id: `allanime:${showId}:${epNum}`,
       name: "AllAnime",
       type: "sub",
-      streamUrl: mp4Url, // Direct MP4 CDN URL (wixstatic.com)
+      streamUrl: wrapStreamUrl(mp4Url), // wrap through aniwatchtv proxy for CORS
       quality: "auto",
       isM3U8: false,
       isMP4: true,
