@@ -137,6 +137,7 @@ export async function GET(
     return NextResponse.json({ error: "Invalid anilistId" }, { status: 400 });
   }
 
+  try {
   // ─── Resolve anime title from AniList (needed for AnixTV search) ────────────
   // AnixTV's watch URL requires the anime title as a query param — without it,
   // AnixTV can't find the anime and returns no iframe → no hindi servers.
@@ -905,4 +906,14 @@ export async function GET(
   return NextResponse.json({ anilistId: id, episode: epNum, servers: sorted, total: sorted.length }, {
     headers: { "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300" },
   });
+  } catch (e: any) {
+    console.error(`[Servers] FATAL error for ${anilistId} ep${epNum}:`, e?.message || e, e?.stack || "");
+    return NextResponse.json({
+      anilistId: id,
+      episode: epNum,
+      servers: [],
+      total: 0,
+      error: e?.message || "Internal server error",
+    }, { status: 200 });  // return 200 with empty array so watch page doesn't crash
+  }
 }
