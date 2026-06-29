@@ -459,21 +459,10 @@ export async function fetchAllAnimePaheSources(
       }
     }
 
-    // If we have NO playable streams at all (no m3u8 + no MP4), make a
-    // last-ditch effort: use the kwik embed URL directly as an embed stream.
-    // The LuffyTV watch page supports iframe embeds for kwik.cx URLs.
-    if (results.length === 0 && play.kwik) {
-      results.push({
-        provider: "animepahe",
-        type,
-        quality: "auto",
-        streamUrl: play.kwik,  // raw kwik URL — watch page can iframe-embed it
-        isMP4: false,
-        isM3U8: false,
-        isEmbed: true,
-        kwikUrl: play.kwik,
-      });
-    }
+    // If we have NO playable streams at all (no m3u8 + no MP4), return empty.
+    // DO NOT fall back to the raw kwik.cx embed URL — it shows the animepahe
+    // watermark (kwik.si player overlay) which the user doesn't want.
+    // Better to show no animepahe server than a watermarked one.
 
     console.log(`[AnimePahe] ${anilistId} ep${episodeNum}: ${results.length} playable streams (m3u8=${!!play.m3u8}, mp4_resolved=${results.length - (play.m3u8 ? 1 : 0)})`);
     return results;
