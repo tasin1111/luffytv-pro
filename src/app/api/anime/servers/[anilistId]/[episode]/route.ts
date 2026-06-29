@@ -39,6 +39,7 @@ import { fetchAniPmSources } from "@/lib/anipm-api";
 import { fetchAnimetsuSources } from "@/lib/animetsu-api";
 import { fetchAnimeHeavenSources } from "@/lib/animeheaven-api";
 import { fetchAniWavesSources } from "@/lib/aniwaves-api";
+import { fetchAllAnimePaheSources, ANIMEPAHE_ENABLED } from "@/lib/animepahe-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -88,7 +89,7 @@ const ANIMEX_REFERERS: Record<string, string> = {
 interface VerifiedServer {
   id: string;
   name: string;
-  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream" | "anikuro" | "anipm" | "animetsu" | "animeheaven" | "aniwaves";
+  source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream" | "anikuro" | "anipm" | "animetsu" | "animeheaven" | "aniwaves" | "animepahe";
   provider: string;
   type: "sub" | "dub";
   quality: string;
@@ -135,6 +136,7 @@ export async function GET(
   // AnixTV's watch URL requires the anime title as a query param — without it,
   // AnixTV can't find the anime and returns no iframe → no hindi servers.
   let animeTitle = "Anime";
+  let animeTitles: { english?: string; romaji?: string; native?: string } = {};
   try {
     const titleRes = await fetch("https://graphql.anilist.co", {
       method: "POST",
@@ -147,6 +149,7 @@ export async function GET(
     if (titleRes.ok) {
       const titleData = await titleRes.json();
       const t = titleData?.data?.Media?.title;
+      animeTitles = { english: t?.english, romaji: t?.romaji, native: t?.native };
       animeTitle = t?.english || t?.romaji || t?.native || "Anime";
     }
   } catch { /* fallback to "Anime" */ }
@@ -167,8 +170,8 @@ export async function GET(
 
   // Fire AniDap resolver + sources fetch in parallel with the other sources.
   // AniDap gives us 11 providers × 2 types (sub/dub) — all verified playable.
-  // Also fire AniLight + Kyren + AniKuro in parallel — all return direct-playable streams.
-  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults, anistreamResults, anikuroResults, anipmResults, animetsuResults, animeheavenResults, aniwavesResults] = await Promise.allSettled([
+  // Also fire AniLight + Kyren + AniKuro + AnimePahe in parallel — all return direct-playable streams.
+  const [miruroRaw, animexData, anivaultSub, anivaultDub, anidapResults, anilightResults, kyrenResults, anikageResults, mioanimeResults, anistreamResults, anikuroResults, anipmResults, animetsuResults, animeheavenResults, aniwavesResults, animepaheResults] = await Promise.allSettled([
     fetchRawEpisodes(id),
     (async () => {
       const anime = await animexGetAnime(id);
@@ -197,10 +200,13 @@ export async function GET(
     fetchAnimetsuSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
     // AnimeHeaven.me — direct MP4 streams
     fetchAnimeHeavenSources(id, epNum, { timeoutMs: OTHER_TIMEOUT }),
-    // AniWaves.ru — embed-based servers (sub + dub)
+    // AniWaves.ru — embed servers (Vidplay, MyCloud, etc.) — sub + dub
     fetchAniWavesSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
-    // AniWaves.ru — embed servers (Vidplay, MyCloud, etc.)
-    fetchAniWavesSources(id, epNum, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT }),
+    // AnimePahe: external scraper with Cloudflare bypass (env-configured).
+    // Skipped silently if ANIMEPAHE_SCRAPER_URL and ANIMEPAHE_CF_CLEARANCE are not set.
+    ANIMEPAHE_ENABLED
+      ? fetchAllAnimePaheSources(id, epNum, animeTitles, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT })
+      : Promise.resolve([]),
   ]);
 
   // Miruro
@@ -732,6 +738,31 @@ export async function GET(
     if (r.status === "fulfilled" && r.value) verified.push(r.value);
   }
 
+  // ─── AnimePahe — pre-verified MP4 streams via kwik.si ──────────────────────
+  // (only fires if ANIMEPAHE_SCRAPER_URL or ANIMEPAHE_CF_CLEARANCE is set)
+  const animepaheVerified: VerifiedServer[] = [];
+  if (animepaheResults.status === "fulfilled" && Array.isArray(animepaheResults.value)) {
+    for (const r of animepaheResults.value) {
+      const qualityLabel = r.quality || "auto";
+      const typeTag = r.type === "dub" ? " (Dub)" : "";
+      animepaheVerified.push({
+        id: `animepahe:${r.type}:${qualityLabel}`,
+        name: `AnimePahe ${qualityLabel}${typeTag}`,
+        source: "animepahe",
+        provider: "animepahe",
+        type: r.type,
+        quality: qualityLabel,
+        streamUrl: r.streamUrl,
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        hardsub: false,  // animepahe subs are soft (separate audio track available)
+      });
+    }
+    if (animepaheVerified.length > 0) {
+      console.log(`[Servers] AnimePahe: ${animepaheVerified.length} verified streams`);
+    }
+  }
+
   // Merge in the pre-verified AniDap + AniLight + Kyren streams (already have
   // playable streamUrl, subtitles, intro/outro chapters — no re-verification needed).
   verified.push(...anidapVerified);
@@ -746,6 +777,7 @@ export async function GET(
   verified.push(...animetsuVerified);
   verified.push(...animeheavenVerified);
   verified.push(...aniwavesVerified);
+  verified.push(...animepaheVerified);
   // NOTE: Animex is NOT here — it's fetched separately via /api/anime/animex-servers
 
   // ── STRICT FILTER: only show servers with a playable stream URL ───────────
@@ -792,8 +824,8 @@ export async function GET(
     return true;
   });
 
-  const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length + anixtvVerified.length + anistreamVerified.length + anikuroVerified.length;
-  console.log(`[Servers] ${filtered.length}/${beforeFilter} servers (filtered ${beforeFilter - filtered.length} empty/unplayable) — AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length}, AnixTV=${anixtvVerified.length}, Anistream=${anistreamVerified.length}, AniKuro=${anikuroVerified.length}, AniPm=${anipmVerified.length}, Animetsu=${animetsuVerified.length}, AnimeHeaven=${animeheavenVerified.length}, AniWaves=${aniwavesVerified.length}`);
+  const totalPre = anidapVerified.length + anilightVerified.length + kyrenVerified.length + anikageVerified.length + mioanimeVerified.length + anixtvVerified.length + anistreamVerified.length + anikuroVerified.length + anipmVerified.length + animetsuVerified.length + animeheavenVerified.length + aniwavesVerified.length + animepaheVerified.length;
+  console.log(`[Servers] ${filtered.length}/${beforeFilter} servers (filtered ${beforeFilter - filtered.length} empty/unplayable) — AniDap=${anidapVerified.length}, AniLight=${anilightVerified.length}, Kyren=${kyrenVerified.length}, Anikage=${anikageVerified.length}, MioAnime=${mioanimeVerified.length}, AnixTV=${anixtvVerified.length}, Anistream=${anistreamVerified.length}, AniKuro=${anikuroVerified.length}, AniPm=${anipmVerified.length}, Animetsu=${animetsuVerified.length}, AnimeHeaven=${animeheavenVerified.length}, AniWaves=${aniwavesVerified.length}, AnimePahe=${animepaheVerified.length}`);
 
   // ── SORT by priority: Animex → AniDap → AniKuro → Miruro → AniKoto → AniNeko → others ──
   // User requested this specific order so the best servers appear first.
@@ -813,6 +845,7 @@ export async function GET(
     mioanime: 13,  // MioAnime (m3u8 + embed)
     anistream: 14, // Anistream (m3u8 + embed)
     anixtv: 15,    // AnixTV (Hindi embed)
+    animepahe: 16, // AnimePahe (MP4 via kwik.si, env-configured scraper)
   };
   // Sort: sub before dub, then by source priority, then by quality
   const sorted = filtered.sort((a, b) => {
