@@ -576,29 +576,7 @@ export async function GET(
     console.log(`[Servers] AnimeHeaven: ${animeheavenVerified.length} servers`);
   }
 
-  // AniWaves results — embed servers (Vidplay, MyCloud, BYFMS, DGHG, etc.)
-  const aniwavesVerified: VerifiedServer[] = [];
-  if (aniwavesResults.status === "fulfilled" && aniwavesResults.value) {
-    for (const r of aniwavesResults.value) {
-      aniwavesVerified.push({
-        id: `aniwaves:${r.provider}:${r.type}`,
-        name: `AniWaves ${r.provider}${r.type === "dub" ? " (Dub)" : ""}`,
-        source: "aniwaves",
-        provider: r.provider,
-        type: r.type,
-        quality: r.quality,
-        streamUrl: r.streamUrl,
-        isM3U8: r.isM3U8,
-        isMP4: r.isMP4,
-        isEmbed: true,
-        hardsub: false,
-        subtitleTracks: [],
-        intro: null,
-        outro: null,
-      });
-    }
-    console.log(`[Servers] AniWaves: ${aniwavesVerified.length} servers`);
-  }
+  // AniWaves removed — not working (user request). Block deleted.
 
   console.log(`[Servers] ${candidates.length} candidates — verifying in parallel...`);
 
