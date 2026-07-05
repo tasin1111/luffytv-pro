@@ -133,6 +133,54 @@ export function WatchPageShell({
               )}
             </div>
 
+            {/* ─── SETTINGS BOX — RIGHT UNDER PLAYER, in a box, sky blue toggles ─── */}
+            <div className="flex items-center gap-3 py-2.5 px-3 bg-white/[0.03] border border-white/[0.08] rounded-xl flex-wrap">
+              {[
+                { label: "Autoplay", state: autoPlay, setter: setAutoPlay },
+                { label: "Auto Skip", state: autoSkip, setter: setAutoSkip },
+                { label: "Auto Next", state: autoNext, setter: setAutoNext },
+                { label: "Skip Filler", state: skipFiller, setter: setSkipFiller },
+              ].map(({ label, state, setter }) => (
+                <button key={label} onClick={() => setter(!state)} className="flex items-center gap-1.5 group">
+                  <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${state ? "bg-[#7DD3FC] border-[#7DD3FC]" : "bg-transparent border-white/20 group-hover:border-white/40"}`}>
+                    {state && <svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                  </div>
+                  <span className={`text-xs font-medium transition-colors ${state ? "text-[#7DD3FC]" : "text-white/40 group-hover:text-white/70"}`}>{label}</span>
+                </button>
+              ))}
+
+              <div className="w-px h-5 bg-white/[0.08] mx-0.5" />
+
+              <button onClick={() => setShowShortcuts(!showShortcuts)} className="flex items-center gap-1.5 group">
+                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${showShortcuts ? "bg-[#7DD3FC] border-[#7DD3FC]" : "bg-transparent border-white/20 group-hover:border-white/40"}`}>
+                  {showShortcuts && <svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                </div>
+                <span className={`text-xs font-medium transition-colors ${showShortcuts ? "text-[#7DD3FC]" : "text-white/40 group-hover:text-white/70"}`}>Shortcuts</span>
+              </button>
+
+              <button onClick={() => setLightsOff(!lightsOff)} className="flex items-center gap-1.5 group">
+                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${lightsOff ? "bg-[#7DD3FC] border-[#7DD3FC]" : "bg-transparent border-white/20 group-hover:border-white/40"}`}>
+                  {lightsOff && <svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
+                </div>
+                <span className={`text-xs font-medium transition-colors ${lightsOff ? "text-[#7DD3FC]" : "text-white/40 group-hover:text-white/70"}`}>Lights</span>
+              </button>
+
+              <div className="flex-1" />
+
+              {prevEp && (
+                <button onClick={() => switchEpisode(prevEp)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-white/70 hover:text-white text-xs font-medium transition-colors" title="Previous episode">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
+                  <span className="hidden sm:inline">Prev</span>
+                </button>
+              )}
+              {nextEp && (
+                <button onClick={() => switchEpisode(nextEp)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-white/70 hover:text-white text-xs font-medium transition-colors" title="Next episode">
+                  <span className="hidden sm:inline">Next</span>
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
+                </button>
+              )}
+            </div>
+
             {/* ─── SERVER FALLBACK BANNER ─── */}
             {showServerBanner && (streamError || serverList?.length > 1) && (
               <div className="flex items-center justify-between bg-white/[0.06] px-4 py-2.5 rounded-lg text-white/60">
@@ -221,23 +269,6 @@ export function WatchPageShell({
                   </button>
                 )}
               </div>
-            </div>
-
-            {/* ─── AUTO TOGGLES ROW — soft sky blue when active ─── */}
-            <div className="flex items-center gap-4 flex-wrap text-xs">
-              {[
-                { label: "Autoplay", state: autoPlay, setter: setAutoPlay },
-                { label: "Auto Skip", state: autoSkip, setter: setAutoSkip },
-                { label: "Auto Next", state: autoNext, setter: setAutoNext },
-                { label: "Skip Filler", state: skipFiller, setter: setSkipFiller },
-              ].map(({ label, state, setter }) => (
-                <button key={label} onClick={() => setter(!state)} className="flex items-center gap-1.5 group">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all ${state ? "bg-[#7DD3FC] border-[#7DD3FC]" : "bg-transparent border-white/20 group-hover:border-white/40"}`}>
-                    {state && <svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-                  </div>
-                  <span className={`font-medium transition-colors ${state ? "text-[#7DD3FC]" : "text-white/40 group-hover:text-white/70"}`}>{label}</span>
-                </button>
-              ))}
             </div>
 
             {/* ─── AUDIO + SERVER SELECTOR ─── */}
