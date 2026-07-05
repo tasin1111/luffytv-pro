@@ -3,8 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useAppStore } from "./store";
 import HLSPlayerNew from "./hls-player-new";
+import AnimeComments from "./anime-comments";
+import WatchPageExtras from "./watch-page-extras";
 import { getProviderDisplayName } from "@/lib/miruro-api";
 import { proxifyM3u8, proxify } from "@/lib/proxy";
+import { WatchPageShell } from "./watch-page-shell";
 
 // ============================================================
 // DASH PLAYER — for AnimeOnsen .mpd streams
@@ -191,6 +194,9 @@ interface EpisodeItem {
   title: string;
   filler: boolean;
   id: string;
+  thumbnail?: string;
+  description?: string;
+  airDate?: string;
 }
 
 interface ProviderEpisodes {
@@ -623,45 +629,251 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     return () => { cancelled = true; };
   }, [animeId, anilistId]);
 
-  // ── Load episodes DIRECTLY from miruro.tv (no external API) ──
-  // Hits www.miruro.tv/api/secure/pipe via our /api/anime/miruro-direct/episodes route.
-  // Returns sub + dub episode lists from all 12 Miruro providers (kiwi, bee, bonk, etc.)
+  // ── Load episodes ──
+  // PRIMARY: AniList (always works, has episode count + streamingEpisodes with thumbnails)
+  // THUMBNAIL FALLBACK: Lunar scraper (real per-episode scene stills on fetch.flixcloud.cc)
+  // TITLE FALLBACK: Animex scraper (real episode titles)
+  // PROVIDER IDS: Miruro direct (for streaming provider IDs only)
+  // The /api/anime/episodes endpoint is NOT used — it returns broken AllAnime thumbnails
   useEffect(() => {
     if (!anilistId) return;
     let cancelled = false;
+    let episodesLoaded = false;
+
     async function loadEpisodes() {
       try {
-        const res = await fetch(`/api/anime/miruro-direct/episodes/${anilistId}`);
+        // ── STEP 1: AniList + Lunar + Animex in parallel (FAST — shows episodes immediately) ──
+        // AniList gives episode COUNT via Media.episodes (finished) or
+        //   nextAiringEpisode.episode-1 (ongoing — how many have shipped)
+        // Lunar gives per-episode thumbnails (real scene stills, not just poster)
+        // Animex gives per-episode TITLES (better than "Episode N")
+        const [alRes, lunarRes, animexRes] = await Promise.allSettled([
+          fetch("https://graphql.anilist.co", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              // Fetch episodes (finished), nextAiringEpisode (ongoing),
+              // format (movie detection), streamingEpisodes (titles/thumbnails),
+              // airingSchedule (episode air dates for the bottom-left date badge)
+              query: `query($id: Int){ Media(id: $id, type: ANIME){ episodes format nextAiringEpisode { episode airingAt } streamingEpisodes { title thumbnail url site } airingSchedule(perPage: 1000){ nodes { episode airingAt } } } }`,
+              variables: { id: anilistId },
+            }),
+          }),
+          fetch(`/api/anime/scraper/episodes/lunar/${anilistId}`).then(r => r.ok ? r.json() : null),
+          fetch(`/api/anime/scraper/episodes/animex/${anilistId}`).then(r => r.ok ? r.json() : null),
+        ]);
         if (cancelled) return;
-        if (res.ok) {
-          const data = await res.json();
-          // Merge sub + dub into a unified episode list
+
+        // Parse episode-info response (empty for now — will be filled in background)
+        const epInfoMap: Record<number, { title?: string; description?: string; airDate?: string; thumbnail?: string }> = {};
+
+        // Parse AniList response
+        // Episode count priority:
+        //   1. Media.episodes — authoritative for FINISHED anime (e.g. "26 episodes")
+        //   2. nextAiringEpisode.episode - 1 — for ONGOING anime (next to air = N → N-1 shipped)
+        //      e.g. ONE PIECE: Media.episodes=null, nextAiringEpisode.episode=1169 → 1168 aired
+        //   3. streamingEpisodes.length — last resort (often incomplete, e.g. only 69 for ONE PIECE)
+        let totalEps = 0;
+        let alEps: any[] = [];
+        let isMovie = false;
+        const dateMap = new Map<number, string>(); // episode number → formatted date
+        if (alRes.status === 'fulfilled' && alRes.value?.ok) {
+          try {
+            const alData = await alRes.value.json();
+            const media = alData?.data?.Media;
+            isMovie = media?.format === "MOVIE";
+            if (media?.episodes && media.episodes > 0) {
+              totalEps = media.episodes;
+            } else if (media?.nextAiringEpisode && media.nextAiringEpisode.episode > 1) {
+              // Ongoing: next to air is N, so N-1 have shipped
+              totalEps = media.nextAiringEpisode.episode - 1;
+            }
+            // For movies, streamingEpisodes is often WRONG (returns TV episode data)
+            if (!isMovie && media?.streamingEpisodes) {
+              alEps = media.streamingEpisodes;
+              if (!totalEps && alEps.length > 0) {
+                totalEps = alEps.length;
+              }
+            }
+            // Parse airingSchedule for episode air dates
+            const schedNodes = media?.airingSchedule?.nodes || [];
+            for (const node of schedNodes) {
+              if (node.episode && node.airingAt) {
+                const d = new Date(node.airingAt * 1000);
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                dateMap.set(node.episode, `${months[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`);
+              }
+            }
+          } catch { /* parse error */ }
+        }
+
+        // Parse Lunar response — episode thumbnails (real scene stills)
+        const lunarEps: any[] = lunarRes.status === 'fulfilled' && lunarRes.value?.episodes
+          ? lunarRes.value.episodes
+          : [];
+        const lunarByNum = new Map<number, any>();
+        for (const ep of lunarEps) {
+          lunarByNum.set(Number(ep.number), ep);
+        }
+
+        // Parse Animex response — episode titles
+        const animexEps: any[] = animexRes.status === 'fulfilled' && animexRes.value?.episodes
+          ? animexRes.value.episodes
+          : [];
+        const animexByNum = new Map<number, any>();
+        for (const ep of animexEps) {
+          animexByNum.set(Number(ep.number), ep);
+        }
+
+        if (alEps.length > 0 || totalEps > 0 || lunarEps.length > 0 || animexEps.length > 0) {
+          // Determine total episodes from any source
+          const maxFromScrapers = Math.max(
+            lunarByNum.size > 0 ? Math.max(...lunarByNum.keys()) : 0,
+            animexByNum.size > 0 ? Math.max(...animexByNum.keys()) : 0,
+          );
+          // For movies, ALWAYS trust AniList's episode count (scrapers return wrong data)
+          // For TV series: if AniList Media.episodes is set, it's AUTHORITATIVE.
+          // Don't use streamingEpisodes.length — it can return wrong data
+          // (e.g. Ramparts of Ice has 14 eps but streamingEpisodes returns 24)
+          const finalTotal = isMovie && totalEps > 0
+            ? totalEps
+            : (totalEps > 0 ? totalEps : Math.max(maxFromScrapers || 0, alEps.length || 0));
+
+          const all = new Map<number, EpisodeItem>();
+
+          // 1) AniList streamingEpisodes (newest-first → reverse to ep 1 first)
+          const alEpsReversed = [...alEps].reverse();
+          alEpsReversed.forEach((ep: any, i: number) => {
+            const num = i + 1;
+            const info = epInfoMap[num];
+            all.set(num, {
+              number: num,
+              title: info?.title || ep.title || `Episode ${num}`,
+              filler: false,
+              id: String(num),
+              thumbnail: ep.thumbnail || info?.thumbnail || null,
+              description: info?.description || undefined,
+              airDate: info?.airDate || dateMap.get(num) || undefined,
+            });
+          });
+
+          // 2) Fill remaining episodes using Lunar thumbnails + Animex titles
+          if (finalTotal > 0) {
+            for (let i = 1; i <= finalTotal; i++) {
+              if (!all.has(i)) {
+                const lunarEp = lunarByNum.get(i);
+                const animexEp = animexByNum.get(i);
+                const title = animexEp?.title || lunarEp?.title || `Episode ${i}`;
+                // Lunar thumbnails on fetch.flixcloud.cc work directly in browsers
+                // (Cloudflare only blocks data center IPs, not residential browsers).
+                // Do NOT proxy through /api/image-proxy — Vercel's IP gets 403.
+                const thumb = lunarEp?.thumbnail || null;
+                all.set(i, {
+                  number: i,
+                  title,
+                  filler: false,
+                  id: String(i),
+                  thumbnail: thumb,
+                  description: epInfoMap[i]?.description || undefined,
+                  airDate: epInfoMap[i]?.airDate || dateMap.get(i) || undefined,
+                });
+              }
+            }
+          }
+
+          // 3) For episodes that came from AniList streamingEpisodes but Animex has a better title, merge it
+          setEpisodeList(prev => {
+            const merged = Array.from(all.values()).map(ep => {
+              const animexEp = animexByNum.get(ep.number);
+              // Only override title if AniList title is generic ("Episode N") and Animex has real one
+              if (animexEp?.title && animexEp.title !== `Episode ${ep.number}` &&
+                  (!ep.title || ep.title === `Episode ${ep.number}`)) {
+                return { ...ep, title: animexEp.title };
+              }
+              return ep;
+            }).sort((a, b) => a.number - b.number);
+            return merged;
+          });
+
+          if (!cancelled && all.size > 0) {
+            episodesLoaded = true;
+          }
+        }
+      } catch { /* AniList failed */ }
+
+      // ── STEP 1.5: Fetch episode descriptions in BACKGROUND (doesn't block) ──
+      // This fetches from MAL/Jikan (slow, batches of 10). We don't await it —
+      // episodes are already shown. When it completes, we merge descriptions/airDates.
+      if (!cancelled && episodesLoaded) {
+        fetch(`/api/anime/episode-info/${anilistId}`)
+          .then(r => r.ok ? r.json() : null)
+          .then(data => {
+            if (cancelled || !data?.episodes) return;
+            setEpisodeList(prev => prev.map(ep => {
+              const info = data.episodes[ep.number];
+              if (!info) return ep;
+              return {
+                ...ep,
+                description: info.description || ep.description,
+                airDate: info.airDate || ep.airDate,
+                title: info.title || ep.title,
+              };
+            }));
+          })
+          .catch(() => {});
+      }
+
+      // ── STEP 2: Miruro direct — for streaming provider IDs only ──
+      try {
+        const miruroRes = await fetch(`/api/anime/miruro-direct/episodes/${anilistId}`);
+        if (cancelled) return;
+        if (miruroRes.ok) {
+          const data = await miruroRes.json();
           const subEps = data.sub || [];
           const dubEps = data.dub || [];
-          const all = new Map<number, EpisodeItem>();
-          for (const ep of subEps) {
-            all.set(Number(ep.number), {
-              number: Number(ep.number),
-              title: ep.title || `Episode ${ep.number}`,
-              filler: !!ep.isFiller || !!ep.filler,
-              id: ep.id || ep.slug || String(ep.number),
-            });
-          }
-          for (const ep of dubEps) {
-            const num = Number(ep.number);
-            if (!all.has(num)) {
-              all.set(num, {
-                number: num,
+
+          // If episodes never loaded, use miruro as fallback
+          if (!episodesLoaded && subEps.length > 0) {
+            const all = new Map<number, EpisodeItem>();
+            for (const ep of subEps) {
+              all.set(Number(ep.number), {
+                number: Number(ep.number),
                 title: ep.title || `Episode ${ep.number}`,
                 filler: !!ep.isFiller || !!ep.filler,
                 id: ep.id || ep.slug || String(ep.number),
+                thumbnail: ep.thumbnail || ep.image || null,
               });
             }
+            for (const ep of dubEps) {
+              const num = Number(ep.number);
+              if (!all.has(num)) {
+                all.set(num, {
+                  number: num,
+                  title: ep.title || `Episode ${ep.number}`,
+                  filler: !!ep.isFiller || !!ep.filler,
+                  id: ep.id || ep.slug || String(ep.number),
+                  thumbnail: ep.thumbnail || ep.image || null,
+                });
+              }
+            }
+            const episodes = Array.from(all.values()).sort((a, b) => a.number - b.number);
+            if (episodes.length > 0 && !cancelled) {
+              setEpisodeList(episodes);
+              episodesLoaded = true;
+            }
           }
-          const episodes = Array.from(all.values()).sort((a, b) => a.number - b.number);
-          if (episodes.length > 0) {
-            setEpisodeList(episodes);
+
+          // Always merge miruro provider IDs for streaming
+          if (episodesLoaded) {
+            setEpisodeList(prev => prev.map(ep => {
+              const miruroEp = subEps.find((m: any) => Number(m.number) === ep.number);
+              if (miruroEp && (ep.id === String(ep.number) || !ep.id.includes(':'))) {
+                return { ...ep, id: miruroEp.id || miruroEp.slug || ep.id };
+              }
+              return ep;
+            }));
           }
+
           if (data.providers?.length) {
             setAvailableProviders(data.providers);
           }
@@ -670,7 +882,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           }
           setDubAvailable(dubEps.length > 0);
         }
-      } catch { /* ignore */ }
+      } catch { /* miruro failed */ }
     }
     loadEpisodes();
     return () => { cancelled = true; };
@@ -692,6 +904,21 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     setStreamLoading(true);
     setStreamError(null);
     setStreamData(null);
+
+    // Safety timeout: if no servers arrive within 30s, show error
+    // (prevents infinite "Loading from..." state)
+    const safetyTimeout = setTimeout(() => {
+      if (cancelled) return;
+      setServerList(prev => {
+        if (prev.length > 0) {
+          setStreamLoading(false);
+          return prev;
+        }
+        setStreamLoading(false);
+        setStreamError("Servers are taking too long to load. Try refreshing the page.");
+        return [];
+      });
+    }, 30000);
 
     fetch(`/api/anime/servers/${anilistId}/${episodeNum}`)
       .then(r => r.ok ? r.json() : null)
@@ -857,7 +1084,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
       })
       .catch(() => console.log("[WatchPage] Animetsu servers failed to load (non-critical)"));
 
-    return () => { cancelled = true; };
+    return () => { cancelled = true; clearTimeout(safetyTimeout); };
   }, [anilistId, episodeNum]);
 
   // ── Play stream from selected server (INSTANT — no second API call) ──
@@ -1013,7 +1240,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
   const searchLower = epSearch.toLowerCase();
   const filteredEps = episodeList
-    .filter(ep => !epSearch || String(ep.number).includes(searchLower))
+    .filter(ep => !epSearch || String(ep.number).includes(searchLower) || (ep.title || "").toLowerCase().includes(searchLower))
     .sort((a, b) => epSortOrder === "asc" ? a.number - b.number : b.number - a.number);
 
   const statusLabel = (s: string) => {
@@ -1038,659 +1265,75 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     return eps.some(e => e.number === episodeNum);
   });
 
-  // ── RENDER ──
+  // ── RENDER — use new WatchPageShell ──
   return (
-    <div className="min-h-screen ltv-v4">
-
-      {/* ═══════════════════════════════════════════════════════════════
-          2-COLUMN LAYOUT (animetsu-style):
-          [ PLAYER + TITLE + SERVERS + INFO/RELATIONS ]  |  [ EPISODE SIDEBAR ]
-          On mobile: sidebar collapses below player.
-          ═══════════════════════════════════════════════════════════════ */}
-      <div className="max-w-[1600px] mx-auto px-4 lg:px-6 pt-4">
-        <div className="grid lg:grid-cols-[1fr_340px] gap-4 lg:gap-6">
-
-          {/* ═══ LEFT COLUMN: Player + Title + Servers + Info ═══ */}
-          <div className="min-w-0 flex flex-col gap-4">
-
-            {/* ─── PLAYER ZONE ─── */}
-            <div className="w-full">
-              <div className="relative w-full bg-black" style={{ aspectRatio: "16 / 9" }}>
-
-                {/* HLS Native Player */}
-                {streamData && streamData.source_type === "hls" && streamData.video_link && (
-                  <HLSPlayerNew
-                    key={selectedServer}
-                    url={proxifyM3u8(streamData.video_link)}
-                    animeId={animeId}
-                    episodeNum={episodeNum}
-                    sourceType="hls"
-                    intro={streamData.intro}
-                    outro={streamData.outro}
-                    allStreams={streamData.hls_sources.map(s => ({
-                      url: proxifyM3u8(s.url),
-                      quality: s.quality || "Auto",
-                      label: s.label || s.quality || "Auto",
-                    }))}
-                    subtitleTracks={(streamData.subtitle_tracks || []).map(s => ({ url: proxify(s.url, "raw"), lang: s.label || "en", label: s.label || "English" }))}
-                    onEnded={handleVideoEnded}
-                    onProviderFailed={() => handleProviderFailed(activeProvider)}
-                    autoplay={autoPlay}
-                  />
-                )}
-
-                {/* MP4 Player */}
-                {streamData && streamData.source_type === "mp4" && streamData.video_link && (
-                  <HLSPlayerNew
-                    key={`mp4-${selectedServer}`}
-                    url={proxify(streamData.video_link, "raw")}
-                    animeId={animeId}
-                    episodeNum={episodeNum}
-                    sourceType="mp4"
-                    intro={streamData.intro}
-                    outro={streamData.outro}
-                    onEnded={handleVideoEnded}
-                    onProviderFailed={() => handleProviderFailed(activeProvider)}
-                    autoplay={autoPlay}
-                  />
-                )}
-
-                {/* Embed Player (for Megaplay/Hindi embeds) */}
-                {streamData && streamData.source_type === "embed" && streamData.video_link && (
-                  <EmbedPlayerWithFallback
-                    key={`embed-${activeProvider}-${episodeNum}-${translation}`}
-                    src={streamData.video_link}
-                    animeTitle={animeTitle}
-                    episodeNum={episodeNum}
-                    provider={activeProvider}
-                    providersForCurrentEp={providersForCurrentEp}
-                    failedProviders={failedProviders}
-              onProviderFailed={handleProviderFailed}
-              onProviderSelect={handleProviderSelect}
-              getProviderDisplayName={getProviderDisplayName}
-            />
-          )}
-
-                {/* DASH Player (for AnimeOnsen .mpd streams) */}
-                {streamData && streamData.source_type === "dash" && streamData.video_link && (
-                  <DashPlayer
-                    key={`dash-${selectedServer}`}
-                    url={streamData.video_link}
-                    subtitleTracks={streamData.subtitle_tracks || []}
-                    onEnded={handleVideoEnded}
-                    autoplay={autoPlay}
-                  />
-                )}
-
-          {/* Loading state */}
-          {streamLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
-              <div className="text-center space-y-3">
-                <div className="ltv-spinner ltv-spinner-lg mx-auto" />
-                <p className="text-white/50 text-xs font-medium">
-                  Loading from <span className="text-[#ffffff]">{getProviderDisplayName(activeProvider)}</span>...
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Error state */}
-          {streamError && !streamLoading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
-              <div className="text-center space-y-4 max-w-sm px-6">
-                <div className="w-12 h-12 rounded-xl bg-[#ffffff]/10 border border-[#ffffff]/20 flex items-center justify-center mx-auto">
-                  <svg className="w-6 h-6 text-[#ffffff]/70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                </div>
-                <p className="text-white/80 text-sm">{streamError}</p>
-                <button
-                  onClick={() => {
-                    setStreamError(null);
-                    setStreamLoading(true);
-                    setScraperFallbackToken(t => t + 1);
-                  }}
-                  className="ltv-btn ltv-btn-primary"
-                >
-                  Retry
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* ─── SETTINGS BOX — right under player, muted sky blue toggles ─── */}
-      <div className="flex items-center gap-3 py-2.5 px-3 bg-white/[0.03] border border-white/[0.08] rounded-xl flex-wrap">
-          {/* Toggle Switches — muted sky blue (#7DD3FC) when active */}
-          {[
-            { label: "Autoplay", state: autoPlay, setter: setAutoPlay },
-            { label: "Auto Skip", state: autoSkip, setter: setAutoSkip },
-            { label: "Auto Next", state: autoNext, setter: setAutoNext },
-            { label: "Skip Filler", state: skipFiller, setter: setSkipFiller },
-          ].map(({ label, state, setter }) => (
-            <button key={label} onClick={() => setter(!state)} className="flex items-center gap-1.5 group">
-              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${state ? "bg-[#7DD3FC] border-[#7DD3FC]" : "bg-transparent border-white/20 group-hover:border-white/40"}`}>
-                {state && <svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-              </div>
-              <span className={`text-xs font-medium transition-colors ${state ? "text-[#7DD3FC]" : "text-white/40 group-hover:text-white/70"}`}>{label}</span>
-            </button>
-          ))}
-
-          {/* Divider */}
-          <div className="w-px h-5 bg-white/[0.08] mx-0.5" />
-
-          {/* Shortcuts — muted sky blue when active */}
-          <button onClick={() => setShowShortcuts(!showShortcuts)} className="flex items-center gap-1.5 group">
-            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${showShortcuts ? "bg-[#7DD3FC] border-[#7DD3FC]" : "bg-transparent border-white/20 group-hover:border-white/40"}`}>
-              {showShortcuts && <svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-            </div>
-            <span className={`text-xs font-medium transition-colors ${showShortcuts ? "text-[#7DD3FC]" : "text-white/40 group-hover:text-white/70"}`}>Shortcuts</span>
-          </button>
-
-          {/* Lights — muted sky blue when active */}
-          <button onClick={() => setLightsOff(!lightsOff)} className="flex items-center gap-1.5 group">
-            <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${lightsOff ? "bg-[#7DD3FC] border-[#7DD3FC]" : "bg-transparent border-white/20 group-hover:border-white/40"}`}>
-              {lightsOff && <svg className="w-2.5 h-2.5 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>}
-            </div>
-            <span className={`text-xs font-medium transition-colors ${lightsOff ? "text-[#7DD3FC]" : "text-white/40 group-hover:text-white/70"}`}>Lights</span>
-          </button>
-
-          {/* Spacer */}
-          <div className="flex-1" />
-
-          {/* Prev/Next Episode buttons */}
-          {prevEp && (
-            <button onClick={() => switchEpisode(prevEp)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-white/70 hover:text-white text-xs font-medium transition-colors" title="Previous episode">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
-              <span className="hidden sm:inline">Prev</span>
-            </button>
-          )}
-          {nextEp && (
-            <button onClick={() => switchEpisode(nextEp)} className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/[0.1] text-white/70 hover:text-white text-xs font-medium transition-colors" title="Next episode">
-              <span className="hidden sm:inline">Next</span>
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
-            </button>
-          )}
-        </div>
-
-      {/* Lights Off overlay */}
-      {lightsOff && (
-        <div
-          className="fixed inset-0 bg-black/90 z-30 pointer-events-none"
-          style={{ backdropFilter: "blur(8px)" }}
-        />
-      )}
-
-        {/* ─── CONTENT AREA ─── */}
-        {/* ─── TITLE BAR ─── */}
-        <div className="py-4 border-b border-white/[0.06]">
-          <div className="flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold text-white truncate">{animeTitle}</h1>
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                <span className="text-sm text-white/55">
-                  Episode {episodeNum}{animeEpisodes ? ` of ${animeEpisodes}` : ""}
-                  {animeDuration && ` · ${animeDuration}min`}
-                </span>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                  translation === "hindi"
-                    ? "bg-[#9333EA]/15 text-[#9333EA]"
-                    : translation === "dub"
-                    ? "bg-[#ffffff]/15 text-[#ffffff]"
-                    : translation === "hardsub"
-                    ? "bg-[#FF8C00]/15 text-[#FF8C00]"
-                    : "bg-[#ffffff]/15 text-[#ffffff]"
-                }`}>
-                  {translation === "sub" ? "SOFT SUB" : translation === "hardsub" ? "HARD SUB" : translation === "dub" ? "DUB" : "HINDI DUB"}
-                </span>
-                {streamData && (
-                  <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.05] text-white/55">
-                    {getProviderDisplayName(streamData.provider)}
-                  </span>
-                )}
-                {animeStatus === "RELEASING" && (
-                  <span className="inline-flex items-center gap-1 text-[10px] text-[#10B981]">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
-                    Airing
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Quick Nav */}
-            <div className="flex items-center gap-1.5 shrink-0">
-              {prevEp && (
-                <button
-                  onClick={() => switchEpisode(prevEp)}
-                  className="p-2 rounded-lg bg-white/[0.05] text-white/55 hover:bg-white/[0.08] hover:text-white transition-colors"
-                  title="Previous Episode (P)"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-              )}
-              {nextEp && (
-                <button
-                  onClick={() => switchEpisode(nextEp)}
-                  className="p-2 rounded-lg bg-white/[0.05] text-white/55 hover:bg-white/[0.08] hover:text-white transition-colors"
-                  title="Next Episode (N)"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              )}
-              <button
-                onClick={() => setAutoNext(!autoNext)}
-                className={`p-2 rounded-lg transition-colors ${
-                  autoNext
-                    ? "bg-[#ffffff]/15 text-[#ffffff]"
-                    : "bg-white/[0.05] text-white/40 hover:text-white/75"
-                }`}
-                title={`Auto Next: ${autoNext ? "ON" : "OFF"}`}
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* ─── NEXT AIRING COUNTDOWN ─── */}
-        {animeNextAiring && countdown && (
-          <div className="mt-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-[#FFB800]/5 border border-[#FFB800]/10">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#FFB800] animate-pulse" />
-            <span className="text-xs text-[#FFB800]/80 font-semibold">
-              Episode {animeNextAiring.episode} airs in
-            </span>
-            <span className="text-xs font-extrabold text-[#FFB800] tracking-wide font-mono">
-              {countdown}
-            </span>
-          </div>
-        )}
-
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* ─── COMPACT SERVER SELECTOR (TOP — right after title) ─── */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        <div className="mt-4 p-4 ltv-card-flat">
-          {/* Audio translation toggle */}
-          <div className="flex items-center gap-3 mb-3 flex-wrap">
-            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Audio</span>
-            <div className="ltv-toggle-group">
-              <button onClick={() => handleTranslationChange("sub")}
-                className={`ltv-toggle${translation === "sub" ? " is-active" : ""}${!softsubAvailable ? " opacity-40 cursor-not-allowed" : ""}`}
-                disabled={!softsubAvailable}>SOFT SUB</button>
-              <button onClick={() => handleTranslationChange("hardsub")}
-                className={`ltv-toggle${translation === "hardsub" ? " is-active" : ""}${!hardsubAvailable ? " opacity-40 cursor-not-allowed" : ""}`}
-                disabled={!hardsubAvailable}>HARD SUB</button>
-              <button onClick={() => handleTranslationChange("dub")}
-                className={`ltv-toggle${translation === "dub" ? " is-active" : ""}${!dubAvailable ? " opacity-40 cursor-not-allowed" : ""}`}
-                disabled={!dubAvailable}>DUB</button>
-              <button onClick={() => handleTranslationChange("hindi")}
-                className={`ltv-toggle${translation === "hindi" ? " is-active" : ""}`}>HINDI</button>
-            </div>
-          </div>
-
-          {/* Server pills — scrollable horizontal list */}
-          {serverList.length > 0 ? (
-            <div className="flex items-start gap-2">
-              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider shrink-0 pt-1.5">Server</span>
-              <div className="flex items-center gap-2 flex-wrap overflow-y-auto" style={{ maxHeight: "120px" }}>
-                {serverList
-                  .filter(s => {
-                    if (translation === "hindi") return s.source === "anixtv";
-                    if (translation === "dub") return s.type === "dub" && s.source !== "anixtv";
-                    if (translation === "hardsub") return s.type === "sub" && s.hardsub === true;
-                    return s.type === "sub";
-                  })
-                  .sort((a, b) => {
-                    if (translation === "sub") {
-                      if (a.hardsub !== true && b.hardsub === true) return -1;
-                      if (a.hardsub === true && b.hardsub !== true) return 1;
-                    }
-                    return 0;
-                  })
-                  .slice(0, 50)
-                  .map(s => (
-                    <button
-                      key={s.id}
-                      onClick={() => { setSelectedServer(s.id); setStreamError(null); }}
-                      className={`ltv-filter-chip${selectedServer === s.id ? " is-active" : ""}`}>
-                      {s.name}
-                    </button>
-                  ))}
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-2">
-              <p className="text-white/40 text-xs">Loading servers...</p>
-            </div>
-          )}
-
-          {/* HINDI mode but no hindi servers available */}
-          {translation === "hindi" && serverList.length > 0 && !serverList.some(s => s.source === "anixtv") && !streamLoading && (
-            <div className="mt-3 text-center py-3 px-4 rounded-lg bg-[#9333EA]/5 border border-[#9333EA]/20">
-              <p className="text-[#9333EA] text-sm font-medium mb-1">Not in our Hindi database</p>
-              <p className="text-white/40 text-xs">This anime doesn&apos;t have a Hindi dub on AnixTV yet. Try SOFT SUB / HARD SUB / DUB instead.</p>
-            </div>
-          )}
-        </div>
-
-        {/* ─── TABBED CONTENT ─── */}
-        <div className="mt-4">
-          {/* Tab Bar — modern underline style (Episodes moved to sidebar) */}
-          <div className="ltv-tab-bar mb-4">
-            {(["info", "relations"] as const).map(tab => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`ltv-tab${activeTab === tab ? " is-active" : ""}`}>
-                {tab === "info" && (
-                  <span className="flex items-center gap-1.5">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <circle cx="12" cy="12" r="10" /><path d="M12 16v-4m0-4h.01" />
-                    </svg>
-                    Info
-                  </span>
-                )}
-                {tab === "relations" && (
-                  <span className="flex items-center gap-1.5">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" />
-                      <path d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                    </svg>
-                    Relations
-                    {relations.length > 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.05] text-white/40">
-                        {relations.length}
-                      </span>
-                    )}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* ─── EPISODES TAB — removed (now in right sidebar) ─── */}
-
-          {/* ─── INFO TAB ─── */}
-          {activeTab === "info" && (
-            <div className="space-y-5">
-              {/* Cover + Info */}
-              <div className="flex gap-4 sm:gap-6">
-                {animeImage && (
-                  <div className="shrink-0 w-28 sm:w-36 rounded-lg overflow-hidden border border-white/[0.06]">
-                    <img
-                      src={animeImage}
-                      alt={animeTitle}
-                      className="w-full h-auto object-cover"
-                      loading="lazy"
-                    />
-                  </div>
-                )}
-                <div className="flex-1 min-w-0 space-y-3">
-                  <h2 className="text-lg font-bold text-white">{animeTitle}</h2>
-
-                  {/* Metadata pills */}
-                  <div className="flex flex-wrap gap-2">
-                    {animeStatus && (
-                      <span className={`px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white/[0.05] ${statusColor(animeStatus)}`}>
-                        {statusLabel(animeStatus)}
-                      </span>
-                    )}
-                    {animeType && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-white/55">
-                        {animeType}
-                      </span>
-                    )}
-                    {animeSeason && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-white/55">
-                        {animeSeason}
-                      </span>
-                    )}
-                    {animeEpisodes && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-white/55">
-                        {animeEpisodes} Episodes
-                      </span>
-                    )}
-                    {animeDuration && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-medium bg-white/[0.05] text-white/55">
-                        {animeDuration} min/ep
-                      </span>
-                    )}
-                    {animeScore && (
-                      <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-[#ffffff]/10 text-[#ffffff]">
-                        {animeScore > 10 ? Math.round(animeScore) : animeScore}%
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Studios */}
-                  {animeStudios.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-semibold text-white/40 uppercase tracking-wider">Studio</span>
-                      <span className="text-sm text-white/55">{animeStudios.join(", ")}</span>
-                    </div>
-                  )}
-
-                  {/* Genres */}
-                  {animeGenres.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {animeGenres.map(g => (
-                        <span key={g} className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-white/[0.05] text-white/55 border border-white/[0.04]">
-                          {g}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Synopsis */}
-              {animeDescription && (
-                <div>
-                  <h3 className="text-sm font-semibold text-white mb-2">Synopsis</h3>
-                  <p className={`text-sm text-white/55 leading-relaxed ${!synopsisExpanded ? "line-clamp-4" : ""}`}>
-                    {animeDescription}
-                  </p>
-                  {animeDescription.length > 200 && (
-                    <button
-                      onClick={() => setSynopsisExpanded(!synopsisExpanded)}
-                      className="mt-1 text-xs font-medium text-[#ffffff] hover:text-[#c49515] transition-colors"
-                    >
-                      {synopsisExpanded ? "Show less" : "Read more"}
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* ─── RELATIONS TAB ─── */}
-          {activeTab === "relations" && (
-            <div>
-              {relations.length > 0 ? (
-                <div className="space-y-2">
-                  {relations.map((rel, idx) => {
-                    const relTitle = rel.title?.english || rel.title?.romaji || rel.title?.native || "Unknown";
-                    const relImage = rel.coverImage?.extraLarge || rel.coverImage?.large || rel.coverImage?.medium || "";
-                    return (
-                      <button
-                        key={`${rel.id}-${idx}`}
-                        onClick={() => navigate({ page: "anime", id: String(rel.id) })}
-                        className="flex items-center gap-3 w-full p-3 rounded-lg bg-[#111118] border border-white/[0.04] hover:bg-white/[0.06] transition-colors text-left"
-                      >
-                        {relImage ? (
-                          <img
-                            src={relImage}
-                            alt={relTitle}
-                            className="w-12 h-16 rounded object-cover shrink-0"
-                            loading="lazy"
-                          />
-                        ) : (
-                          <div className="w-12 h-16 rounded bg-white/[0.03] shrink-0" />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-white truncate">{relTitle}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            {rel.relationType && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-[#ffffff]/10 text-[#ffffff]">
-                                {rel.relationType}
-                              </span>
-                            )}
-                            {rel.format && (
-                              <span className="text-[11px] text-white/40">{rel.format}</span>
-                            )}
-                            {rel.episodes && (
-                              <span className="text-[11px] text-white/40">{rel.episodes} eps</span>
-                            )}
-                            {rel.status && (
-                              <span className={`text-[11px] ${statusColor(rel.status)}`}>
-                                {statusLabel(rel.status)}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="py-12 text-center">
-                  <p className="text-white/40 text-sm">No relations found</p>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* ═══════════════════════════════════════════════════════════════ */}
-        {/* ─── SERVER SELECTOR (BOTTOM — REMOVED, now at top) ─── */}
-        {/* ═══════════════════════════════════════════════════════════════ */}
-
-        {/* ─── KEYBOARD SHORTCUTS PANEL ─── */}
-        {showShortcuts && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowShortcuts(false)}>
-            <div
-              className="w-full max-w-sm mx-4 rounded-xl bg-[#111118] border border-white/[0.06] shadow-2xl overflow-hidden"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
-                <h3 className="text-sm font-bold text-white">Keyboard Shortcuts</h3>
-                <button
-                  onClick={() => setShowShortcuts(false)}
-                  className="p-1 rounded text-white/40 hover:text-white transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <div className="p-5 space-y-3">
-                {[
-                  { key: "N", desc: "Next episode" },
-                  { key: "P", desc: "Previous episode" },
-                  { key: "Space / K", desc: "Play / Pause" },
-                  { key: "F", desc: "Fullscreen" },
-                  { key: "M", desc: "Mute / Unmute" },
-                  { key: "Left Arrow", desc: "Seek -10s" },
-                  { key: "Right Arrow", desc: "Seek +10s" },
-                  { key: "Up Arrow", desc: "Volume up" },
-                  { key: "Down Arrow", desc: "Volume down" },
-                  { key: "?", desc: "Toggle this panel" },
-                  { key: "Esc", desc: "Close this panel" },
-                ].map(s => (
-                  <div key={s.key} className="flex items-center justify-between">
-                    <span className="text-xs text-white/55">{s.desc}</span>
-                    <kbd className="px-2 py-0.5 rounded bg-white/[0.06] text-[10px] font-mono font-bold text-white border border-white/[0.06]">
-                      {s.key}
-                    </kbd>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-          </div>{/* ═══ END LEFT COLUMN ═══ */}
-
-          {/* ═══ RIGHT COLUMN: Episode Sidebar (animetsu-style) ═══ */}
-          <aside className="ltv-sidebar flex flex-col">
-            {/* Sidebar Header */}
-            <div className="ltv-sidebar-header">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
-                </svg>
-                <h3 className="text-sm font-bold text-white">Episodes</h3>
-                {episodeList.length > 0 && (
-                  <span className="text-[10px] font-bold text-white/40 bg-white/[0.05] px-1.5 py-0.5 rounded">{episodeList.length}</span>
-                )}
-              </div>
-              {/* Episode search */}
-              <div className="relative w-32">
-                <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-                </svg>
-                <input
-                  type="text"
-                  value={epSearch}
-                  onChange={e => setEpSearch(e.target.value)}
-                  placeholder="Search..."
-                  className="w-full pl-7 pr-2 py-1 rounded-md bg-white/[0.03] border border-white/[0.06] text-[11px] text-white placeholder-white/40 focus:outline-none focus:border-white/30"
-                />
-              </div>
-            </div>
-
-            {/* Episode List — scrollable */}
-            <div className="ltv-sidebar-list ltv-scroll p-2">
-              {filteredEps.length > 0 ? (
-                <div className="flex flex-col gap-1">
-                  {filteredEps.map(ep => {
-                    const isActive = ep.number === episodeNum;
-                    return (
-                      <button
-                        key={ep.number}
-                        onClick={() => switchEpisode(ep.number)}
-                        className={`ltv-ep-thumb${isActive ? " is-active" : ""}`}
-                      >
-                        <span className={`shrink-0 w-9 h-9 rounded-md flex items-center justify-center text-xs font-bold ${
-                          isActive ? "bg-white text-black" : "bg-white/[0.05] text-white/60"
-                        }`}>
-                          {ep.number}
-                        </span>
-                        <div className="flex-1 min-w-0">
-                          <p className={`text-xs font-semibold truncate ${isActive ? "text-white" : "text-white/75"}`}>
-                            {ep.title || `Episode ${ep.number}`}
-                          </p>
-                          {ep.filler && (
-                            <span className="text-[9px] font-bold text-[#FF8C00] uppercase tracking-wider">Filler</span>
-                          )}
-                        </div>
-                        {isActive && (
-                          <svg className="w-3 h-3 text-white shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                            <polygon points="5 3 19 12 5 21 5 3" />
-                          </svg>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="ltv-empty" style={{ padding: "32px 12px" }}>
-                  <p className="ltv-empty-desc text-xs">
-                    {episodeList.length === 0 ? "Loading episodes..." : "No episodes found"}
-                  </p>
-                </div>
-              )}
-            </div>
-          </aside>
-
-        </div>{/* ═══ END GRID ═══ */}
-      </div>{/* ═══ END OUTER WRAPPER ═══ */}
-    </div>
+    <WatchPageShell
+      streamLoading={streamLoading}
+      streamError={streamError}
+      streamData={streamData}
+      activeProvider={activeProvider}
+      animeTitle={animeTitle}
+      episodeNum={episodeNum}
+      animeEpisodes={animeEpisodes}
+      animeDuration={animeDuration}
+      animeStatus={animeStatus}
+      animeImage={animeImage}
+      animeDescription={animeDescription}
+      animeScore={animeScore}
+      animeType={animeType}
+      animeSeason={animeSeason}
+      animeStudios={animeStudios}
+      animeGenres={animeGenres}
+      animeNextAiring={animeNextAiring}
+      countdown={countdown}
+      translation={translation}
+      softsubAvailable={softsubAvailable}
+      hardsubAvailable={hardsubAvailable}
+      dubAvailable={dubAvailable}
+      handleTranslationChange={handleTranslationChange}
+      serverList={serverList}
+      selectedServer={selectedServer}
+      setSelectedServer={setSelectedServer}
+      setStreamError={setStreamError}
+      setStreamLoading={setStreamLoading}
+      getProviderDisplayName={getProviderDisplayName}
+      episodeList={episodeList}
+      filteredEps={filteredEps}
+      epSearch={epSearch}
+      setEpSearch={setEpSearch}
+      switchEpisode={switchEpisode}
+      prevEp={prevEp}
+      nextEp={nextEp}
+      autoPlay={autoPlay}
+      setAutoPlay={setAutoPlay}
+      autoSkip={autoSkip}
+      setAutoSkip={setAutoSkip}
+      autoNext={autoNext}
+      setAutoNext={setAutoNext}
+      skipFiller={skipFiller}
+      setSkipFiller={setSkipFiller}
+      navigate={navigate}
+      relations={relations}
+      HLSPlayerNew={HLSPlayerNew}
+      EmbedPlayerWithFallback={EmbedPlayerWithFallback}
+      DashPlayer={DashPlayer}
+      proxifyM3u8={proxifyM3u8}
+      proxify={proxify}
+      AnimeComments={AnimeComments}
+      WatchPageExtras={WatchPageExtras}
+      handleVideoEnded={handleVideoEnded}
+      handleProviderFailed={handleProviderFailed}
+      handleProviderSelect={handleProviderSelect}
+      failedProviders={failedProviders}
+      providersForCurrentEp={providersForCurrentEp}
+      setScraperFallbackToken={setScraperFallbackToken}
+      showShortcuts={showShortcuts}
+      setShowShortcuts={setShowShortcuts}
+      lightsOff={lightsOff}
+      setLightsOff={setLightsOff}
+      synopsisExpanded={synopsisExpanded}
+      setSynopsisExpanded={setSynopsisExpanded}
+      animeId={animeId}
+    />
   );
 }

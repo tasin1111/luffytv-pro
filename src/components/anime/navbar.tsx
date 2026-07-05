@@ -16,6 +16,8 @@ interface QuickResult {
 
 export default function Navbar() {
   const { route, navigate, sectionSubPage, setSectionSubPage } = useAppStore();
+  const user = useAppStore((s) => s.user);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -245,6 +247,112 @@ export default function Navbar() {
             <polyline points="12 6 12 12 16 14" />
           </svg>
         </button>
+
+        {/* Auth — Login button OR Profile avatar dropdown */}
+        {user ? (
+          <div className="relative">
+            <button
+              className="ltv-nav-icon-btn flex items-center gap-1.5 px-1.5"
+              onClick={() => setProfileMenuOpen((v) => !v)}
+              aria-label="Profile menu"
+              title={`${user.name} (@${user.username})`}
+            >
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border border-white/15"
+                style={{
+                  backgroundColor: (user.avatarColor || "#7c3aed") + "44",
+                  color: user.avatarColor || "#7c3aed",
+                }}
+              >
+                {(user.avatar || user.username.charAt(0) || "?").toUpperCase()}
+              </div>
+            </button>
+            {profileMenuOpen && (
+              <>
+                {/* click-away overlay */}
+                <div className="fixed inset-0 z-40" onClick={() => setProfileMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-2 w-56 rounded-xl border border-white/10 bg-[#0a0a0a]/95 backdrop-blur-xl shadow-2xl z-50 overflow-hidden">
+                  {/* User info header */}
+                  <div className="p-3 border-b border-white/[0.06] flex items-center gap-2.5">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold border border-white/15 shrink-0"
+                      style={{
+                        backgroundColor: (user.avatarColor || "#7c3aed") + "44",
+                        color: user.avatarColor || "#7c3aed",
+                      }}
+                    >
+                      {(user.avatar || user.username.charAt(0) || "?").toUpperCase()}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-white truncate">{user.name}</p>
+                      <p className="text-[10px] text-white/40 truncate font-mono">@{user.username}</p>
+                    </div>
+                  </div>
+                  {/* Menu items */}
+                  <div className="p-1.5">
+                    <button
+                      onClick={() => { setProfileMenuOpen(false); navigate({ page: "profile" }); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/[0.06] text-sm text-white/80 hover:text-white transition-colors text-left"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      My Profile
+                    </button>
+                    <button
+                      onClick={() => { setProfileMenuOpen(false); navigate({ page: "bookmarks" }); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/[0.06] text-sm text-white/80 hover:text-white transition-colors text-left"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                      </svg>
+                      Bookmarks
+                    </button>
+                    <button
+                      onClick={() => { setProfileMenuOpen(false); navigate({ page: "history" }); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/[0.06] text-sm text-white/80 hover:text-white transition-colors text-left"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                        <circle cx="12" cy="12" r="10" />
+                        <polyline points="12 6 12 12 16 14" />
+                      </svg>
+                      History
+                    </button>
+                  </div>
+                  {/* Logout */}
+                  <div className="p-1.5 border-t border-white/[0.06]">
+                    <button
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        useAppStore.getState().logout();
+                        navigate({ page: "home" });
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-red-500/10 text-sm text-red-400 hover:text-red-300 transition-colors text-left"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                      </svg>
+                      Log out
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          <button
+            className="ltv-nav-icon-btn"
+            onClick={() => navigate({ page: "signin" })}
+            aria-label="Sign in"
+            title="Sign in"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
+              <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+              <polyline points="10 17 15 12 10 7" />
+              <line x1="15" y1="12" x2="3" y2="12" />
+            </svg>
+          </button>
+        )}
 
         {/* Mobile Toggle */}
         <button

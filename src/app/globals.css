@@ -380,6 +380,16 @@ html { scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.15) var(--bg-c
 }
 .hero-slide { animation: heroSlide 0.6s cubic-bezier(0.22, 1, 0.36, 1); }
 
+/* ===== HERO BANNER TRANSITIONS — smooth crossfade + content slide ===== */
+@keyframes ltv-hero-crossfade {
+  0% { opacity: 0; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes ltv-hero-content-slide {
+  0% { opacity: 0; transform: translateY(30px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
 @keyframes carouselProgress {
   from { width: 0%; }
   to { width: 100%; }
@@ -7278,8 +7288,8 @@ video::-webkit-media-controls { border-radius: 8px; }
   --rd-text-muted: rgba(255,255,255,0.5);
   --rd-text-dim: rgba(255,255,255,0.3);
   --rd-accent: #ffffff;
-  --rd-accent-hover: #E8B923;
-  --rd-accent-dim: rgba(212,160,23,0.12);
+  --rd-accent-hover: #f5f5f5;
+  --rd-accent-dim: rgba(255,255,255,0.12);
   --rd-radius-sm: 8px;
   --rd-radius-md: 12px;
   --rd-radius-lg: 16px;
@@ -7292,6 +7302,49 @@ video::-webkit-media-controls { border-radius: 8px; }
   background: var(--rd-bg);
   min-height: 100vh;
   color: var(--rd-text);
+}
+
+/* ─── Sticky Tab Bar ─── */
+.rd-detail-tabs {
+  position: sticky;
+  top: 52px;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.rd-detail-tab {
+  position: relative;
+  height: 56px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 20px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgba(255, 255, 255, 0.45);
+  transition: color 0.2s ease;
+  white-space: nowrap;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+}
+.rd-detail-tab:hover {
+  color: rgba(255, 255, 255, 0.8);
+}
+.rd-detail-tab-active {
+  color: #ffffff;
+}
+.rd-detail-tab-active::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 16px;
+  right: 16px;
+  height: 2px;
+  background: #ffffff;
+  border-radius: 2px;
 }
 
 .rd-detail-hero {
@@ -7451,7 +7504,7 @@ video::-webkit-media-controls { border-radius: 8px; }
 .rd-btn-primary:hover {
   background: var(--rd-accent-hover);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px rgba(212,160,23,0.3);
+  box-shadow: 0 4px 16px rgba(255,255,255,0.2);
 }
 .rd-btn-secondary {
   display: inline-flex;

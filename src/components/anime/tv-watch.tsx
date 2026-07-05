@@ -226,6 +226,10 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
                 <div className="w-20 h-12 sm:w-24 sm:h-14 rounded-lg overflow-hidden shrink-0 bg-[#1A1A1A] relative">
                   {ep.still_path ? (
                     <img src={`https://image.tmdb.org/t/p/w300${ep.still_path}`} alt="" className="w-full h-full object-cover" loading="lazy" />
+                  ) : show?.backdrop_path ? (
+                    <img src={`https://image.tmdb.org/t/p/w300${show.backdrop_path}`} alt="" className="w-full h-full object-cover opacity-40" loading="lazy" />
+                  ) : show?.poster_path ? (
+                    <img src={`https://image.tmdb.org/t/p/w300${show.poster_path}`} alt="" className="w-full h-full object-cover opacity-40" loading="lazy" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-xs font-bold text-[#666666]">{ep.episode_number}</div>
                   )}

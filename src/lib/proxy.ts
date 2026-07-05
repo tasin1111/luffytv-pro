@@ -67,6 +67,12 @@ const CDN_REFERERS: Record<string, string> = {
   "cx.animeheaven.me":     "https://animeheaven.me/",
   // allanime — same-origin
   "allanime.uns.bio":      "https://allanime.uns.bio/",
+  // FlixCLOUD (ReAnime) — video segments and m3u8 manifests
+  "fetch.flixcloud.cc":    "https://flixcloud.cc/",
+  "fetch1.flixcloud.cc":   "https://flixcloud.cc/",
+  "flixcloud.cc":          "https://flixcloud.cc/",
+  // SlopNet (ReAnime subtitles/fonts)
+  "vault94.slopnet.site":  "https://flixcloud.cc/",
   // harmonix (miku) — allanime referer
   "soq6.harmonixwellnessgroup.store": "https://allanime.uns.bio/",
 };
@@ -90,6 +96,10 @@ const CDN_REFERER_PATTERNS: Array<{ regex: RegExp; referer: string }> = [
   // AnimeOnsen CDN — requires same-origin referer
   { regex: /\.animeonsen\.xyz$/i, referer: "https://www.animeonsen.xyz/" },
   { regex: /^cdn\.animeonsen\.xyz$/i, referer: "https://www.animeonsen.xyz/" },
+  // SlopNet (ReAnime subtitles/fonts) — vault94.slopnet.site, vault99.slopnet.site, etc.
+  { regex: /^vault\d+\.slopnet\.site$/i, referer: "https://flixcloud.cc/" },
+  // FlixCLOUD CDNs — fetch1.flixcloud.cc, fetch2.flixcloud.cc, etc.
+  { regex: /^fetch\d*\.flixcloud\.cc$/i, referer: "https://flixcloud.cc/" },
 ];
 
 function getRefererFor(url: string): string {

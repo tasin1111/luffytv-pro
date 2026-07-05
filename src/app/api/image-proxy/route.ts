@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-export const runtime = "edge";
+export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // ─────────────────────────────────────────────────────────────
@@ -27,7 +27,25 @@ const ALLOWED_HOSTS = [
   "cdnlivetv.tv",
   "i.imgur.com",
   "upload.wikimedia.org",
+  "allanimenews.com",
+  "artworks.thetvdb.com",
+  "image.tmdb.org",
+  "s4.anilist.co",
+  "img1.ak.crunchyroll.com",
+  "img2.ak.crunchyroll.com",
+  "img3.ak.crunchyroll.com",
+  "img4.ak.crunchyroll.com",
+  "static.crunchyroll.com",
+  // Lunar scraper episode thumbnails (real per-episode scene stills)
+  "fetch.flixcloud.cc",
 ];
+
+// Some hosts require a specific Referer to return images.
+// Default uses parsedUrl.origin, but those overrides take priority.
+const REFERER_OVERRIDES: Record<string, string> = {
+  // Lunar CDN rejects requests without lunaranime.org referer (403)
+  "fetch.flixcloud.cc": "https://lunaranime.org/",
+};
 
 // Check if a hostname should be allowed for image proxying
 // This includes the explicit allow list PLUS any image CDN / sports data host
@@ -74,11 +92,13 @@ export async function GET(request: NextRequest) {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
 
+    const referer = REFERER_OVERRIDES[parsedUrl.hostname] || (parsedUrl.origin + "/");
+
     const response = await fetch(url, {
       headers: {
         "User-Agent": UA,
         "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
-        "Referer": parsedUrl.origin + "/",
+        "Referer": referer,
       },
       signal: controller.signal,
     });
@@ -88,10 +108,8 @@ export async function GET(request: NextRequest) {
       // For upstream 404s on logo endpoints, return a 1x1 transparent PNG
       // instead of passing through the error — prevents broken image icons
       if (response.status === 404) {
-        // 1x1 transparent PNG (smallest valid PNG) — edge-runtime safe
-        const binaryStr = atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAAA0lEQVQI12P4z8BQDwAEgAF/QualGQAAAABJRU5ErkJggg==");
-        const transparentPng = new Uint8Array(binaryStr.length);
-        for (let i = 0; i < binaryStr.length; i++) transparentPng[i] = binaryStr.charCodeAt(i);
+        // 1x1 transparent PNG
+        const transparentPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVQI12NgAAIABQABNjN9GQAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAAA0lEQVQI12P4z8BQDwAEgAF/QualGQAAAABJRU5ErkJggg==", "base64");
         return new NextResponse(transparentPng, {
           status: 200,
           headers: {

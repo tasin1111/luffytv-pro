@@ -18,6 +18,18 @@ interface HLSPlayerProps {
   autoplay?: boolean;
 }
 
+// ============================================================
+// Glass Player — Animetsu-inspired glassmorphism design
+// Features:
+//   - Floating glass control bar (backdrop-blur, translucent)
+//   - Animated progress bar with glow + gradient
+//   - Smooth scale/translate animations on all interactions
+//   - Glass menus for quality/subtitles/speed
+//   - Animated center play button with pulse ring
+//   - Double-tap to seek with ripple animation
+//   - Keyboard shortcuts
+// ============================================================
+
 export default function HLSPlayerNew({
   url, animeId, episodeNum, sourceType = 'hls',
   intro, outro, allStreams, subtitleTracks, onEnded, onProviderFailed, autoplay = true,
@@ -37,13 +49,26 @@ export default function HLSPlayerNew({
   const [showControls, setShowControls] = useState(true);
   const [qualities, setQualities] = useState<any[]>([]);
   const [currentQuality, setCurrentQuality] = useState(-1);
-  const [showQualityMenu, setShowQualityMenu] = useState(false);
-  const [showSubtitleMenu, setShowSubtitleMenu] = useState(false);
+  const [activeMenu, setActiveMenu] = useState<'quality' | 'subtitles' | 'speed' | null>(null);
   const [currentSubtitle, setCurrentSubtitle] = useState(-1);
   const [hlsSubtitles, setHlsSubtitles] = useState<any[]>([]);
-  const [showSettings, setShowSettings] = useState(false);
+  const [playbackRate, setPlaybackRate] = useState(1);
+  const [showSkipIntro, setShowSkipIntro] = useState(false);
+  const [showSkipOutro, setShowSkipOutro] = useState(false);
+  const [hoverTime, setHoverTime] = useState<number | null>(null);
+  const [hoverX, setHoverX] = useState(0);
+  const [seekRipple, setSeekRipple] = useState<{ x: number; dir: 'left' | 'right' } | null>(null);
+  const [volumeHover, setVolumeHover] = useState(false);
+  const [screenshotFlash, setScreenshotFlash] = useState(false);
+  const [screenshotToast, setScreenshotToast] = useState<string | null>(null);
+  const [downloadLoading, setDownloadLoading] = useState(false);
+  const [downloadToast, setDownloadToast] = useState<string | null>(null);
+  const [streamHealth, setStreamHealth] = useState<'good' | 'fair' | 'poor' | 'unknown'>('unknown');
+  const [showStreamInfo, setShowStreamInfo] = useState(false);
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const retryCountRef = useRef(0);
+  const lastTapRef = useRef<{ time: number; x: number } | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // ─── Load stream ──────────────────────────────────────────────────
   useEffect(() => {
@@ -72,36 +97,24 @@ export default function HLSPlayerNew({
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        // ─── PROXY-OPTIMIZED BUFFER ───
-        // Proxies add 200-500ms per segment request. Need large buffer
-        // to absorb this latency. Low quality segments are small (200-500KB)
-        // so buffering 90s is only ~5-15MB total — manageable.
-        backBufferLength: 90,        // keep 90s behind (don't discard quickly)
-        maxBufferLength: 90,         // buffer 90s ahead
-        maxMaxBufferLength: 180,     // can grow to 180s
-        maxBufferSize: 90 * 1000 * 1000, // 90MB
+        backBufferLength: 90,
+        maxBufferLength: 90,
+        maxMaxBufferLength: 180,
+        maxBufferSize: 90 * 1000 * 1000,
         maxBufferHole: 0.5,
-
-        // ─── LOCK TO LOWEST QUALITY ───
-        // Do NOT let ABR upgrade — upgrading causes rebuffering through proxy.
-        // User can manually switch quality from the settings menu.
-        startLevel: 0,              // lowest quality (tiny segments)
-        abrEwmaDefaultEstimate: 500000,   // 0.5 Mbps (very conservative)
+        startLevel: 0,
+        abrEwmaDefaultEstimate: 500000,
         abrBandWidthFactor: 0.3,
-        abrBandWidthUpFactor: 0.1,   // very slow to upgrade
-        maxStarvationDelay: 20,     // allow 20s before stalling
+        abrBandWidthUpFactor: 0.1,
+        maxStarvationDelay: 20,
         abrEwmaDefaultEstimateMax: 1000000,
-
-        // ─── Timeouts — generous for proxies ───
         manifestLoadingTimeOut: 20000,
         manifestLoadingMaxRetry: 4,
         levelLoadingTimeOut: 20000,
         levelLoadingMaxRetry: 4,
-        fragLoadingTimeOut: 45000,  // 45s per fragment (proxies can be slow)
-        fragLoadingMaxRetry: 8,     // 8 retries (don't give up easily)
+        fragLoadingTimeOut: 45000,
+        fragLoadingMaxRetry: 8,
         fragLoadingRetryDelay: 1000,
-
-        // ─── Other ───
         enableWebVTT: true,
         xhrSetup: (xhr) => { xhr.withCredentials = false; },
       });
@@ -112,11 +125,6 @@ export default function HLSPlayerNew({
       hls.on(Hls.Events.MANIFEST_PARSED, (_e, data) => {
         setQualities(data.levels);
         setLoading(false);
-        // Keep startLevel at 0 (lowest) — DO NOT switch to auto (-1) here.
-        // The player starts at lowest quality for fast loading through proxy.
-        // ABR will upgrade automatically once it measures bandwidth.
-        // Previous code set hls.currentLevel = -1 which overrode startLevel: 0
-        // and picked the HIGHEST quality → constant buffering through proxy.
         if (autoplay) {
           video.play().catch(() => {
             video.muted = true;
@@ -186,30 +194,24 @@ export default function HLSPlayerNew({
       if (video.buffered.length > 0) {
         setBuffered(video.buffered.end(video.buffered.length - 1));
       }
-      if (intro && video.currentTime >= intro.start && video.currentTime < intro.end - 2) {
-        video.currentTime = intro.end;
+      if (intro && video.currentTime >= intro.start && video.currentTime < intro.end) {
+        setShowSkipIntro(true);
+      } else {
+        setShowSkipIntro(false);
       }
-      if (outro && video.currentTime >= outro.start && video.currentTime < outro.end - 2) {
-        video.currentTime = outro.end;
+      if (outro && video.currentTime >= outro.start && video.currentTime < outro.end) {
+        setShowSkipOutro(true);
+      } else {
+        setShowSkipOutro(false);
       }
     };
     const onDur = () => setDuration(video.duration || 0);
 
-    // ── Smart loading: don't show spinner on minor buffer stalls ──
-    // The video fires 'waiting' on ANY buffer stall (even 100ms). This caused
-    // the "force loading" issue — the spinner kept flashing even though the
-    // video was playing fine. Now we only show loading if:
-    //   1. The video is actually paused (not just buffering briefly)
-    //   2. OR 1.5s have passed since the last 'waiting' event (real stall)
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
     const onWaiting = () => {
-      // Don't show loading for 5 seconds — proxies have latency spikes
-      // and the 90s buffer should absorb most stalls
       if (waitingTimer) clearTimeout(waitingTimer);
       waitingTimer = setTimeout(() => {
-        if (video.readyState < 3) {
-          setLoading(true);
-        }
+        if (video.readyState < 3) setLoading(true);
       }, 5000);
     };
     const onPlaying = () => {
@@ -251,8 +253,8 @@ export default function HLSPlayerNew({
     setShowControls(true);
     if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
     controlsTimeoutRef.current = setTimeout(() => {
-      if (playing) { setShowControls(false); setShowSettings(false); }
-    }, 3000);
+      if (playing) { setShowControls(false); setActiveMenu(null); }
+    }, 3500);
   }, [playing]);
 
   // ─── Fullscreen ───────────────────────────────────────────────────
@@ -283,47 +285,188 @@ export default function HLSPlayerNew({
   };
   const changeQuality = (level: number) => {
     if (hlsRef.current) { hlsRef.current.currentLevel = level; setCurrentQuality(level); }
-    setShowSettings(false);
+    setActiveMenu(null);
   };
   const changeSubtitle = (track: number) => {
-    // Track index scheme:
-    //   -1                    → Off
-    //   0..hlsSubtitles.len-1 → HLS-embedded subtitle tracks (switch via hls.subtitleTrack)
-    //   hlsSubtitles.len..    → External <track> elements (toggle via textTracks[i].mode)
     if (track === -1) {
-      // Turn off everything
       if (hlsRef.current) hlsRef.current.subtitleTrack = -1;
       const video = videoRef.current;
-      if (video) {
-        for (let i = 0; i < video.textTracks.length; i++) {
-          video.textTracks[i].mode = 'disabled';
-        }
-      }
+      if (video) for (let i = 0; i < video.textTracks.length; i++) video.textTracks[i].mode = 'disabled';
       setCurrentSubtitle(-1);
     } else if (hlsRef.current && track < hlsSubtitles.length) {
-      // HLS-embedded track
       hlsRef.current.subtitleTrack = track;
-      // Disable external tracks
       const video = videoRef.current;
-      if (video) {
-        for (let i = 0; i < video.textTracks.length; i++) video.textTracks[i].mode = 'disabled';
-      }
+      if (video) for (let i = 0; i < video.textTracks.length; i++) video.textTracks[i].mode = 'disabled';
       setCurrentSubtitle(track);
     } else {
-      // External <track> element
       if (hlsRef.current) hlsRef.current.subtitleTrack = -1;
       const externalIdx = track - hlsSubtitles.length;
       const video = videoRef.current;
-      if (video) {
-        for (let i = 0; i < video.textTracks.length; i++) {
-          video.textTracks[i].mode = (i === externalIdx) ? 'showing' : 'disabled';
-        }
-      }
+      if (video) for (let i = 0; i < video.textTracks.length; i++) video.textTracks[i].mode = (i === externalIdx) ? 'showing' : 'disabled';
       setCurrentSubtitle(track);
     }
-    setShowSettings(false);
+    setActiveMenu(null);
+  };
+  const changePlaybackRate = (rate: number) => {
+    if (videoRef.current) videoRef.current.playbackRate = rate;
+    setPlaybackRate(rate);
+    setActiveMenu(null);
   };
   const skipTime = (seconds: number) => { if (videoRef.current) videoRef.current.currentTime += seconds; };
+  const skipIntro = () => { { if (videoRef.current && intro) videoRef.current.currentTime = intro.end; } };
+  const skipOutro = () => { { if (videoRef.current && outro) videoRef.current.currentTime = outro.end; } };
+
+  // ─── Screenshot: capture current video frame as PNG ───────────────
+  const takeScreenshot = useCallback(() => {
+    const video = videoRef.current;
+    if (!video || !video.videoWidth) {
+      setScreenshotToast('Video not ready');
+      setTimeout(() => setScreenshotToast(null), 2000);
+      return;
+    }
+    try {
+      const canvas = canvasRef.current || document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('No canvas context');
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL('image/png');
+      // Download the screenshot
+      const link = document.createElement('a');
+      const filename = `screenshot-${animeId || 'anime'}-ep${episodeNum || 1}-${Math.floor(video.currentTime)}s.png`;
+      link.download = filename;
+      link.href = dataUrl;
+      link.click();
+      // Flash animation
+      setScreenshotFlash(true);
+      setTimeout(() => setScreenshotFlash(false), 300);
+      setScreenshotToast('Screenshot saved!');
+      setTimeout(() => setScreenshotToast(null), 2000);
+    } catch (err) {
+      // CORS-tainted canvas — can't capture directly
+      setScreenshotToast('Screenshot blocked by CORS');
+      setTimeout(() => setScreenshotToast(null), 3000);
+    }
+    showControlsTemp();
+  }, [animeId, episodeNum, showControlsTemp]);
+
+  // ─── Download: download the current stream URL ────────────────────
+  const handleDownload = useCallback(async () => {
+    setDownloadLoading(true);
+    try {
+      const video = videoRef.current;
+      if (!video) throw new Error('No video');
+      // For MP4 sources, download directly
+      if (sourceType === 'mp4' || url.endsWith('.mp4')) {
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${animeId || 'anime'}-ep${episodeNum || 1}.mp4`;
+        link.target = '_blank';
+        link.click();
+        setDownloadToast('Download started');
+      } else {
+        // For HLS streams, open the proxied m3u8 URL in new tab
+        // (user can use a downloader like ffmpeg or browser extension)
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${animeId || 'anime'}-ep${episodeNum || 1}.m3u8`;
+        link.target = '_blank';
+        link.click();
+        setDownloadToast('Stream link opened — use a video downloader for HLS');
+      }
+      setTimeout(() => setDownloadToast(null), 3500);
+    } catch (err) {
+      setDownloadToast('Download failed');
+      setTimeout(() => setDownloadToast(null), 2000);
+    }
+    setDownloadLoading(false);
+    showControlsTemp();
+  }, [url, sourceType, animeId, episodeNum, showControlsTemp]);
+
+  // ─── Stream health monitor ────────────────────────────────────────
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    let lastTime = video.currentTime;
+    let lastDate = Date.now();
+    let stallCount = 0;
+    const interval = setInterval(() => {
+      if (video.paused) return;
+      const now = Date.now();
+      const elapsed = (now - lastDate) / 1000;
+      const delta = video.currentTime - lastTime;
+      // If time advanced less than 80% of real time, it's stalling
+      if (delta < elapsed * 0.8 && delta >= 0) {
+        stallCount++;
+      } else if (delta >= elapsed * 0.9) {
+        stallCount = Math.max(0, stallCount - 1);
+      }
+      // Determine health
+      if (stallCount >= 3) setStreamHealth('poor');
+      else if (stallCount >= 1) setStreamHealth('fair');
+      else setStreamHealth('good');
+      lastTime = video.currentTime;
+      lastDate = now;
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [url]);
+
+  // ─── Keyboard shortcuts ───────────────────────────────────────────
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+      switch (e.key.toLowerCase()) {
+        case ' ':
+        case 'k': e.preventDefault(); togglePlay(); showControlsTemp(); break;
+        case 'arrowright': e.preventDefault(); skipTime(10); showControlsTemp(); break;
+        case 'arrowleft': e.preventDefault(); skipTime(-10); showControlsTemp(); break;
+        case 'arrowup': e.preventDefault(); changeVolume(Math.min(1, volume + 0.1)); showControlsTemp(); break;
+        case 'arrowdown': e.preventDefault(); changeVolume(Math.max(0, volume - 0.1)); showControlsTemp(); break;
+        case 'f': e.preventDefault(); toggleFullscreen(); break;
+        case 'm': e.preventDefault(); toggleMute(); showControlsTemp(); break;
+        case 'j': e.preventDefault(); skipTime(-10); showControlsTemp(); break;
+        case 'l': e.preventDefault(); skipTime(10); showControlsTemp(); break;
+        case 's': e.preventDefault(); takeScreenshot(); break;
+        case 'd': e.preventDefault(); handleDownload(); break;
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [volume, showControlsTemp, takeScreenshot, handleDownload]);
+
+  // ─── Double-tap to seek with ripple ───────────────────────────────
+  const handleVideoClick = (e: React.MouseEvent) => {
+    const now = Date.now();
+    const x = e.clientX;
+    if (lastTapRef.current && now - lastTapRef.current.time < 300 && Math.abs(x - lastTapRef.current.x) < 50) {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) {
+        const relX = (x - rect.left) / rect.width;
+        if (relX < 0.4) {
+          skipTime(-10);
+          setSeekRipple({ x: relX * rect.width, dir: 'left' });
+          setTimeout(() => setSeekRipple(null), 600);
+        } else if (relX > 0.6) {
+          skipTime(10);
+          setSeekRipple({ x: relX * rect.width, dir: 'right' });
+          setTimeout(() => setSeekRipple(null), 600);
+        } else {
+          togglePlay();
+        }
+      }
+      lastTapRef.current = null;
+    } else {
+      lastTapRef.current = { time: now, x };
+      setTimeout(() => {
+        if (lastTapRef.current && Date.now() - lastTapRef.current.time >= 300) {
+          togglePlay();
+          lastTapRef.current = null;
+        }
+      }, 300);
+    }
+  };
 
   const fmt = (s: number) => {
     if (!s || isNaN(s)) return '0:00';
@@ -337,212 +480,455 @@ export default function HLSPlayerNew({
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
   const bufferedProgress = duration > 0 ? (buffered / duration) * 100 : 0;
 
+  const handleProgressHover = (e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    setHoverTime(pct * duration);
+    setHoverX(e.clientX - rect.left);
+  };
+
   return (
     <div
       ref={containerRef}
-      className="relative w-full bg-black rounded-xl overflow-hidden group"
+      className="relative w-full bg-black overflow-hidden group select-none"
       style={{ aspectRatio: '16 / 9' }}
       onMouseMove={showControlsTemp}
-      onMouseLeave={() => { if (playing) { setShowControls(false); setShowSettings(false); } }}
-      onClick={(e) => { if (e.target === e.currentTarget || e.target === videoRef.current) togglePlay(); }}
+      onMouseLeave={() => { if (playing) { setShowControls(false); setActiveMenu(null); } }}
     >
-      <video ref={videoRef} className="w-full h-full object-contain" playsInline onClick={togglePlay} crossOrigin="anonymous">
-        {/* External WebVTT subtitle tracks (from AniDap softsub providers).
-            Routed through Cloudflare Worker (NEXT_PUBLIC_PROXY_BASE) — handles
-            Referer + CORS automatically. Falls back to legacy cdn.animex.su
-            XOR proxy if PROXY_BASE not configured. */}
+      <video
+        ref={videoRef}
+        className="w-full h-full object-contain"
+        playsInline
+        onClick={handleVideoClick}
+        crossOrigin="anonymous"
+      >
         {(subtitleTracks || []).map((t, i) => {
           let trackSrc = t.url;
           if (!t.url.startsWith('blob:') && !t.url.startsWith('data:') && !t.url.startsWith('/')) {
             const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE;
             if (PROXY_BASE) {
-              // ── NEW: Route through Cloudflare Worker ──
               trackSrc = proxify(t.url, 'raw');
             } else {
-              // ── LEGACY FALLBACK: cdn.animex.su XOR proxy ──
-              // XOR(url + \0 + referer, "aproxy2026") → base64url → /stream/{b64}/index.txt
               const key = 'aproxy2026';
               const combined = t.url + '\0https://animex.one/';
               const xored = new Uint8Array(combined.length);
-              for (let j = 0; j < combined.length; j++) {
-                xored[j] = combined.charCodeAt(j) ^ key.charCodeAt(j % key.length);
-              }
+              for (let j = 0; j < combined.length; j++) xored[j] = combined.charCodeAt(j) ^ key.charCodeAt(j % key.length);
               let b64 = btoa(String.fromCharCode(...xored)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
               trackSrc = `https://cdn.animex.su/stream/${b64}/index.txt`;
             }
           }
           return (
-            <track
-              key={`ext-sub-${i}`}
-              kind="subtitles"
-              src={trackSrc}
-              srcLang={t.lang || 'en'}
-              label={t.label || t.lang || 'English'}
-              default={i === 0 && hlsSubtitles.length === 0}
-            />
+            <track key={`ext-sub-${i}`} kind="subtitles" src={trackSrc} srcLang={t.lang || 'en'} label={t.label || t.lang || 'English'} default={i === 0 && hlsSubtitles.length === 0} />
           );
         })}
       </video>
 
-      {/* Loading — only show if video is actually stalled (not just buffering briefly) */}
-      {loading && !error && !playing && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/30">
-          <div className="w-12 h-12 border-2 border-white/10 border-t-white rounded-full animate-spin" />
+      {/* ═══ Loading spinner — animated glow ring ═══ */}
+      {loading && !error && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="relative w-16 h-16">
+            <div className="absolute inset-0 rounded-full border-2 border-white/10" />
+            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white animate-spin" style={{ animationDuration: '0.8s' }} />
+            <div className="absolute inset-2 rounded-full border-2 border-transparent border-t-white/40 animate-spin" style={{ animationDuration: '1.2s', animationDirection: 'reverse' }} />
+          </div>
         </div>
       )}
 
-      {/* Error */}
+      {/* ═══ Error state ═══ */}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/90">
-          <div className="text-center px-6">
-            <svg className="w-10 h-10 text-red-400/60 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <p className="text-white/80 text-sm mb-3">{error}</p>
-            <button onClick={() => onProviderFailed?.()} className="px-5 py-2 bg-[#7c3aed] text-white text-xs font-bold rounded-lg hover:bg-[#6d28d9] transition-colors">
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-md">
+          <div className="text-center px-6 max-w-sm">
+            <div className="w-16 h-16 rounded-full bg-white/5 backdrop-blur-md border border-white/10 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-white/60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <p className="text-white/80 text-sm mb-4">{error}</p>
+            <button onClick={() => onProviderFailed?.()} className="px-6 py-2.5 bg-white text-black text-xs font-bold rounded-full hover:bg-white/90 hover:scale-105 active:scale-95 transition-all">
               Switch Server
             </button>
           </div>
         </div>
       )}
 
-      {/* Center play button */}
+      {/* ═══ Center play button — glass with pulse ring ═══ */}
       {!playing && !loading && !error && (
-        <button onClick={togglePlay} className="absolute inset-0 flex items-center justify-center z-10">
-          <div className="w-16 h-16 bg-[#7c3aed]/90 backdrop-blur-sm rounded-full flex items-center justify-center hover:bg-[#7c3aed] hover:scale-110 transition-all shadow-lg shadow-[#7c3aed]/30">
-            <svg className="w-7 h-7 text-white ml-1" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+        <button onClick={togglePlay} className="absolute inset-0 flex items-center justify-center z-10 group/play">
+          <div className="relative">
+            {/* Pulse ring */}
+            <div className="absolute inset-0 rounded-full bg-white/20 animate-ping" style={{ animationDuration: '2s' }} />
+            {/* Main button */}
+            <div className="relative w-20 h-20 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 flex items-center justify-center group-hover/play:scale-110 group-hover/play:bg-white/20 transition-all duration-300 shadow-2xl">
+              <svg className="w-8 h-8 text-white ml-1" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+            </div>
           </div>
         </button>
       )}
 
-      {/* Controls — CinemaOS-style gradient overlay */}
+      {/* ═══ Seek ripple animation (double-tap) ═══ */}
+      {seekRipple && (
+        <div
+          className="absolute top-1/2 -translate-y-1/2 pointer-events-none z-20"
+          style={{ left: seekRipple.x, transform: 'translate(-50%, -50%)' }}
+        >
+          <div className="relative flex flex-col items-center gap-2">
+            <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-md border border-white/20 flex items-center justify-center animate-ping" style={{ animationDuration: '0.6s' }}>
+              <svg className="w-10 h-10 text-white" viewBox="0 0 24 24" fill="currentColor">
+                {seekRipple.dir === 'left'
+                  ? <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" />
+                  : <path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" style={{ transform: 'scaleX(-1)' }} />}
+              </svg>
+            </div>
+            <span className="text-white text-xs font-bold bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full">10s</span>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ Skip Intro button — glass pill ═══ */}
+      {showSkipIntro && intro && (
+        <button
+          onClick={skipIntro}
+          className="absolute bottom-28 right-6 bg-white/10 backdrop-blur-xl border border-white/20 text-white text-xs font-bold px-5 py-2.5 rounded-full hover:bg-white/20 hover:scale-105 active:scale-95 transition-all z-20 shadow-2xl"
+        >
+          Skip Intro →
+        </button>
+      )}
+
+      {/* ═══ Skip Outro button — glass pill ═══ */}
+      {showSkipOutro && outro && (
+        <button
+          onClick={skipOutro}
+          className="absolute bottom-28 right-6 bg-white/10 backdrop-blur-xl border border-white/20 text-white text-xs font-bold px-5 py-2.5 rounded-full hover:bg-white/20 hover:scale-105 active:scale-95 transition-all z-20 shadow-2xl"
+        >
+          Skip Outro →
+        </button>
+      )}
+
+      {/* ═══ Screenshot flash overlay ═══ */}
+      {screenshotFlash && (
+        <div className="absolute inset-0 bg-white animate-pulse pointer-events-none z-30" style={{ animationDuration: '0.3s' }} />
+      )}
+
+      {/* ═══ Toast notifications (screenshot/download) ═══ */}
+      {(screenshotToast || downloadToast) && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-40 animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="bg-black/70 backdrop-blur-xl border border-white/15 text-white text-xs font-medium px-4 py-2 rounded-full shadow-2xl flex items-center gap-2">
+            {screenshotToast ? (
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4v3h6V4h2v3h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h3V4h2zm11 6H4v8h16v-8zm-5 1l2.5 3.5L19 14l1.5 2h-9L9 13l2.5 2z" /></svg>
+            ) : (
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V5a3 3 0 0 0-6 0v4H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2z" /></svg>
+            )}
+            {screenshotToast || downloadToast}
+          </div>
+        </div>
+      )}
+
+      {/* Hidden canvas for screenshots */}
+      <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+      {/* ═══ CONTROLS — Floating glass bar ═══ */}
       <div
-        className={`absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black via-black/70 to-transparent pt-16 pb-1 px-3 transition-opacity duration-300 ${
-          showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
+        className={`absolute bottom-0 left-0 right-0 px-4 pb-4 transition-all duration-300 ${
+          showControls ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
         }`}
       >
-        {/* Progress bar — thin, elegant */}
+        {/* Progress bar — floating, with glow */}
         <div
-          className="relative h-1 bg-white/15 rounded-full mb-2.5 cursor-pointer group/bar hover:h-1.5 transition-all"
+          className="relative h-1.5 hover:h-2.5 bg-white/15 rounded-full mb-3 cursor-pointer transition-all group/bar"
           onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
             const pct = (e.clientX - rect.left) / rect.width;
             seek(pct * duration);
           }}
+          onMouseMove={handleProgressHover}
+          onMouseLeave={() => setHoverTime(null)}
         >
-          <div className="absolute h-full bg-white/20 rounded-full" style={{ width: `${bufferedProgress}%` }} />
-          <div className="absolute h-full bg-[#7c3aed] rounded-full" style={{ width: `${progress}%` }}>
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-[#9d6ef8] rounded-full shadow-md shadow-[#7c3aed]/50 opacity-0 group-hover/bar:opacity-100 transition-opacity" />
+          {/* Buffered */}
+          <div className="absolute h-full bg-white/25 rounded-full transition-all" style={{ width: `${bufferedProgress}%` }} />
+          {/* Played — with glow */}
+          <div
+            className="absolute h-full rounded-full transition-all"
+            style={{
+              width: `${progress}%`,
+              background: 'linear-gradient(90deg, rgba(255,255,255,0.8), #ffffff)',
+              boxShadow: '0 0 10px rgba(255,255,255,0.5)',
+            }}
+          >
+            {/* Scrubber — glass circle */}
+            <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-lg opacity-0 group-hover/bar:opacity-100 transition-all duration-200 group-hover/bar:scale-125" style={{ boxShadow: '0 0 15px rgba(255,255,255,0.8)' }} />
           </div>
+          {/* Hover preview */}
+          {hoverTime !== null && (
+            <div
+              className="absolute bottom-full mb-3 -translate-x-1/2 bg-black/70 backdrop-blur-md text-white text-[10px] font-mono px-2.5 py-1 rounded-md pointer-events-none whitespace-nowrap border border-white/10"
+              style={{ left: `${hoverX}px` }}
+            >
+              {fmt(hoverTime)}
+            </div>
+          )}
+          {/* Chapter markers */}
+          {intro && duration > 0 && (
+            <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-2.5 bg-white/50 rounded-full" style={{ left: `${(intro.start / duration) * 100}%` }} />
+          )}
+          {outro && duration > 0 && (
+            <div className="absolute top-1/2 -translate-y-1/2 w-0.5 h-2.5 bg-white/50 rounded-full" style={{ left: `${(outro.start / duration) * 100}%` }} />
+          )}
         </div>
 
-        {/* Control row */}
-        <div className="flex items-center gap-2.5 text-white">
-          {/* Play/Pause */}
-          <button onClick={togglePlay} className="hover:text-[#9d6ef8] transition-colors p-1">
+        {/* Control bar — floating glass pill */}
+        <div className="flex items-center gap-1.5 text-white bg-black/30 backdrop-blur-xl border border-white/10 rounded-full px-3 py-1.5 shadow-2xl">
+          {/* Play/Pause — glass circle */}
+          <button
+            onClick={togglePlay}
+            className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
+            title="Play/Pause (Space)"
+          >
             {playing ? (
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" /></svg>
             ) : (
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+              <svg className="w-4 h-4 ml-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
             )}
           </button>
 
           {/* Skip back 10s */}
-          <button onClick={() => skipTime(-10)} className="hover:text-[#9d6ef8] transition-colors p-1 hidden sm:block">
+          <button
+            onClick={() => skipTime(-10)}
+            className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 hidden sm:flex"
+            title="Back 10s (J)"
+          >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" /></svg>
           </button>
 
           {/* Skip forward 10s */}
-          <button onClick={() => skipTime(10)} className="hover:text-[#9d6ef8] transition-colors p-1 hidden sm:block">
+          <button
+            onClick={() => skipTime(10)}
+            className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 hidden sm:flex"
+            title="Forward 10s (L)"
+          >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" style={{ transform: 'scaleX(-1)' }}><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z" /></svg>
           </button>
 
-          {/* Volume */}
-          <div className="flex items-center gap-1.5 group/vol">
-            <button onClick={toggleMute} className="hover:text-[#9d6ef8] transition-colors p-1">
+          {/* Volume — expandable */}
+          <div
+            className="flex items-center gap-1 rounded-full hover:bg-white/10 transition-all duration-200 pr-2"
+            onMouseEnter={() => setVolumeHover(true)}
+            onMouseLeave={() => setVolumeHover(false)}
+          >
+            <button
+              onClick={toggleMute}
+              className="w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
+              title="Mute (M)"
+            >
               {muted || volume === 0 ? (
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" /></svg>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" /></svg>
               ) : (
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" /></svg>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z" /></svg>
               )}
             </button>
             <input
               type="range" min="0" max="1" step="0.05"
               value={muted ? 0 : volume}
               onChange={(e) => changeVolume(parseFloat(e.target.value))}
-              className="w-0 group-hover/vol:w-16 h-1 accent-[#7c3aed] cursor-pointer transition-all duration-200 hidden sm:block"
+              className={`h-1 accent-white cursor-pointer transition-all duration-300 hidden sm:block ${volumeHover ? 'w-16' : 'w-0'}`}
+              style={{ background: `linear-gradient(to right, white ${volume * 100}%, rgba(255,255,255,0.2) ${volume * 100}%)` }}
             />
           </div>
 
           {/* Time */}
-          <span className="text-xs font-medium text-white/80 tabular-nums ml-1">
+          <span className="text-xs font-medium text-white/90 tabular-nums ml-1 mr-2">
             {fmt(currentTime)} <span className="text-white/30">/</span> {fmt(duration)}
           </span>
 
           <div className="flex-1" />
 
-          {/* Settings (quality + subtitles) */}
-          {(qualities.length > 0 || hlsSubtitles.length > 0 || (subtitleTracks && subtitleTracks.length > 0)) && (
+          {/* Speed — glass pill */}
+          <div className="relative">
+            <button
+              onClick={() => setActiveMenu(activeMenu === 'speed' ? null : 'speed')}
+              className={`h-9 px-3 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-105 active:scale-95 text-xs font-bold ${activeMenu === 'speed' ? 'bg-white/20' : 'hover:bg-white/10'}`}
+              title="Speed"
+            >
+              {playbackRate}x
+            </button>
+            {activeMenu === 'speed' && (
+              <GlassMenu>
+                <MenuLabel>Speed</MenuLabel>
+                {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
+                  <MenuItem key={rate} active={playbackRate === rate} onClick={() => changePlaybackRate(rate)}>
+                    {rate}x {rate === 1 && '·'}
+                  </MenuItem>
+                ))}
+              </GlassMenu>
+            )}
+          </div>
+
+          {/* Quality */}
+          {qualities.length > 0 && (
             <div className="relative">
               <button
-                onClick={() => setShowSettings(!showSettings)}
-                className="hover:text-[#9d6ef8] transition-colors p-1"
+                onClick={() => setActiveMenu(activeMenu === 'quality' ? null : 'quality')}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 ${activeMenu === 'quality' ? 'bg-white/20' : 'hover:bg-white/10'}`}
+                title="Quality"
               >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94 0 .31.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" /></svg>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94 0 .31.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z" /></svg>
               </button>
-              {showSettings && (
-                <div className="absolute bottom-full right-0 mb-2 bg-black/95 backdrop-blur-md border border-white/10 rounded-xl overflow-hidden min-w-[140px] py-1 shadow-2xl">
-                  {/* Quality */}
-                  {qualities.length > 0 && (
-                    <>
-                      <div className="px-3 py-1 text-[10px] font-bold text-white/30 uppercase tracking-wider">Quality</div>
-                      <button onClick={() => changeQuality(-1)} className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 ${currentQuality === -1 ? 'text-[#9d6ef8] font-bold' : 'text-white/70'}`}>
-                        Auto
-                      </button>
-                      {qualities.map((q, i) => (
-                        <button key={i} onClick={() => changeQuality(i)} className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 ${currentQuality === i ? 'text-[#9d6ef8] font-bold' : 'text-white/70'}`}>
-                          {q.height}p
-                        </button>
-                      ))}
-                    </>
-                  )}
-                  {/* Subtitles — combine HLS-embedded tracks + external VTT tracks (AniDap) */}
-                  {(hlsSubtitles.length > 0 || (subtitleTracks && subtitleTracks.length > 0)) && (
-                    <>
-                      <div className="px-3 py-1 mt-1 text-[10px] font-bold text-white/30 uppercase tracking-wider border-t border-white/5">Subtitles</div>
-                      <button onClick={() => changeSubtitle(-1)} className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 ${currentSubtitle === -1 ? 'text-[#9d6ef8] font-bold' : 'text-white/70'}`}>
-                        Off
-                      </button>
-                      {hlsSubtitles.map((sub, i) => (
-                        <button key={`hls-sub-${i}`} onClick={() => changeSubtitle(i)} className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 ${currentSubtitle === i ? 'text-[#9d6ef8] font-bold' : 'text-white/70'}`}>
-                          {sub.name || sub.lang || `Track ${i + 1}`}
-                        </button>
-                      ))}
-                      {(subtitleTracks || []).map((sub, i) => {
-                        const idx = hlsSubtitles.length + i;
-                        return (
-                          <button key={`ext-sub-${i}`} onClick={() => changeSubtitle(idx)} className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 ${currentSubtitle === idx ? 'text-[#9d6ef8] font-bold' : 'text-white/70'}`}>
-                            {sub.label || sub.lang || `External ${i + 1}`}
-                          </button>
-                        );
-                      })}
-                    </>
-                  )}
-                </div>
+              {activeMenu === 'quality' && (
+                <GlassMenu>
+                  <MenuLabel>Quality</MenuLabel>
+                  <MenuItem active={currentQuality === -1} onClick={() => changeQuality(-1)}>Auto</MenuItem>
+                  {qualities.map((q, i) => (
+                    <MenuItem key={i} active={currentQuality === i} onClick={() => changeQuality(i)}>{q.height}p</MenuItem>
+                  ))}
+                </GlassMenu>
               )}
             </div>
           )}
 
-          {/* Fullscreen */}
-          <button onClick={toggleFullscreen} className="hover:text-[#9d6ef8] transition-colors p-1">
-            {fullscreen ? (
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" /></svg>
+          {/* Subtitles */}
+          {(hlsSubtitles.length > 0 || (subtitleTracks && subtitleTracks.length > 0)) && (
+            <div className="relative">
+              <button
+                onClick={() => setActiveMenu(activeMenu === 'subtitles' ? null : 'subtitles')}
+                className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 ${activeMenu === 'subtitles' ? 'bg-white/20' : 'hover:bg-white/10'} ${currentSubtitle !== -1 ? 'text-white' : ''}`}
+                title="Subtitles"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zM4 12h4v2H4v-2zm10 6H4v-2h10v2zm6 0h-4v-2h4v2zm0-4H10v-2h10v2z" /></svg>
+              </button>
+              {activeMenu === 'subtitles' && (
+                <GlassMenu>
+                  <MenuLabel>Subtitles</MenuLabel>
+                  <MenuItem active={currentSubtitle === -1} onClick={() => changeSubtitle(-1)}>Off</MenuItem>
+                  {hlsSubtitles.map((sub, i) => (
+                    <MenuItem key={`hls-${i}`} active={currentSubtitle === i} onClick={() => changeSubtitle(i)}>
+                      {sub.name || sub.lang || `Track ${i + 1}`}
+                    </MenuItem>
+                  ))}
+                  {(subtitleTracks || []).map((sub, i) => {
+                    const idx = hlsSubtitles.length + i;
+                    return (
+                      <MenuItem key={`ext-${i}`} active={currentSubtitle === idx} onClick={() => changeSubtitle(idx)}>
+                        {sub.label || sub.lang || `External ${i + 1}`}
+                      </MenuItem>
+                    );
+                  })}
+                </GlassMenu>
+              )}
+            </div>
+          )}
+
+          {/* Stream health indicator — Wi-Fi style */}
+          <div className="relative">
+            <button
+              onClick={() => { setShowStreamInfo(!showStreamInfo); setActiveMenu(null); }}
+              className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 ${showStreamInfo ? 'bg-white/20' : 'hover:bg-white/10'}`}
+              title="Stream health"
+            >
+              {streamHealth === 'good' && (
+                <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21l3.6-4.5c-1-.8-2.3-1.3-3.6-1.3s-2.6.5-3.6 1.3L12 21zm0-15c-3.6 0-6.9 1.2-9.5 3.3l1.5 1.9C6.2 9.5 8.9 8.5 12 8.5s5.8 1 8 2.7l1.5-1.9C18.9 7.2 15.6 6 12 6zm0 5c-2.1 0-4 .7-5.5 1.9l1.5 1.9C9.1 13.9 10.5 13.5 12 13.5s2.9.4 4 1.3l1.5-1.9C16 11.7 14.1 11 12 11z" /></svg>
+              )}
+              {streamHealth === 'fair' && (
+                <svg className="w-4 h-4 text-white/70" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21l3.6-4.5c-1-.8-2.3-1.3-3.6-1.3s-2.6.5-3.6 1.3L12 21zm0-10c-2.1 0-4 .7-5.5 1.9l1.5 1.9C9.1 13.9 10.5 13.5 12 13.5s2.9.4 4 1.3l1.5-1.9C16 11.7 14.1 11 12 11z" /></svg>
+              )}
+              {streamHealth === 'poor' && (
+                <svg className="w-4 h-4 text-white/50" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21l3.6-4.5c-1-.8-2.3-1.3-3.6-1.3s-2.6.5-3.6 1.3L12 21z" /></svg>
+              )}
+              {streamHealth === 'unknown' && (
+                <svg className="w-4 h-4 text-white/30" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21l3.6-4.5c-1-.8-2.3-1.3-3.6-1.3s-2.6.5-3.6 1.3L12 21zm0-15c-3.6 0-6.9 1.2-9.5 3.3l1.5 1.9C6.2 9.5 8.9 8.5 12 8.5s5.8 1 8 2.7l1.5-1.9C18.9 7.2 15.6 6 12 6z" /></svg>
+              )}
+            </button>
+            {showStreamInfo && (
+              <GlassMenu>
+                <MenuLabel>Stream Health</MenuLabel>
+                <div className="px-3 py-2 space-y-1.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] text-white/50 uppercase">Status</span>
+                    <span className={`text-xs font-bold ${streamHealth === 'good' ? 'text-white' : streamHealth === 'fair' ? 'text-white/70' : 'text-white/50'}`}>
+                      {streamHealth === 'good' ? 'Excellent' : streamHealth === 'fair' ? 'Fair' : streamHealth === 'poor' ? 'Poor' : 'Connecting...'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] text-white/50 uppercase">Quality</span>
+                    <span className="text-xs font-bold text-white">
+                      {currentQuality === -1 ? 'Auto' : qualities[currentQuality]?.height + 'p' || 'Auto'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] text-white/50 uppercase">Buffer</span>
+                    <span className="text-xs font-bold text-white">{Math.round(bufferedProgress)}%</span>
+                  </div>
+                </div>
+              </GlassMenu>
+            )}
+          </div>
+
+          {/* Screenshot — capture current frame */}
+          <button
+            onClick={takeScreenshot}
+            className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
+            title="Screenshot (S)"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M9 4v3h6V4h2v3h3a1 1 0 0 1 1 1v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h3V4h2zm11 6H4v8h16v-8zm-5 1l2.5 3.5L19 14l1.5 2h-9L9 13l2.5 2z" /></svg>
+          </button>
+
+          {/* Download */}
+          <button
+            onClick={handleDownload}
+            disabled={downloadLoading}
+            className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 disabled:opacity-50"
+            title="Download (D)"
+          >
+            {downloadLoading ? (
+              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" /></svg>
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V5a3 3 0 0 0-6 0v4H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2zm-6 6v3h-2v-3H8l4-4 4 4h-3z" /></svg>
+            )}
+          </button>
+
+          {/* Fullscreen */}
+          <button
+            onClick={toggleFullscreen}
+            className="w-9 h-9 rounded-full hover:bg-white/10 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95"
+            title="Fullscreen (F)"
+          >
+            {fullscreen ? (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z" /></svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z" /></svg>
             )}
           </button>
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Glass Menu Components ─────────────────────────────────────────
+function GlassMenu({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="absolute bottom-full right-0 mb-3 bg-black/60 backdrop-blur-2xl border border-white/15 rounded-2xl overflow-hidden min-w-[140px] py-1.5 shadow-2xl animate-in fade-in slide-in-from-bottom-2 duration-200">
+      {children}
+    </div>
+  );
+}
+
+function MenuLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="px-3 py-1 text-[10px] font-bold text-white/40 uppercase tracking-wider">{children}</div>
+  );
+}
+
+function MenuItem({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 transition-all duration-150 ${active ? 'text-white font-bold' : 'text-white/60'}`}
+    >
+      <div className="flex items-center justify-between">
+        <span>{children}</span>
+        {active && (
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" /></svg>
+        )}
+      </div>
+    </button>
   );
 }

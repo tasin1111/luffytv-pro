@@ -123,6 +123,8 @@ type Route =
   | { page: "novel-read"; novelId: string; novelTitle: string; chapterId: string; chapterNum: number; chapterTitle: string; totalChapters: number; novelSource: string }
   | { page: "signin" }
   | { page: "signup" }
+  | { page: "profile" }
+  | { page: "settings" }
   | { page: "scraper" }
   | { page: "scraper-anime"; id: string }
   | { page: "scraper-watch"; id: string; episode: string; site: string };
@@ -155,6 +157,24 @@ interface AppState {
   /** Update progress for an existing history entry (called periodically during playback) */
   updateHistoryProgress: (animeId: string, episodeNum: number, progress: number, duration: number) => void;
   isBookmarked: (animeId: string) => boolean;
+  // ── Auth (localStorage-based, persisted) ──
+  user: User | null;
+  setUser: (user: User | null) => void;
+  logout: () => void;
+}
+
+// ============================================================
+// User type
+// ============================================================
+export interface User {
+  id: string;
+  username: string;
+  name: string;
+  email: string;
+  avatar?: string;       // emoji or letter
+  avatarColor?: string;  // bg color for avatar
+  bio?: string;
+  createdAt: string;
 }
 
 export const useAppStore = create<AppState>()(
@@ -208,6 +228,8 @@ export const useAppStore = create<AppState>()(
       else if (route.page === "novel-read") window.location.hash = `read-novel/${encodeURIComponent(route.novelId)}/${route.chapterNum}`;
       else if (route.page === "signin") window.location.hash = "signin";
       else if (route.page === "signup") window.location.hash = "signup";
+      else if (route.page === "profile") window.location.hash = "profile";
+      else if (route.page === "settings") window.location.hash = "settings";
       else if (route.page === "music") window.location.hash = "music";
       else if (route.page === "torrent") window.location.hash = "torrent";
       else if (route.page === "scraper") window.location.hash = "scraper";
@@ -248,12 +270,17 @@ export const useAppStore = create<AppState>()(
     ),
   })),
   isBookmarked: (animeId) => get().bookmarks.some((b) => b.animeId === animeId),
+  // ── Auth state ──
+  user: null,
+  setUser: (user) => set({ user }),
+  logout: () => set({ user: null }),
     }),
     {
       name: "luffytv-store",
       partialize: (state) => ({
         history: state.history,
         bookmarks: state.bookmarks,
+        user: state.user,
       }),
     }
   )
@@ -342,6 +369,8 @@ export function parseHash(hash: string): Route {
   if (parts[0] === "read-novel" && parts[1] && parts[2]) return { page: "novel-read", novelId: decodeURIComponent(parts[1]), novelTitle: "", chapterId: `chapter-${parts[2]}`, chapterNum: parseInt(parts[2]), chapterTitle: "", totalChapters: 0, novelSource: "readlightnovel" };
   if (parts[0] === "signin") return { page: "signin" };
   if (parts[0] === "signup") return { page: "signup" };
+  if (parts[0] === "profile") return { page: "profile" };
+  if (parts[0] === "settings") return { page: "settings" };
   if (parts[0] === "scraper" && parts[1] === "anime" && parts[2])
     return { page: "scraper-anime", id: parts[2] };
   if (parts[0] === "scraper" && parts[1] === "watch" && parts[2] && parts[3] && parts[4])

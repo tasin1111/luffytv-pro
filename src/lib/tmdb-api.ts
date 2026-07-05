@@ -528,13 +528,16 @@ export async function tmdbFetchAllEpisodeStills(
     if (!season?.episodes) continue;
     for (const ep of season.episodes) {
       absoluteEp++;
-      if (ep.still_path) {
-        episodeMap.set(absoluteEp, {
-          still: tmdbImageUrl(ep.still_path, "w500"),
-          title: ep.name || "",
-          overview: ep.overview || "",
-        });
-      }
+      // Always add the episode — use still_path if available,
+      // otherwise use the show's backdrop as fallback
+      const stillUrl = ep.still_path
+        ? tmdbImageUrl(ep.still_path, "w500")
+        : (show.backdrop_path ? tmdbImageUrl(show.backdrop_path, "w500") : "");
+      episodeMap.set(absoluteEp, {
+        still: stillUrl,
+        title: ep.name || "",
+        overview: ep.overview || "",
+      });
     }
   }
 

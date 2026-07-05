@@ -30,6 +30,8 @@ import NovelPage from "@/components/anime/novel-page";
 import NovelDetailPage from "@/components/anime/novel-detail-page";
 import NovelReaderPage from "@/components/anime/novel-reader-page";
 import SignInPage from "@/components/anime/signin-page";
+import SignUpPage from "@/components/anime/signup-page";
+import ProfilePage from "@/components/anime/profile-page";
 import ScraperPage from "@/components/anime/scraper-page";
 import ScraperAnimePage from "@/components/anime/scraper-anime-page";
 import ScraperWatchPage from "@/components/anime/scraper-watch-page";
@@ -220,7 +222,7 @@ export default function MainPage() {
   // Home page (dub) should be FULL BLEED — no padding, no top offset
   const isHomeFullBleed = route.page === "dub" && sectionSubPage === "home";
   // Browse sub-page wants true full-screen (no main padding) — its own internal layout handles spacing
-  const isBrowseFullBleed = route.page === "dub" && sectionSubPage === "browse";
+  const isBrowseFullBleed = route.page === "dub" && (sectionSubPage === "browse" || sectionSubPage === "schedule");
 
   // Whether footer & floating navbar are visible
   const showNavAndFooter = !isWatchPage && !isMangaReader && route.page !== "signin" && route.page !== "signup";
@@ -256,7 +258,8 @@ export default function MainPage() {
       case "novel-detail": return <NovelDetailPage novelId={route.novelId} novelTitle={route.novelTitle} novelCover={route.novelCover} novelAuthor={route.novelAuthor} novelSource={route.novelSource} />;
       case "novel-read": return <NovelReaderPage novelId={route.novelId} novelTitle={route.novelTitle} chapterId={route.chapterId} chapterNum={route.chapterNum} chapterTitle={route.chapterTitle} totalChapters={route.totalChapters} novelSource={route.novelSource} />;
       case "signin": return <SignInPage />;
-      case "signup": return <SignInPage />;
+      case "signup": return <SignUpPage />;
+      case "profile": return <ProfilePage />;
       case "music": return <MusicPage />;
       case "torrent": return <TorrentPage />;
       case "scraper": return <ScraperPage />;
@@ -286,7 +289,7 @@ export default function MainPage() {
       {/* Main Content — render immediately (even during splash) so fetches start early */}
       <ErrorBoundary>
       <div className={`min-h-screen bg-[#000000] flex flex-col ${!showSplash ? "content-reveal" : "opacity-0 pointer-events-none"}`}>
-        <main className={`${isWatchPage ? 'w-full px-4 lg:px-8 pt-4' : isMangaReader ? 'w-full' : isHomeFullBleed ? 'w-full' : isBrowseFullBleed ? 'w-full pt-[72px]' : showNavAndFooter ? 'w-full pt-[72px] px-4 lg:px-8' : isFullWidth ? 'w-full pt-4' : 'max-w-[1400px] mx-auto px-4 lg:px-8 pt-4'} ${isWatchPage || isMangaReader ? "" : "pb-28 lg:pb-12"} flex-1`}>
+        <main className={`${isWatchPage ? 'w-full px-0 lg:px-0 pt-0' : isMangaReader ? 'w-full' : isHomeFullBleed ? 'w-full' : isBrowseFullBleed ? 'w-full pt-[0px]' : showNavAndFooter ? 'w-full pt-[72px] px-4 lg:px-8' : isFullWidth ? 'w-full pt-4' : 'max-w-[1400px] mx-auto px-4 lg:px-8 pt-4'} ${isWatchPage || isMangaReader || isBrowseFullBleed ? "" : "pb-28 lg:pb-12"} flex-1`}>
           {renderPage()}
         </main>
         {showNavAndFooter && (
