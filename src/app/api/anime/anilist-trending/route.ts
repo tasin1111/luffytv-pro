@@ -83,9 +83,20 @@ export async function GET(request: NextRequest) {
       results[`_${key}Source`] = result.source;
     }
 
-    return NextResponse.json(results);
+    // CDN-cache only when at least one section actually has data. Caching an
+    // all-empty payload would pin a blank homepage for the whole TTL. On Vercel
+    // this also stops AniList rate-limiting the shared egress IPs, which was
+    // forcing the MAL fallback (no descriptions/banners) on the home carousel.
+    const hasData = Object.keys(results).some(k => Array.isArray(results[k]) && results[k].length > 0);
+    return NextResponse.json(results, {
+      headers: {
+        "Cache-Control": hasData
+          ? "public, s-maxage=1800, stale-while-revalidate=86400"
+          : "no-store",
+      },
+    });
   } catch (err) {
     console.error("[anilist-trending] Error:", err);
-    return NextResponse.json({ error: "Failed to fetch trending data" }, { status: 500 });
+    return NextResponse.json({ error: "Failed to fetch trending data" }, { status: 500, headers: { "Cache-Control": "no-store" } });
   }
 }

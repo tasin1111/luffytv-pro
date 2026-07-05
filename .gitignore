@@ -13,3 +13,6 @@ restore_all.py
 # Local env files (Vercel manages env vars in dashboard)
 .env.local
 .env*.local
+
+# Prisma local sqlite
+prisma/*.db

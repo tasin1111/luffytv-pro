@@ -290,8 +290,9 @@ export const useAppStore = create<AppState>()(
 export function getSectionNavLinks(route: Route): { id: SectionSubPage; label: string }[] {
   const page = route.page;
   
-  // Anime section (includes anime detail, watch, genre, bookmarks, history, manga)
-  if (page === "dub" || page === "anime" || page === "watch" || page === "genre" || page === "bookmarks" || page === "history" || page === "manga" || page === "manga-detail" || page === "manga-read") {
+  // Anime section (includes home, anime detail, watch, genre, bookmarks, history, manga)
+  // "home" is included because the root route renders the same anime section home as "dub".
+  if (page === "home" || page === "dub" || page === "anime" || page === "watch" || page === "genre" || page === "bookmarks" || page === "history" || page === "manga" || page === "manga-detail" || page === "manga-read") {
     return [
       { id: "home", label: "Home" },
       { id: "sub", label: "SUB" },

@@ -220,25 +220,31 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Invalid anime ID", anime: null, anilistInfo: null });
   }
 
+  // Successful responses are CDN-cached (1h fresh, 24h stale-while-revalidate).
+  // Critical on Vercel: shared egress IPs get 429-rate-limited by AniList fast,
+  // which made detail pages randomly fail with no images. Failures are never
+  // cached so the next request retries fresh.
+  const CACHE_OK = { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" };
+
   // 3-layer cascade: AniList → Miruro → Official MAL API
   // Layer 1: Try AniList first
   const anilistResult = await fetchAniList(numericId);
-  if (anilistResult) return NextResponse.json(anilistResult);
+  if (anilistResult) return NextResponse.json(anilistResult, { headers: CACHE_OK });
 
   // Layer 2: Try Miruro
   const miruroResult = await fetchMiruro(numericId);
-  if (miruroResult) return NextResponse.json(miruroResult);
+  if (miruroResult) return NextResponse.json(miruroResult, { headers: CACHE_OK });
 
   // Layer 3: Try Official MAL API v2
   const malResult = await fetchMAL(numericId);
-  if (malResult) return NextResponse.json(malResult);
+  if (malResult) return NextResponse.json(malResult, { headers: CACHE_OK });
 
-  // All 3 failed
+  // All 3 failed — never cache failures
   return NextResponse.json({
     error: "Failed to load anime info from all sources",
     anime: null,
     anilistInfo: null,
     totalEpisodes: null,
     _source: "failed",
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 }

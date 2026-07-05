@@ -79,20 +79,30 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
   const [backdrops, setBackdrops] = useState<Record<number, string>>({});
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch TMDB logos + backdrops for featured anime
+  // Fetch TMDB logos + backdrops for EVERY featured banner.
+  // Sequentially (not one big parallel burst) so TMDB doesn't rate-limit the
+  // later requests — that burst was why banners past the first 2-3 lost their
+  // logo and fell back to plain title text.
   useEffect(() => {
-    items.forEach(async (anime) => {
-      if (logos[anime.id]) return;
-      try {
-        const title = getTitle(anime);
-        const res = await fetch(`/api/anime/tmdb-images?anilistId=${anime.id}&title=${encodeURIComponent(title)}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data.logoUrl) setLogos(prev => ({ ...prev, [anime.id]: data.logoUrl }));
-          if (data.backdropUrl) setBackdrops(prev => ({ ...prev, [anime.id]: data.backdropUrl }));
-        }
-      } catch {}
-    });
+    let cancelled = false;
+    (async () => {
+      for (const anime of items) {
+        if (cancelled) return;
+        if (logos[anime.id] || backdrops[anime.id]) continue;
+        try {
+          const title = getTitle(anime);
+          const res = await fetch(`/api/anime/tmdb-images?anilistId=${anime.id}&title=${encodeURIComponent(title)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (cancelled) return;
+            if (data.logoUrl) setLogos(prev => ({ ...prev, [anime.id]: data.logoUrl }));
+            if (data.backdropUrl) setBackdrops(prev => ({ ...prev, [anime.id]: data.backdropUrl }));
+          }
+        } catch { /* keep going to the next banner */ }
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
 
   useEffect(() => {
@@ -1245,66 +1255,76 @@ export default function AnimeSectionPage() {
         let trend = dedupe(data.trending || data.all || data.media || []);
         trend = trend.filter(a => !isWistoriaSeason3(a));
 
-        // Featured carousel: ONLY famous anime with description + banner image.
-        // No weird/obscure anime in the banner.
-        // Since the trending API may use MAL/Miruro sources (which don't have
-        // descriptions), we fetch descriptions from AniList directly for the
-        // top candidates before filtering.
-        const topCandidates = trend.slice(0, 15);  // check top 15, pick best 8
+        // Featured carousel: famous anime with description + banner image.
+        // The trending API races AniList / Miruro / MAL, so items may arrive
+        // as AniList IDs (with descriptions) OR MAL IDs (without). We backfill
+        // descriptions/banners from AniList for EVERY candidate missing them —
+        // querying by BOTH id_in and idMal_in so it works regardless of which
+        // source won the race. This fixes banners that showed only a title
+        // (no logo, no description) after the first few slides.
+        const topCandidates = trend.slice(0, 20);  // check top 20, pick best 8
         const idsToFetch = topCandidates
-          .filter(a => !a?.description)
+          .filter(a => !a?.description || !(a?.bannerImage || a?.coverImage?.extraLarge))
           .map(a => a.id)
-          .slice(0, 10);
+          .filter(Boolean)
+          .slice(0, 20);
 
-        // Batch-fetch descriptions from AniList (one GraphQL call for up to 10 IDs)
-        // Use idMal_in since the trending API may return MAL IDs (not AniList IDs)
         if (idsToFetch.length > 0) {
           try {
             const descRes = await fetch("https://graphql.anilist.co", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
-                query: `query($ids:[Int]){Page(page:1,perPage:50){media(idMal_in:$ids,type:ANIME){id idMal description(asHtml:false) episodes averageScore bannerImage coverImage{extraLarge large}}}}`,
+                // Match on AniList id OR MAL id — merge whichever matches.
+                query: `query($ids:[Int]){Page(page:1,perPage:50){media(id_in:$ids,type:ANIME){id idMal title{romaji english} description(asHtml:false) episodes averageScore genres format season seasonYear status bannerImage coverImage{extraLarge large}} byMal:media(idMal_in:$ids,type:ANIME){id idMal description(asHtml:false) episodes averageScore genres format season seasonYear status bannerImage coverImage{extraLarge large}}}}`,
                 variables: { ids: idsToFetch },
               }),
             });
             if (descRes.ok) {
               const descData = await descRes.json();
-              const mediaList = descData?.data?.Page?.media || [];
-              // Build map by idMal (since our trending items use MAL IDs)
-              const descMap = new Map<number, any>();
-              for (const m of mediaList) {
-                if (m.idMal) descMap.set(m.idMal, m);
+              const byId = descData?.data?.Page?.media || [];
+              const byMal = descData?.data?.Page?.byMal || [];
+              // Index by both AniList id and MAL id so our candidate's `id`
+              // (which could be either) resolves regardless of source.
+              const map = new Map<number, any>();
+              for (const m of [...byId, ...byMal]) {
+                if (m.id) map.set(m.id, m);
+                if (m.idMal) map.set(m.idMal, m);
               }
-              // Merge AniList data into our trending items
               topCandidates.forEach(a => {
-                const al = descMap.get(a.id);
-                if (al) {
-                  if (!a.description && al.description) a.description = al.description;
-                  if (!a.episodes && al.episodes) a.episodes = al.episodes;
-                  if (!a.averageScore && al.averageScore) a.averageScore = al.averageScore;
-                  if (!a.bannerImage && al.bannerImage) a.bannerImage = al.bannerImage;
-                }
+                const al = map.get(a.id);
+                if (!al) return;
+                if (!a.description && al.description) a.description = al.description;
+                if (!a.episodes && al.episodes) a.episodes = al.episodes;
+                if (!a.averageScore && al.averageScore) a.averageScore = al.averageScore;
+                if ((!a.genres || a.genres.length === 0) && al.genres) a.genres = al.genres;
+                if (!a.format && al.format) a.format = al.format;
+                if (!a.season && al.season) a.season = al.season;
+                if (!a.seasonYear && al.seasonYear) a.seasonYear = al.seasonYear;
+                if (!a.status && al.status) a.status = al.status;
+                if (!a.bannerImage && al.bannerImage) a.bannerImage = al.bannerImage;
+                if (!a.coverImage && al.coverImage) a.coverImage = al.coverImage;
               });
             }
           } catch (e) {
-            console.error("Failed to fetch descriptions:", e);
+            console.error("Failed to backfill featured descriptions:", e);
           }
         }
 
-        // Now filter: only anime with description + banner + score + episodes
+        // Keep only banners that have BOTH a real description and a banner
+        // image — so the carousel never shows a bare title-only slide.
         const featuredCandidates = topCandidates.filter(a => {
           const hasDesc = a?.description && a.description.replace(/<[^>]*>/g, "").trim().length >= 50;
           const hasBanner = a?.bannerImage || a?.coverImage?.extraLarge || a?.coverImage?.large;
-          const hasScore = a?.averageScore && a.averageScore > 0;
-          const hasEps = (a?.episodes && a.episodes > 0) || a?.format === "MOVIE";
-          return hasDesc && hasBanner && hasScore && hasEps;
+          return hasDesc && hasBanner;
         });
 
-        // Use filtered list for featured, but full list for other sections
+        // Featured = only complete items. If the backfill totally failed
+        // (e.g. AniList fully down), fall back to anything with a banner
+        // rather than showing an empty carousel.
         let finalFeatured: FeaturedAnime[] = [];
         if (featuredCandidates.length > 0) finalFeatured = featuredCandidates.slice(0, 8);
-        else if (trend.length > 0) finalFeatured = trend.slice(0, 8);
+        else if (trend.length > 0) finalFeatured = trend.filter(a => a?.bannerImage || a?.coverImage?.extraLarge).slice(0, 8);
 
         // One Piece permanent first banner with TVDB background art
         const ONE_PIECE_TVDB_BG = "https://artworks.thetvdb.com/banners/v4/series/81797/backgrounds/616009a8bd688.jpg";

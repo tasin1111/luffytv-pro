@@ -219,10 +219,13 @@ export default function MainPage() {
   const isWatchPage = route.page === "watch" || route.page === "movie-watch" || route.page === "tv-watch" || route.page === "live-watch" || route.page === "live-tv-watch" || route.page === "scraper-watch";
   const isMangaReader = route.page === "manga-read" || route.page === "novel-read";
   const isFullWidth = route.page === "home" || route.page === "watchnow" || route.page === "live" || route.page === "signin" || route.page === "signup" || route.page === "dub" || route.page === "anime";
-  // Home page (dub) should be FULL BLEED — no padding, no top offset
-  const isHomeFullBleed = route.page === "dub" && sectionSubPage === "home";
+  // Home ("home" and "dub" both render the same anime section home) should be
+  // FULL BLEED — no padding, no top offset. Root "home" now renders the anime
+  // section home (carousel) so refresh never flips between two different homes.
+  const isAnimeSectionRoute = route.page === "dub" || route.page === "home";
+  const isHomeFullBleed = isAnimeSectionRoute && sectionSubPage === "home";
   // Browse sub-page wants true full-screen (no main padding) — its own internal layout handles spacing
-  const isBrowseFullBleed = route.page === "dub" && (sectionSubPage === "browse" || sectionSubPage === "schedule");
+  const isBrowseFullBleed = isAnimeSectionRoute && (sectionSubPage === "browse" || sectionSubPage === "schedule");
 
   // Whether footer & floating navbar are visible
   const showNavAndFooter = !isWatchPage && !isMangaReader && route.page !== "signin" && route.page !== "signup";
@@ -231,7 +234,13 @@ export default function MainPage() {
 
   const renderPage = () => {
     switch (route.page) {
-      case "home": return <HomePage />;
+      // Root route renders the anime section home (hero carousel with TMDB
+      // logos + descriptions), the SAME component as "dub". Previously "home"
+      // rendered the legacy marketing HomePage while "dub" rendered this one,
+      // so a refresh flip-flopped between two different-looking home pages
+      // depending on the URL hash. The legacy HomePage now lives only at
+      // "#features".
+      case "home": return <AnimeSectionPage />;
       case "search": return <SearchPage initialQuery={route.query} />;
       case "anime": return <AnimeDetailPage animeId={route.id} />;
       case "watch": return <WatchPage animeId={route.id} episodeNum={route.episode} />;

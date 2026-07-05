@@ -143,7 +143,8 @@ export default function Navbar() {
   if (isWatchPage || isMangaReader || page === "signin" || page === "signup") return null;
 
   // Only nav items: Home, Browse, Schedule, Music, Torrent
-  const isAnimePage = ["dub", "anime", "watch", "genre", "bookmarks", "history"].includes(page);
+  // "home" included: root route renders the same anime section home as "dub".
+  const isAnimePage = ["home", "dub", "anime", "watch", "genre", "bookmarks", "history"].includes(page);
   const navItems = [
     { label: "Home", active: isAnimePage && sectionSubPage === "home" },
     { label: "Browse", active: isAnimePage && (sectionSubPage === "browse" || sectionSubPage === "genres") },
