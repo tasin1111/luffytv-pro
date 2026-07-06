@@ -3,7 +3,7 @@
 
 // Inline the proxy logic so we don't need to compile the TS project
 const XOR_KEY = "10b06cdc1ca48c9fb0b94af97cc040cf";
-const ANIWATCHTV_PROXY = "https://pro.aniwatchtv.site/uwu";
+const WORKER_PROXY = "https://luffytv-proxy.ggy892767.workers.dev/p";
 
 const CDN_REFERERS: Record<string, string> = {
   "vault-16.owocdn.top":   "https://kwik.cx/",
@@ -34,7 +34,7 @@ function getRefererFor(url: string): string {
   return "https://www.miruro.tv/";
 }
 
-function encodeAniwatchtvToken(url: string, referer: string): string {
+function encodeWorkerToken(url: string, referer: string): string {
   const combined = url + "\0" + referer;
   const keyBytes = new TextEncoder().encode(XOR_KEY);
   const dataBytes = new TextEncoder().encode(combined);
@@ -50,10 +50,10 @@ function encodeAniwatchtvToken(url: string, referer: string): string {
 function wrapM3u8Url(url: string): string {
   if (!url) return "";
   if (url.startsWith("data:") || url.startsWith("blob:")) return url;
-  if (url.startsWith(ANIWATCHTV_PROXY)) return url;
+  if (url.startsWith(WORKER_PROXY)) return url;
   const referer = getRefererFor(url);
-  const token = encodeAniwatchtvToken(url, referer);
-  return `${ANIWATCHTV_PROXY}/${token}`;
+  const token = encodeWorkerToken(url, referer);
+  return `${WORKER_PROXY}/${token}`;
 }
 
 // Test URLs — real animepahe CDN URLs we've seen

@@ -57,8 +57,8 @@ const FALLBACK_SUB_PROVIDERS = ["beep", "yuki", "miku", "neko", "mochi", "uwu"];
 const FALLBACK_DUB_PROVIDERS = ["yuki", "miku", "mochi", "uwu"];
 
 /**
- * Build a proxy URL using pro.aniwatchtv.site.
- * Encoding: XOR(url + "\0" + referer, key) → base64url → /uwu/{token}
+ * Build a proxy URL using our Cloudflare Worker.
+ * Encoding: XOR(url + "\0" + referer, key) → base64url → /p/{token}
  * Key: "10b06cdc1ca48c9fb0b94af97cc040cf"
  */
 function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = false): string {
@@ -71,7 +71,7 @@ function buildProxyUrl(streamUrl: string, referer: string, isMP4: boolean = fals
     xored[i] = dataBytes[i] ^ keyBytes[i % keyBytes.length];
   }
   const token = xored.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-  return `https://pro.aniwatchtv.site/uwu/${token}`;
+  return `https://luffytv-proxy.ggy892767.workers.dev/p/${token}`;
 }
 
 export async function GET(
