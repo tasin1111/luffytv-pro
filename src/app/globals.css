@@ -9497,3 +9497,77 @@ footer {
 @media (prefers-reduced-motion: reduce) {
   .ltv-cine-marquee-track, .ltv-cine-float, .ltv-cine-rays, .ltv-cine-particle { animation: none; }
 }
+
+/* ── Landing v4: "six worlds" hover-expanding slat panels ──────── */
+.ltv-cine-slats {
+  display: flex;
+  gap: 10px;
+  height: 460px;
+}
+.ltv-cine-slat {
+  position: relative;
+  overflow: hidden;
+  flex: 1;
+  min-width: 0;
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: #0b0d12;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    flex 0.6s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.4s ease,
+    box-shadow 0.4s ease;
+}
+.ltv-cine-slat:hover {
+  flex: 2.8;
+  border-color: var(--slat-accent, rgba(72, 166, 255, 0.45));
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.8), 0 0 40px -10px var(--slat-glow, rgba(30, 136, 255, 0.25));
+}
+
+/* Collapsed vertical label */
+.ltv-cine-slat-label {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  writing-mode: vertical-rl;
+  rotate: 180deg;
+  white-space: nowrap;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-size: 13px;
+  color: rgba(232, 234, 238, 0.75);
+  transition: opacity 0.3s ease;
+}
+.ltv-cine-slat:hover .ltv-cine-slat-label { opacity: 0; }
+
+/* Expanded content — fades in as the slat grows */
+.ltv-cine-slat-body {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 26px;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.4s ease 0.15s, transform 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.15s;
+  pointer-events: none;
+}
+.ltv-cine-slat:hover .ltv-cine-slat-body {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Mobile: fixed 2-col grid, content always visible */
+@media (max-width: 768px) {
+  .ltv-cine-slats { display: grid; grid-template-columns: 1fr 1fr; height: auto; }
+  .ltv-cine-slat { height: 170px; flex: none; }
+  .ltv-cine-slat:hover { flex: none; }
+  .ltv-cine-slat-label { display: none; }
+  /* Icon chips overlap the always-visible body text on small cards — hide them */
+  .ltv-cine-slat-icon { display: none; }
+  .ltv-cine-slat-body { opacity: 1; transform: none; padding: 16px; }
+}

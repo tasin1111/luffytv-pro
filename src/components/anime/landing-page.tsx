@@ -139,6 +139,17 @@ export default function LandingPage() {
 
   const scrollShelf = (dir: 1 | -1) => shelfRef.current?.scrollBy({ left: dir * 640, behavior: "smooth" });
 
+  // "Six worlds" showcase — every content section, each with its own accent.
+  // The anime slat gets a real trending cover; the rest get accent nebulas.
+  const worlds = [
+    { id: "anime", title: "Anime", desc: "Sub, dub & hardsub — thousands of episodes across every era.", accent: "#48A6FF", icon: "📺", cover: collage[2] ? getCover(collage[2]) : "", onClick: () => navigate({ page: "home" }) },
+    { id: "movies", title: "Movies", desc: "Trending films, top-rated classics, and new releases in HD.", accent: "#22D3EE", icon: "🎬", cover: "", onClick: () => navigate({ page: "movies" }) },
+    { id: "tv", title: "TV Shows", desc: "Full seasons, episode by episode — binge without limits.", accent: "#34D399", icon: "🍿", cover: "", onClick: () => navigate({ page: "tv" }) },
+    { id: "live", title: "Live Sports & TV", desc: "Matches and channels streaming live, right now.", accent: "#F87171", icon: "🔴", cover: "", onClick: () => navigate({ page: "live" }) },
+    { id: "manga", title: "Manga", desc: "Read chapters in a clean, distraction-free reader.", accent: "#F472B6", icon: "📖", cover: "", onClick: () => navigate({ page: "manga" }) },
+    { id: "novel", title: "Light Novels", desc: "The source material — chapter after chapter, beautifully typeset.", accent: "#A3B3CC", icon: "📚", cover: "", onClick: () => navigate({ page: "novel" }) },
+  ];
+
   return (
     <div className="ltv-cine-root w-full text-white overflow-x-hidden" style={{ fontFamily: "var(--font-inter), Inter, sans-serif" }}>
       <CinematicBackdrop />
@@ -436,6 +447,68 @@ export default function LandingPage() {
               </Reveal>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* ═══ SIX WORLDS — cinematic hover-expanding showcase of every
+             content section: Anime, Movies, TV, Live, Manga, Novels ═══ */}
+      <section className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
+        <div className="max-w-7xl mx-auto">
+          <SectionHeading
+            eyebrow="One Platform, Six Worlds"
+            title="Not just anime."
+            sub="Movies, TV shows, manga, light novels, and live sports live here too — hover a world, step inside."
+          />
+          <Reveal>
+            <div className="ltv-cine-slats">
+              {worlds.map(w => (
+                <button
+                  key={w.id}
+                  onClick={w.onClick}
+                  className="ltv-cine-slat group"
+                  style={{
+                    ["--slat-accent" as any]: `${w.accent}73`,
+                    ["--slat-glow" as any]: `${w.accent}40`,
+                  }}
+                  aria-label={`Explore ${w.title}`}
+                >
+                  {/* Backdrop: cover art for anime, accent nebula for the rest */}
+                  {w.cover ? (
+                    <>
+                      <img src={w.cover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-70 transition-opacity duration-500" loading="lazy" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
+                    </>
+                  ) : (
+                    <div
+                      className="absolute inset-0 transition-opacity duration-500 opacity-70 group-hover:opacity-100"
+                      style={{ background: `radial-gradient(ellipse 120% 80% at 50% 110%, ${w.accent}2e, transparent 65%), #0b0d12` }}
+                    />
+                  )}
+
+                  {/* Icon chip — always visible, top-left */}
+                  <span
+                    className="ltv-cine-slat-icon absolute top-5 left-5 w-11 h-11 rounded-xl flex items-center justify-center text-xl"
+                    style={{ background: `${w.accent}1f`, color: w.accent }}
+                  >
+                    {w.icon}
+                  </span>
+
+                  {/* Collapsed vertical label */}
+                  <span className="ltv-cine-slat-label">{w.title}</span>
+
+                  {/* Expanded body */}
+                  <span className="ltv-cine-slat-body">
+                    <span className="text-2xl font-black text-white mb-1.5" style={{ fontFamily: FONT }}>{w.title}</span>
+                    <span className="text-[13px] text-[#c4c9d2] leading-relaxed mb-4 max-w-[240px]">{w.desc}</span>
+                    <span className="inline-flex items-center gap-1.5 text-xs font-bold" style={{ color: w.accent }}>
+                      Explore
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </Reveal>
         </div>
       </section>
 
