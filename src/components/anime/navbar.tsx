@@ -142,19 +142,37 @@ export default function Navbar() {
   const isMangaReader = page === "manga-read" || page === "novel-read";
   if (isWatchPage || isMangaReader || page === "signin" || page === "signup") return null;
 
-  // Only nav items: Home, Browse, Schedule, Music, Torrent
+  // Section-aware nav links: the Live section gets its OWN links
+  // (Live Sports / Live TV / Schedule / News) instead of the anime ones —
+  // previously the anime links leaked onto the Live page.
   // "home" included: root route renders the same anime section home as "dub".
   const isAnimePage = ["home", "dub", "anime", "watch", "genre", "bookmarks", "history"].includes(page);
-  const navItems = [
-    { label: "Home", active: isAnimePage && sectionSubPage === "home" },
-    { label: "Browse", active: isAnimePage && (sectionSubPage === "browse" || sectionSubPage === "genres") },
-    { label: "Schedule", active: isAnimePage && sectionSubPage === "schedule" },
-    { label: "Music", active: page === "music" },
-    { label: "Torrent", active: page === "torrent" },
-  ];
+  const isLiveSection = page === "live";
+
+  const navItems = isLiveSection
+    ? [
+        { label: "Live Sports", active: sectionSubPage === "sports" },
+        { label: "Live TV", active: sectionSubPage === "tv-channels" },
+        { label: "Schedule", active: sectionSubPage === "schedule" },
+        { label: "News", active: sectionSubPage === "news" },
+      ]
+    : [
+        { label: "Home", active: isAnimePage && sectionSubPage === "home" },
+        { label: "Browse", active: isAnimePage && (sectionSubPage === "browse" || sectionSubPage === "genres") },
+        { label: "Schedule", active: isAnimePage && sectionSubPage === "schedule" },
+        { label: "Music", active: page === "music" },
+        { label: "Torrent", active: page === "torrent" },
+      ];
 
   const handleNavClick = (label: string) => {
-    if (label === "Home") {
+    if (isLiveSection) {
+      // Live-section links only switch the live sub-page
+      const liveMap: Record<string, "sports" | "tv-channels" | "schedule" | "news"> = {
+        "Live Sports": "sports", "Live TV": "tv-channels", "Schedule": "schedule", "News": "news",
+      };
+      const sub = liveMap[label];
+      if (sub) setSectionSubPage(sub);
+    } else if (label === "Home") {
       navigate({ page: "dub" });
       setSectionSubPage("home");
     } else if (label === "Browse") {

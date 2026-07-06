@@ -9448,3 +9448,52 @@ footer {
 @media (max-width: 768px) {
   .ltv-cine-rays { width: 220vw; height: 220vw; top: -50%; }
 }
+
+/* ── Landing v3 primitives ─────────────────────────────────────── */
+
+/* Infinite poster marquee — track holds two copies of the row, slides -50% */
+.ltv-cine-marquee {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent);
+}
+.ltv-cine-marquee-track {
+  display: flex;
+  gap: 16px;
+  width: max-content;
+  animation: ltv-cine-marquee-scroll 55s linear infinite;
+  will-change: transform;
+}
+.ltv-cine-marquee:hover .ltv-cine-marquee-track {
+  animation-play-state: paused;
+}
+@keyframes ltv-cine-marquee-scroll {
+  to { transform: translateX(-50%); }
+}
+
+/* Gentle levitation for the hero poster collage + ornament chips */
+.ltv-cine-float {
+  animation: ltv-cine-float-drift var(--fdur, 7s) var(--fdelay, 0s) ease-in-out infinite;
+  will-change: transform;
+}
+@keyframes ltv-cine-float-drift {
+  0%, 100% { transform: translateY(0) rotate(var(--frot, 0deg)); }
+  50% { transform: translateY(-14px) rotate(var(--frot, 0deg)); }
+}
+
+/* Big outlined ranking numerals (Top-10 rail) */
+.ltv-cine-rank {
+  font-weight: 900;
+  line-height: 0.8;
+  color: transparent;
+  -webkit-text-stroke: 2px rgba(232, 234, 238, 0.28);
+  user-select: none;
+  transition: -webkit-text-stroke-color 0.3s ease;
+}
+.ltv-cine-rank-item:hover .ltv-cine-rank {
+  -webkit-text-stroke-color: rgba(72, 166, 255, 0.75);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ltv-cine-marquee-track, .ltv-cine-float, .ltv-cine-rays, .ltv-cine-particle { animation: none; }
+}
