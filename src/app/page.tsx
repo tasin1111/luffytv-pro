@@ -37,6 +37,8 @@ import ScraperAnimePage from "@/components/anime/scraper-anime-page";
 import ScraperWatchPage from "@/components/anime/scraper-watch-page";
 import MusicPage from "@/components/anime/music-page";
 import TorrentPage from "@/components/anime/torrent-page";
+import LandingPage from "@/components/anime/landing-page";
+import HubPage from "@/components/anime/hub-page";
 
 // Features page wrapper — scrolls to features section after mount
 function FeaturesScrollPage() {
@@ -218,17 +220,22 @@ export default function MainPage() {
 
   const isWatchPage = route.page === "watch" || route.page === "movie-watch" || route.page === "tv-watch" || route.page === "live-watch" || route.page === "live-tv-watch" || route.page === "scraper-watch";
   const isMangaReader = route.page === "manga-read" || route.page === "novel-read";
-  const isFullWidth = route.page === "home" || route.page === "watchnow" || route.page === "live" || route.page === "signin" || route.page === "signup" || route.page === "dub" || route.page === "anime";
+  // Landing + Hub are standalone pages with their own header/chrome — never
+  // wrapped in the app's Navbar/footer or content padding.
+  const isStandalonePage = route.page === "landing" || route.page === "hub";
+  // Auth pages fully own their own centered/glass layout — no outer padding.
+  const isAuthPage = route.page === "signin" || route.page === "signup";
+  const isFullWidth = route.page === "home" || route.page === "watchnow" || route.page === "live" || route.page === "dub" || route.page === "anime" || isStandalonePage || isAuthPage;
   // Home ("home" and "dub" both render the same anime section home) should be
   // FULL BLEED — no padding, no top offset. Root "home" now renders the anime
   // section home (carousel) so refresh never flips between two different homes.
   const isAnimeSectionRoute = route.page === "dub" || route.page === "home";
-  const isHomeFullBleed = isAnimeSectionRoute && sectionSubPage === "home";
+  const isHomeFullBleed = (isAnimeSectionRoute && sectionSubPage === "home") || isStandalonePage || isAuthPage;
   // Browse sub-page wants true full-screen (no main padding) — its own internal layout handles spacing
   const isBrowseFullBleed = isAnimeSectionRoute && (sectionSubPage === "browse" || sectionSubPage === "schedule");
 
   // Whether footer & floating navbar are visible
-  const showNavAndFooter = !isWatchPage && !isMangaReader && route.page !== "signin" && route.page !== "signup";
+  const showNavAndFooter = !isWatchPage && !isMangaReader && !isStandalonePage && route.page !== "signin" && route.page !== "signup";
   const sectionLinks = getSectionNavLinks(route);
   const hasSubNav = sectionLinks.length > 0;
 
@@ -240,6 +247,8 @@ export default function MainPage() {
       // so a refresh flip-flopped between two different-looking home pages
       // depending on the URL hash. The legacy HomePage now lives only at
       // "#features".
+      case "landing": return <LandingPage />;
+      case "hub": return <HubPage />;
       case "home": return <AnimeSectionPage />;
       case "search": return <SearchPage initialQuery={route.query} />;
       case "anime": return <AnimeDetailPage animeId={route.id} />;
@@ -298,7 +307,7 @@ export default function MainPage() {
       {/* Main Content — render immediately (even during splash) so fetches start early */}
       <ErrorBoundary>
       <div className={`min-h-screen bg-[#000000] flex flex-col ${!showSplash ? "content-reveal" : "opacity-0 pointer-events-none"}`}>
-        <main className={`${isWatchPage ? 'w-full px-0 lg:px-0 pt-0' : isMangaReader ? 'w-full' : isHomeFullBleed ? 'w-full' : isBrowseFullBleed ? 'w-full pt-[0px]' : showNavAndFooter ? 'w-full pt-[72px] px-4 lg:px-8' : isFullWidth ? 'w-full pt-4' : 'max-w-[1400px] mx-auto px-4 lg:px-8 pt-4'} ${isWatchPage || isMangaReader || isBrowseFullBleed ? "" : "pb-28 lg:pb-12"} flex-1`}>
+        <main className={`${isWatchPage ? 'w-full px-0 lg:px-0 pt-0' : isMangaReader ? 'w-full' : isHomeFullBleed ? 'w-full' : isBrowseFullBleed ? 'w-full pt-[0px]' : showNavAndFooter ? 'w-full pt-[72px] px-4 lg:px-8' : isFullWidth ? 'w-full pt-4' : 'max-w-[1400px] mx-auto px-4 lg:px-8 pt-4'} ${isWatchPage || isMangaReader || isBrowseFullBleed || isStandalonePage || isAuthPage ? "" : "pb-28 lg:pb-12"} flex-1`}>
           {renderPage()}
         </main>
         {showNavAndFooter && (

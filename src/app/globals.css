@@ -1997,9 +1997,21 @@ video::-webkit-media-controls { border-radius: 8px; }
   color: #fff;
 }
 
-/* Mobile toggle — hidden on desktop */
+/* Mobile toggle — hidden on desktop, shown at <=768px below */
 .ltv-nav-mobile-toggle {
   display: none;
+}
+
+/* Mobile-only search icon (top-right cluster) — hidden on desktop,
+   shown at <=768px below. Desktop search lives inside .ltv-nav-pill. */
+.ltv-nav-mobile-search {
+  display: none;
+}
+
+.ltv-nav-menu-mobile-divider {
+  height: 1px;
+  margin: 4px 4px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 /* ── SEARCH MODAL ── */
@@ -2171,18 +2183,36 @@ video::-webkit-media-controls { border-radius: 8px; }
 }
 
 
-/* ── Responsive ── */
+/* ── Responsive — Navbar ──
+   These used to target stale class names from an earlier navbar
+   implementation (.nav-links, .nav-mobile-toggle, .nav-logo, etc.) that no
+   longer exist, so on mobile: the hamburger toggle was permanently
+   display:none (no rule ever turned it back on) and the full desktop link
+   pill never collapsed — the two things stacked/overlapped instead of
+   swapping. Fixed to target the real .ltv-nav-* classes actually rendered. */
 @media (max-width: 768px) {
-  .nav-links { display: none; }
-  .nav-search-wrapper { display: none; }
-  .nav-mobile-toggle { display: flex; }
-  .nav-header-container { top: 12px; width: calc(100% - 24px); height: 48px; }
-  .navbar-capsule { padding: 0 16px; }
-  .nav-menu-mobile { top: 68px; }
+  .ltv-nav-logo { left: 16px; font-size: 1.05rem; }
+
+  /* The desktop pill (nav links + divider + search) fully hides — its
+     contents move into the hamburger dropdown / mobile search icon below. */
+  .ltv-nav-pill { display: none; }
+
+  .ltv-nav-right-icons { right: 12px; gap: 2px; padding: 6px 8px; }
+  .ltv-nav-icon-btn { width: 34px; height: 34px; }
+
+  /* Desktop-only icons collapse into the hamburger dropdown instead */
+  .ltv-nav-icon-hide-mobile { display: none; }
+
+  /* Search + hamburger toggle appear only on mobile */
+  .ltv-nav-mobile-search { display: flex; }
+  .ltv-nav-mobile-toggle { display: flex; }
+
+  .ltv-nav-menu-mobile { top: 62px; left: 12px; right: 12px; }
 }
 
 @media (max-width: 480px) {
-  .nav-logo { font-size: 16px; }
+  .ltv-nav-logo { font-size: 0.95rem; left: 12px; }
+  .ltv-nav-right-icons { right: 8px; }
 }
 
 /* ===== SPLASH SCREEN ANIMATIONS ===== /* ===== SPLASH SCREEN ANIMATIONS ===== */

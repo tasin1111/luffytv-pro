@@ -117,7 +117,7 @@ function DashPlayer({
         onEnded={onEnded}
         crossOrigin="anonymous"
       />
-      {subtitleTracks && subtitleTracks.length > 0 && videoRef.current && (
+      {subtitleTracks && subtitleTracks.length > 0 && (
         <div className="absolute bottom-14 right-4 z-10 flex gap-1">
           {subtitleTracks.slice(0, 5).map((s) => (
             <button
@@ -216,6 +216,7 @@ interface RelationAnime {
   format?: string;
   episodes?: number;
   status?: string;
+  averageScore?: number;
 }
 
 type ContentTab = "info" | "relations";
@@ -449,8 +450,10 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const [flipLayout, setFlipLayout] = useState(false);
   const [lightsOff, setLightsOff] = useState(false);
 
-  // ── Relations ──
+  // ── Relations & Recommendations ──
   const [relations, setRelations] = useState<RelationAnime[]>([]);
+  const [recommendations, setRecommendations] = useState<RelationAnime[]>([]);
+  const [animeTitleRomaji, setAnimeTitleRomaji] = useState("");
 
   // ── Callbacks (declared BEFORE effects that reference them) ──
 
@@ -570,6 +573,9 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
             setAnimeTitle(
               info.title?.english || info.title?.romaji || ""
             );
+            if (info.title?.romaji && info.title.romaji !== (info.title.english || "")) {
+              setAnimeTitleRomaji(info.title.romaji);
+            }
             setAnimeImage(
               info.coverImage?.extraLarge || info.coverImage?.large || ""
             );
@@ -620,6 +626,28 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
                   };
                 }));
               }
+            }
+
+            // Recommendations (both AniList edge shape and pre-flattened shape)
+            const recsRaw = Array.isArray(info.recommendations)
+              ? info.recommendations
+              : (info.recommendations?.nodes || []);
+            if (recsRaw.length > 0) {
+              setRecommendations(
+                recsRaw
+                  .map((r: any) => r.mediaRecommendation || r)
+                  .filter((m: any) => m && m.id)
+                  .map((m: any) => ({
+                    id: m.id,
+                    title: m.title,
+                    coverImage: m.coverImage,
+                    type: m.type,
+                    format: m.format,
+                    episodes: m.episodes,
+                    status: m.status,
+                    averageScore: m.averageScore,
+                  }))
+              );
             }
           }
         }
@@ -899,6 +927,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   useEffect(() => {
     if (!anilistId) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset of server state before re-fetching
     setServerList([]);
     setSelectedServer("");
     setStreamLoading(true);
@@ -1098,6 +1127,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     // The streamUrl is already in the server object — use it directly
     const streamUrl = (server as any).streamUrl;
     if (!streamUrl) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional error state when selected server has no stream
       setStreamError(`${server.name} has no stream URL.`);
       setStreamLoading(false);
       return;
@@ -1265,6 +1295,12 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     return eps.some(e => e.number === episodeNum);
   });
 
+  // ── Sub/Dub episode counts (for CC / mic chips like Miruro) ──
+  const subCount = episodeList.length;
+  const dubCount = Object.values(providersMap).reduce(
+    (max, p) => Math.max(max, p?.episodes?.dub?.length || 0), 0
+  );
+
   // ── RENDER — use new WatchPageShell ──
   return (
     <WatchPageShell
@@ -1314,6 +1350,10 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
       setSkipFiller={setSkipFiller}
       navigate={navigate}
       relations={relations}
+      recommendations={recommendations}
+      animeTitleRomaji={animeTitleRomaji}
+      subCount={subCount}
+      dubCount={dubCount}
       HLSPlayerNew={HLSPlayerNew}
       EmbedPlayerWithFallback={EmbedPlayerWithFallback}
       DashPlayer={DashPlayer}

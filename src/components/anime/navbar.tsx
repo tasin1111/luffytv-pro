@@ -213,12 +213,23 @@ export default function Navbar() {
 
       {/* ═══ RIGHT ICONS — separate pill, far right ═══ */}
       <div className={`ltv-nav-right-icons${scrolled ? " scrolled" : ""}`}>
-        {/* Discord */}
+        {/* Mobile-only search icon — desktop uses the "Search" button inside ltv-nav-pill,
+            which is hidden on mobile along with the rest of the nav-links pill. */}
+        <button
+          className="ltv-nav-icon-btn ltv-nav-mobile-search"
+          title="Search"
+          aria-label="Search"
+          onClick={() => { setShowSearchModal(true); setTimeout(() => searchInputRef.current?.focus(), 100); }}
+        >
+          <Search size={17} strokeWidth={2} />
+        </button>
+
+        {/* Discord — hidden on mobile (moved into the hamburger dropdown) */}
         <a
           href="https://discord.gg/Svc9yFjQBq"
           target="_blank"
           rel="noopener noreferrer"
-          className="ltv-nav-icon-btn ltv-nav-discord"
+          className="ltv-nav-icon-btn ltv-nav-discord ltv-nav-icon-hide-mobile"
           title="Discord"
         >
           <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18">
@@ -226,9 +237,9 @@ export default function Navbar() {
           </svg>
         </a>
 
-        {/* Bookmarks */}
+        {/* Bookmarks — hidden on mobile (moved into the hamburger dropdown) */}
         <button
-          className="ltv-nav-icon-btn"
+          className="ltv-nav-icon-btn ltv-nav-icon-hide-mobile"
           title="Bookmarks"
           onClick={() => navigate({ page: "bookmarks" })}
         >
@@ -237,9 +248,9 @@ export default function Navbar() {
           </svg>
         </button>
 
-        {/* History */}
+        {/* History — hidden on mobile (moved into the hamburger dropdown) */}
         <button
-          className="ltv-nav-icon-btn"
+          className="ltv-nav-icon-btn ltv-nav-icon-hide-mobile"
           title="History"
           onClick={() => navigate({ page: "history" })}
         >
@@ -442,19 +453,38 @@ export default function Navbar() {
         </div>
       )}
 
-      {/* ═══ MOBILE MENU ═══ */}
+      {/* ═══ MOBILE MENU — nav links + the icons that hide from the top bar on small screens ═══ */}
       {mobileOpen && (
+        <>
+        <div className="fixed inset-0 z-[98]" onClick={() => setMobileOpen(false)} />
         <div className="ltv-nav-menu-mobile">
           {navItems.map((item) => (
             <button
               key={item.label}
               className={`ltv-nav-link${item.active ? " active" : ""}`}
-              onClick={() => handleNavClick(item.label)}
+              onClick={() => { handleNavClick(item.label); setMobileOpen(false); }}
             >
               {item.label}
             </button>
           ))}
+          <span className="ltv-nav-menu-mobile-divider" />
+          <button className="ltv-nav-link" onClick={() => { setMobileOpen(false); navigate({ page: "bookmarks" }); }}>
+            Bookmarks
+          </button>
+          <button className="ltv-nav-link" onClick={() => { setMobileOpen(false); navigate({ page: "history" }); }}>
+            History
+          </button>
+          <a
+            href="https://discord.gg/Svc9yFjQBq"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ltv-nav-link"
+            onClick={() => setMobileOpen(false)}
+          >
+            Discord
+          </a>
         </div>
+        </>
       )}
     </>
   );

@@ -94,6 +94,8 @@ export interface HistoryItem {
 // ============================================================
 
 type Route =
+  | { page: "landing" }
+  | { page: "hub" }
   | { page: "home" }
   | { page: "search"; query?: string }
   | { page: "anime"; id: string }
@@ -180,7 +182,7 @@ export interface User {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-  route: { page: "home" },
+  route: { page: "landing" },
   sectionSubPage: "home",
   setSectionSubPage: (subPage) => set({ sectionSubPage: subPage }),
   navigate: (route) => {
@@ -189,7 +191,9 @@ export const useAppStore = create<AppState>()(
     const subPage = route.page === "live" ? "sports" : "home";
     set({ route, sectionSubPage: subPage });
     if (typeof window !== "undefined") {
-      if (route.page === "home") window.location.hash = "";
+      if (route.page === "landing") window.location.hash = "";
+      else if (route.page === "hub") window.location.hash = "hub";
+      else if (route.page === "home") window.location.hash = "home";
       else if (route.page === "search" && route.query)
         window.location.hash = `search/${encodeURIComponent(route.query)}`;
       else if (route.page === "search") window.location.hash = "search";
@@ -337,8 +341,10 @@ export function getSectionNavLinks(route: Route): { id: SectionSubPage; label: s
 
 export function parseHash(hash: string): Route {
   const h = hash.replace("#", "");
-  if (!h) return { page: "home" };
+  if (!h) return { page: "landing" };
   const parts = h.split("/");
+  if (parts[0] === "hub") return { page: "hub" };
+  if (parts[0] === "home") return { page: "home" };
   if (parts[0] === "search") return { page: "search", query: decodeURIComponent(parts[1] || "") };
   if (parts[0] === "anime" && parts[1]) return { page: "anime", id: parts[1] };
   if (parts[0] === "watch" && parts[1] && parts[2])
