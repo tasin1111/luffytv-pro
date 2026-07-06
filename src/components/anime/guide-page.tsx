@@ -1,384 +1,321 @@
 "use client";
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { useAppStore } from "./store";
+import CinematicBackdrop from "./cinematic-backdrop";
 
-/* ─── FAQ data ─── */
-const faqs = [
-  {
-    q: "How do I start watching anime on Luffy TV?",
-    a: "Simply click the 'Watch Now' button on the homepage or navbar. You can browse our full catalog of anime series, movies, and TV shows without creating an account. Just pick what you want to watch and hit play — it's completely free with zero ads.",
-    category: "Getting Started",
-  },
-  {
-    q: "Is Luffy TV really free? Are there hidden fees?",
-    a: "Yes, Luffy TV is 100% free with no hidden fees, no credit card required, and no premium tiers. We support ourselves through non-intrusive methods that never interrupt your viewing experience. You will never see a single ad while watching content on our platform.",
-    category: "Getting Started",
-  },
-  {
-    q: "What video quality is available?",
-    a: "Luffy TV supports streaming up to 4K resolution. The player automatically adjusts quality based on your internet connection to ensure smooth playback. You can also manually select your preferred quality from 480p up to 4K if your connection supports it.",
-    category: "Playback",
-  },
-  {
-    q: "Can I watch anime with subtitles or dubbed?",
-    a: "Absolutely! We offer both subbed and dubbed versions for most popular anime. You can switch between subtitle languages and audio tracks directly from the video player. We support over 20 subtitle languages including English, Spanish, French, Portuguese, and more.",
-    category: "Playback",
-  },
-  {
-    q: "How do I use the bookmark feature?",
-    a: "While browsing or watching any anime, click the bookmark icon (heart symbol) to save it to your bookmarks. Access your bookmarked shows anytime from the Bookmarks page. Your bookmarks are stored locally in your browser, so they persist across sessions without needing an account.",
-    category: "Features",
-  },
-  {
-    q: "Does Luffy TV work on mobile devices?",
-    a: "Yes! Luffy TV is fully responsive and works great on phones, tablets, and desktops. We also have a dedicated mobile navigation bar at the bottom of the screen for easy access on smaller devices. The video player is optimized for touch controls and mobile streaming.",
-    category: "Features",
-  },
-  {
-    q: "How do I search for a specific anime?",
-    a: "Click the search icon in the navbar or use the keyboard shortcut Ctrl+K (Cmd+K on Mac) to open the search. Type the anime name in English or Japanese and we'll show you matching results from our catalog instantly.",
-    category: "Features",
-  },
-  {
-    q: "What is the Watch Together feature?",
-    a: "Watch Together allows you to create synchronized viewing rooms where you and your friends can watch the same anime at the same time. Playback is synced so everyone sees the same scene simultaneously, and you can chat in real-time while watching.",
-    category: "Features",
-  },
-  {
-    q: "How do I report a broken episode or video?",
-    a: "If you encounter a broken episode or video that won't load, please visit our Contact page and submit a report. Include the anime name, episode number, and a brief description of the issue. We typically fix broken links within 24 hours.",
-    category: "Support",
-  },
-  {
-    q: "Can I download anime for offline viewing?",
-    a: "Currently, Luffy TV is a streaming-only platform and does not support offline downloads. However, we're working on adding a download feature in a future update. Stay tuned for announcements on our Contact page.",
-    category: "Support",
-  },
-];
+const FONT = "var(--font-space-grotesk), 'Space Grotesk', sans-serif";
 
-/* ─── Quick steps data ─── */
-const quickSteps = [
-  {
-    step: 1,
-    title: "Browse",
-    desc: "Explore thousands of anime, movies, and TV shows in our ever-growing catalog",
-    gradient: "from-red-500/20 to-red-600/20",
-    borderColor: "border-red-500/20",
-    iconColor: "text-red-400",
-    icon: (
-      <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-      </svg>
-    ),
-  },
-  {
-    step: 2,
-    title: "Select",
-    desc: "Pick any title, check episodes, ratings, synopsis, and pick right where you left off",
-    gradient: "from-blue-500/20 to-cyan-500/20",
-    borderColor: "border-blue-500/20",
-    iconColor: "text-blue-400",
-    icon: (
-      <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
-      </svg>
-    ),
-  },
-  {
-    step: 3,
-    title: "Watch",
-    desc: "Stream in up to 4K quality with zero ads, zero interruptions — totally free",
-    gradient: "from-emerald-500/20 to-teal-500/20",
-    borderColor: "border-emerald-500/20",
-    iconColor: "text-emerald-400",
-    icon: (
-      <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
-        <polygon points="5 3 19 12 5 21 5 3" fill="currentColor" stroke="none" />
-      </svg>
-    ),
-  },
-];
-
-/* ─── Feature highlights ─── */
-const features = [
-  {
-    icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="3" width="20" height="14" rx="2" ry="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" />
-      </svg>
-    ),
-    title: "4K Streaming",
-    desc: "Crystal clear quality up to 4K resolution",
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        <line x1="1" y1="1" x2="23" y2="23" stroke="currentColor" strokeWidth={2} />
-      </svg>
-    ),
-    title: "Zero Ads",
-    desc: "No interruptions, no pop-ups, ever",
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-      </svg>
-    ),
-    title: "Bookmarks",
-    desc: "Save favorites and pick up anytime",
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-      </svg>
-    ),
-    title: "Sub & Dub",
-    desc: "20+ subtitle languages and dubs",
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <rect x="5" y="2" width="14" height="20" rx="2" ry="2" /><line x1="12" y1="18" x2="12.01" y2="18" />
-      </svg>
-    ),
-    title: "Mobile Ready",
-    desc: "Works perfectly on any screen size",
-  },
-  {
-    icon: (
-      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
-    title: "Watch Together",
-    desc: "Sync rooms with friends in real-time",
-  },
-];
-
-/* ─── Category colors ─── */
-const categoryColors: Record<string, { bg: string; text: string; border: string }> = {
-  "Getting Started": { bg: "bg-emerald-500/10", text: "text-emerald-400", border: "border-emerald-500/20" },
-  "Playback": { bg: "bg-blue-500/10", text: "text-blue-400", border: "border-blue-500/20" },
-  "Features": { bg: "bg-red-500/10", text: "text-red-400", border: "border-red-500/20" },
-  "Support": { bg: "bg-amber-500/10", text: "text-amber-400", border: "border-amber-500/20" },
-};
-
-/* ─── Accordion Item ─── */
-function AccordionItem({ q, a, category, isOpen, onClick, index }: {
-  q: string; a: string; category: string; isOpen: boolean; onClick: () => void; index: number;
-}) {
-  const colors = categoryColors[category] || categoryColors["Features"];
+/* ─── Scroll-triggered reveal ─── */
+function Reveal({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
   return (
-    <div
-      className={`relative border rounded-2xl overflow-hidden transition-all duration-500 ${
-        isOpen
-          ? `${colors.border} bg-white/[0.04] shadow-[0_0_30px_rgba(124,108,240,0.06)]`
-          : "border-white/[0.05] bg-white/[0.01] hover:border-white/[0.1] hover:bg-white/[0.02]"
-      }`}
-      style={{ animationDelay: `${index * 50}ms` }}
+    <motion.div
+      className={className}
+      initial={{ opacity: 0, y: 26 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.65, delay, ease: [0.22, 1, 0.36, 1] }}
     >
-      <button
-        onClick={onClick}
-        className="w-full flex items-start gap-4 px-6 py-5 text-left group"
-      >
-        <div className={`shrink-0 mt-0.5 px-2.5 py-1 rounded-lg ${colors.bg} ${colors.border} border`}>
-          <span className={`text-[10px] font-bold tracking-wide uppercase ${colors.text}`}>
-            {category}
-          </span>
-        </div>
-        <span
-          className="text-[15px] font-semibold text-white/85 group-hover:text-white transition-colors leading-relaxed flex-1"
-          style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}
-        >
-          {q}
+      {children}
+    </motion.div>
+  );
+}
+
+function SectionHeading({ eyebrow, title, sub, center }: { eyebrow: string; title: string; sub?: string; center?: boolean }) {
+  return (
+    <Reveal className={`flex flex-col gap-3 mb-10 ${center ? "items-center text-center mx-auto" : ""} max-w-2xl`}>
+      <span className="ltv-cine-eyebrow text-xs font-bold uppercase">{eyebrow}</span>
+      <h2 className="text-3xl sm:text-4xl font-black text-white leading-[1.1]" style={{ fontFamily: FONT }}>{title}</h2>
+      {sub && <p className="text-[#8fa3c4] text-base leading-relaxed">{sub}</p>}
+    </Reveal>
+  );
+}
+
+/* ─── Content data ─── */
+const quickSteps = [
+  { step: 1, title: "Browse", desc: "Explore thousands of anime, movies, and TV shows across our entire catalog.", icon: <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg> },
+  { step: 2, title: "Select", desc: "Pick any title, check episodes, ratings, and synopsis — or resume right where you left off.", icon: <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><rect x="2" y="3" width="20" height="14" rx="2" /><line x1="8" y1="21" x2="16" y2="21" /><line x1="12" y1="17" x2="12" y2="21" /></svg> },
+  { step: 3, title: "Watch", desc: "Stream in HD with sub, dub, or hardsub — zero ads, zero interruptions, totally free.", icon: <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg> },
+];
+
+const howToWatch = [
+  { title: "Search or browse", desc: "Hit / anywhere to open search, or browse by genre, trending, or schedule from the navbar.", icon: "🔍" },
+  { title: "Pick sub, dub, or hardsub", desc: "Every episode shows which audio tracks are available before you press play.", icon: "🎧" },
+  { title: "Choose a server", desc: "If one source is slow or down, switch servers instantly from the dropdown — no reload needed.", icon: "⚡" },
+  { title: "Auto-next & auto-skip", desc: "Turn on Auto Next to binge hands-free, and Auto Skip to jump straight past intros.", icon: "⏭️" },
+];
+
+const accountFeatures = [
+  { title: "Bookmarks", desc: "Save any title with one tap and build your personal watchlist.", icon: "🔖" },
+  { title: "Watch history", desc: "Every episode you start is logged automatically, with progress.", icon: "🕓" },
+  { title: "Custom profile", desc: "Pick a username, avatar color, and short bio.", icon: "🎭" },
+  { title: "Comments", desc: "Discuss episodes with the community directly on each title's page.", icon: "💬" },
+];
+
+const shortcuts = [
+  { key: "/", desc: "Open search" },
+  { key: "N", desc: "Next episode" },
+  { key: "P", desc: "Previous episode" },
+  { key: "Space / K", desc: "Play / pause" },
+  { key: "F", desc: "Fullscreen" },
+  { key: "M", desc: "Mute / unmute" },
+  { key: "?", desc: "Show shortcuts (on watch page)" },
+  { key: "Esc", desc: "Close any modal" },
+];
+
+const tips = [
+  "Turn Lights Off in the player for a cinema-dark viewing mode.",
+  "Filter long-running shows (like One Piece) by episode range in the sidebar instead of scrolling.",
+  "Spoiler-blur is on by default for episode thumbnails — click the eye icon to reveal them.",
+  "Your history and bookmarks live in this browser — signing in from another device starts a separate list.",
+  "If a stream 404s, hit Retry once before switching servers — most failures are momentary.",
+];
+
+const faqs = [
+  { q: "Is Luffy TV really free?", a: "Yes — 100% free, no hidden fees, no credit card, no premium tier. Every feature on the platform is available to everyone.", category: "Getting Started" },
+  { q: "Do I need an account to watch?", a: "No. Browsing and watching require nothing. Creating a free account just adds bookmarks, history, and comments.", category: "Getting Started" },
+  { q: "What video quality is available?", a: "Streams go up to 1080p/4K depending on the source. The player can auto-adjust or you can pick quality manually.", category: "Playback" },
+  { q: "Can I watch subbed and dubbed?", a: "Most titles offer both, plus hardsub where available. Switch anytime from the Audio dropdown on the watch page.", category: "Playback" },
+  { q: "How do bookmarks work?", a: "Click the bookmark icon on any title to save it. Your list is stored in this browser and available under Bookmarks in the navbar.", category: "Features" },
+  { q: "Does my history sync between devices?", a: "Not yet — history and bookmarks are saved per-browser (localStorage), so a different device or browser starts fresh.", category: "Features" },
+  { q: "A server isn't working — what do I do?", a: "Hit Retry once, then try a different server from the dropdown. If every server fails, use the Report button to let us know.", category: "Support" },
+];
+
+/* ─── FAQ accordion (blue system) ─── */
+function FaqItem({ q, a, isOpen, onClick }: { q: string; a: string; isOpen: boolean; onClick: () => void }) {
+  return (
+    <div className={`ltv-cine-surface rounded-xl overflow-hidden transition-colors ${isOpen ? "border-[#1E88FF]/40" : ""}`}>
+      <button onClick={onClick} className="w-full flex items-center gap-4 px-5 py-4 text-left">
+        <span className="text-[15px] font-semibold text-white flex-1">{q}</span>
+        <span className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300 ${isOpen ? "bg-[#1E88FF]/25 rotate-180" : "bg-white/[0.05]"}`}>
+          <svg className={`w-3.5 h-3.5 ${isOpen ? "text-[#48A6FF]" : "text-white/40"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M19 9l-7 7-7-7" /></svg>
         </span>
-        <div className={`shrink-0 mt-1 w-7 h-7 rounded-full flex items-center justify-center transition-all duration-300 ${
-          isOpen ? "bg-[#ffffff]/20 rotate-180" : "bg-white/[0.04] group-hover:bg-white/[0.08]"
-        }`}>
-          <svg
-            className={`w-3.5 h-3.5 transition-colors duration-300 ${isOpen ? "text-[#ffffff]" : "text-white/30"}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
-          >
-            <path d="M19 9l-7 7-7-7" />
-          </svg>
-        </div>
       </button>
-      <div className={`overflow-hidden transition-all duration-500 ease-in-out ${isOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0"}`}>
-        <div className="px-6 pb-5 pl-[4.5rem]">
-          <div className="w-full h-px bg-gradient-to-r from-white/[0.06] via-white/[0.1] to-white/[0.06] mb-4" />
-          <p
-            className="text-[14px] text-white/50 leading-[1.8] font-normal"
-            style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}
-          >
-            {a}
-          </p>
+      <div className={`overflow-hidden transition-all duration-400 ease-in-out ${isOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"}`}>
+        <div className="px-5 pb-4">
+          <div className="ltv-cine-divider mb-3" />
+          <p className="text-sm text-[#8fa3c4] leading-relaxed">{a}</p>
         </div>
       </div>
     </div>
   );
 }
 
-/* ─── Main Guide Page ─── */
 export default function GuidePage() {
   const navigate = useAppStore(s => s.navigate);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [searchFaq, setSearchFaq] = useState("");
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-
-  const categories = ["All", ...Array.from(new Set(faqs.map(f => f.category)))];
-
-  const filteredFaqs = faqs.filter(faq => {
-    const matchesSearch = faq.q.toLowerCase().includes(searchFaq.toLowerCase()) ||
-      faq.a.toLowerCase().includes(searchFaq.toLowerCase());
-    const matchesCategory = !activeCategory || activeCategory === "All" || faq.category === activeCategory;
-    return matchesSearch && matchesCategory;
-  });
 
   return (
-    <div className="min-h-screen pb-16">
-      {/* Hero Section with gradient background */}
-      <div className="relative overflow-hidden">
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/4 w-[500px] h-[500px] rounded-full bg-[#ffffff]/[0.07] blur-[120px]" />
-          <div className="absolute top-20 right-1/4 w-[400px] h-[400px] rounded-full bg-[#4CC9F0]/[0.05] blur-[100px]" />
-          <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-[600px] h-[1px] bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
-        </div>
-        <div className="relative pt-16 pb-12 px-6 text-center">
-          <div className="flex items-center justify-center gap-3 mb-6">
-            <div className="h-px w-12 bg-gradient-to-r from-transparent to-[#ffffff]/40" />
-            <div className="px-4 py-1.5 rounded-full border border-[#ffffff]/20 bg-[#ffffff]/[0.08]">
-              <span className="text-[11px] font-bold tracking-[0.15em] uppercase text-[#ffffff]" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-                Help Center
-              </span>
-            </div>
-            <div className="h-px w-12 bg-gradient-to-l from-transparent to-[#ffffff]/40" />
-          </div>
-          <h1 className="text-4xl sm:text-5xl font-bold text-white mb-4" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-            How to Use{" "}
-            <span className="bg-gradient-to-r from-[#ffffff] via-[#FF6B6B] to-[#4CC9F0] bg-clip-text text-transparent">Luffy TV</span>
-          </h1>
-          <p className="text-[15px] text-white/40 max-w-lg mx-auto leading-relaxed" style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}>
-            Everything you need to know about streaming anime on Luffy TV. Free, ad-free, and effortless — just the way it should be.
-          </p>
-        </div>
-      </div>
+    <div className="ltv-cine-root w-full text-white overflow-x-hidden" style={{ fontFamily: "var(--font-inter), Inter, sans-serif" }}>
+      <CinematicBackdrop particleCount={22} />
 
-      <div className="max-w-4xl mx-auto px-6 space-y-14">
-        {/* GET STARTED IN 3 STEPS */}
-        <section>
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-8 h-8 rounded-lg bg-[#ffffff]/10 border border-[#ffffff]/20 flex items-center justify-center">
-              <svg className="w-4 h-4 text-[#ffffff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-              </svg>
-            </div>
-            <h2 className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>Get Started in 3 Steps</h2>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-            {quickSteps.map((step, i) => (
-              <div key={step.step} className={`relative rounded-2xl border ${step.borderColor} bg-gradient-to-br ${step.gradient} p-6 group hover:scale-[1.02] transition-all duration-300`}>
-                <div className="absolute -top-3 -right-2 w-9 h-9 rounded-full bg-[#0a0a14] border border-white/[0.08] flex items-center justify-center">
-                  <span className="text-[13px] font-bold text-[#ffffff]">{step.step}</span>
+      {/* ═══ HERO ═══ */}
+      <section className="relative z-10 pt-28 pb-16 px-6 lg:px-10 text-center">
+        <motion.span
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+          className="ltv-cine-eyebrow inline-block text-xs font-bold uppercase px-3 py-1.5 rounded-full border border-[#1E88FF]/25 bg-[#1E88FF]/[0.06] mb-6"
+        >
+          Guide
+        </motion.span>
+        <motion.h1
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.75, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+          className="ltv-cine-gradient-text text-4xl sm:text-6xl font-black leading-[1.05] max-w-3xl mx-auto"
+          style={{ fontFamily: FONT }}
+        >
+          Everything you need to know
+        </motion.h1>
+        <motion.p
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.75, delay: 0.25 }}
+          className="text-[#a9bcdc] text-base sm:text-lg max-w-xl mx-auto mt-5 leading-relaxed"
+        >
+          From your first episode to keyboard shortcuts you didn't know existed —
+          this is the complete walkthrough of Luffy TV.
+        </motion.p>
+        <motion.div
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.75, delay: 0.4 }}
+          className="flex items-center gap-2 flex-wrap justify-center mt-8"
+        >
+          {["Getting Started", "How to Watch", "Shortcuts", "FAQ"].map(l => (
+            <a key={l} href={`#${l.toLowerCase().replace(/\s+/g, "-")}`} className="ltv-cine-btn-secondary px-4 py-2 rounded-full text-xs font-bold">
+              {l}
+            </a>
+          ))}
+        </motion.div>
+      </section>
+
+      {/* ═══ GETTING STARTED — timeline ═══ */}
+      <section id="getting-started" className="relative z-10 py-14 px-6 lg:px-10">
+        <div className="max-w-5xl mx-auto">
+          <SectionHeading eyebrow="Getting Started" title="Three steps. That's it." center />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 relative">
+            <div className="ltv-cine-divider absolute left-0 right-0 top-[38px] hidden sm:block" />
+            {quickSteps.map((s, i) => (
+              <Reveal key={s.step} delay={i * 0.12}>
+                <div className="ltv-cine-surface rounded-2xl p-6 h-full relative">
+                  <div className="flex items-center gap-3 mb-4">
+                    <span className="w-9 h-9 rounded-full flex items-center justify-center font-black text-sm shrink-0" style={{ background: "linear-gradient(135deg,#1E88FF,#48A6FF)", color: "#fff" }}>{s.step}</span>
+                    <span style={{ color: "#48A6FF" }}>{s.icon}</span>
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-1.5">{s.title}</h3>
+                  <p className="text-sm text-[#8fa3c4] leading-relaxed">{s.desc}</p>
                 </div>
-                <div className={`mb-4 ${step.iconColor} group-hover:scale-110 transition-transform duration-300`}>{step.icon}</div>
-                <h3 className="text-base font-bold text-white mb-2" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>{step.title}</h3>
-                <p className="text-[13px] text-white/40 leading-relaxed" style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}>{step.desc}</p>
-                {i < 2 && <div className="hidden sm:block absolute top-1/2 -right-3 w-6 h-px bg-gradient-to-r from-white/[0.1] to-white/[0.03]" />}
-              </div>
+              </Reveal>
             ))}
           </div>
-          <div className="text-center mt-8">
-            <button onClick={() => navigate({ page: "watchnow" })} className="group relative inline-flex items-center gap-3 px-8 py-3.5 rounded-full text-[14px] font-bold uppercase tracking-wider bg-[#ffffff] text-white hover:bg-[#6b5ce0] transition-all duration-300 hover:shadow-[0_0_30px_rgba(124,108,240,0.35)]" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-              <svg className="w-5 h-5 group-hover:scale-110 transition-transform" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+          <Reveal delay={0.3} className="text-center mt-9">
+            <button onClick={() => navigate({ page: "hub" })} className="ltv-cine-btn-primary inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-bold text-sm">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
               Start Watching Now
             </button>
-          </div>
-        </section>
+          </Reveal>
+        </div>
+      </section>
 
-        {/* FEATURES OVERVIEW */}
-        <section>
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-8 h-8 rounded-lg bg-[#4CC9F0]/10 border border-[#4CC9F0]/20 flex items-center justify-center">
-              <svg className="w-4 h-4 text-[#4CC9F0]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /></svg>
-            </div>
-            <h2 className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>What You Get</h2>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {features.map((feat, i) => (
-              <div key={i} className="group rounded-2xl border border-white/[0.05] bg-white/[0.01] p-5 hover:bg-white/[0.03] hover:border-white/[0.1] transition-all duration-300">
-                <div className="w-10 h-10 rounded-xl bg-[#ffffff]/10 border border-[#ffffff]/15 flex items-center justify-center text-[#ffffff] mb-3 group-hover:scale-110 group-hover:bg-[#ffffff]/15 transition-all duration-300">{feat.icon}</div>
-                <h4 className="text-[14px] font-bold text-white/90 mb-1" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>{feat.title}</h4>
-                <p className="text-[12px] text-white/35 leading-relaxed" style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}>{feat.desc}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* FAQ SECTION */}
-        <section>
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-              <svg className="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
-            </div>
-            <h2 className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>Frequently Asked Questions</h2>
-          </div>
-          <div className="space-y-4 mb-6">
-            <div className="relative max-w-lg">
-              <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/25" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-              <input type="text" value={searchFaq} onChange={e => setSearchFaq(e.target.value)} placeholder="Search questions..." className="w-full pl-11 pr-4 py-3.5 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[14px] text-white placeholder-white/25 outline-none focus:border-[#ffffff]/40 focus:bg-white/[0.04] transition-all duration-300" style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }} />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {categories.map(cat => (
-                <button key={cat} onClick={() => setActiveCategory(activeCategory === cat ? null : cat)} className={`px-4 py-1.5 rounded-full text-[11px] font-bold tracking-wide uppercase transition-all duration-300 border ${(activeCategory === cat || (!activeCategory && cat === "All")) ? "bg-[#ffffff]/15 border-[#ffffff]/30 text-[#ffffff]" : "bg-white/[0.02] border-white/[0.06] text-white/35 hover:text-white/60 hover:border-white/[0.12]"}`} style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>{cat}</button>
-              ))}
-            </div>
-          </div>
-          <div className="space-y-3">
-            {filteredFaqs.length === 0 ? (
-              <div className="text-center py-12 rounded-2xl border border-white/[0.04] bg-white/[0.01]">
-                <svg className="w-12 h-12 text-white/10 mx-auto mb-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1}><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <p className="text-sm text-white/25">No matching questions found.</p>
-                <p className="text-[12px] text-white/15 mt-1">Try a different search term or category.</p>
-              </div>
-            ) : filteredFaqs.map((faq, i) => (
-              <AccordionItem key={`${faq.q}-${i}`} q={faq.q} a={faq.a} category={faq.category} isOpen={openFaq === i} onClick={() => setOpenFaq(openFaq === i ? null : i)} index={i} />
-            ))}
-          </div>
-        </section>
-
-        {/* STILL NEED HELP */}
-        <section>
-          <div className="relative rounded-2xl border border-white/[0.06] overflow-hidden">
-            <div className="absolute inset-0 pointer-events-none">
-              <div className="absolute top-0 right-0 w-[300px] h-[300px] rounded-full bg-[#ffffff]/[0.06] blur-[80px]" />
-              <div className="absolute bottom-0 left-0 w-[200px] h-[200px] rounded-full bg-[#4CC9F0]/[0.04] blur-[60px]" />
-            </div>
-            <div className="relative p-8 text-center space-y-4">
-              <div className="flex justify-center mb-2">
-                <div className="w-12 h-12 rounded-2xl bg-[#ffffff]/10 border border-[#ffffff]/20 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#ffffff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+      {/* ═══ HOW TO WATCH ═══ */}
+      <section id="how-to-watch" className="relative z-10 py-14 px-6 lg:px-10">
+        <div className="max-w-5xl mx-auto">
+          <SectionHeading eyebrow="How to Watch" title="From search to sub/dub to full screen" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {howToWatch.map((f, i) => (
+              <Reveal key={f.title} delay={i * 0.08}>
+                <div className="ltv-cine-surface rounded-2xl p-6 h-full flex gap-4">
+                  <span className="text-2xl shrink-0">{f.icon}</span>
+                  <div>
+                    <h3 className="font-bold text-white mb-1">{f.title}</h3>
+                    <p className="text-sm text-[#8fa3c4] leading-relaxed">{f.desc}</p>
+                  </div>
                 </div>
-              </div>
-              <h3 className="text-lg font-bold text-white" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>Still need help?</h3>
-              <p className="text-[14px] text-white/40 max-w-sm mx-auto leading-relaxed" style={{ fontFamily: "var(--font-inter), 'Inter', sans-serif" }}>Can't find what you're looking for? Our team is here to help. Reach out and we'll get back to you within 24 hours.</p>
-              <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
-                <button onClick={() => navigate({ page: "contact" })} className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13px] font-bold uppercase tracking-wider bg-white/[0.06] border border-white/[0.1] text-white hover:bg-white/[0.1] hover:border-white/[0.15] transition-all duration-300" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" /><polyline points="22,6 12,13 2,6" /></svg>
-                  Contact Us
-                </button>
-                <button onClick={() => navigate({ page: "home" })} className="inline-flex items-center gap-2 px-6 py-3 rounded-full text-[13px] font-bold uppercase tracking-wider bg-[#ffffff]/10 border border-[#ffffff]/20 text-[#ffffff] hover:bg-[#ffffff]/20 transition-all duration-300" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-                  Back Home
-                </button>
-              </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ SEARCH + CONTINUE WATCHING GUIDES ═══ */}
+      <section className="relative z-10 py-14 px-6 lg:px-10">
+        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-5">
+          <Reveal>
+            <div className="ltv-cine-surface rounded-2xl p-7 h-full">
+              <span className="ltv-cine-eyebrow text-xs font-bold uppercase">Search Guide</span>
+              <h3 className="text-xl font-black text-white mt-2 mb-3">Find anything in seconds</h3>
+              <p className="text-sm text-[#8fa3c4] leading-relaxed mb-4">
+                Press <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/10 text-white font-mono text-xs">/</kbd> from
+                anywhere in the app, or click Search in the navbar. Results update as you type — titles, genres, and
+                studios all match.
+              </p>
+              <button onClick={() => navigate({ page: "search" })} className="ltv-cine-btn-secondary px-5 py-2.5 rounded-full text-xs font-bold">
+                Try Search
+              </button>
+            </div>
+          </Reveal>
+          <Reveal delay={0.1}>
+            <div className="ltv-cine-surface rounded-2xl p-7 h-full">
+              <span className="ltv-cine-eyebrow text-xs font-bold uppercase">Continue Watching</span>
+              <h3 className="text-xl font-black text-white mt-2 mb-3">Pick up instantly</h3>
+              <p className="text-sm text-[#8fa3c4] leading-relaxed mb-4">
+                Every episode you start gets logged to History automatically, with your last position. Bookmark a
+                title to keep it pinned even before you've started it.
+              </p>
+              <button onClick={() => navigate({ page: "history" })} className="ltv-cine-btn-secondary px-5 py-2.5 rounded-full text-xs font-bold">
+                View History
+              </button>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ═══ KEYBOARD SHORTCUTS ═══ */}
+      <section id="shortcuts" className="relative z-10 py-14 px-6 lg:px-10">
+        <div className="max-w-4xl mx-auto">
+          <SectionHeading eyebrow="Move Faster" title="Keyboard shortcuts" center />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {shortcuts.map((s, i) => (
+              <Reveal key={s.key} delay={i * 0.05}>
+                <div className="ltv-cine-surface rounded-xl px-4 py-4 flex flex-col items-center gap-2 text-center h-full">
+                  <kbd className="px-2.5 py-1 rounded-md bg-white/10 border border-[#1E88FF]/25 text-white font-mono text-xs font-bold">{s.key}</kbd>
+                  <span className="text-[11px] text-[#8fa3c4] leading-snug">{s.desc}</span>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ ACCOUNT FEATURES ═══ */}
+      <section className="relative z-10 py-14 px-6 lg:px-10">
+        <div className="max-w-5xl mx-auto">
+          <SectionHeading eyebrow="Free Account" title="A free account unlocks a bit more" sub="Your progress is saved in this browser either way — an account just makes it visible and gives you a profile." />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            {accountFeatures.map((f, i) => (
+              <Reveal key={f.title} delay={i * 0.08}>
+                <div className="ltv-cine-surface rounded-2xl p-5 h-full text-center flex flex-col items-center gap-2">
+                  <span className="text-2xl">{f.icon}</span>
+                  <h3 className="font-bold text-white text-sm">{f.title}</h3>
+                  <p className="text-[11px] text-[#8fa3c4] leading-relaxed">{f.desc}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+          <Reveal delay={0.3} className="text-center mt-8">
+            <button onClick={() => navigate({ page: "signup" })} className="ltv-cine-btn-primary inline-flex items-center gap-2 px-7 py-3 rounded-full font-bold text-sm">
+              Create Free Account
+            </button>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ═══ TIPS & TRICKS ═══ */}
+      <section className="relative z-10 py-14 px-6 lg:px-10">
+        <div className="max-w-3xl mx-auto">
+          <SectionHeading eyebrow="Pro Tips" title="Tips & tricks" />
+          <div className="flex flex-col gap-3">
+            {tips.map((t, i) => (
+              <Reveal key={t} delay={i * 0.06}>
+                <div className="flex items-start gap-3 ltv-cine-surface rounded-xl px-5 py-4">
+                  <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black mt-0.5" style={{ background: "rgba(30,136,255,0.15)", color: "#48A6FF" }}>{i + 1}</span>
+                  <p className="text-sm text-[#dce6f7] leading-relaxed">{t}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ FAQ ═══ */}
+      <section id="faq" className="relative z-10 py-14 px-6 lg:px-10">
+        <div className="max-w-3xl mx-auto">
+          <SectionHeading eyebrow="Still Curious" title="Frequently asked questions" />
+          <div className="flex flex-col gap-3">
+            {faqs.map((f, i) => (
+              <FaqItem key={f.q} q={f.q} a={f.a} isOpen={openFaq === i} onClick={() => setOpenFaq(openFaq === i ? null : i)} />
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ STILL NEED HELP ═══ */}
+      <section className="relative z-10 py-16 px-6 lg:px-10">
+        <Reveal className="max-w-3xl mx-auto">
+          <div className="ltv-cine-surface rounded-3xl p-10 text-center flex flex-col items-center gap-4 relative overflow-hidden">
+            <div className="ltv-cine-glow-orb w-[260px] h-[260px] left-1/2 -translate-x-1/2 -top-20" style={{ background: "rgba(30,136,255,0.3)" }} />
+            <h2 className="text-2xl sm:text-3xl font-black relative" style={{ fontFamily: FONT }}>Still need help?</h2>
+            <p className="text-[#8fa3c4] max-w-sm relative">Can't find what you're looking for? Reach out and we'll get back to you.</p>
+            <div className="flex items-center gap-3 flex-wrap justify-center relative">
+              <button onClick={() => navigate({ page: "contact" })} className="ltv-cine-btn-primary px-6 py-3 rounded-full font-bold text-sm">Contact Us</button>
+              <button onClick={() => navigate({ page: "home" })} className="ltv-cine-btn-secondary px-6 py-3 rounded-full font-bold text-sm">Back to Browsing</button>
             </div>
           </div>
-        </section>
-      </div>
+        </Reveal>
+      </section>
     </div>
   );
 }

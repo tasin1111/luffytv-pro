@@ -9237,3 +9237,213 @@ footer {
 .ltv-badge-azure { background: var(--ltv-azure); color: #fff; }
 .ltv-badge-violet { background: var(--ltv-violet); color: #fff; }
 .ltv-badge-muted { background: rgba(255, 255, 255, 0.08); color: var(--ltv-text-60); }
+
+/* ================================================================
+   CINEMATIC SYSTEM — Landing + Guide pages
+   Deep navy / royal blue / electric blue / white. No purple, no gold,
+   no glassmorphism. Premium streaming-platform aesthetic.
+   ================================================================ */
+
+:root {
+  --cine-bg-0: #030712;
+  --cine-bg-1: #071325;
+  --cine-bg-2: #0b1733;
+  --cine-primary: #1e88ff;
+  --cine-accent: #48a6ff;
+  --cine-white: #ffffff;
+  --cine-soft-white: #dce6f7;
+}
+
+.ltv-cine-root {
+  position: relative;
+  background: var(--cine-bg-0);
+  isolation: isolate;
+}
+
+/* ── Layered cinematic backdrop: gradient wash + vignette + grain ── */
+.ltv-cine-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 120% 60% at 50% -10%, rgba(30, 136, 255, 0.16), transparent 55%),
+    radial-gradient(ellipse 90% 50% at 85% 25%, rgba(72, 166, 255, 0.10), transparent 60%),
+    radial-gradient(ellipse 80% 50% at 10% 70%, rgba(30, 136, 255, 0.08), transparent 55%),
+    linear-gradient(180deg, var(--cine-bg-0) 0%, var(--cine-bg-1) 45%, var(--cine-bg-2) 100%);
+}
+
+/* Slow-rotating conic light rays — very subtle, never distracting */
+.ltv-cine-rays {
+  position: absolute;
+  top: -30%;
+  left: 50%;
+  width: 160vw;
+  height: 160vw;
+  transform: translateX(-50%);
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(30, 136, 255, 0.05) 15deg,
+    transparent 35deg,
+    transparent 160deg,
+    rgba(72, 166, 255, 0.04) 178deg,
+    transparent 200deg,
+    transparent 360deg
+  );
+  animation: ltv-cine-ray-spin 90s linear infinite;
+  opacity: 0.7;
+}
+
+@keyframes ltv-cine-ray-spin {
+  from { transform: translateX(-50%) rotate(0deg); }
+  to { transform: translateX(-50%) rotate(360deg); }
+}
+
+/* Vignette pinning focus to center */
+.ltv-cine-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 80% 60% at 50% 40%, transparent 40%, rgba(3, 7, 18, 0.55) 100%);
+}
+
+/* Fine grain noise (SVG turbulence, ultra low opacity) */
+.ltv-cine-grain {
+  position: absolute;
+  inset: -10%;
+  opacity: 0.025;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Drifting particles — small blue/white motes rising slowly */
+.ltv-cine-particle {
+  position: absolute;
+  left: var(--px);
+  top: var(--py);
+  width: var(--psize);
+  height: var(--psize);
+  border-radius: 50%;
+  background: var(--pcolor, rgba(220, 230, 247, 0.5));
+  box-shadow: 0 0 8px 1px var(--pcolor, rgba(72, 166, 255, 0.35));
+  animation: ltv-cine-particle-drift var(--pdur, 14s) var(--pdelay, 0s) ease-in-out infinite;
+  opacity: 0;
+}
+
+@keyframes ltv-cine-particle-drift {
+  0% { opacity: 0; transform: translateY(0) translateX(0) scale(0.6); }
+  15% { opacity: 0.85; }
+  85% { opacity: 0.6; }
+  100% { opacity: 0; transform: translateY(-140px) translateX(14px) scale(1); }
+}
+
+/* Soft ambient glow orb — used behind hero copy / section headers */
+.ltv-cine-glow-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  pointer-events: none;
+  animation: ltv-cine-glow-pulse 8s ease-in-out infinite;
+}
+
+@keyframes ltv-cine-glow-pulse {
+  0%, 100% { opacity: 0.35; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.08); }
+}
+
+/* Premium surface (replaces glassmorphism cards): solid dark panel,
+   subtle border, soft shadow, blue rim-light only on hover/focus. */
+.ltv-cine-surface {
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.015) 100%), #0a1428;
+  border: 1px solid rgba(72, 166, 255, 0.12);
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.6);
+  transition: border-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ltv-cine-surface:hover {
+  border-color: rgba(72, 166, 255, 0.4);
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(72, 166, 255, 0.08), 0 0 40px -8px rgba(30, 136, 255, 0.25);
+  transform: translateY(-4px);
+}
+
+/* Primary CTA button — electric blue glow, hover lift, ripple-ready */
+.ltv-cine-btn-primary {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, var(--cine-primary), var(--cine-accent));
+  color: #ffffff;
+  box-shadow: 0 8px 30px -8px rgba(30, 136, 255, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.3s ease, filter 0.3s ease;
+}
+.ltv-cine-btn-primary:hover {
+  transform: translateY(-2px) scale(1.015);
+  box-shadow: 0 14px 40px -8px rgba(30, 136, 255, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  filter: brightness(1.08);
+}
+.ltv-cine-btn-primary:active { transform: translateY(0) scale(0.985); }
+
+.ltv-cine-btn-secondary {
+  background: rgba(220, 230, 247, 0.04);
+  border: 1px solid rgba(220, 230, 247, 0.18);
+  color: var(--cine-soft-white);
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ltv-cine-btn-secondary:hover {
+  background: rgba(72, 166, 255, 0.08);
+  border-color: rgba(72, 166, 255, 0.45);
+  transform: translateY(-2px);
+  color: #ffffff;
+}
+
+/* Gradient headline text */
+.ltv-cine-gradient-text {
+  background: linear-gradient(180deg, #ffffff 20%, var(--cine-soft-white) 60%, var(--cine-accent) 130%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Poster card — cinematic hover zoom + rim light */
+.ltv-cine-poster {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.5s ease;
+  box-shadow: 0 16px 40px -14px rgba(0, 0, 0, 0.7);
+}
+.ltv-cine-poster:hover {
+  transform: translateY(-8px) scale(1.035);
+  box-shadow: 0 30px 60px -16px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(72, 166, 255, 0.35), 0 0 50px -12px rgba(30, 136, 255, 0.5);
+}
+.ltv-cine-poster img {
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.ltv-cine-poster:hover img {
+  transform: scale(1.08);
+}
+
+/* Section eyebrow label */
+.ltv-cine-eyebrow {
+  color: var(--cine-accent);
+  letter-spacing: 0.22em;
+  text-shadow: 0 0 20px rgba(72, 166, 255, 0.4);
+}
+
+/* Horizontal scroll shelf — hide scrollbar, momentum scroll */
+.ltv-cine-shelf {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  scroll-behavior: smooth;
+}
+.ltv-cine-shelf::-webkit-scrollbar { display: none; }
+
+/* Divider with center glow */
+.ltv-cine-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(72, 166, 255, 0.4), transparent);
+}
+
+@media (max-width: 768px) {
+  .ltv-cine-rays { width: 220vw; height: 220vw; top: -50%; }
+}

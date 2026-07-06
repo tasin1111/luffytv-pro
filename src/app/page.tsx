@@ -230,7 +230,10 @@ export default function MainPage() {
   // FULL BLEED — no padding, no top offset. Root "home" now renders the anime
   // section home (carousel) so refresh never flips between two different homes.
   const isAnimeSectionRoute = route.page === "dub" || route.page === "home";
-  const isHomeFullBleed = (isAnimeSectionRoute && sectionSubPage === "home") || isStandalonePage || isAuthPage;
+  // Guide keeps the floating Navbar/footer but owns its own cinematic hero
+  // spacing, so it also renders full-bleed (no extra top offset/padding).
+  const isCinematicOwnLayout = isStandalonePage || route.page === "guide";
+  const isHomeFullBleed = (isAnimeSectionRoute && sectionSubPage === "home") || isCinematicOwnLayout || isAuthPage;
   // Browse sub-page wants true full-screen (no main padding) — its own internal layout handles spacing
   const isBrowseFullBleed = isAnimeSectionRoute && (sectionSubPage === "browse" || sectionSubPage === "schedule");
 
