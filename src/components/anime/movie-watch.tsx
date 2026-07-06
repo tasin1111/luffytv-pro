@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useAppStore } from "./store";
+import { useAppStore, type TMDBContentItem } from "./store";
 import { getTmdbServers } from "@/lib/embed-servers";
+import MovieCard from "./movie-card";
 
 interface MovieInfo {
   id: number;
@@ -24,48 +25,37 @@ interface MovieInfo {
     cast: Array<{ id: number; name: string; character?: string; profile_path?: string; order?: number }>;
     crew?: Array<{ id: number; name: string; job?: string; department?: string; profile_path?: string }>;
   };
-  similar?: { results: Array<any> };
-  recommendations?: { results: Array<any> };
+  similar?: { results: TMDBContentItem[] };
+  recommendations?: { results: TMDBContentItem[] };
 }
 
 const GROTESK = "var(--font-space-grotesk), 'Space Grotesk', sans-serif";
-const INTER = "var(--font-inter), 'Inter', sans-serif";
-
-const GENRE_COLORS: Record<string, string> = {
-  Action: "#ef4444", Adventure: "#f59e0b", Animation: "#ffffff",
-  Comedy: "#eab308", Crime: "#6366f1", Documentary: "#10b981",
-  Drama: "#6366f1", Family: "#ec4899", Fantasy: "#ffffff",
-  History: "#a855f7", Horror: "#dc2626", Music: "#06b6d4",
-  Mystery: "#0ea5e9", Romance: "#ec4899", "Science Fiction": "#06b6d4",
-  "TV Movie": "#64748b", Thriller: "#f97316", War: "#64748b",
-  Western: "#a16207",
-};
+const ACCENT = "#1e88ff";
 
 export default function MovieWatchPage({ movieId }: { movieId: number }) {
   const navigate = useAppStore(s => s.navigate);
   const [movie, setMovie] = useState<MovieInfo | null>(null);
   const [activeServer, setActiveServer] = useState<string>("");
-  const [loading, setLoading] = useState(true);
   const [iframeError, setIframeError] = useState(false);
   const [useDirectEmbed, setUseDirectEmbed] = useState(true);
-  const [serversExpanded, setServersExpanded] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const tmdbServers = getTmdbServers();
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       try {
         const res = await fetch(`/api/tmdb/detail?id=${movieId}&type=movie`);
-        if (res.ok) {
+        if (res.ok && !cancelled) {
           const data = await res.json();
           setMovie(data);
-          if (tmdbServers.length > 0) setActiveServer(tmdbServers[0].id);
+          if (tmdbServers.length > 0) setActiveServer(prev => prev || tmdbServers[0].id);
         }
       } catch { /* ignore */ }
-      setLoading(false);
     }
     load();
+    return () => { cancelled = true; };
   }, [movieId]);
 
   const currentServer = tmdbServers.find(s => s.id === activeServer);
@@ -77,199 +67,184 @@ export default function MovieWatchPage({ movieId }: { movieId: number }) {
   const hours = movie?.runtime ? Math.floor(movie.runtime / 60) : 0;
   const minutes = movie?.runtime ? movie.runtime % 60 : 0;
   const director = movie?.credits?.crew?.find(c => c.job === "Director");
-  const topCast = movie?.credits?.cast?.slice(0, 10) || [];
+  const topCast = movie?.credits?.cast?.slice(0, 12) || [];
   const score = movie?.vote_average != null ? (movie.vote_average > 10 ? movie.vote_average / 10 : movie.vote_average) : 0;
-  const visibleServers = serversExpanded ? tmdbServers : tmdbServers.slice(0, 4);
+  const related = (movie?.similar?.results?.length ? movie.similar.results : movie?.recommendations?.results) || [];
 
   return (
-    <div className="fade-in">
-      {/* ═══ Immersive blurred background ═══ */}
-      {movie?.backdrop_path && (
-        <div className="immersive-bg" style={{ backgroundImage: `url(https://image.tmdb.org/t/p/w1280${movie.backdrop_path})` }} />
-      )}
-
-      {/* ═══ Video Player ═══ */}
-      <div className="relative w-full aspect-video bg-black rounded-none lg:rounded-2xl overflow-hidden player-glow">
-        {embedUrl && !iframeError ? (
-          <iframe
-            ref={iframeRef}
-            key={`${embedUrl}-${useDirectEmbed}`}
-            src={useDirectEmbed ? embedUrl : `/api/embed/proxy?url=${encodeURIComponent(embedUrl)}`}
-            className="absolute inset-0 w-full h-full"
-            allowFullScreen
-            allow="autoplay; fullscreen; picture-in-picture; encrypted-media; screen-wake-lock; clipboard-write; document-domain"
-            referrerPolicy="no-referrer"
-            onError={() => {
-              if (useDirectEmbed) {
-                setUseDirectEmbed(false);
-              } else {
-                setIframeError(true);
-              }
-            }}
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-[#0D0D0D]">
-            <div className="text-center space-y-3">
-              <div className="w-16 h-16 rounded-full bg-[#ffffff]/10 flex items-center justify-center mx-auto">
-                <svg className="w-8 h-8 text-[#ffffff]" viewBox="0 0 24 24" fill="currentColor">
-                  <polygon points="5 3 19 12 5 21 5 3" />
-                </svg>
-              </div>
-              <p className="text-[#666666] text-sm">Select a server to start watching</p>
-            </div>
-          </div>
-        )}
+    <div className="min-h-screen bg-[#050608] fade-in">
+      {/* ═══ Top bar ═══ */}
+      <div className="flex items-center gap-3 px-4 lg:px-8 h-14 border-b border-white/[0.05]">
+        <button
+          onClick={() => (movie ? navigate({ page: "movie-detail", id: movie.id }) : navigate({ page: "movies" }))}
+          className="inline-flex items-center gap-2 text-[13px] font-bold text-[#a1a7b3] hover:text-white transition-colors"
+          style={{ fontFamily: GROTESK }}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.4}><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
+          Back
+        </button>
+        <span className="w-px h-4 bg-white/10" />
+        <div className="min-w-0 flex items-center gap-2.5">
+          <span className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse" style={{ background: ACCENT }} />
+          <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#48a6ff] shrink-0" style={{ fontFamily: GROTESK }}>Now Playing</span>
+          <h1 className="text-[13px] font-bold text-[#e8eaee] truncate" style={{ fontFamily: GROTESK }}>{movie?.title || "Loading..."}</h1>
+        </div>
+        <button
+          onClick={() => navigate({ page: "movies" })}
+          className="ml-auto text-[12px] font-bold text-[#767d8a] hover:text-white transition-colors shrink-0"
+          style={{ fontFamily: GROTESK }}
+        >
+          All Movies
+        </button>
       </div>
 
-      {/* ═══ Player Controls Bar — Anikage glass style ═══ */}
-      <div className="glass-card rounded-none lg:rounded-xl p-3 sm:p-4 mt-1 space-y-3">
-        {/* Top: Title + Now Playing */}
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-[#ffffff] animate-pulse" />
-              <span className="text-[10px] font-bold text-[#ffffff] uppercase tracking-wider" style={{ fontFamily: GROTESK }}>Now Playing</span>
+      <div className="max-w-[1200px] mx-auto px-0 lg:px-8 pt-0 lg:pt-6 pb-16 space-y-4">
+        {/* ═══ Player ═══ */}
+        <div
+          className="relative w-full aspect-video bg-black overflow-hidden lg:rounded-2xl border-y lg:border border-white/[0.07]"
+          style={{ boxShadow: "0 24px 80px rgba(30,136,255,0.10)" }}
+        >
+          {embedUrl && !iframeError ? (
+            <iframe
+              ref={iframeRef}
+              key={`${embedUrl}-${useDirectEmbed}`}
+              src={useDirectEmbed ? embedUrl : `/api/embed/proxy?url=${encodeURIComponent(embedUrl)}`}
+              className="absolute inset-0 w-full h-full"
+              allowFullScreen
+              allow="autoplay; fullscreen; picture-in-picture; encrypted-media; screen-wake-lock; clipboard-write; document-domain"
+              referrerPolicy="no-referrer"
+              onError={() => {
+                if (useDirectEmbed) setUseDirectEmbed(false);
+                else setIframeError(true);
+              }}
+            />
+          ) : (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center space-y-3">
+                <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto border border-[#1e88ff]/30 bg-[#1e88ff]/10">
+                  <svg className="w-7 h-7 text-[#48a6ff] translate-x-[1px]" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                </div>
+                <p className="text-[#767d8a] text-sm">{iframeError ? "This server failed — try another one below" : "Select a server to start watching"}</p>
+              </div>
             </div>
-            <h3 className="text-sm font-bold text-white truncate" style={{ fontFamily: GROTESK }}>{movie?.title || "Loading..."}</h3>
-            {movie?.tagline && <p className="text-[10px] text-[#666666] italic mt-0.5">&quot;{movie.tagline}&quot;</p>}
-          </div>
-          {/* Back to detail button */}
-          {movie && (
-            <button
-              onClick={() => navigate({ page: "movie-detail", id: movie.id })}
-              className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06] text-[#AAAAAA] hover:text-white hover:bg-white/[0.08] transition-all text-[11px] font-medium"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-              Details
-            </button>
           )}
         </div>
 
-        {/* Server Switcher */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold text-[#666666] uppercase tracking-wider" style={{ fontFamily: GROTESK }}>Server</span>
-            {tmdbServers.length > 4 && (
-              <button
-                onClick={() => setServersExpanded(!serversExpanded)}
-                className="text-[10px] text-[#AAAAAA] hover:text-white transition-colors font-medium"
-              >
-                {serversExpanded ? "Show Less" : `+${tmdbServers.length - 4} More`}
-              </button>
-            )}
+        {/* ═══ Server deck ═══ */}
+        <div className="mx-4 lg:mx-0 rounded-2xl bg-[#0a0d13] border border-white/[0.07] p-4 sm:p-5">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-[#48a6ff]" style={{ fontFamily: GROTESK }}>Servers</span>
+            <span className="text-[11px] text-[#5b616c]">If playback fails, switch server</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {visibleServers.map((server, idx) => (
-              <button
-                key={server.id}
-                onClick={() => { setActiveServer(server.id); setIframeError(false); setUseDirectEmbed(true); }}
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all ${
-                  activeServer === server.id
-                    ? "bg-[#ffffff]/15 text-white border border-[#ffffff]/30 shadow-sm shadow-[#ffffff]/10"
-                    : "bg-white/[0.04] text-[#AAAAAA] border border-white/[0.06] hover:bg-white/[0.08] hover:text-white"
-                }`}
-                style={{ fontFamily: GROTESK }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: activeServer === server.id ? "#ffffff" : server.color }} />
-                Server {idx + 1}
-              </button>
-            ))}
-            {/* Proxy / Direct toggle */}
+            {tmdbServers.map((server, idx) => {
+              const active = activeServer === server.id;
+              return (
+                <button
+                  key={server.id}
+                  onClick={() => { setActiveServer(server.id); setIframeError(false); setUseDirectEmbed(true); }}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold transition-all border ${
+                    active
+                      ? "text-white border-transparent"
+                      : "text-[#a1a7b3] border-white/[0.08] bg-white/[0.02] hover:text-white hover:border-white/20"
+                  }`}
+                  style={{ fontFamily: GROTESK, background: active ? ACCENT : undefined }}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-white" : "bg-[#5b616c]"}`} />
+                  Server {idx + 1}
+                </button>
+              );
+            })}
             <button
               onClick={() => { setUseDirectEmbed(!useDirectEmbed); setIframeError(false); }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all border ${
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold transition-all border ${
                 useDirectEmbed
-                  ? "bg-[#00D4AA]/10 text-[#00D4AA] border-[#00D4AA]/20"
-                  : "bg-white/[0.04] text-[#666666] border-white/[0.06] hover:text-[#AAAAAA]"
+                  ? "text-[#48a6ff] border-[#48a6ff]/35 bg-[#1e88ff]/10"
+                  : "text-[#767d8a] border-white/[0.08] hover:text-[#c4c9d2]"
               }`}
               style={{ fontFamily: GROTESK }}
               title={useDirectEmbed ? "Direct embed — bypasses proxy" : "Proxy mode — anti-sandbox enabled"}
             >
-              <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: useDirectEmbed ? "#00D4AA" : "#666666" }} />
               {useDirectEmbed ? "Direct" : "Proxy"}
             </button>
           </div>
         </div>
-      </div>
 
-      {/* ═══ Movie Info Card — glass panel ═══ */}
-      {movie && (
-        <div className="mt-3 glass-card rounded-xl p-4 space-y-4">
-          <div className="flex gap-3 sm:gap-4">
-            {movie.poster_path && (
-              <img
-                src={`https://image.tmdb.org/t/p/w185${movie.poster_path}`}
-                alt={movie.title}
-                className="w-20 h-30 sm:w-24 sm:h-36 rounded-lg shrink-0 object-cover border border-white/[0.06]"
-              />
-            )}
-            <div className="flex-1 min-w-0">
-              <h3 className="text-base font-bold text-white" style={{ fontFamily: GROTESK }}>{movie.title}</h3>
-              {movie.tagline && <p className="text-[10px] text-[#666666] italic mt-0.5">&quot;{movie.tagline}&quot;</p>}
-              <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#ffffff]/15 text-[#ffffff] border border-[#ffffff]/25">MOVIE</span>
-                {year && <span className="text-xs text-[#AAAAAA]">{year}</span>}
-                {movie.runtime ? <span className="text-xs text-[#AAAAAA]">{hours}h {minutes}m</span> : null}
-                {score > 0 && (
-                  <span className="flex items-center gap-1">
-                    <svg className="w-3.5 h-3.5 text-[#FFB800]" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                    <span className="text-xs font-bold text-[#FFB800]">{score.toFixed(1)}</span>
-                    <span className="text-[9px] text-[#666666]">/ 10</span>
-                  </span>
+        {/* ═══ About panel ═══ */}
+        {movie && (
+          <div className="mx-4 lg:mx-0 rounded-2xl bg-[#0a0d13] border border-white/[0.07] p-4 sm:p-6">
+            <div className="flex gap-4 sm:gap-6">
+              {movie.poster_path && (
+                <img
+                  src={`https://image.tmdb.org/t/p/w342${movie.poster_path}`}
+                  alt={movie.title}
+                  className="w-24 sm:w-32 rounded-xl shrink-0 object-cover border border-white/[0.08] self-start"
+                />
+              )}
+              <div className="flex-1 min-w-0">
+                <h2 className="text-lg sm:text-2xl font-extrabold text-[#e8eaee] tracking-tight" style={{ fontFamily: GROTESK }}>{movie.title}</h2>
+                {movie.tagline && <p className="text-[12px] text-[#767d8a] italic mt-1">&quot;{movie.tagline}&quot;</p>}
+                <div className="flex items-center gap-2 mt-3 flex-wrap">
+                  {score > 0 && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-[#48a6ff] border border-[#48a6ff]/30 bg-[#1e88ff]/10">
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                      {score.toFixed(1)}
+                    </span>
+                  )}
+                  {year && <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#a1a7b3] border border-white/10 bg-white/[0.04]">{year}</span>}
+                  {movie.runtime ? <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#a1a7b3] border border-white/10 bg-white/[0.04]">{hours}h {minutes}m</span> : null}
+                  {movie.genres?.slice(0, 3).map(g => (
+                    <span key={g.id} className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#c4c9d2] border border-white/[0.08]">{g.name}</span>
+                  ))}
+                </div>
+                {movie.overview && <p className="text-[13px] text-[#a1a7b3] leading-relaxed mt-3 line-clamp-4">{movie.overview}</p>}
+                {director && (
+                  <p className="mt-3 text-[12px]">
+                    <span className="font-extrabold uppercase tracking-wider text-[10px] text-[#5b616c]" style={{ fontFamily: GROTESK }}>Director&nbsp;&nbsp;</span>
+                    <span className="text-[#e8eaee] font-semibold">{director.name}</span>
+                  </p>
                 )}
               </div>
-              {movie.overview && <p className="text-xs text-[#AAAAAA] line-clamp-3 mt-2 leading-relaxed" style={{ fontFamily: INTER }}>{movie.overview}</p>}
-              {movie.genres && movie.genres.length > 0 && (
-                <div className="flex gap-1.5 mt-2 flex-wrap">
-                  {movie.genres.map(g => {
-                    const color = GENRE_COLORS[g.name] || "#ffffff";
-                    return (
-                      <span key={g.id} className="px-2.5 py-0.5 text-[9px] font-semibold rounded-full"
-                        style={{ color, backgroundColor: `${color}15`, border: `1px solid ${color}20` }}
-                      >
-                        {g.name}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-              {director && (
-                <div className="mt-2 flex items-center gap-1.5">
-                  <span className="text-[9px] text-[#666666] uppercase font-bold" style={{ fontFamily: GROTESK }}>Director</span>
-                  <span className="text-[11px] text-white font-medium">{director.name}</span>
-                </div>
-              )}
             </div>
-          </div>
-        </div>
-      )}
 
-      {/* ═══ Top Cast — glass panel ═══ */}
-      {topCast.length > 0 && (
-        <div className="mt-3 glass-card rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-[#AAAAAA] mb-3 flex items-center gap-2" style={{ fontFamily: GROTESK }}>
-            <div className="w-1 h-4 rounded-full bg-[#4A90E2]" />
-            Top Cast
-          </h3>
-          <div className="flex gap-3 overflow-x-auto scroll-container pb-2">
-            {topCast.map(person => (
-              <div key={person.id} className="shrink-0 text-center w-[72px] sm:w-[85px]">
-                <div className="w-[64px] h-[64px] sm:w-[76px] sm:h-[76px] rounded-full bg-[#1A1A1A] overflow-hidden mx-auto mb-1.5 border-2 border-white/[0.06]">
-                  {person.profile_path ? (
-                    <img src={`https://image.tmdb.org/t/p/w185${person.profile_path}`} alt={person.name} className="w-full h-full object-cover" loading="lazy" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-base text-[#666666] font-semibold">
-                      {person.name.charAt(0)}
+            {/* Cast strip */}
+            {topCast.length > 0 && (
+              <div className="mt-5 pt-5 border-t border-white/[0.06]">
+                <span className="block text-[11px] font-extrabold uppercase tracking-[0.22em] text-[#48a6ff] mb-3" style={{ fontFamily: GROTESK }}>Top Cast</span>
+                <div className="flex gap-4 overflow-x-auto scroll-container pb-1">
+                  {topCast.map(person => (
+                    <div key={person.id} className="shrink-0 text-center w-[76px]">
+                      <div className="w-[64px] h-[64px] rounded-full bg-[#10141c] overflow-hidden mx-auto mb-1.5 border border-white/[0.08]">
+                        {person.profile_path ? (
+                          <img src={`https://image.tmdb.org/t/p/w185${person.profile_path}`} alt={person.name} className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-base text-[#5b616c] font-bold">{person.name.charAt(0)}</div>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-[#e8eaee] font-semibold line-clamp-1">{person.name}</p>
+                      {person.character && <p className="text-[9px] text-[#5b616c] line-clamp-1">{person.character}</p>}
                     </div>
-                  )}
+                  ))}
                 </div>
-                <p className="text-[9px] sm:text-[10px] text-white font-medium line-clamp-1">{person.name}</p>
-                {person.character && <p className="text-[8px] text-[#666666] line-clamp-1">{person.character}</p>}
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      )}
+        )}
+
+        {/* ═══ More like this ═══ */}
+        {related.length > 0 && (
+          <section className="mx-4 lg:mx-0 pt-4 space-y-3">
+            <h3 className="text-lg font-extrabold text-[#e8eaee] tracking-tight" style={{ fontFamily: GROTESK }}>More Like This</h3>
+            <div className="flex gap-3 overflow-x-auto scroll-container pb-2">
+              {related.slice(0, 14).map(item => (
+                <div key={item.id} className="shrink-0 w-[130px] sm:w-[150px]">
+                  <MovieCard item={{ ...item, media_type: "movie" }} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
     </div>
   );
 }

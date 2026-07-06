@@ -320,6 +320,7 @@ export default function LandingPage() {
       {/* ═══ TOP 10 — numbered ranking rail ═══ */}
       {trending.length > 0 && (
         <section className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
+          <div className="ltv-cine-hairline mb-16 sm:mb-24 -mt-2" />
           <div className="max-w-7xl mx-auto">
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <SectionHeading eyebrow="Trending Right Now" title="Today's Top 10" />
@@ -453,6 +454,7 @@ export default function LandingPage() {
       {/* ═══ SIX WORLDS — cinematic hover-expanding showcase of every
              content section: Anime, Movies, TV, Live, Manga, Novels ═══ */}
       <section className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
+        <div className="ltv-cine-hairline mb-16 sm:mb-24 -mt-2" />
         <div className="max-w-7xl mx-auto">
           <SectionHeading
             eyebrow="One Platform, Six Worlds"
