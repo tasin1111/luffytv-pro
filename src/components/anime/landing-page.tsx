@@ -28,6 +28,24 @@ function getCover(a: TrendingItem) {
   return a.coverImage?.extraLarge || a.coverImage?.large || "";
 }
 
+/* ─── TMDB items for the movies/TV showcase ─── */
+interface TMDBItem {
+  id: number;
+  title?: string;
+  name?: string;
+  poster_path?: string;
+  backdrop_path?: string;
+  vote_average?: number;
+  overview?: string;
+  release_date?: string;
+  first_air_date?: string;
+}
+const tmdbTitle = (m: TMDBItem) => m.title || m.name || "";
+const tmdbPoster = (m: TMDBItem) => (m.poster_path ? `https://image.tmdb.org/t/p/w342${m.poster_path}` : "");
+const tmdbBackdrop = (m: TMDBItem) => (m.backdrop_path ? `https://image.tmdb.org/t/p/w1280${m.backdrop_path}` : "");
+const tmdbYear = (m: TMDBItem) => (m.release_date || m.first_air_date || "").split("-")[0];
+const tmdbScore = (m: TMDBItem) => (m.vote_average ? (m.vote_average > 10 ? m.vote_average / 10 : m.vote_average) : 0);
+
 /* ─── Scroll-triggered reveal ─── */
 function Reveal({ children, delay = 0, y = 28, className = "" }: { children: React.ReactNode; delay?: number; y?: number; className?: string }) {
   return (
@@ -93,6 +111,8 @@ function PosterTile({ item, className = "", width = "w-[120px]" }: { item?: Tren
 export default function LandingPage() {
   const navigate = useAppStore(s => s.navigate);
   const [trending, setTrending] = useState<TrendingItem[]>([]);
+  const [movies, setMovies] = useState<TMDBItem[]>([]);
+  const [shows, setShows] = useState<TMDBItem[]>([]);
   const shelfRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -106,6 +126,25 @@ export default function LandingPage() {
         if (!cancelled) setTrending(trend.slice(0, 14));
       } catch { /* sections render with placeholders */ }
     })();
+    // Real movie/TV artwork for the showcase — sections hide gracefully if
+    // TMDB is unavailable.
+    (async () => {
+      try {
+        const [mRes, tRes] = await Promise.all([
+          fetch("/api/tmdb/trending?type=movie&time=week"),
+          fetch("/api/tmdb/trending?type=tv&time=week"),
+        ]);
+        if (cancelled) return;
+        if (mRes.ok) {
+          const m = await mRes.json();
+          if (!cancelled) setMovies((m.results || []).filter((x: TMDBItem) => x.poster_path).slice(0, 14));
+        }
+        if (tRes.ok) {
+          const t = await tRes.json();
+          if (!cancelled) setShows((t.results || []).filter((x: TMDBItem) => x.poster_path).slice(0, 14));
+        }
+      } catch { /* showcase hides without data */ }
+    })();
     return () => { cancelled = true; };
   }, []);
 
@@ -117,38 +156,18 @@ export default function LandingPage() {
     { label: "Contact", onClick: () => navigate({ page: "contact" }) },
   ];
 
-  const featurePanels = [
-    { icon: <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" /></svg>, title: "Every format, one library", desc: "Anime, movies, TV shows, live sports and TV, manga and light novels — indexed and searchable from a single home.", big: true },
-    { icon: <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><path d="M13 2 3 14h7l-1 8 11-14h-7l1-6z" /></svg>, title: "Built for speed", desc: "Sources race in parallel — the fastest working stream wins, automatically." },
-    { icon: <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 3" /></svg>, title: "Never lose your spot", desc: "Progress and bookmarks are saved automatically as you watch." },
-    { icon: <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.6}><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" /></svg>, title: "Sub, dub & hardsub", desc: "Every audio track we can find, switchable mid-episode." },
-  ];
-
-  const smallFeatures = [
-    { label: "Fast Sources", icon: "⚡" },
-    { label: "HD & 4K", icon: "🎬" },
-    { label: "Zero Ads", icon: "🚫" },
-    { label: "Auto-Save Progress", icon: "🔄" },
-    { label: "20+ Subtitles", icon: "💬" },
-    { label: "Mobile Ready", icon: "📱" },
-  ];
-
   // Collage picks (first four trending covers)
   const collage = trending.slice(0, 4);
   const marqueeItems = trending.length ? trending : Array.from({ length: 10 }, (_, i) => ({ id: -i - 1, title: {} } as TrendingItem));
 
   const scrollShelf = (dir: 1 | -1) => shelfRef.current?.scrollBy({ left: dir * 640, behavior: "smooth" });
 
-  // "Six worlds" showcase — every content section, each with its own accent.
-  // The anime slat gets a real trending cover; the rest get accent nebulas.
-  const worlds = [
-    { id: "anime", title: "Anime", desc: "Sub, dub & hardsub — thousands of episodes across every era.", accent: "#48A6FF", icon: "📺", cover: collage[2] ? getCover(collage[2]) : "", onClick: () => navigate({ page: "home" }) },
-    { id: "movies", title: "Movies", desc: "Trending films, top-rated classics, and new releases in HD.", accent: "#22D3EE", icon: "🎬", cover: "", onClick: () => navigate({ page: "movies" }) },
-    { id: "tv", title: "TV Shows", desc: "Full seasons, episode by episode — binge without limits.", accent: "#34D399", icon: "🍿", cover: "", onClick: () => navigate({ page: "tv" }) },
-    { id: "live", title: "Live Sports & TV", desc: "Matches and channels streaming live, right now.", accent: "#F87171", icon: "🔴", cover: "", onClick: () => navigate({ page: "live" }) },
-    { id: "manga", title: "Manga", desc: "Read chapters in a clean, distraction-free reader.", accent: "#F472B6", icon: "📖", cover: "", onClick: () => navigate({ page: "manga" }) },
-    { id: "novel", title: "Light Novels", desc: "The source material — chapter after chapter, beautifully typeset.", accent: "#A3B3CC", icon: "📚", cover: "", onClick: () => navigate({ page: "novel" }) },
-  ];
+  // Movies showcase picks
+  const spotlight = movies.find(m => m.backdrop_path && m.overview);
+  const sideMovies = movies.filter(m => m.backdrop_path && m.id !== spotlight?.id).slice(0, 2);
+  const movieRail = movies.filter(m => m.id !== spotlight?.id && !sideMovies.some(s => s.id === m.id));
+
+  const liveCategories = ["Football", "Cricket", "Basketball", "F1", "UFC", "Tennis", "24/7 Channels"];
 
   return (
     <div className="ltv-cine-root w-full text-white overflow-x-hidden" style={{ fontFamily: "var(--font-inter), Inter, sans-serif" }}>
@@ -373,170 +392,317 @@ export default function LandingPage() {
         </section>
       )}
 
-      {/* ═══ LIVE CALLOUT ═══ */}
+      {/* ═══ MOVIES & TV SHOWCASE — real TMDB artwork ═══ */}
+      {spotlight && (
+        <section className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
+          <div className="ltv-cine-hairline mb-16 sm:mb-24 -mt-2" />
+          <div className="max-w-7xl mx-auto">
+            <div className="flex items-end justify-between gap-4 flex-wrap">
+              <SectionHeading
+                eyebrow="Movies & TV Shows"
+                title="Movie night, solved."
+                sub="Blockbusters, classics and full TV seasons in HD — streaming right now, free."
+              />
+              <Reveal>
+                <div className="hidden md:flex items-center gap-2 mb-12">
+                  <button onClick={() => navigate({ page: "movies" })} className="ltv-cine-btn-secondary px-5 py-2.5 rounded-full font-bold text-xs">Browse Movies</button>
+                  <button onClick={() => navigate({ page: "tv" })} className="ltv-cine-btn-secondary px-5 py-2.5 rounded-full font-bold text-xs">TV Shows</button>
+                </div>
+              </Reveal>
+            </div>
+
+            {/* Spotlight + side stack */}
+            <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_0.6fr] gap-4">
+              <Reveal>
+                <button
+                  onClick={() => navigate({ page: "movie-detail", id: spotlight.id })}
+                  className="group relative w-full h-[340px] sm:h-[440px] rounded-3xl overflow-hidden text-left border border-white/[0.07] hover:border-[#48A6FF]/40 transition-colors duration-300 block"
+                >
+                  <img src={tmdbBackdrop(spotlight)} alt={tmdbTitle(spotlight)} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.04]" loading="lazy" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-[#050608]/30 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-[#050608]/80 via-transparent to-transparent" />
+                  <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-9">
+                    <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.24em] mb-2.5" style={{ color: ACCENT, fontFamily: FONT }}>
+                      <span className="w-5 h-px" style={{ background: ACCENT }} />
+                      #1 Trending in Movies
+                    </span>
+                    <h3 className="text-2xl sm:text-4xl font-black text-white tracking-tight mb-2.5" style={{ fontFamily: FONT }}>{tmdbTitle(spotlight)}</h3>
+                    <div className="flex items-center gap-2 mb-3">
+                      {tmdbScore(spotlight) > 0 && (
+                        <span className="px-2.5 py-1 rounded-md text-[11px] font-bold border" style={{ color: ACCENT, borderColor: `${ACCENT}4d`, background: "rgba(30,136,255,0.10)" }}>
+                          ★ {tmdbScore(spotlight).toFixed(1)}
+                        </span>
+                      )}
+                      {tmdbYear(spotlight) && <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#c4c9d2] border border-white/15 bg-black/40">{tmdbYear(spotlight)}</span>}
+                      <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#c4c9d2] border border-white/15 bg-black/40">HD</span>
+                    </div>
+                    <p className="text-sm text-[#c4c9d2] line-clamp-2 max-w-xl mb-5 leading-relaxed">{spotlight.overview}</p>
+                    <span className="ltv-cine-btn-primary inline-flex items-center gap-2 px-6 py-2.5 rounded-full font-bold text-sm">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                      Watch Free
+                    </span>
+                  </div>
+                </button>
+              </Reveal>
+
+              <div className="grid grid-rows-2 gap-4">
+                {sideMovies.map((m, i) => (
+                  <Reveal key={m.id} delay={0.1 + i * 0.1}>
+                    <button
+                      onClick={() => navigate({ page: "movie-detail", id: m.id })}
+                      className="group relative w-full h-[160px] sm:h-[212px] rounded-2xl overflow-hidden text-left border border-white/[0.07] hover:border-[#48A6FF]/40 transition-colors duration-300 block"
+                    >
+                      <img src={tmdbBackdrop(m)} alt={tmdbTitle(m)} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.05]" loading="lazy" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-[#050608]/20 to-transparent" />
+                      <div className="absolute bottom-0 left-0 right-0 p-4">
+                        <p className="text-base font-black text-white tracking-tight line-clamp-1" style={{ fontFamily: FONT }}>{tmdbTitle(m)}</p>
+                        <p className="text-[11px] font-bold mt-1 flex items-center gap-2" style={{ color: ACCENT }}>
+                          {tmdbScore(m) > 0 && <span>★ {tmdbScore(m).toFixed(1)}</span>}
+                          <span className="text-[#767d8a] font-semibold">{tmdbYear(m)}</span>
+                        </p>
+                      </div>
+                      <span className="absolute top-3 right-3 w-9 h-9 rounded-full bg-black/60 border border-white/15 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <svg className="w-3.5 h-3.5 text-white translate-x-[1px]" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                      </span>
+                    </button>
+                  </Reveal>
+                ))}
+              </div>
+            </div>
+
+            {/* Movie poster rail */}
+            {movieRail.length > 0 && (
+              <Reveal delay={0.15}>
+                <div className="flex gap-3 overflow-x-auto pb-2 mt-4 ltv-cine-shelf">
+                  {movieRail.slice(0, 12).map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => navigate({ page: "movie-detail", id: m.id })}
+                      className="group shrink-0 w-[110px] sm:w-[126px] text-left"
+                      title={tmdbTitle(m)}
+                    >
+                      <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[#0b0d12] ring-1 ring-white/10 group-hover:ring-[#48A6FF]/50 transition-all">
+                        <img src={tmdbPoster(m)} alt={tmdbTitle(m)} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.06]" loading="lazy" />
+                      </div>
+                      <p className="text-[11px] font-bold text-[#c4c9d2] group-hover:text-white truncate mt-1.5 transition-colors">{tmdbTitle(m)}</p>
+                    </button>
+                  ))}
+                </div>
+              </Reveal>
+            )}
+
+            {/* TV shows rail */}
+            {shows.length > 0 && (
+              <Reveal delay={0.1}>
+                <div className="flex items-center gap-3 mt-10 mb-4">
+                  <span className="text-[10px] font-extrabold uppercase tracking-[0.24em]" style={{ color: "#34D399", fontFamily: FONT }}>Trending TV Shows</span>
+                  <span className="flex-1 h-px bg-white/[0.06]" />
+                  <button onClick={() => navigate({ page: "tv" })} className="text-[11px] font-bold text-[#767d8a] hover:text-white transition-colors">View all →</button>
+                </div>
+                <div className="flex gap-3 overflow-x-auto pb-2 ltv-cine-shelf">
+                  {shows.slice(0, 12).map(s => (
+                    <button
+                      key={s.id}
+                      onClick={() => navigate({ page: "tv-detail", id: s.id })}
+                      className="group shrink-0 w-[110px] sm:w-[126px] text-left"
+                      title={tmdbTitle(s)}
+                    >
+                      <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[#0b0d12] ring-1 ring-white/10 group-hover:ring-[#34D399]/50 transition-all">
+                        <img src={tmdbPoster(s)} alt={tmdbTitle(s)} className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.06]" loading="lazy" />
+                      </div>
+                      <p className="text-[11px] font-bold text-[#c4c9d2] group-hover:text-white truncate mt-1.5 transition-colors">{tmdbTitle(s)}</p>
+                    </button>
+                  ))}
+                </div>
+              </Reveal>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ═══ LIVE TV — broadcast console ═══ */}
       <section className="relative z-10 py-14 px-6 lg:px-10">
         <Reveal className="max-w-7xl mx-auto">
-          <div className="ltv-cine-surface rounded-3xl overflow-hidden relative">
-            <div className="absolute -right-16 -top-16 w-[340px] h-[340px] rounded-full blur-[110px]" style={{ background: "rgba(239,68,68,0.10)" }} />
-            <div className="relative grid grid-cols-1 md:grid-cols-[1.2fr_0.8fr] items-center gap-8 p-8 sm:p-12">
+          <div className="relative rounded-3xl overflow-hidden border border-white/[0.07]" style={{ background: "linear-gradient(160deg, #0b0d12 0%, #0a0c11 55%, #120b0d 100%)" }}>
+            <div className="absolute -right-20 -top-20 w-[380px] h-[380px] rounded-full blur-[120px]" style={{ background: "rgba(239,68,68,0.12)" }} />
+            <div className="relative grid grid-cols-1 md:grid-cols-[1.1fr_0.9fr] gap-10 p-8 sm:p-12 items-center">
+              {/* Left: pitch */}
               <div>
-                <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-red-400 mb-4">
-                  <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                  Live right now
+                <span className="ltv-cine-onair inline-flex items-center gap-2.5 px-4 py-2 rounded-lg mb-6" style={{ fontFamily: FONT }}>
+                  <i /> ON AIR
                 </span>
-                <h2 className="text-3xl sm:text-4xl font-black text-white leading-[1.08] mb-3" style={{ fontFamily: FONT }}>
-                  Sports & TV, as they happen
+                <h2 className="text-3xl sm:text-5xl font-black text-white leading-[1.05] mb-4" style={{ fontFamily: FONT }}>
+                  Live sports & TV,<br />broadcasting now.
                 </h2>
                 <p className="text-[#a1a7b3] max-w-md leading-relaxed mb-6">
-                  Live matches, live channels, and a full schedule so you never miss
-                  kickoff — right next to your anime.
+                  Matches as they kick off, channels running 24/7, and a full schedule
+                  so you never miss a second — streaming free in real time.
                 </p>
+                <div className="flex flex-wrap gap-2 mb-8">
+                  {liveCategories.map(c => (
+                    <span key={c} className="px-3 py-1.5 rounded-full text-[11px] font-bold text-[#c4c9d2] border border-white/10 bg-white/[0.03]">{c}</span>
+                  ))}
+                </div>
                 <button
                   onClick={() => navigate({ page: "live" })}
-                  className="ltv-cine-btn-primary inline-flex items-center gap-2 px-7 py-3 rounded-full font-bold text-sm"
+                  className="inline-flex items-center gap-2 px-7 py-3 rounded-full font-bold text-sm text-white transition-transform hover:-translate-y-0.5"
+                  style={{ background: "#DC2626", boxShadow: "0 10px 32px -8px rgba(220,38,38,0.55)" }}
                 >
-                  Watch Live
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                  <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                  Watch Live Now
                 </button>
               </div>
-              <div className="hidden md:flex items-center justify-center select-none" aria-hidden="true">
-                <span
-                  className="font-black leading-none"
-                  style={{ fontFamily: FONT, fontSize: "120px", color: "transparent", WebkitTextStroke: "2px rgba(239,68,68,0.5)" }}
-                >
-                  LIVE
-                </span>
+
+              {/* Right: channel monitor stack */}
+              <div className="flex flex-col gap-3" aria-hidden="true">
+                {[
+                  { label: "Live Football", sub: "Matchday · Multiple streams", color: "#F87171" },
+                  { label: "24/7 TV Channels", sub: "News · Movies · Kids · Music", color: "#FB923C" },
+                  { label: "Match Schedule", sub: "Kickoff times in your timezone", color: "#F87171" },
+                ].map((ch, i) => (
+                  <div key={ch.label} className="flex items-center gap-4 rounded-2xl border border-white/[0.07] bg-[#0d1016] px-5 py-4">
+                    <span className="ltv-cine-eq shrink-0" style={{ color: ch.color, ["--eqd" as any]: `${i * 0.18}s` }}>
+                      <i /><i /><i /><i /><i />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-black text-white truncate" style={{ fontFamily: FONT }}>{ch.label}</p>
+                      <p className="text-[11px] text-[#767d8a] truncate mt-0.5">{ch.sub}</p>
+                    </div>
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-extrabold tracking-[0.16em] text-red-400 border border-red-500/25 bg-red-500/[0.08] shrink-0" style={{ fontFamily: FONT }}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                      LIVE
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </Reveal>
       </section>
 
-      {/* ═══ WHY LUFFYTV — bento panels ═══ */}
+      {/* ═══ THE WHOLE LIBRARY — bento mosaic with real artwork ═══ */}
       <section className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
-        <div className="max-w-7xl mx-auto">
-          <SectionHeading eyebrow="Why LuffyTV" title="Built like a premium platform. Priced like it's free." sub="Every feature exists because it was actually needed — not because it looked good in a deck." />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {featurePanels.map((f, i) => (
-              <Reveal key={f.title} delay={i * 0.08} className={f.big ? "sm:col-span-2" : ""}>
-                <div className="ltv-cine-surface rounded-2xl h-full p-6 sm:p-8 flex flex-col gap-4">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(30,136,255,0.10)", color: ACCENT }}>
-                    {f.icon}
-                  </div>
-                  <div>
-                    <h3 className={`font-bold text-white ${f.big ? "text-2xl" : "text-lg"}`}>{f.title}</h3>
-                    <p className="text-sm text-[#a1a7b3] mt-1.5 leading-relaxed">{f.desc}</p>
-                  </div>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══ EVERYTHING INCLUDED ═══ */}
-      <section className="relative z-10 py-12 sm:py-16 px-6 lg:px-10">
-        <div className="max-w-5xl mx-auto">
-          <SectionHeading eyebrow="Everything Included" title="No paywalls. No tiers. No catch." />
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-            {smallFeatures.map((f, i) => (
-              <Reveal key={f.label} delay={i * 0.05}>
-                <div className="ltv-cine-surface rounded-xl px-4 py-5 flex flex-col items-center gap-2 text-center h-full">
-                  <span className="text-2xl">{f.icon}</span>
-                  <span className="text-xs font-bold text-[#e8eaee]">{f.label}</span>
-                </div>
-              </Reveal>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ═══ SIX WORLDS — cinematic hover-expanding showcase of every
-             content section: Anime, Movies, TV, Live, Manga, Novels ═══ */}
-      <section className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
-        <div className="ltv-cine-hairline mb-16 sm:mb-24 -mt-2" />
         <div className="max-w-7xl mx-auto">
           <SectionHeading
-            eyebrow="One Platform, Six Worlds"
-            title="Not just anime."
-            sub="Movies, TV shows, manga, light novels, and live sports live here too — hover a world, step inside."
+            eyebrow="One Platform, Everything"
+            title="And that's not all."
+            sub="Manga, light novels, music and more — the whole library lives behind one door."
           />
-          <Reveal>
-            <div className="ltv-cine-slats">
-              {worlds.map(w => (
-                <button
-                  key={w.id}
-                  onClick={w.onClick}
-                  className="ltv-cine-slat group"
-                  style={{
-                    ["--slat-accent" as any]: `${w.accent}73`,
-                    ["--slat-glow" as any]: `${w.accent}40`,
-                  }}
-                  aria-label={`Explore ${w.title}`}
-                >
-                  {/* Backdrop: cover art for anime, accent nebula for the rest */}
-                  {w.cover ? (
-                    <>
-                      <img src={w.cover} alt="" className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-70 transition-opacity duration-500" loading="lazy" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent" />
-                    </>
-                  ) : (
-                    <div
-                      className="absolute inset-0 transition-opacity duration-500 opacity-70 group-hover:opacity-100"
-                      style={{ background: `radial-gradient(ellipse 120% 80% at 50% 110%, ${w.accent}2e, transparent 65%), #0b0d12` }}
-                    />
-                  )}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 auto-rows-[150px] sm:auto-rows-[170px]">
+            {/* Anime — big tile with real covers */}
+            <Reveal className="col-span-2 row-span-2">
+              <button onClick={() => navigate({ page: "home" })} className="group relative w-full h-full rounded-3xl overflow-hidden border border-white/[0.07] hover:border-[#48A6FF]/45 transition-colors text-left block">
+                {collage[0] && <img src={getCover(collage[0])} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-75 group-hover:scale-[1.03] transition-all duration-700" loading="lazy" />}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-[#050608]/30 to-transparent" />
+                <div className="absolute bottom-0 left-0 p-6">
+                  <span className="text-[10px] font-extrabold uppercase tracking-[0.24em] mb-1.5 block" style={{ color: ACCENT, fontFamily: FONT }}>The main event</span>
+                  <p className="text-2xl sm:text-3xl font-black text-white" style={{ fontFamily: FONT }}>Anime</p>
+                  <p className="text-[13px] text-[#c4c9d2] mt-1">10,000+ titles · Sub, dub & hardsub</p>
+                </div>
+              </button>
+            </Reveal>
 
-                  {/* Icon chip — always visible, top-left */}
-                  <span
-                    className="ltv-cine-slat-icon absolute top-5 left-5 w-11 h-11 rounded-xl flex items-center justify-center text-xl"
-                    style={{ background: `${w.accent}1f`, color: w.accent }}
-                  >
-                    {w.icon}
-                  </span>
+            {/* Movies tile — real poster */}
+            <Reveal delay={0.06}>
+              <button onClick={() => navigate({ page: "movies" })} className="group relative w-full h-full rounded-2xl overflow-hidden border border-white/[0.07] hover:border-[#22D3EE]/45 transition-colors text-left block">
+                {movies[0] && <img src={tmdbBackdrop(movies[0]) || tmdbPoster(movies[0])} alt="" className="absolute inset-0 w-full h-full object-cover opacity-55 group-hover:opacity-70 group-hover:scale-[1.04] transition-all duration-700" loading="lazy" />}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-[#050608]/35 to-transparent" />
+                <div className="absolute bottom-0 left-0 p-4">
+                  <p className="text-lg font-black text-white" style={{ fontFamily: FONT }}>Movies</p>
+                  <p className="text-[11px] text-[#a1a7b3]">HD · New releases weekly</p>
+                </div>
+              </button>
+            </Reveal>
 
-                  {/* Collapsed vertical label */}
-                  <span className="ltv-cine-slat-label">{w.title}</span>
+            {/* TV tile — real backdrop */}
+            <Reveal delay={0.1}>
+              <button onClick={() => navigate({ page: "tv" })} className="group relative w-full h-full rounded-2xl overflow-hidden border border-white/[0.07] hover:border-[#34D399]/45 transition-colors text-left block">
+                {shows[0] && <img src={tmdbBackdrop(shows[0]) || tmdbPoster(shows[0])} alt="" className="absolute inset-0 w-full h-full object-cover opacity-55 group-hover:opacity-70 group-hover:scale-[1.04] transition-all duration-700" loading="lazy" />}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-[#050608]/35 to-transparent" />
+                <div className="absolute bottom-0 left-0 p-4">
+                  <p className="text-lg font-black text-white" style={{ fontFamily: FONT }}>TV Shows</p>
+                  <p className="text-[11px] text-[#a1a7b3]">Full seasons, tracked</p>
+                </div>
+              </button>
+            </Reveal>
 
-                  {/* Expanded body */}
-                  <span className="ltv-cine-slat-body">
-                    <span className="text-2xl font-black text-white mb-1.5" style={{ fontFamily: FONT }}>{w.title}</span>
-                    <span className="text-[13px] text-[#c4c9d2] leading-relaxed mb-4 max-w-[240px]">{w.desc}</span>
-                    <span className="inline-flex items-center gap-1.5 text-xs font-bold" style={{ color: w.accent }}>
-                      Explore
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          </Reveal>
+            {/* Live tile */}
+            <Reveal delay={0.14}>
+              <button onClick={() => navigate({ page: "live" })} className="group relative w-full h-full rounded-2xl overflow-hidden border border-white/[0.07] hover:border-red-400/45 transition-colors text-left block bg-[#0d1016]">
+                <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 130% 90% at 50% 115%, rgba(239,68,68,0.20), transparent 65%)" }} />
+                <span className="absolute top-4 left-4 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[9px] font-extrabold tracking-[0.16em] text-red-400 border border-red-500/25 bg-red-500/[0.08]" style={{ fontFamily: FONT }}>
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                  LIVE
+                </span>
+                <div className="absolute bottom-0 left-0 p-4">
+                  <p className="text-lg font-black text-white" style={{ fontFamily: FONT }}>Live TV</p>
+                  <p className="text-[11px] text-[#a1a7b3]">Sports & channels, real-time</p>
+                </div>
+              </button>
+            </Reveal>
+
+            {/* Manga tile — real cover */}
+            <Reveal delay={0.18}>
+              <button onClick={() => navigate({ page: "manga" })} className="group relative w-full h-full rounded-2xl overflow-hidden border border-white/[0.07] hover:border-[#F472B6]/45 transition-colors text-left block">
+                {collage[1] && <img src={getCover(collage[1])} alt="" className="absolute inset-0 w-full h-full object-cover opacity-45 grayscale group-hover:grayscale-0 group-hover:opacity-60 group-hover:scale-[1.04] transition-all duration-700" loading="lazy" />}
+                <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-[#050608]/35 to-transparent" />
+                <div className="absolute bottom-0 left-0 p-4">
+                  <p className="text-lg font-black text-white" style={{ fontFamily: FONT }}>Manga</p>
+                  <p className="text-[11px] text-[#a1a7b3]">Clean chapter reader</p>
+                </div>
+              </button>
+            </Reveal>
+
+            {/* Novels tile */}
+            <Reveal delay={0.22}>
+              <button onClick={() => navigate({ page: "novel" })} className="group relative w-full h-full rounded-2xl overflow-hidden border border-white/[0.07] hover:border-[#A3B3CC]/45 transition-colors text-left block bg-[#0d1016]">
+                <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 130% 90% at 50% 115%, rgba(163,179,204,0.14), transparent 65%)" }} />
+                <span className="absolute top-4 left-4 text-2xl" aria-hidden="true">📚</span>
+                <div className="absolute bottom-0 left-0 p-4">
+                  <p className="text-lg font-black text-white" style={{ fontFamily: FONT }}>Light Novels</p>
+                  <p className="text-[11px] text-[#a1a7b3]">The story before the story</p>
+                </div>
+              </button>
+            </Reveal>
+          </div>
         </div>
       </section>
 
-      {/* ═══ COMMUNITY ═══ */}
+      {/* ═══ FINAL CTA ═══ */}
       <section className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
         <Reveal className="max-w-5xl mx-auto">
           <div className="ltv-cine-surface rounded-3xl p-10 sm:p-16 flex flex-col items-center text-center gap-6 relative overflow-hidden">
             <div className="ltv-cine-glow-orb w-[300px] h-[300px] left-1/2 -translate-x-1/2 -top-24" style={{ background: "rgba(30,136,255,0.12)" }} />
-            <span className="ltv-cine-eyebrow text-xs font-bold uppercase relative">Join the Community</span>
-            <h2 className="text-2xl sm:text-4xl font-black relative" style={{ fontFamily: FONT }}>50,000+ fans already watching</h2>
-            <p className="text-[#a1a7b3] max-w-md relative">Get release alerts, request titles, and talk anime with people who actually watch it.</p>
+            <span className="ltv-cine-eyebrow text-xs font-bold uppercase relative">No sign-up required</span>
+            <h2 className="text-3xl sm:text-5xl font-black relative leading-[1.05]" style={{ fontFamily: FONT }}>Ready when you are.<br />It&apos;s free.</h2>
+            <p className="text-[#a1a7b3] max-w-md relative">Pick a section, press play. 50,000+ people already watch here every month.</p>
             <div className="flex items-center gap-3 flex-wrap justify-center relative">
+              <button
+                onClick={() => navigate({ page: "hub" })}
+                className="ltv-cine-btn-primary inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-bold text-sm"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                Start Watching
+              </button>
               <a
                 href="https://discord.gg/Svc9yFjQBq"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ltv-cine-btn-primary inline-flex items-center gap-2 px-7 py-3 rounded-full font-bold text-sm"
+                className="ltv-cine-btn-secondary inline-flex items-center gap-2 px-7 py-3.5 rounded-full font-bold text-sm"
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
                   <path d="M20.317 4.37a19.791 19.791 0 00-4.885-1.515.074.074 0 00-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 00-5.487 0 12.64 12.64 0 00-.617-1.25.077.077 0 00-.079-.037A19.736 19.736 0 003.677 4.37a.07.07 0 00-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 00.031.057 19.9 19.9 0 005.993 3.03.078.078 0 00.084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 00-.041-.106 13.107 13.107 0 01-1.872-.892.077.077 0 01-.008-.128 10.2 10.2 0 00.372-.292.074.074 0 01.077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 01.078.01c.12.098.246.198.373.292a.077.077 0 01-.006.127 12.299 12.299 0 01-1.873.892.077.077 0 00-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 00.084.028 19.839 19.839 0 006.002-3.03.077.077 0 00.032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 00-.031-.03z"/>
                 </svg>
                 Join Discord
               </a>
-              <button onClick={() => navigate({ page: "contact" })} className="ltv-cine-btn-secondary inline-flex items-center gap-2 px-7 py-3 rounded-full font-bold text-sm">
-                Contact Us
-              </button>
+            </div>
+            <div className="flex items-center justify-center gap-x-5 gap-y-2 flex-wrap relative mt-2">
+              {["Zero ads", "HD & 4K", "Auto-resume", "Sub · Dub · Hardsub"].map(f => (
+                <span key={f} className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#767d8a]">
+                  <svg className="w-3 h-3" style={{ color: ACCENT }} fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg>
+                  {f}
+                </span>
+              ))}
             </div>
           </div>
         </Reveal>

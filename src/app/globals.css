@@ -9983,3 +9983,51 @@ footer {
   margin: 0 auto;
   background: linear-gradient(90deg, transparent, rgba(72, 166, 255, 0.22) 30%, rgba(255, 255, 255, 0.1) 50%, rgba(72, 166, 255, 0.22) 70%, transparent);
 }
+
+/* ── Landing live console: animated equalizer bars + ON AIR sign ── */
+.ltv-cine-eq {
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  height: 26px;
+  width: 32px;
+}
+.ltv-cine-eq i {
+  flex: 1;
+  border-radius: 2px;
+  background: currentColor;
+  animation: ltv-cine-eq-bounce 1.05s ease-in-out infinite;
+  animation-delay: var(--eqd, 0s);
+  height: 40%;
+  opacity: 0.9;
+}
+.ltv-cine-eq i:nth-child(2) { animation-delay: calc(var(--eqd, 0s) + 0.15s); }
+.ltv-cine-eq i:nth-child(3) { animation-delay: calc(var(--eqd, 0s) + 0.3s); }
+.ltv-cine-eq i:nth-child(4) { animation-delay: calc(var(--eqd, 0s) + 0.45s); }
+.ltv-cine-eq i:nth-child(5) { animation-delay: calc(var(--eqd, 0s) + 0.6s); }
+@keyframes ltv-cine-eq-bounce {
+  0%, 100% { height: 30%; }
+  50% { height: 100%; }
+}
+
+.ltv-cine-onair {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: #f87171;
+  border: 1px solid rgba(248, 113, 113, 0.4);
+  background: rgba(239, 68, 68, 0.07);
+  box-shadow: 0 0 24px -6px rgba(239, 68, 68, 0.45), inset 0 0 14px -8px rgba(239, 68, 68, 0.6);
+  animation: ltv-cine-onair-glow 2.4s ease-in-out infinite;
+}
+.ltv-cine-onair i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: ltv-hub-blink 1.4s ease-in-out infinite;
+}
+@keyframes ltv-cine-onair-glow {
+  0%, 100% { box-shadow: 0 0 24px -6px rgba(239, 68, 68, 0.45), inset 0 0 14px -8px rgba(239, 68, 68, 0.6); }
+  50% { box-shadow: 0 0 34px -4px rgba(239, 68, 68, 0.65), inset 0 0 18px -8px rgba(239, 68, 68, 0.8); }
+}
