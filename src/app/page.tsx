@@ -161,6 +161,13 @@ export default function MainPage() {
   useEffect(() => {
     const handleHash = () => {
       const newRoute = parseHash(window.location.hash);
+      // Legacy "#dub" links resolve to the canonical anime home — rewrite the
+      // URL bar so the retired hash never lingers (replaceState: no history
+      // entry, no hashchange loop).
+      const rawFirst = window.location.hash.replace("#", "").split("/")[0];
+      if (rawFirst === "dub" && newRoute.page === "home") {
+        history.replaceState(null, "", "#home");
+      }
       const current = useAppStore.getState().route;
       if (JSON.stringify(current) !== JSON.stringify(newRoute)) {
         // For live-watch: preserve existing rich match data if matchId matches.
@@ -218,11 +225,11 @@ export default function MainPage() {
   const isStandalonePage = route.page === "landing" || route.page === "hub";
   // Auth pages fully own their own centered/glass layout — no outer padding.
   const isAuthPage = route.page === "signin" || route.page === "signup";
-  const isFullWidth = route.page === "home" || route.page === "watchnow" || route.page === "live" || route.page === "dub" || route.page === "anime" || isStandalonePage || isAuthPage;
-  // Home ("home" and "dub" both render the same anime section home) should be
-  // FULL BLEED — no padding, no top offset. Root "home" now renders the anime
-  // section home (carousel) so refresh never flips between two different homes.
-  const isAnimeSectionRoute = route.page === "dub" || route.page === "home";
+  const isFullWidth = route.page === "home" || route.page === "watchnow" || route.page === "live" || route.page === "anime" || isStandalonePage || isAuthPage;
+  // "home" is the single canonical anime section home — FULL BLEED (no padding,
+  // no top offset). Root "home" renders the anime carousel so refresh never
+  // flips between two different homes.
+  const isAnimeSectionRoute = route.page === "home";
   // Guide/Contact/Features keep the floating Navbar/footer but own their own
   // cinematic hero spacing, so they render full-bleed (no extra top offset).
   const isCinematicOwnLayout = isStandalonePage || route.page === "guide" || route.page === "contact" || route.page === "features";
@@ -238,8 +245,8 @@ export default function MainPage() {
   const renderPage = () => {
     switch (route.page) {
       // Root route (empty hash) is the cinematic landing page; "home" renders
-      // the anime section home (hero carousel with TMDB logos + descriptions),
-      // the SAME component as "dub" — the legacy marketing HomePage is retired.
+      // the anime section home (hero carousel with TMDB logos + descriptions).
+      // The legacy marketing HomePage and duplicate "dub" home are retired.
       case "landing": return <LandingPage />;
       case "hub": return <HubPage />;
       case "home": return <AnimeSectionPage />;
@@ -247,7 +254,6 @@ export default function MainPage() {
       case "anime": return <AnimeDetailPage animeId={route.id} />;
       case "watch": return <WatchPage animeId={route.id} episodeNum={route.episode} />;
       case "genre": return <GenrePage genre={route.genre} />;
-      case "dub": return <AnimeSectionPage />;
       case "bookmarks": return <BookmarksPage />;
       case "history": return <HistoryPage />;
       case "movies": return <MoviesPage />;

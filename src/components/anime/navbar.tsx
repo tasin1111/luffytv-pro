@@ -174,7 +174,7 @@ export default function Navbar() {
   // links instead of the anime ones — previously the anime links leaked
   // onto those pages.
   // "home" included: root route renders the same anime section home as "dub".
-  const isAnimePage = ["home", "dub", "anime", "watch", "genre", "bookmarks", "history"].includes(page);
+  const isAnimePage = ["home", "anime", "watch", "genre", "bookmarks", "history"].includes(page);
   const isLiveSection = page === "live";
 
   const navItems = isLiveSection
@@ -210,16 +210,16 @@ export default function Navbar() {
     } else if (isMoviesSection) {
       if (label === "Movies") navigate({ page: "movies" });
       else if (label === "TV Shows") navigate({ page: "tv" });
-      else if (label === "Anime") { navigate({ page: "dub" }); setSectionSubPage("home"); }
+      else if (label === "Anime") { navigate({ page: "home" }); setSectionSubPage("home"); }
       else if (label === "Live") navigate({ page: "live" });
     } else if (label === "Home") {
-      navigate({ page: "dub" });
+      navigate({ page: "home" });
       setSectionSubPage("home");
     } else if (label === "Browse") {
-      navigate({ page: "dub" });
+      navigate({ page: "home" });
       setSectionSubPage("browse");
     } else if (label === "Schedule") {
-      navigate({ page: "dub" });
+      navigate({ page: "home" });
       setSectionSubPage("schedule");
     } else if (label === "Music") {
       navigate({ page: "music" });
@@ -234,7 +234,7 @@ export default function Navbar() {
       {/* ═══ LOGO — standalone, far left, italic white text ═══ */}
       <button
         className="ltv-nav-logo"
-        onClick={() => { navigate({ page: "dub" }); setSectionSubPage("home"); }}
+        onClick={() => { navigate({ page: "home" }); setSectionSubPage("home"); }}
         aria-label="LuffyTV Home"
       >
         LuffyTV

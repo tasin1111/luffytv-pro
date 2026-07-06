@@ -103,7 +103,6 @@ type Route =
   | { page: "genre"; genre: string }
   | { page: "bookmarks" }
   | { page: "history" }
-  | { page: "dub" }
   | { page: "movies" }
   | { page: "tv" }
   | { page: "manga" }
@@ -205,7 +204,6 @@ export const useAppStore = create<AppState>()(
         window.location.hash = `genre/${encodeURIComponent(route.genre)}`;
       else if (route.page === "bookmarks") window.location.hash = "bookmarks";
       else if (route.page === "history") window.location.hash = "history";
-      else if (route.page === "dub") window.location.hash = "dub";
       else if (route.page === "movies") window.location.hash = "movies";
       else if (route.page === "tv") window.location.hash = "tv";
       else if (route.page === "manga") window.location.hash = "manga";
@@ -295,8 +293,7 @@ export function getSectionNavLinks(route: Route): { id: SectionSubPage; label: s
   const page = route.page;
   
   // Anime section (includes home, anime detail, watch, genre, bookmarks, history, manga)
-  // "home" is included because the root route renders the same anime section home as "dub".
-  if (page === "home" || page === "dub" || page === "anime" || page === "watch" || page === "genre" || page === "bookmarks" || page === "history" || page === "manga" || page === "manga-detail" || page === "manga-read") {
+  if (page === "home" || page === "anime" || page === "watch" || page === "genre" || page === "bookmarks" || page === "history" || page === "manga" || page === "manga-detail" || page === "manga-read") {
     return [
       { id: "home", label: "Home" },
       { id: "sub", label: "SUB" },
@@ -352,7 +349,8 @@ export function parseHash(hash: string): Route {
   if (parts[0] === "genre" && parts[1]) return { page: "genre", genre: decodeURIComponent(parts[1]) };
   if (parts[0] === "bookmarks") return { page: "bookmarks" };
   if (parts[0] === "history") return { page: "history" };
-  if (parts[0] === "dub") return { page: "dub" };
+  // Legacy "#dub" links normalize to the single canonical anime home.
+  if (parts[0] === "dub") return { page: "home" };
   if (parts[0] === "movies") return { page: "movies" };
   if (parts[0] === "tv") return { page: "tv" };
   if (parts[0] === "manga" && parts[1]) return { page: "manga-detail", id: parts[1] };

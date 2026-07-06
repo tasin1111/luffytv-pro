@@ -14,7 +14,7 @@ const categories = [
     glowColor: "rgba(124,106,240,0.6)",
     iconBg: "rgba(124,106,240,0.15)",
     iconBorder: "rgba(124,106,240,0.25)",
-    page: "dub" as const,
+    page: "home" as const,
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
         <circle cx="12" cy="12" r="9" stroke="#ffffff" strokeWidth="1.5" />

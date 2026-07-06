@@ -315,7 +315,7 @@ export default function DubWatchPage({
     <div className="space-y-4 fade-in">
       {/* Back button */}
       <button
-        onClick={() => navigate({ page: "dub" })}
+        onClick={() => navigate({ page: "home" })}
         className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-[#06b6d4] transition-colors font-medium"
       >
         <ChevronLeft className="w-3.5 h-3.5" /> Back to Dubbed Anime
