@@ -48,7 +48,7 @@ function SectionHeading({ eyebrow, title, sub }: { eyebrow: string; title: strin
       <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-[1.1]" style={{ fontFamily: FONT }}>
         {title}
       </h2>
-      {sub && <p className="text-[#8fa3c4] text-base leading-relaxed">{sub}</p>}
+      {sub && <p className="text-[#a1a7b3] text-base leading-relaxed">{sub}</p>}
     </Reveal>
   );
 }
@@ -64,13 +64,13 @@ function PosterCard({ item, index, showProgress }: { item: TrendingItem; index: 
   return (
     <motion.button
       onClick={() => navigate({ page: "anime", id: String(item.id) })}
-      className="ltv-cine-poster shrink-0 w-[160px] sm:w-[190px] md:w-[210px] rounded-xl bg-[#0a1428] text-left"
+      className="ltv-cine-poster shrink-0 w-[160px] sm:w-[190px] md:w-[210px] rounded-xl bg-[#0b0d12] text-left"
       initial={{ opacity: 0, y: 24 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
       transition={{ duration: 0.55, delay: index * 0.06, ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="relative w-full aspect-[2/3] overflow-hidden rounded-t-xl bg-[#0d1a33]">
+      <div className="relative w-full aspect-[2/3] overflow-hidden rounded-t-xl bg-[#111319]">
         {img ? (
           <img src={img} alt={title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
         ) : (
@@ -80,14 +80,14 @@ function PosterCard({ item, index, showProgress }: { item: TrendingItem; index: 
 
         {/* Rating badge */}
         {!!item.averageScore && (
-          <span className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-[2px] text-[11px] font-bold text-white">
+          <span className="absolute top-2 left-2 flex items-center gap-1 px-2 py-0.5 rounded-md bg-black/75 text-[11px] font-bold text-white">
             <svg className="w-3 h-3" fill="#48A6FF" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
             {item.averageScore}%
           </span>
         )}
         {/* Episode badge */}
         {!!item.episodes && (
-          <span className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/60 backdrop-blur-[2px] text-[10px] font-bold text-[#DCE6F7]">
+          <span className="absolute top-2 right-2 px-2 py-0.5 rounded-md bg-black/75 text-[10px] font-bold text-[#E8EAEE]">
             {item.episodes} EP
           </span>
         )}
@@ -101,7 +101,7 @@ function PosterCard({ item, index, showProgress }: { item: TrendingItem; index: 
       <div className="p-2.5">
         <p className="text-[13px] font-semibold text-white line-clamp-1">{title}</p>
         {item.genres?.length ? (
-          <p className="text-[11px] text-[#6f84a8] line-clamp-1 mt-0.5">{item.genres.slice(0, 2).join(" · ")}</p>
+          <p className="text-[11px] text-[#767d8a] line-clamp-1 mt-0.5">{item.genres.slice(0, 2).join(" · ")}</p>
         ) : null}
       </div>
     </motion.button>
@@ -123,14 +123,14 @@ function Shelf({ items, showProgress }: { items: TrendingItem[]; showProgress?: 
       <button
         onClick={() => scroll(-1)}
         aria-label="Scroll left"
-        className="hidden md:flex absolute -left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#0a1428] border border-[#1E88FF]/25 items-center justify-center text-white/70 hover:text-white hover:border-[#48A6FF]/60 opacity-0 group-hover/shelf:opacity-100 transition-all"
+        className="hidden md:flex absolute -left-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#0b0d12] border border-[#1E88FF]/25 items-center justify-center text-white/70 hover:text-white hover:border-[#48A6FF]/60 opacity-0 group-hover/shelf:opacity-100 transition-all"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg>
       </button>
       <button
         onClick={() => scroll(1)}
         aria-label="Scroll right"
-        className="hidden md:flex absolute -right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#0a1428] border border-[#1E88FF]/25 items-center justify-center text-white/70 hover:text-white hover:border-[#48A6FF]/60 opacity-0 group-hover/shelf:opacity-100 transition-all"
+        className="hidden md:flex absolute -right-4 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-[#0b0d12] border border-[#1E88FF]/25 items-center justify-center text-white/70 hover:text-white hover:border-[#48A6FF]/60 opacity-0 group-hover/shelf:opacity-100 transition-all"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
       </button>
@@ -154,7 +154,7 @@ function Stat({ value, label, suffix = "" }: { value: number; label: string; suf
       <span className="text-3xl sm:text-4xl font-black text-white" style={{ fontFamily: FONT }}>
         {count.toLocaleString()}{suffix}
       </span>
-      <span className="text-xs uppercase tracking-wider text-[#6f84a8] font-bold">{label}</span>
+      <span className="text-xs uppercase tracking-wider text-[#767d8a] font-bold">{label}</span>
     </motion.div>
   );
 }
@@ -173,7 +173,7 @@ function FeaturePanel({ icon, title, desc, big, index }: { icon: React.ReactNode
         </div>
         <div className="relative">
           <h3 className={`font-bold text-white ${big ? "text-2xl" : "text-lg"}`}>{title}</h3>
-          <p className="text-sm text-[#8fa3c4] mt-1.5 leading-relaxed">{desc}</p>
+          <p className="text-sm text-[#a1a7b3] mt-1.5 leading-relaxed">{desc}</p>
         </div>
       </div>
     </Reveal>
@@ -242,12 +242,12 @@ export default function LandingPage() {
       <CinematicBackdrop />
 
       {/* ═══ NAV ═══ */}
-      <header className={`fixed top-0 left-0 right-0 z-40 transition-all duration-500 ${scrolled ? "bg-[#030712]/85 backdrop-blur-md border-b border-[#1E88FF]/10" : "bg-transparent"}`}>
+      <header className={`fixed top-0 left-0 right-0 z-40 transition-all duration-500 ${scrolled ? "bg-[#050608]/95 border-b border-white/[0.06]" : "bg-transparent"}`}>
         <div className="max-w-7xl mx-auto px-6 lg:px-10 h-16 flex items-center justify-between">
           <button onClick={() => navigate({ page: "landing" })} className="text-lg font-bold shrink-0" style={{ fontFamily: FONT }}>
             LUFFY <span style={{ color: "#48A6FF" }}>TV</span>
           </button>
-          <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-[#8fa3c4]">
+          <nav className="hidden md:flex items-center gap-7 text-sm font-medium text-[#a1a7b3]">
             {navLinks.map(l => (
               <button key={l.label} onClick={l.onClick} className="hover:text-white transition-colors">{l.label}</button>
             ))}
@@ -273,12 +273,12 @@ export default function LandingPage() {
               filter: "saturate(0.7) brightness(0.75)",
             }}
           />
-          <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(3,7,18,0.4) 0%, rgba(3,7,18,0.75) 55%, #030712 100%)" }} />
+          <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(5,6,8,0.45) 0%, rgba(5,6,8,0.8) 55%, #050608 100%)" }} />
         </motion.div>
 
         {/* Ambient glow orbs behind copy */}
-        <div className="ltv-cine-glow-orb w-[500px] h-[500px] left-[-10%] top-[10%]" style={{ background: "rgba(30,136,255,0.35)" }} />
-        <div className="ltv-cine-glow-orb w-[420px] h-[420px] right-[-8%] bottom-[5%]" style={{ background: "rgba(72,166,255,0.25)", animationDelay: "2s" }} />
+        <div className="ltv-cine-glow-orb w-[500px] h-[500px] left-[-10%] top-[10%]" style={{ background: "rgba(30,136,255,0.14)" }} />
+        <div className="ltv-cine-glow-orb w-[420px] h-[420px] right-[-8%] bottom-[5%]" style={{ background: "rgba(232,234,238,0.06)", animationDelay: "2s" }} />
 
         <div className="relative z-10 max-w-6xl mx-auto px-6 lg:px-10 w-full pt-24 pb-16">
           <motion.span
@@ -304,7 +304,7 @@ export default function LandingPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.4 }}
-            className="text-[#a9bcdc] text-base sm:text-lg max-w-xl mt-6 leading-relaxed"
+            className="text-[#c4c9d2] text-base sm:text-lg max-w-xl mt-6 leading-relaxed"
           >
             Every story, streamed. Anime, movies, TV, manga, and live sports —
             one platform, zero clutter, completely free.
@@ -345,7 +345,7 @@ export default function LandingPage() {
 
         {/* Scroll cue */}
         <motion.div
-          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-[#6f84a8]"
+          className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 text-[#767d8a]"
           animate={{ y: [0, 8, 0] }}
           transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
         >
@@ -406,7 +406,7 @@ export default function LandingPage() {
                   <Reveal key={item.id} delay={i * 0.05} className="shrink-0 w-[150px]">
                     <div className="flex flex-col items-center gap-3">
                       <span className="hidden md:flex w-3 h-3 rounded-full shrink-0" style={{ background: "#1E88FF", boxShadow: "0 0 14px 3px rgba(30,136,255,0.6)" }} />
-                      <div className="ltv-cine-poster w-full rounded-lg overflow-hidden aspect-[2/3] bg-[#0a1428] relative">
+                      <div className="ltv-cine-poster w-full rounded-lg overflow-hidden aspect-[2/3] bg-[#0b0d12] relative">
                         {(item.coverImage?.extraLarge || item.coverImage?.large) ? (
                           <img src={item.coverImage?.extraLarge || item.coverImage?.large} alt={getTitle(item)} className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
                         ) : (
@@ -437,7 +437,7 @@ export default function LandingPage() {
               <Reveal key={f.label} delay={i * 0.05}>
                 <div className="ltv-cine-surface rounded-xl px-4 py-5 flex flex-col items-center gap-2 text-center h-full">
                   <span className="text-2xl">{f.icon}</span>
-                  <span className="text-xs font-bold text-[#dce6f7]">{f.label}</span>
+                  <span className="text-xs font-bold text-[#e8eaee]">{f.label}</span>
                 </div>
               </Reveal>
             ))}
@@ -449,10 +449,10 @@ export default function LandingPage() {
       <section className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
         <Reveal className="max-w-5xl mx-auto">
           <div className="ltv-cine-surface rounded-3xl p-10 sm:p-16 flex flex-col items-center text-center gap-6 relative overflow-hidden">
-            <div className="ltv-cine-glow-orb w-[300px] h-[300px] left-1/2 -translate-x-1/2 -top-24" style={{ background: "rgba(30,136,255,0.3)" }} />
+            <div className="ltv-cine-glow-orb w-[300px] h-[300px] left-1/2 -translate-x-1/2 -top-24" style={{ background: "rgba(30,136,255,0.12)" }} />
             <span className="ltv-cine-eyebrow text-xs font-bold uppercase relative">Join the Community</span>
             <h2 className="text-2xl sm:text-4xl font-black relative" style={{ fontFamily: FONT }}>50,000+ fans already watching</h2>
-            <p className="text-[#8fa3c4] max-w-md relative">Get release alerts, request titles, and talk anime with people who actually watch it.</p>
+            <p className="text-[#a1a7b3] max-w-md relative">Get release alerts, request titles, and talk anime with people who actually watch it.</p>
             <div className="flex items-center gap-3 flex-wrap justify-center relative">
               <a
                 href="https://discord.gg/Svc9yFjQBq"
@@ -478,29 +478,29 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-8 mb-10">
           <div className="col-span-2 sm:col-span-1">
             <span className="text-lg font-bold" style={{ fontFamily: FONT }}>LUFFY <span style={{ color: "#48A6FF" }}>TV</span></span>
-            <p className="text-xs text-[#6f84a8] mt-3 leading-relaxed max-w-[220px]">Free anime, movies, TV, and live sports streaming — no ads, no limits.</p>
+            <p className="text-xs text-[#767d8a] mt-3 leading-relaxed max-w-[220px]">Free anime, movies, TV, and live sports streaming — no ads, no limits.</p>
           </div>
           <div className="flex flex-col gap-2.5">
             <span className="text-xs font-bold uppercase tracking-wider text-white mb-1">Browse</span>
-            <button onClick={() => navigate({ page: "home" })} className="text-sm text-[#8fa3c4] hover:text-white transition-colors text-left">Anime</button>
-            <button onClick={() => navigate({ page: "movies" })} className="text-sm text-[#8fa3c4] hover:text-white transition-colors text-left">Movies</button>
-            <button onClick={() => navigate({ page: "tv" })} className="text-sm text-[#8fa3c4] hover:text-white transition-colors text-left">TV Shows</button>
-            <button onClick={() => navigate({ page: "live" })} className="text-sm text-[#8fa3c4] hover:text-white transition-colors text-left">Live TV</button>
+            <button onClick={() => navigate({ page: "home" })} className="text-sm text-[#a1a7b3] hover:text-white transition-colors text-left">Anime</button>
+            <button onClick={() => navigate({ page: "movies" })} className="text-sm text-[#a1a7b3] hover:text-white transition-colors text-left">Movies</button>
+            <button onClick={() => navigate({ page: "tv" })} className="text-sm text-[#a1a7b3] hover:text-white transition-colors text-left">TV Shows</button>
+            <button onClick={() => navigate({ page: "live" })} className="text-sm text-[#a1a7b3] hover:text-white transition-colors text-left">Live TV</button>
           </div>
           <div className="flex flex-col gap-2.5">
             <span className="text-xs font-bold uppercase tracking-wider text-white mb-1">Company</span>
-            <button onClick={() => navigate({ page: "guide" })} className="text-sm text-[#8fa3c4] hover:text-white transition-colors text-left">Guide</button>
-            <button onClick={() => navigate({ page: "contact" })} className="text-sm text-[#8fa3c4] hover:text-white transition-colors text-left">Contact</button>
+            <button onClick={() => navigate({ page: "guide" })} className="text-sm text-[#a1a7b3] hover:text-white transition-colors text-left">Guide</button>
+            <button onClick={() => navigate({ page: "contact" })} className="text-sm text-[#a1a7b3] hover:text-white transition-colors text-left">Contact</button>
           </div>
           <div className="flex flex-col gap-2.5">
             <span className="text-xs font-bold uppercase tracking-wider text-white mb-1">Connect</span>
-            <a href="https://discord.gg/Svc9yFjQBq" target="_blank" rel="noopener noreferrer" className="text-sm text-[#8fa3c4] hover:text-white transition-colors">Discord</a>
+            <a href="https://discord.gg/Svc9yFjQBq" target="_blank" rel="noopener noreferrer" className="text-sm text-[#a1a7b3] hover:text-white transition-colors">Discord</a>
           </div>
         </div>
         <div className="ltv-cine-divider max-w-7xl mx-auto mb-6" />
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-[11px] text-[#4d5f80]">&copy; {new Date().getFullYear()} Luffy TV — Powered by TMDB &amp; AniList</p>
-          <p className="text-[11px] text-[#4d5f80]">Fan-made project. Not affiliated with any studio.</p>
+          <p className="text-[11px] text-[#5b616c]">&copy; {new Date().getFullYear()} Luffy TV — Powered by TMDB &amp; AniList</p>
+          <p className="text-[11px] text-[#5b616c]">Fan-made project. Not affiliated with any studio.</p>
         </div>
       </footer>
     </div>

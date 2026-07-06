@@ -9245,13 +9245,15 @@ footer {
    ================================================================ */
 
 :root {
-  --cine-bg-0: #030712;
-  --cine-bg-1: #071325;
-  --cine-bg-2: #0b1733;
+  /* Black-first: backgrounds are near-black neutrals, NOT navy washes.
+     Blue exists only as a restrained accent (CTAs, eyebrows, rim lights). */
+  --cine-bg-0: #050608;
+  --cine-bg-1: #07090d;
+  --cine-bg-2: #0a0d13;
   --cine-primary: #1e88ff;
   --cine-accent: #48a6ff;
   --cine-white: #ffffff;
-  --cine-soft-white: #dce6f7;
+  --cine-soft-white: #e8eaee;
 }
 
 .ltv-cine-root {
@@ -9267,10 +9269,9 @@ footer {
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
+  /* One faint blue breath at the very top — the rest is pure black depth */
   background:
-    radial-gradient(ellipse 120% 60% at 50% -10%, rgba(30, 136, 255, 0.16), transparent 55%),
-    radial-gradient(ellipse 90% 50% at 85% 25%, rgba(72, 166, 255, 0.10), transparent 60%),
-    radial-gradient(ellipse 80% 50% at 10% 70%, rgba(30, 136, 255, 0.08), transparent 55%),
+    radial-gradient(ellipse 110% 45% at 50% -12%, rgba(30, 136, 255, 0.05), transparent 55%),
     linear-gradient(180deg, var(--cine-bg-0) 0%, var(--cine-bg-1) 45%, var(--cine-bg-2) 100%);
 }
 
@@ -9285,15 +9286,15 @@ footer {
   background: conic-gradient(
     from 0deg,
     transparent 0deg,
-    rgba(30, 136, 255, 0.05) 15deg,
+    rgba(232, 234, 238, 0.025) 15deg,
     transparent 35deg,
     transparent 160deg,
-    rgba(72, 166, 255, 0.04) 178deg,
+    rgba(30, 136, 255, 0.02) 178deg,
     transparent 200deg,
     transparent 360deg
   );
   animation: ltv-cine-ray-spin 90s linear infinite;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 @keyframes ltv-cine-ray-spin {
@@ -9305,7 +9306,7 @@ footer {
 .ltv-cine-vignette {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse 80% 60% at 50% 40%, transparent 40%, rgba(3, 7, 18, 0.55) 100%);
+  background: radial-gradient(ellipse 80% 60% at 50% 40%, transparent 40%, rgba(2, 3, 5, 0.6) 100%);
 }
 
 /* Fine grain noise (SVG turbulence, ultra low opacity) */
@@ -9325,8 +9326,8 @@ footer {
   width: var(--psize);
   height: var(--psize);
   border-radius: 50%;
-  background: var(--pcolor, rgba(220, 230, 247, 0.5));
-  box-shadow: 0 0 8px 1px var(--pcolor, rgba(72, 166, 255, 0.35));
+  background: var(--pcolor, rgba(232, 234, 238, 0.4));
+  box-shadow: 0 0 6px 1px var(--pcolor, rgba(232, 234, 238, 0.2));
   animation: ltv-cine-particle-drift var(--pdur, 14s) var(--pdelay, 0s) ease-in-out infinite;
   opacity: 0;
 }
@@ -9348,23 +9349,23 @@ footer {
 }
 
 @keyframes ltv-cine-glow-pulse {
-  0%, 100% { opacity: 0.35; transform: scale(1); }
-  50% { opacity: 0.6; transform: scale(1.08); }
+  0%, 100% { opacity: 0.18; transform: scale(1); }
+  50% { opacity: 0.32; transform: scale(1.08); }
 }
 
 /* Premium surface (replaces glassmorphism cards): solid dark panel,
    subtle border, soft shadow, blue rim-light only on hover/focus. */
 .ltv-cine-surface {
   position: relative;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0.015) 100%), #0a1428;
-  border: 1px solid rgba(72, 166, 255, 0.12);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0.01) 100%), #0b0d12;
+  border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.6);
   transition: border-color 0.35s ease, box-shadow 0.35s ease, transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .ltv-cine-surface:hover {
-  border-color: rgba(72, 166, 255, 0.4);
-  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(72, 166, 255, 0.08), 0 0 40px -8px rgba(30, 136, 255, 0.25);
+  border-color: rgba(72, 166, 255, 0.35);
+  box-shadow: 0 24px 60px -18px rgba(0, 0, 0, 0.7), 0 0 30px -10px rgba(30, 136, 255, 0.18);
   transform: translateY(-4px);
 }
 
@@ -9385,8 +9386,8 @@ footer {
 .ltv-cine-btn-primary:active { transform: translateY(0) scale(0.985); }
 
 .ltv-cine-btn-secondary {
-  background: rgba(220, 230, 247, 0.04);
-  border: 1px solid rgba(220, 230, 247, 0.18);
+  background: rgba(232, 234, 238, 0.04);
+  border: 1px solid rgba(232, 234, 238, 0.16);
   color: var(--cine-soft-white);
   transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -9397,9 +9398,9 @@ footer {
   color: #ffffff;
 }
 
-/* Gradient headline text */
+/* Gradient headline text — white into soft grey, no blue tail */
 .ltv-cine-gradient-text {
-  background: linear-gradient(180deg, #ffffff 20%, var(--cine-soft-white) 60%, var(--cine-accent) 130%);
+  background: linear-gradient(180deg, #ffffff 30%, rgba(232, 234, 238, 0.72) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;

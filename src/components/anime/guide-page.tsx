@@ -27,7 +27,7 @@ function SectionHeading({ eyebrow, title, sub, center }: { eyebrow: string; titl
     <Reveal className={`flex flex-col gap-3 mb-10 ${center ? "items-center text-center mx-auto" : ""} max-w-2xl`}>
       <span className="ltv-cine-eyebrow text-xs font-bold uppercase">{eyebrow}</span>
       <h2 className="text-3xl sm:text-4xl font-black text-white leading-[1.1]" style={{ fontFamily: FONT }}>{title}</h2>
-      {sub && <p className="text-[#8fa3c4] text-base leading-relaxed">{sub}</p>}
+      {sub && <p className="text-[#a1a7b3] text-base leading-relaxed">{sub}</p>}
     </Reveal>
   );
 }
@@ -95,7 +95,7 @@ function FaqItem({ q, a, isOpen, onClick }: { q: string; a: string; isOpen: bool
       <div className={`overflow-hidden transition-all duration-400 ease-in-out ${isOpen ? "max-h-64 opacity-100" : "max-h-0 opacity-0"}`}>
         <div className="px-5 pb-4">
           <div className="ltv-cine-divider mb-3" />
-          <p className="text-sm text-[#8fa3c4] leading-relaxed">{a}</p>
+          <p className="text-sm text-[#a1a7b3] leading-relaxed">{a}</p>
         </div>
       </div>
     </div>
@@ -133,7 +133,7 @@ export default function GuidePage() {
           initial={{ opacity: 0, y: 18 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.75, delay: 0.25 }}
-          className="text-[#a9bcdc] text-base sm:text-lg max-w-xl mx-auto mt-5 leading-relaxed"
+          className="text-[#c4c9d2] text-base sm:text-lg max-w-xl mx-auto mt-5 leading-relaxed"
         >
           From your first episode to keyboard shortcuts you didn't know existed —
           this is the complete walkthrough of Luffy TV.
@@ -166,7 +166,7 @@ export default function GuidePage() {
                     <span style={{ color: "#48A6FF" }}>{s.icon}</span>
                   </div>
                   <h3 className="text-lg font-bold text-white mb-1.5">{s.title}</h3>
-                  <p className="text-sm text-[#8fa3c4] leading-relaxed">{s.desc}</p>
+                  <p className="text-sm text-[#a1a7b3] leading-relaxed">{s.desc}</p>
                 </div>
               </Reveal>
             ))}
@@ -191,7 +191,7 @@ export default function GuidePage() {
                   <span className="text-2xl shrink-0">{f.icon}</span>
                   <div>
                     <h3 className="font-bold text-white mb-1">{f.title}</h3>
-                    <p className="text-sm text-[#8fa3c4] leading-relaxed">{f.desc}</p>
+                    <p className="text-sm text-[#a1a7b3] leading-relaxed">{f.desc}</p>
                   </div>
                 </div>
               </Reveal>
@@ -207,7 +207,7 @@ export default function GuidePage() {
             <div className="ltv-cine-surface rounded-2xl p-7 h-full">
               <span className="ltv-cine-eyebrow text-xs font-bold uppercase">Search Guide</span>
               <h3 className="text-xl font-black text-white mt-2 mb-3">Find anything in seconds</h3>
-              <p className="text-sm text-[#8fa3c4] leading-relaxed mb-4">
+              <p className="text-sm text-[#a1a7b3] leading-relaxed mb-4">
                 Press <kbd className="px-2 py-0.5 rounded bg-white/10 border border-white/10 text-white font-mono text-xs">/</kbd> from
                 anywhere in the app, or click Search in the navbar. Results update as you type — titles, genres, and
                 studios all match.
@@ -221,7 +221,7 @@ export default function GuidePage() {
             <div className="ltv-cine-surface rounded-2xl p-7 h-full">
               <span className="ltv-cine-eyebrow text-xs font-bold uppercase">Continue Watching</span>
               <h3 className="text-xl font-black text-white mt-2 mb-3">Pick up instantly</h3>
-              <p className="text-sm text-[#8fa3c4] leading-relaxed mb-4">
+              <p className="text-sm text-[#a1a7b3] leading-relaxed mb-4">
                 Every episode you start gets logged to History automatically, with your last position. Bookmark a
                 title to keep it pinned even before you've started it.
               </p>
@@ -242,7 +242,7 @@ export default function GuidePage() {
               <Reveal key={s.key} delay={i * 0.05}>
                 <div className="ltv-cine-surface rounded-xl px-4 py-4 flex flex-col items-center gap-2 text-center h-full">
                   <kbd className="px-2.5 py-1 rounded-md bg-white/10 border border-[#1E88FF]/25 text-white font-mono text-xs font-bold">{s.key}</kbd>
-                  <span className="text-[11px] text-[#8fa3c4] leading-snug">{s.desc}</span>
+                  <span className="text-[11px] text-[#a1a7b3] leading-snug">{s.desc}</span>
                 </div>
               </Reveal>
             ))}
@@ -260,7 +260,7 @@ export default function GuidePage() {
                 <div className="ltv-cine-surface rounded-2xl p-5 h-full text-center flex flex-col items-center gap-2">
                   <span className="text-2xl">{f.icon}</span>
                   <h3 className="font-bold text-white text-sm">{f.title}</h3>
-                  <p className="text-[11px] text-[#8fa3c4] leading-relaxed">{f.desc}</p>
+                  <p className="text-[11px] text-[#a1a7b3] leading-relaxed">{f.desc}</p>
                 </div>
               </Reveal>
             ))}
@@ -282,7 +282,7 @@ export default function GuidePage() {
               <Reveal key={t} delay={i * 0.06}>
                 <div className="flex items-start gap-3 ltv-cine-surface rounded-xl px-5 py-4">
                   <span className="shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-black mt-0.5" style={{ background: "rgba(30,136,255,0.15)", color: "#48A6FF" }}>{i + 1}</span>
-                  <p className="text-sm text-[#dce6f7] leading-relaxed">{t}</p>
+                  <p className="text-sm text-[#e8eaee] leading-relaxed">{t}</p>
                 </div>
               </Reveal>
             ))}
@@ -306,9 +306,9 @@ export default function GuidePage() {
       <section className="relative z-10 py-16 px-6 lg:px-10">
         <Reveal className="max-w-3xl mx-auto">
           <div className="ltv-cine-surface rounded-3xl p-10 text-center flex flex-col items-center gap-4 relative overflow-hidden">
-            <div className="ltv-cine-glow-orb w-[260px] h-[260px] left-1/2 -translate-x-1/2 -top-20" style={{ background: "rgba(30,136,255,0.3)" }} />
+            <div className="ltv-cine-glow-orb w-[260px] h-[260px] left-1/2 -translate-x-1/2 -top-20" style={{ background: "rgba(30,136,255,0.12)" }} />
             <h2 className="text-2xl sm:text-3xl font-black relative" style={{ fontFamily: FONT }}>Still need help?</h2>
-            <p className="text-[#8fa3c4] max-w-sm relative">Can't find what you're looking for? Reach out and we'll get back to you.</p>
+            <p className="text-[#a1a7b3] max-w-sm relative">Can't find what you're looking for? Reach out and we'll get back to you.</p>
             <div className="flex items-center gap-3 flex-wrap justify-center relative">
               <button onClick={() => navigate({ page: "contact" })} className="ltv-cine-btn-primary px-6 py-3 rounded-full font-bold text-sm">Contact Us</button>
               <button onClick={() => navigate({ page: "home" })} className="ltv-cine-btn-secondary px-6 py-3 rounded-full font-bold text-sm">Back to Browsing</button>

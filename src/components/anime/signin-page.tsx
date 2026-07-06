@@ -5,13 +5,13 @@ import { useAppStore } from "./store";
 import { signIn } from "@/lib/auth-local";
 
 const FONT = "var(--font-space-grotesk), 'Space Grotesk', sans-serif";
-const GOLD = "#D4A017";
+const ACCENT = "#1E88FF";
 
 /**
- * SignInPage — glassmorphism login screen
+ * SignInPage — cinematic dark login screen (solid panel, no glass)
  *
  * Features:
- *   - Centered glass card over an ambient gradient/orb background
+ *   - Centered solid dark panel over a near-black ambient background
  *   - Login by username OR email + password
  *   - Show/hide password toggle
  *   - Remember me (default on, since we use localStorage anyway)
@@ -59,10 +59,10 @@ export default function SignInPage() {
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div
           className="absolute inset-0 opacity-60"
-          style={{ background: "radial-gradient(circle at 15% 10%, rgba(212,160,23,0.10), transparent 45%), radial-gradient(circle at 85% 90%, rgba(96,165,250,0.08), transparent 45%)" }}
+          style={{ background: "radial-gradient(circle at 15% 10%, rgba(30,136,255,0.05), transparent 45%), radial-gradient(circle at 85% 90%, rgba(96,165,250,0.08), transparent 45%)" }}
         />
-        <div className="absolute -top-32 -left-24 w-[420px] h-[420px] rounded-full blur-[110px] opacity-25" style={{ background: GOLD }} />
-        <div className="absolute -bottom-40 -right-24 w-[420px] h-[420px] rounded-full blur-[110px] opacity-20 bg-blue-500" />
+        <div className="absolute -top-32 -left-24 w-[420px] h-[420px] rounded-full blur-[110px] opacity-[0.08]" style={{ background: ACCENT }} />
+        <div className="absolute -bottom-40 -right-24 w-[420px] h-[420px] rounded-full blur-[110px] opacity-[0.06] bg-blue-500" />
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
@@ -72,18 +72,18 @@ export default function SignInPage() {
         />
       </div>
 
-      {/* ── Glass card ── */}
+      {/* ── Solid cinematic panel ── */}
       <div
         className="relative z-10 w-full max-w-md rounded-3xl p-8 sm:p-10 border border-white/10 shadow-2xl"
-        style={{ background: "rgba(255,255,255,0.045)", backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)" }}
+        style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%), #0b0d12" }}
       >
         {/* Logo */}
         <button onClick={() => navigate({ page: "landing" })} className="flex items-center gap-2.5 mb-9 mx-auto">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${GOLD}22`, border: `1px solid ${GOLD}55` }}>
-            <svg className="w-5 h-5" style={{ color: GOLD }} viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${ACCENT}22`, border: `1px solid ${ACCENT}55` }}>
+            <svg className="w-5 h-5" style={{ color: ACCENT }} viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
           </div>
           <span className="text-xl font-bold" style={{ fontFamily: FONT }}>
-            LUFFY <span style={{ color: GOLD }}>TV</span>
+            LUFFY <span style={{ color: ACCENT }}>TV</span>
           </span>
         </button>
 
@@ -92,7 +92,7 @@ export default function SignInPage() {
           <h2 className="text-2xl font-black mb-1.5" style={{ fontFamily: FONT }}>Welcome back</h2>
           <p className="text-white/40 text-sm">
             New here?{" "}
-            <button onClick={() => navigate({ page: "signup" })} className="font-semibold hover:underline transition-colors" style={{ color: GOLD }}>
+            <button onClick={() => navigate({ page: "signup" })} className="font-semibold hover:underline transition-colors" style={{ color: ACCENT }}>
               Create an account
             </button>
           </p>
@@ -127,8 +127,8 @@ export default function SignInPage() {
                 autoComplete="username"
                 autoFocus
                 className="w-full pl-11 pr-4 py-3 rounded-xl bg-white/[0.05] border border-white/10 text-sm text-white placeholder-white/20 outline-none transition-all"
-                style={{ ["--tw-ring-color" as any]: GOLD }}
-                onFocus={(e) => { e.currentTarget.style.borderColor = `${GOLD}80`; e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+                style={{ ["--tw-ring-color" as any]: ACCENT }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = `${ACCENT}80`; e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
                 onBlur={(e) => { e.currentTarget.style.borderColor = ""; e.currentTarget.style.background = ""; }}
               />
             </div>
@@ -159,7 +159,7 @@ export default function SignInPage() {
                 placeholder="••••••••"
                 autoComplete="current-password"
                 className="w-full pl-11 pr-11 py-3 rounded-xl bg-white/[0.05] border border-white/10 text-sm text-white placeholder-white/20 outline-none transition-all"
-                onFocus={(e) => { e.currentTarget.style.borderColor = `${GOLD}80`; e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
+                onFocus={(e) => { e.currentTarget.style.borderColor = `${ACCENT}80`; e.currentTarget.style.background = "rgba(255,255,255,0.08)"; }}
                 onBlur={(e) => { e.currentTarget.style.borderColor = ""; e.currentTarget.style.background = ""; }}
               />
               <button
@@ -188,7 +188,7 @@ export default function SignInPage() {
               checked={remember}
               onChange={(e) => setRemember(e.target.checked)}
               className="w-4 h-4 rounded border-white/20 bg-white/5"
-              style={{ accentColor: GOLD }}
+              style={{ accentColor: ACCENT }}
             />
             <span className="text-xs text-white/50">Keep me signed in on this device</span>
           </label>
@@ -198,7 +198,7 @@ export default function SignInPage() {
             type="submit"
             disabled={loading || !identifier.trim() || !password}
             className="w-full py-3 rounded-xl text-black text-sm font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:brightness-110"
-            style={{ background: GOLD }}
+            style={{ background: ACCENT }}
           >
             {loading ? (
               <>

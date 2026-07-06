@@ -3,7 +3,6 @@
 import { useEffect, useState, useSyncExternalStore, useMemo, useRef, useCallback, Component, ReactNode } from "react";
 import { useAppStore, parseHash, getSectionNavLinks } from "@/components/anime/store";
 import Navbar from "@/components/anime/navbar";
-import HomePage from "@/components/anime/home-page";
 import SearchPage from "@/components/anime/search-page";
 import AnimeDetailPage from "@/components/anime/anime-detail";
 import WatchPage from "@/components/anime/watch-page";
@@ -40,14 +39,8 @@ import TorrentPage from "@/components/anime/torrent-page";
 import LandingPage from "@/components/anime/landing-page";
 import HubPage from "@/components/anime/hub-page";
 
-// Features page wrapper — scrolls to features section after mount
-function FeaturesScrollPage() {
-  useEffect(() => {
-    const el = document.getElementById("features-section");
-    if (el) el.scrollIntoView({ behavior: "smooth" });
-  }, []);
-  return <HomePage />;
-}
+// Features route renders the cinematic landing page (which contains the
+// feature sections) — the legacy marketing HomePage is fully retired.
 
 // Error Boundary — catches client-side crashes gracefully
 class ErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: string }> {
@@ -230,9 +223,9 @@ export default function MainPage() {
   // FULL BLEED — no padding, no top offset. Root "home" now renders the anime
   // section home (carousel) so refresh never flips between two different homes.
   const isAnimeSectionRoute = route.page === "dub" || route.page === "home";
-  // Guide keeps the floating Navbar/footer but owns its own cinematic hero
-  // spacing, so it also renders full-bleed (no extra top offset/padding).
-  const isCinematicOwnLayout = isStandalonePage || route.page === "guide";
+  // Guide/Contact/Features keep the floating Navbar/footer but own their own
+  // cinematic hero spacing, so they render full-bleed (no extra top offset).
+  const isCinematicOwnLayout = isStandalonePage || route.page === "guide" || route.page === "contact" || route.page === "features";
   const isHomeFullBleed = (isAnimeSectionRoute && sectionSubPage === "home") || isCinematicOwnLayout || isAuthPage;
   // Browse sub-page wants true full-screen (no main padding) — its own internal layout handles spacing
   const isBrowseFullBleed = isAnimeSectionRoute && (sectionSubPage === "browse" || sectionSubPage === "schedule");
@@ -244,12 +237,9 @@ export default function MainPage() {
 
   const renderPage = () => {
     switch (route.page) {
-      // Root route renders the anime section home (hero carousel with TMDB
-      // logos + descriptions), the SAME component as "dub". Previously "home"
-      // rendered the legacy marketing HomePage while "dub" rendered this one,
-      // so a refresh flip-flopped between two different-looking home pages
-      // depending on the URL hash. The legacy HomePage now lives only at
-      // "#features".
+      // Root route (empty hash) is the cinematic landing page; "home" renders
+      // the anime section home (hero carousel with TMDB logos + descriptions),
+      // the SAME component as "dub" — the legacy marketing HomePage is retired.
       case "landing": return <LandingPage />;
       case "hub": return <HubPage />;
       case "home": return <AnimeSectionPage />;
@@ -287,8 +277,8 @@ export default function MainPage() {
       case "scraper-anime": return <ScraperAnimePage anilistId={route.id} />;
       case "scraper-watch": return <ScraperWatchPage anilistId={route.id} episodeId={route.episode} site={route.site} />;
       case "features":
-        return <FeaturesScrollPage />;
-      default: return <HomePage />;
+        return <LandingPage />;
+      default: return <AnimeSectionPage />;
     }
   };
 

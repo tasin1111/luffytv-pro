@@ -5,13 +5,13 @@ import { useAppStore } from "./store";
 import { signUp } from "@/lib/auth-local";
 
 const FONT = "var(--font-space-grotesk), 'Space Grotesk', sans-serif";
-const GOLD = "#D4A017";
+const ACCENT = "#1E88FF";
 
 /**
- * SignUpPage — glassmorphism signup screen
+ * SignUpPage — cinematic dark signup screen (solid panel, no glass)
  *
  * Features:
- *   - Centered glass card over an ambient gradient/orb background
+ *   - Centered solid dark panel over a near-black ambient background
  *   - 4 fields: username, name, email, password + confirm password
  *   - Real-time username validation (3-20 chars, alphanumeric + underscore)
  *   - Password strength meter
@@ -60,12 +60,12 @@ export default function SignUpPage() {
     return Math.min(s, 4);
   })();
   const strengthLabel = ["", "Weak", "Fair", "Good", "Strong"][passwordStrength];
-  const strengthColor = ["", "#ef4444", "#f59e0b", GOLD, "#22c55e"][passwordStrength];
+  const strengthColor = ["", "#ef4444", "#f59e0b", ACCENT, "#22c55e"][passwordStrength];
 
   // ── Avatar preview ──
   const avatarLetter = (username || name || "?").charAt(0).toUpperCase();
-  const avatarColors = [GOLD, "#3b82f6", "#7c3aed", "#22c55e", "#ec4899", "#10b981"];
-  const avatarColor = avatarColors[(username || name).charCodeAt(0) % avatarColors.length] || GOLD;
+  const avatarColors = [ACCENT, "#3b82f6", "#7c3aed", "#22c55e", "#ec4899", "#10b981"];
+  const avatarColor = avatarColors[(username || name).charCodeAt(0) % avatarColors.length] || ACCENT;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,7 +82,7 @@ export default function SignUpPage() {
     }
   };
 
-  const focusStyle = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = `${GOLD}80`; e.currentTarget.style.background = "rgba(255,255,255,0.08)"; };
+  const focusStyle = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = `${ACCENT}80`; e.currentTarget.style.background = "rgba(255,255,255,0.08)"; };
   const blurStyle = (e: React.FocusEvent<HTMLInputElement>) => { e.currentTarget.style.borderColor = ""; e.currentTarget.style.background = ""; };
 
   return (
@@ -91,10 +91,10 @@ export default function SignUpPage() {
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div
           className="absolute inset-0 opacity-60"
-          style={{ background: "radial-gradient(circle at 85% 10%, rgba(212,160,23,0.10), transparent 45%), radial-gradient(circle at 15% 90%, rgba(96,165,250,0.08), transparent 45%)" }}
+          style={{ background: "radial-gradient(circle at 85% 10%, rgba(30,136,255,0.05), transparent 45%), radial-gradient(circle at 15% 90%, rgba(96,165,250,0.08), transparent 45%)" }}
         />
-        <div className="absolute -top-32 -right-24 w-[420px] h-[420px] rounded-full blur-[110px] opacity-25" style={{ background: GOLD }} />
-        <div className="absolute -bottom-40 -left-24 w-[420px] h-[420px] rounded-full blur-[110px] opacity-20 bg-blue-500" />
+        <div className="absolute -top-32 -right-24 w-[420px] h-[420px] rounded-full blur-[110px] opacity-[0.08]" style={{ background: ACCENT }} />
+        <div className="absolute -bottom-40 -left-24 w-[420px] h-[420px] rounded-full blur-[110px] opacity-[0.06] bg-blue-500" />
         <div
           className="absolute inset-0 opacity-[0.03]"
           style={{
@@ -104,18 +104,18 @@ export default function SignUpPage() {
         />
       </div>
 
-      {/* ── Glass card ── */}
+      {/* ── Solid cinematic panel ── */}
       <div
         className="relative z-10 w-full max-w-md rounded-3xl p-8 sm:p-10 border border-white/10 shadow-2xl my-6"
-        style={{ background: "rgba(255,255,255,0.045)", backdropFilter: "blur(28px)", WebkitBackdropFilter: "blur(28px)" }}
+        style={{ background: "linear-gradient(180deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.01) 100%), #0b0d12" }}
       >
         {/* Logo */}
         <button onClick={() => navigate({ page: "landing" })} className="flex items-center gap-2.5 mb-6 mx-auto">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${GOLD}22`, border: `1px solid ${GOLD}55` }}>
-            <svg className="w-5 h-5" style={{ color: GOLD }} viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: `${ACCENT}22`, border: `1px solid ${ACCENT}55` }}>
+            <svg className="w-5 h-5" style={{ color: ACCENT }} viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
           </div>
           <span className="text-xl font-bold" style={{ fontFamily: FONT }}>
-            LUFFY <span style={{ color: GOLD }}>TV</span>
+            LUFFY <span style={{ color: ACCENT }}>TV</span>
           </span>
         </button>
 
@@ -137,7 +137,7 @@ export default function SignUpPage() {
           <h2 className="text-2xl font-black mb-1.5" style={{ fontFamily: FONT }}>Create account</h2>
           <p className="text-white/40 text-sm">
             Already have one?{" "}
-            <button onClick={() => navigate({ page: "signin" })} className="font-semibold hover:underline" style={{ color: GOLD }}>
+            <button onClick={() => navigate({ page: "signin" })} className="font-semibold hover:underline" style={{ color: ACCENT }}>
               Sign in
             </button>
           </p>
@@ -158,7 +158,7 @@ export default function SignUpPage() {
           {/* Username */}
           <div>
             <label className="block text-xs font-bold text-white/50 uppercase tracking-wider mb-2">
-              Username <span style={{ color: GOLD }}>*</span>
+              Username <span style={{ color: ACCENT }}>*</span>
             </label>
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/30 text-sm font-mono">@</span>
@@ -196,7 +196,7 @@ export default function SignUpPage() {
           {/* Name */}
           <div>
             <label className="block text-xs font-bold text-white/50 uppercase tracking-wider mb-2">
-              Display Name <span style={{ color: GOLD }}>*</span>
+              Display Name <span style={{ color: ACCENT }}>*</span>
             </label>
             <input
               type="text"
@@ -214,7 +214,7 @@ export default function SignUpPage() {
           {/* Email */}
           <div>
             <label className="block text-xs font-bold text-white/50 uppercase tracking-wider mb-2">
-              Email <span style={{ color: GOLD }}>*</span>
+              Email <span style={{ color: ACCENT }}>*</span>
             </label>
             <div className="relative">
               <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -241,7 +241,7 @@ export default function SignUpPage() {
           {/* Password */}
           <div>
             <label className="block text-xs font-bold text-white/50 uppercase tracking-wider mb-2">
-              Password <span style={{ color: GOLD }}>*</span>
+              Password <span style={{ color: ACCENT }}>*</span>
             </label>
             <div className="relative">
               <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -296,7 +296,7 @@ export default function SignUpPage() {
           {/* Confirm password */}
           <div>
             <label className="block text-xs font-bold text-white/50 uppercase tracking-wider mb-2">
-              Confirm Password <span style={{ color: GOLD }}>*</span>
+              Confirm Password <span style={{ color: ACCENT }}>*</span>
             </label>
             <div className="relative">
               <svg className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -335,13 +335,13 @@ export default function SignUpPage() {
               checked={agree}
               onChange={(e) => setAgree(e.target.checked)}
               className="w-4 h-4 mt-0.5 rounded border-white/20 bg-white/5 shrink-0"
-              style={{ accentColor: GOLD }}
+              style={{ accentColor: ACCENT }}
             />
             <span className="text-xs text-white/50 leading-relaxed">
               I agree to the{" "}
-              <button type="button" onClick={() => alert("Terms: LuffyTV is a free fan-made project. Use at your own risk. No warranties.")} className="hover:underline" style={{ color: GOLD }}>Terms</button>
+              <button type="button" onClick={() => alert("Terms: LuffyTV is a free fan-made project. Use at your own risk. No warranties.")} className="hover:underline" style={{ color: ACCENT }}>Terms</button>
               {" "}and{" "}
-              <button type="button" onClick={() => alert("Privacy: We store your account info locally in your browser. No data is sent to any server.")} className="hover:underline" style={{ color: GOLD }}>Privacy Policy</button>
+              <button type="button" onClick={() => alert("Privacy: We store your account info locally in your browser. No data is sent to any server.")} className="hover:underline" style={{ color: ACCENT }}>Privacy Policy</button>
               .
             </span>
           </label>
@@ -351,7 +351,7 @@ export default function SignUpPage() {
             type="submit"
             disabled={loading || !canSubmit}
             className="w-full py-3 rounded-xl text-black text-sm font-bold transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-2 hover:brightness-110"
-            style={{ background: GOLD }}
+            style={{ background: ACCENT }}
           >
             {loading ? (
               <>
