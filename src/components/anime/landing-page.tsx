@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
+import { motion, useScroll, useSpring, useTransform, useMotionValue } from "framer-motion";
 import { useAppStore } from "./store";
 import CinematicBackdrop from "./cinematic-backdrop";
 import { useCountUp } from "@/hooks/use-count-up";
@@ -61,15 +62,82 @@ function Reveal({ children, delay = 0, y = 28, className = "" }: { children: Rea
   );
 }
 
-function SectionHeading({ eyebrow, title, sub }: { eyebrow: string; title: string; sub?: string }) {
+function SectionHeading({ eyebrow, title, sub, chapter }: { eyebrow: string; title: string; sub?: string; chapter?: string }) {
   return (
     <Reveal className="flex flex-col gap-3 mb-10 md:mb-12 max-w-2xl">
-      <span className="ltv-cine-eyebrow text-xs font-bold uppercase">{eyebrow}</span>
+      <div className="flex items-baseline gap-4">
+        {chapter && (
+          <span
+            className="text-4xl sm:text-5xl font-black leading-none select-none shrink-0"
+            style={{ fontFamily: FONT, color: "transparent", WebkitTextStroke: "1.5px rgba(72,166,255,0.35)" }}
+            aria-hidden="true"
+          >
+            {chapter}
+          </span>
+        )}
+        <span className="ltv-cine-eyebrow text-xs font-bold uppercase">{eyebrow}</span>
+      </div>
       <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-[1.08]" style={{ fontFamily: FONT }}>
         {title}
       </h2>
       {sub && <p className="text-[#a1a7b3] text-base leading-relaxed">{sub}</p>}
     </Reveal>
+  );
+}
+
+/* ─── Fixed top progress bar — fills as the page (the "reel") plays out ─── */
+function ScrollProgressBar() {
+  const { scrollYProgress } = useScroll();
+  const scaleX = useSpring(scrollYProgress, { stiffness: 200, damping: 40, mass: 0.2 });
+  return (
+    <motion.div
+      className="fixed top-0 left-0 right-0 z-[60] h-[2px] origin-left"
+      style={{ scaleX, background: "linear-gradient(90deg, #1e88ff, #48a6ff)" }}
+    />
+  );
+}
+
+/* ─── Chapter markers — the "reel" this page plays through ─── */
+const CHAPTERS = [
+  { id: "hero", num: "00", label: "Intro" },
+  { id: "anime", num: "01", label: "Anime" },
+  { id: "movies", num: "02", label: "Movies & TV" },
+  { id: "live", num: "03", label: "Live" },
+  { id: "library", num: "04", label: "Everything" },
+  { id: "join", num: "05", label: "Join" },
+] as const;
+
+/* ─── Fixed left rail — desktop only, click to jump chapters ─── */
+function ChapterRail({ active, onSelect }: { active: string; onSelect: (id: string) => void }) {
+  return (
+    <div className="hidden xl:flex fixed left-6 top-1/2 -translate-y-1/2 z-40 flex-col items-center gap-5">
+      {CHAPTERS.map(c => {
+        const isActive = c.id === active;
+        return (
+          <button
+            key={c.id}
+            onClick={() => onSelect(c.id)}
+            className="group relative flex items-center"
+            aria-label={`Jump to ${c.label}`}
+          >
+            <span
+              className="w-2 h-2 rounded-full transition-all duration-300"
+              style={{
+                background: isActive ? "#48a6ff" : "rgba(255,255,255,0.18)",
+                boxShadow: isActive ? "0 0 10px 2px rgba(72,166,255,0.6)" : "none",
+                transform: isActive ? "scale(1.6)" : "scale(1)",
+              }}
+            />
+            <span
+              className="absolute left-5 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-[#0b0d12] border border-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+              style={{ color: isActive ? "#48a6ff" : "#a1a7b3" }}
+            >
+              {c.num} — {c.label}
+            </span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -114,6 +182,54 @@ export default function LandingPage() {
   const [movies, setMovies] = useState<TMDBItem[]>([]);
   const [shows, setShows] = useState<TMDBItem[]>([]);
   const shelfRef = useRef<HTMLDivElement>(null);
+
+  // ── Chapter tracking: which section is in view drives the rail dot + label ──
+  const [activeChapter, setActiveChapter] = useState<string>("hero");
+  const chapterRefs = useRef<Record<string, HTMLElement | null>>({});
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        const visible = entries.filter(e => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+        if (visible[0]) setActiveChapter(visible[0].target.id);
+      },
+      { rootMargin: "-40% 0px -40% 0px", threshold: [0, 0.25, 0.5, 0.75, 1] }
+    );
+    Object.values(chapterRefs.current).forEach(el => el && observer.observe(el));
+    return () => observer.disconnect();
+  }, [trending.length, movies.length]);
+
+  const jumpToChapter = useCallback((id: string) => {
+    chapterRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, []);
+
+  // ── Hero mouse-parallax: pointer position drives poster-stack tilt/drift ──
+  const pointerX = useMotionValue(0);
+  const pointerY = useMotionValue(0);
+  const springX = useSpring(pointerX, { stiffness: 60, damping: 18, mass: 0.4 });
+  const springY = useSpring(pointerY, { stiffness: 60, damping: 18, mass: 0.4 });
+  const heroTiltX = useTransform(springY, [-0.5, 0.5], [6, -6]);
+  const heroTiltY = useTransform(springX, [-0.5, 0.5], [-8, 8]);
+  const handleHeroPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    pointerX.set((e.clientX - rect.left) / rect.width - 0.5);
+    pointerY.set((e.clientY - rect.top) / rect.height - 0.5);
+  };
+  // Depth layers — the front-most poster drifts the most, back layers barely move
+  const driftFront1X = useTransform(springX, [-0.5, 0.5], [-26, 26]);
+  const driftFront1Y = useTransform(springY, [-0.5, 0.5], [-18, 18]);
+  const driftFront2X = useTransform(springX, [-0.5, 0.5], [18, -18]);
+  const driftFront2Y = useTransform(springY, [-0.5, 0.5], [14, -14]);
+  const driftMidX = useTransform(springX, [-0.5, 0.5], [-12, 12]);
+  const driftMidY = useTransform(springY, [-0.5, 0.5], [10, -10]);
+  const driftBackX = useTransform(springX, [-0.5, 0.5], [8, -8]);
+  const driftBackY = useTransform(springY, [-0.5, 0.5], [-6, 6]);
+
+  // ── Section-scroll parallax for background glow orbs (depth vs. content) ──
+  const heroSectionRef = useRef<HTMLElement>(null);
+  const { scrollYProgress: heroScrollProgress } = useScroll({ target: heroSectionRef, offset: ["start start", "end start"] });
+  const heroGlowY = useTransform(heroScrollProgress, [0, 1], [0, 160]);
+  const heroContentY = useTransform(heroScrollProgress, [0, 1], [0, -60]);
+  const heroContentOpacity = useTransform(heroScrollProgress, [0, 0.8], [1, 0]);
 
   useEffect(() => {
     let cancelled = false;
@@ -169,9 +285,22 @@ export default function LandingPage() {
 
   const liveCategories = ["Football", "Cricket", "Basketball", "F1", "UFC", "Tennis", "24/7 Channels"];
 
-  return (
-    <div className="ltv-cine-root w-full text-white overflow-x-hidden" style={{ fontFamily: "var(--font-inter), Inter, sans-serif" }}>
-      <CinematicBackdrop />
+  // The app shell wraps routed pages in a div that keeps a lingering
+  // `transform`/`filter` from its mount-reveal animation (present even at
+  // identity values) — that creates a CSS containing block which traps any
+  // `position: fixed` descendant, so it scrolls away with the page instead
+  // of staying pinned to the viewport. Portal the fixed chrome straight to
+  // <body> to escape that containing block entirely.
+  const [portalReady, setPortalReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setPortalReady(true), 0);
+    return () => clearTimeout(t);
+  }, []);
+
+  const fixedChrome = (
+    <>
+      <ScrollProgressBar />
+      <ChapterRail active={activeChapter} onSelect={jumpToChapter} />
 
       {/* ═══ GLASSY FLOATING NAVBAR — identical visual language to the in-app
              navbar (logo left, floating glass pill center, actions right) so
@@ -208,12 +337,24 @@ export default function LandingPage() {
           Start Watching
         </button>
       </div>
+    </>
+  );
+
+  return (
+    <div className="ltv-cine-root w-full text-white overflow-x-hidden" style={{ fontFamily: "var(--font-inter), Inter, sans-serif" }}>
+      <CinematicBackdrop />
+      {portalReady ? createPortal(fixedChrome, document.body) : fixedChrome}
 
       {/* ═══ HERO — split: copy left, levitating poster collage right ═══ */}
-      <section className="relative min-h-[100svh] flex flex-col justify-center overflow-hidden pt-24 pb-10">
-        <div className="ltv-cine-glow-orb w-[560px] h-[560px] left-[-12%] top-[6%]" style={{ background: "rgba(30,136,255,0.14)" }} />
+      <section
+        id="hero"
+        ref={(el: HTMLElement | null) => { heroSectionRef.current = el; chapterRefs.current.hero = el; }}
+        onPointerMove={handleHeroPointerMove}
+        className="relative min-h-[100svh] flex flex-col justify-center overflow-hidden pt-24 pb-10"
+      >
+        <motion.div className="ltv-cine-glow-orb w-[560px] h-[560px] left-[-12%] top-[6%]" style={{ background: "rgba(30,136,255,0.14)", y: heroGlowY }} />
 
-        <div className="relative z-10 max-w-7xl mx-auto w-full px-6 lg:px-10 grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] items-center gap-12">
+        <motion.div style={{ y: heroContentY, opacity: heroContentOpacity }} className="relative z-10 max-w-7xl mx-auto w-full px-6 lg:px-10 grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] items-center gap-12">
           {/* Copy */}
           <div>
             <motion.span
@@ -251,20 +392,26 @@ export default function LandingPage() {
               transition={{ duration: 0.8, delay: 0.46 }}
               className="flex items-center gap-3 flex-wrap mt-9"
             >
-              <button
+              <motion.button
                 onClick={() => navigate({ page: "hub" })}
+                whileHover={{ scale: 1.045, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
                 className="ltv-cine-btn-primary inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-bold text-sm"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                 Start Watching
-              </button>
-              <button
+              </motion.button>
+              <motion.button
                 onClick={() => navigate({ page: "home" })}
+                whileHover={{ scale: 1.04, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
                 className="ltv-cine-btn-secondary inline-flex items-center gap-2 px-6 py-3.5 rounded-full font-bold text-sm"
               >
                 Browse Anime
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-              </button>
+              </motion.button>
             </motion.div>
 
             <motion.div
@@ -279,45 +426,54 @@ export default function LandingPage() {
             </motion.div>
           </div>
 
-          {/* Levitating poster collage — hidden on small screens */}
+          {/* Levitating poster collage — hidden on small screens, tilts with the cursor for real depth */}
           <motion.div
             initial={{ opacity: 0, scale: 0.94 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1, delay: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            style={{ rotateX: heroTiltX, rotateY: heroTiltY, transformPerspective: 1200 }}
             className="relative h-[520px] hidden lg:block"
             aria-hidden="true"
           >
             {/* Back-glow behind the stack */}
             <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] rounded-full blur-[100px]" style={{ background: "rgba(30,136,255,0.10)" }} />
 
-            <div className="ltv-cine-float absolute left-[4%] top-[16%] z-10" style={{ ["--fdur" as any]: "8s", ["--frot" as any]: "-8deg" }}>
-              <PosterTile item={collage[1]} width="w-[190px]" className="shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]" />
-            </div>
-            <div className="ltv-cine-float absolute left-[34%] top-[4%] z-20" style={{ ["--fdur" as any]: "7s", ["--fdelay" as any]: "0.6s", ["--frot" as any]: "2deg" }}>
-              <PosterTile item={collage[0]} width="w-[230px]" className="shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] ring-[#48A6FF]/30" />
-            </div>
-            <div className="ltv-cine-float absolute right-[2%] top-[30%] z-10" style={{ ["--fdur" as any]: "9s", ["--fdelay" as any]: "1.2s", ["--frot" as any]: "9deg" }}>
-              <PosterTile item={collage[2]} width="w-[180px]" className="shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]" />
-            </div>
-            <div className="ltv-cine-float absolute left-[20%] bottom-[2%] z-30" style={{ ["--fdur" as any]: "7.5s", ["--fdelay" as any]: "1.8s", ["--frot" as any]: "-3deg" }}>
-              <PosterTile item={collage[3]} width="w-[160px]" className="shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]" />
-            </div>
+            <motion.div style={{ x: driftBackX, y: driftBackY }} className="absolute left-[4%] top-[16%] z-10">
+              <div style={{ ["--fdur" as any]: "8s", ["--frot" as any]: "-8deg" }} className="ltv-cine-float">
+                <PosterTile item={collage[1]} width="w-[190px]" className="shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]" />
+              </div>
+            </motion.div>
+            <motion.div style={{ x: driftFront1X, y: driftFront1Y }} className="absolute left-[34%] top-[4%] z-20">
+              <div style={{ ["--fdur" as any]: "7s", ["--fdelay" as any]: "0.6s", ["--frot" as any]: "2deg" }} className="ltv-cine-float">
+                <PosterTile item={collage[0]} width="w-[230px]" className="shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] ring-[#48A6FF]/30" />
+              </div>
+            </motion.div>
+            <motion.div style={{ x: driftFront2X, y: driftFront2Y }} className="absolute right-[2%] top-[30%] z-10">
+              <div style={{ ["--fdur" as any]: "9s", ["--fdelay" as any]: "1.2s", ["--frot" as any]: "9deg" }} className="ltv-cine-float">
+                <PosterTile item={collage[2]} width="w-[180px]" className="shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]" />
+              </div>
+            </motion.div>
+            <motion.div style={{ x: driftMidX, y: driftMidY }} className="absolute left-[20%] bottom-[2%] z-30">
+              <div style={{ ["--fdur" as any]: "7.5s", ["--fdelay" as any]: "1.8s", ["--frot" as any]: "-3deg" }} className="ltv-cine-float">
+                <PosterTile item={collage[3]} width="w-[160px]" className="shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]" />
+              </div>
+            </motion.div>
 
             {/* Floating UI ornaments */}
-            <div className="ltv-cine-float absolute right-[10%] top-[8%] z-40" style={{ ["--fdur" as any]: "6s", ["--fdelay" as any]: "0.3s" }}>
-              <div className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#0b0d12] ring-1 ring-white/10 shadow-xl text-xs font-bold">
+            <motion.div style={{ x: driftMidX, y: driftBackY }} className="absolute right-[10%] top-[8%] z-40">
+              <div style={{ ["--fdur" as any]: "6s", ["--fdelay" as any]: "0.3s" }} className="ltv-cine-float flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#0b0d12] ring-1 ring-white/10 shadow-xl text-xs font-bold">
                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                 LIVE Sports & TV
               </div>
-            </div>
-            <div className="ltv-cine-float absolute left-[0%] bottom-[18%] z-40" style={{ ["--fdur" as any]: "6.5s", ["--fdelay" as any]: "1s" }}>
-              <div className="flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#0b0d12] ring-1 ring-white/10 shadow-xl text-xs font-bold">
+            </motion.div>
+            <motion.div style={{ x: driftBackX, y: driftMidY }} className="absolute left-[0%] bottom-[18%] z-40">
+              <div style={{ ["--fdur" as any]: "6.5s", ["--fdelay" as any]: "1s" }} className="ltv-cine-float flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#0b0d12] ring-1 ring-white/10 shadow-xl text-xs font-bold">
                 <svg className="w-3.5 h-3.5" fill={ACCENT} viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
                 Top-rated every season
               </div>
-            </div>
+            </motion.div>
           </motion.div>
-        </div>
+        </motion.div>
 
         {/* Poster marquee strip along the hero's bottom */}
         <motion.div
@@ -338,11 +494,11 @@ export default function LandingPage() {
 
       {/* ═══ TOP 10 — numbered ranking rail ═══ */}
       {trending.length > 0 && (
-        <section className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
+        <section id="anime" ref={(el: HTMLElement | null) => { chapterRefs.current.anime = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
           <div className="ltv-cine-hairline mb-16 sm:mb-24 -mt-2" />
           <div className="max-w-7xl mx-auto">
             <div className="flex items-end justify-between gap-4 flex-wrap">
-              <SectionHeading eyebrow="Trending Right Now" title="Today's Top 10" />
+              <SectionHeading chapter="01" eyebrow="Trending Right Now" title="Today's Top 10" />
               <Reveal>
                 <div className="hidden md:flex items-center gap-2 mb-12">
                   <button onClick={() => scrollShelf(-1)} aria-label="Scroll left" className="w-10 h-10 rounded-full bg-[#0b0d12] border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:border-[#48A6FF]/50 transition-all">
@@ -394,11 +550,12 @@ export default function LandingPage() {
 
       {/* ═══ MOVIES & TV SHOWCASE — real TMDB artwork ═══ */}
       {spotlight && (
-        <section className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
+        <section id="movies" ref={(el: HTMLElement | null) => { chapterRefs.current.movies = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
           <div className="ltv-cine-hairline mb-16 sm:mb-24 -mt-2" />
           <div className="max-w-7xl mx-auto">
             <div className="flex items-end justify-between gap-4 flex-wrap">
               <SectionHeading
+                chapter="02"
                 eyebrow="Movies & TV Shows"
                 title="Movie night, solved."
                 sub="Blockbusters, classics and full TV seasons in HD — streaming right now, free."
@@ -521,16 +678,19 @@ export default function LandingPage() {
       )}
 
       {/* ═══ LIVE TV — broadcast console ═══ */}
-      <section className="relative z-10 py-14 px-6 lg:px-10">
+      <section id="live" ref={(el: HTMLElement | null) => { chapterRefs.current.live = el; }} className="relative z-10 py-14 px-6 lg:px-10">
         <Reveal className="max-w-7xl mx-auto">
           <div className="relative rounded-3xl overflow-hidden border border-white/[0.07]" style={{ background: "linear-gradient(160deg, #0b0d12 0%, #0a0c11 55%, #120b0d 100%)" }}>
             <div className="absolute -right-20 -top-20 w-[380px] h-[380px] rounded-full blur-[120px]" style={{ background: "rgba(239,68,68,0.12)" }} />
             <div className="relative grid grid-cols-1 md:grid-cols-[1.1fr_0.9fr] gap-10 p-8 sm:p-12 items-center">
               {/* Left: pitch */}
               <div>
-                <span className="ltv-cine-onair inline-flex items-center gap-2.5 px-4 py-2 rounded-lg mb-6" style={{ fontFamily: FONT }}>
-                  <i /> ON AIR
-                </span>
+                <div className="flex items-center gap-3 mb-6">
+                  <span className="text-3xl font-black leading-none select-none" style={{ fontFamily: FONT, color: "transparent", WebkitTextStroke: "1.5px rgba(248,113,113,0.35)" }} aria-hidden="true">03</span>
+                  <span className="ltv-cine-onair inline-flex items-center gap-2.5 px-4 py-2 rounded-lg" style={{ fontFamily: FONT }}>
+                    <i /> ON AIR
+                  </span>
+                </div>
                 <h2 className="text-3xl sm:text-5xl font-black text-white leading-[1.05] mb-4" style={{ fontFamily: FONT }}>
                   Live sports & TV,<br />broadcasting now.
                 </h2>
@@ -581,9 +741,10 @@ export default function LandingPage() {
       </section>
 
       {/* ═══ THE WHOLE LIBRARY — bento mosaic with real artwork ═══ */}
-      <section className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
+      <section id="library" ref={(el: HTMLElement | null) => { chapterRefs.current.library = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
         <div className="max-w-7xl mx-auto">
           <SectionHeading
+            chapter="04"
             eyebrow="One Platform, Everything"
             title="And that's not all."
             sub="Manga, light novels, music and more — the whole library lives behind one door."
@@ -669,21 +830,25 @@ export default function LandingPage() {
       </section>
 
       {/* ═══ FINAL CTA ═══ */}
-      <section className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
+      <section id="join" ref={(el: HTMLElement | null) => { chapterRefs.current.join = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
         <Reveal className="max-w-5xl mx-auto">
           <div className="ltv-cine-surface rounded-3xl p-10 sm:p-16 flex flex-col items-center text-center gap-6 relative overflow-hidden">
             <div className="ltv-cine-glow-orb w-[300px] h-[300px] left-1/2 -translate-x-1/2 -top-24" style={{ background: "rgba(30,136,255,0.12)" }} />
+            <span className="text-3xl font-black leading-none select-none relative" style={{ fontFamily: FONT, color: "transparent", WebkitTextStroke: "1.5px rgba(72,166,255,0.35)" }} aria-hidden="true">05</span>
             <span className="ltv-cine-eyebrow text-xs font-bold uppercase relative">No sign-up required</span>
             <h2 className="text-3xl sm:text-5xl font-black relative leading-[1.05]" style={{ fontFamily: FONT }}>Ready when you are.<br />It&apos;s free.</h2>
             <p className="text-[#a1a7b3] max-w-md relative">Pick a section, press play. 50,000+ people already watch here every month.</p>
             <div className="flex items-center gap-3 flex-wrap justify-center relative">
-              <button
+              <motion.button
                 onClick={() => navigate({ page: "hub" })}
+                whileHover={{ scale: 1.045, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
                 className="ltv-cine-btn-primary inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-bold text-sm"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
                 Start Watching
-              </button>
+              </motion.button>
               <a
                 href="https://discord.gg/Svc9yFjQBq"
                 target="_blank"
