@@ -517,17 +517,7 @@ export default function HLSPlayerNew({
         {(subtitleTracks || []).map((t, i) => {
           let trackSrc = t.url;
           if (!t.url.startsWith('blob:') && !t.url.startsWith('data:') && !t.url.startsWith('/')) {
-            const PROXY_BASE = process.env.NEXT_PUBLIC_PROXY_BASE;
-            if (PROXY_BASE) {
-              trackSrc = proxify(t.url, 'raw');
-            } else {
-              const key = 'aproxy2026';
-              const combined = t.url + '\0https://animex.one/';
-              const xored = new Uint8Array(combined.length);
-              for (let j = 0; j < combined.length; j++) xored[j] = combined.charCodeAt(j) ^ key.charCodeAt(j % key.length);
-              let b64 = btoa(String.fromCharCode(...xored)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-              trackSrc = `https://cdn.animex.su/stream/${b64}/index.txt`;
-            }
+            trackSrc = proxify(t.url, 'raw');
           }
           return (
             <track key={`ext-sub-${i}`} kind="subtitles" src={trackSrc} srcLang={t.lang || 'en'} label={t.label || t.lang || 'English'} default={i === 0 && hlsSubtitles.length === 0} />
