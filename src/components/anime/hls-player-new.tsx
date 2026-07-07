@@ -37,6 +37,18 @@ export default function HLSPlayerNew({
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Keep the latest callbacks in refs so the stream-loading and video-event
+  // effects DON'T list them as deps. Parents (e.g. watch-page-shell) re-render
+  // on every `timeupdate` (several times/sec) and often pass inline arrow
+  // callbacks — a new identity each render. If those were in the effect deps,
+  // the stream effect would destroy + recreate the hls.js instance on every
+  // frame, refetching the m3u8 + all segments in an infinite loop. Reading
+  // through a ref keeps the effect stable (only url/sourceType/autoplay matter).
+  const onProviderFailedRef = useRef(onProviderFailed);
+  const onEndedRef = useRef(onEnded);
+  onProviderFailedRef.current = onProviderFailed;
+  onEndedRef.current = onEnded;
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -155,14 +167,14 @@ export default function HLSPlayerNew({
             } else {
               setError('Stream failed. Try another server.');
               setLoading(false);
-              onProviderFailed?.();
+              onProviderFailedRef.current?.();
             }
           } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
             hls.recoverMediaError();
           } else {
             setError('Playback error. Try another server.');
             setLoading(false);
-            onProviderFailed?.();
+            onProviderFailedRef.current?.();
           }
         }
       });
@@ -180,7 +192,7 @@ export default function HLSPlayerNew({
         hlsRef.current = null;
       }
     };
-  }, [url, sourceType, autoplay, onProviderFailed]);
+  }, [url, sourceType, autoplay]);
 
   // ─── Video events ─────────────────────────────────────────────────
   useEffect(() => {
@@ -222,7 +234,7 @@ export default function HLSPlayerNew({
       if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
       setLoading(false);
     };
-    const onEnd = () => onEnded?.();
+    const onEnd = () => onEndedRef.current?.();
     const onErr = () => { setError('Playback error.'); setLoading(false); };
 
     video.addEventListener('play', onPlay);
@@ -246,7 +258,7 @@ export default function HLSPlayerNew({
       video.removeEventListener('ended', onEnd);
       video.removeEventListener('error', onErr);
     };
-  }, [intro, outro, onEnded]);
+  }, [intro, outro]);
 
   // ─── Controls auto-hide ───────────────────────────────────────────
   const showControlsTemp = useCallback(() => {
