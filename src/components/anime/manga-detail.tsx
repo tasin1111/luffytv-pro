@@ -243,7 +243,10 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   }, [showStatusDropdown]);
 
   const navigateToChapter = useCallback((ch: MangaChapter) => {
-    navigate({ page: "manga-read", id: mangaId, chapterId: ch.id });
+    // New atsumaru scraper API uses chapterNumber (not the opaque chapter id).
+    // We pass String(ch.number) as the chapterId in the store route so the
+    // /api/manga/read route can pass it directly as `chapterNumber`.
+    navigate({ page: "manga-read", id: mangaId, chapterId: String(ch.number) });
   }, [navigate, mangaId]);
 
   // Computed values that depend on manga — must be before early returns (rules of hooks)

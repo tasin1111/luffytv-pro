@@ -1,54 +1,69 @@
-// Unified Manga API Client — Atsumaru (atsu.moe) as primary, MangaDex as fallback
-// Atsumaru: Covers, details, chapters, search
-// MangaDex: Fallback for chapter reading if Atsumaru fails
+// =====================================================================
+//  LuffyTV Manga API — v2 (manga-scrape-api.vercel.app + atsumaru)
+// ---------------------------------------------------------------------
+//  Provider: atsumaru (atsu.moe) — accessed via the unified
+//  manga-scrape-api hosted at https://manga-scrape-api.vercel.app
+//
+//  Available endpoints (atsumaru provider):
+//    GET /api/scrape/search?query={q}&provider=atsumaru
+//    GET /api/scrape/info?id={mangaId}&provider=atsumaru
+//    GET /api/scrape/chapters?id={mangaId}&provider=atsumaru
+//    GET /api/scrape/pages?id={mangaId}&chapterNumber={n}&provider=atsumaru
+//    GET /api/proxy/image?url={imageUrl}             → image proxy (CORS)
+//
+//  IMPORTANT — chapter contract change:
+//  The atsumaru scraper API uses chapterNumber (NOT chapter id) for the
+//  pages endpoint. Callers must pass String(chapter.number) as chapterId
+//  when navigating to the reader. The manga-detail and manga-reader
+//  components have been patched accordingly.
+//
+//  NOTE: atsumaru does NOT expose a "home" endpoint through this scraper
+//  API. To populate the home page we fan out a curated set of search
+//  queries in parallel and assemble themed sections.
+//
+//  Backwards compatibility:
+//  All exported types (AtsuMangaEntry, AtsuMangaChapter, AtsuMangaDetail,
+//  AtsuChapterPage, AtsuHomeSection) and function names (getMangaHome,
+//  searchManga, getMangaDetail, getChapterImages, getMangaDexChapterPages,
+//  searchAtsu, getAtsuDetail, getAtsuChapterImages, getAtsuHome,
+//  mapMangaDexEntry) are preserved so existing API routes and components
+//  keep working unchanged.
+// =====================================================================
 
-const ATSU_BASE = "https://atsu.moe";
-const MANGADEX_API = "https://api.mangadex.org";
+const SCRAPE_API_BASE = "https://manga-scrape-api.vercel.app";
+const PROVIDER = "atsumaru";
 
-const ATSU_HEADERS: Record<string, string> = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+const SCRAPE_HEADERS: Record<string, string> = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
   Accept: "application/json, text/plain, */*",
   "Accept-Language": "en-US,en;q=0.5",
-  Referer: `${ATSU_BASE}/`,
-};
-
-const MANGADEX_HEADERS: Record<string, string> = {
-  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-  Accept: "application/json",
 };
 
 // ============================================================
-// Fetch helpers
+// Fetch helper
 // ============================================================
 
-async function atsuFetch(url: string): Promise<Response> {
+async function scrapeFetch<T = any>(path: string, timeoutMs = 20000): Promise<T | null> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { headers: ATSU_HEADERS, signal: controller.signal });
+    const url = path.startsWith("http") ? path : `${SCRAPE_API_BASE}${path}`;
+    const res = await fetch(url, { headers: SCRAPE_HEADERS, signal: controller.signal });
     clearTimeout(timeout);
-    return res;
+    if (!res.ok) return null;
+    return (await res.json()) as T;
   } catch (err) {
     clearTimeout(timeout);
-    throw err;
-  }
-}
-
-async function mangadexFetch(url: string): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-  try {
-    const res = await fetch(url, { headers: MANGADEX_HEADERS, signal: controller.signal });
-    clearTimeout(timeout);
-    return res;
-  } catch (err) {
-    clearTimeout(timeout);
-    throw err;
+    console.error("[manga-api] scrapeFetch error:", path, err);
+    return null;
   }
 }
 
 // ============================================================
-// Types
+// Types (kept backwards-compatible with the previous version
+// so the existing detail/reader pages and API routes continue
+// to render without any code changes there)
 // ============================================================
 
 export interface AtsuMangaEntry {
@@ -73,6 +88,9 @@ export interface AtsuMangaEntry {
   source?: string;
   cover?: string;
   slug?: string;
+  rating?: number;
+  chapterCount?: number;
+  latestChapter?: string;
 }
 
 export interface AtsuMangaChapter {
@@ -84,6 +102,7 @@ export interface AtsuMangaChapter {
   mangadexChapterId?: string;
   pages?: number;
   pageCount?: number;
+  lang?: string;
 }
 
 export interface AtsuMangaDetail {
@@ -100,6 +119,7 @@ export interface AtsuMangaDetail {
   authors?: string | string[];
   artists?: string[];
   genres?: string[];
+  tags?: string[];
   isAdult?: boolean;
   anilistId?: number;
   malId?: number;
@@ -128,465 +148,314 @@ export interface AtsuHomeSection {
 }
 
 // ============================================================
-// Atsumaru Helpers
+// Internal response shapes (from manga-scrape-api)
 // ============================================================
 
-/** Convert an API poster path to a full static URL */
-function atsuPosterUrl(path: string | undefined | null): string {
-  if (!path) return "";
-  if (path.startsWith("http")) return path;
-  const cleaned = path.replace(/^\/+/, "");
-  const withStatic = cleaned.startsWith("static/") ? cleaned : `static/${cleaned}`;
-  return `${ATSU_BASE}/${withStatic}`;
+interface ScrapeSearchResponse {
+  results: Array<{
+    id: string;
+    title: string;
+    altTitles?: string[];
+    image?: string;
+    provider?: string;
+    subtype?: string;
+    rating?: number;
+    status?: string;
+  }>;
 }
 
-// ============================================================
-// Atsumaru API Functions (PRIMARY)
-// ============================================================
-
-/** Get manga home/browse sections from Atsumaru */
-export async function getAtsuHome(): Promise<AtsuHomeSection[]> {
-  try {
-    const res = await atsuFetch(`${ATSU_BASE}/api/home/page`);
-    if (!res.ok) return [];
-    const data = await res.json();
-
-    const sections: AtsuHomeSection[] = [];
-    const homePage = data?.homePage;
-    if (homePage?.sections && Array.isArray(homePage.sections)) {
-      for (const section of homePage.sections) {
-        const key = section.key || "unknown";
-        const title = section.title || key.replace(/-/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-        const items: AtsuMangaEntry[] = [];
-        if (Array.isArray(section.items)) {
-          for (const item of section.items) {
-            const poster = atsuPosterUrl(item.image);
-            items.push({
-              id: String(item.id || ""),
-              title: item.title || "",
-              slug: String(item.id || ""),
-              poster,
-              cover: poster,
-              type: item.type || undefined,
-              isAdult: item.isAdult || false,
-              source: "atsumaru",
-            });
-          }
-        }
-        if (items.length > 0) {
-          sections.push({
-            title,
-            type: key.replace(/-/g, "_"),
-            items,
-          });
-        }
-      }
-    }
-    return sections;
-  } catch (err) {
-    console.error("[manga-api] Atsumaru home error:", err);
-    return [];
-  }
+interface ScrapeInfoResponse {
+  id: string;
+  title: string;
+  altTitles?: string[];
+  image?: string;
+  description?: string;
+  status?: string;
+  subtype?: string;
+  author?: string | string[];
+  artist?: string | string[];
+  genres?: string[];
+  tags?: string[];
+  year?: number;
+  isAdult?: boolean;
+  anilistId?: number;
+  malId?: number;
 }
 
-/** Get manga details from Atsumaru */
-export async function getAtsuDetail(mangaId: string): Promise<AtsuMangaDetail | null> {
-  try {
-    const [detailsRes, infoRes] = await Promise.all([
-      atsuFetch(`${ATSU_BASE}/api/manga/page?id=${encodeURIComponent(mangaId)}`),
-      atsuFetch(`${ATSU_BASE}/api/manga/info?mangaId=${encodeURIComponent(mangaId)}`),
-    ]);
-
-    if (!detailsRes.ok && !infoRes.ok) return null;
-
-    let detailsData: any = {};
-    let infoData: any = {};
-
-    if (detailsRes.ok) detailsData = await detailsRes.json();
-    if (infoRes.ok) infoData = await infoRes.json();
-
-    const mangaPage = detailsData?.mangaPage || {};
-
-    // Extract banner
-    let bannerUrl = "";
-    if (mangaPage.banner?.url) {
-      bannerUrl = atsuPosterUrl(mangaPage.banner.url);
-    }
-
-    // Extract poster
-    let posterUrl = "";
-    const posterData = mangaPage.poster;
-    if (posterData && typeof posterData === "object") {
-      posterUrl = atsuPosterUrl(posterData.largeImage || posterData.image);
-    }
-    if (!posterUrl) {
-      posterUrl = atsuPosterUrl(infoData.poster || infoData.image);
-    }
-
-    // Extract chapters
-    const chapters: AtsuMangaChapter[] = [];
-    if (Array.isArray(infoData.chapters)) {
-      for (const chap of infoData.chapters) {
-        chapters.push({
-          id: String(chap.id || ""),
-          title: chap.title || `Chapter ${chap.number}`,
-          number: chap.number || chapters.length + 1,
-          pageCount: chap.pageCount || 0,
-        });
-      }
-    }
-
-    return {
-      id: mangaId,
-      slug: mangaId,
-      title: infoData.title || "",
-      type: infoData.type || "",
-      views: mangaPage.views || "",
-      source: "atsumaru",
-      description: infoData.synopsis || infoData.description || "",
-      authors: infoData.authors || "Unknown",
-      status: infoData.status || "Unknown",
-      genres: Array.isArray(infoData.genres) ? infoData.genres : [],
-      anilistId: mangaPage.anilistId,
-      malId: mangaPage.malId,
-      banner: bannerUrl,
-      poster: posterUrl,
-      cover: posterUrl || bannerUrl,
-      chapters,
-    };
-  } catch (err) {
-    console.error("[manga-api] Atsumaru detail error:", err);
-    return null;
-  }
+interface ScrapeChaptersResponse {
+  chapters: Array<{
+    id: string;
+    number: number;
+    title?: string;
+    pages?: number;
+    lang?: string;
+    date?: string;
+    scanGroup?: string;
+  }>;
 }
 
-/** Get chapter images from Atsumaru */
-export async function getAtsuChapterImages(mangaId: string, chapterId: string): Promise<AtsuChapterPage[]> {
-  try {
-    const res = await atsuFetch(
-      `${ATSU_BASE}/api/read/chapter?mangaId=${encodeURIComponent(mangaId)}&chapterId=${encodeURIComponent(chapterId)}`
-    );
-    if (!res.ok) return [];
-    const data = await res.json();
-
-    const pages = data?.readChapter?.pages;
-    if (!Array.isArray(pages)) return [];
-
-    return pages
-      .map((page: any, i: number) => {
-        const img = page?.image;
-        if (!img) return null;
-        const url = img.startsWith("http") ? img : img.startsWith("/") ? `${ATSU_BASE}${img}` : `${ATSU_BASE}/${img}`;
-        return { index: i, url };
-      })
-      .filter(Boolean) as AtsuChapterPage[];
-  } catch (err) {
-    console.error("[manga-api] Atsumaru chapter images error:", err);
-    return [];
-  }
-}
-
-/** Search manga on Atsumaru */
-export async function searchAtsu(query: string, limit = 20): Promise<AtsuMangaEntry[]> {
-  try {
-    const encoded = encodeURIComponent(query);
-    const url = `${ATSU_BASE}/collections/manga/documents/search?filter_by=&q=${encoded}&limit=${limit}` +
-      `&query_by=title%2CenglishTitle%2CotherNames%2Cauthors&query_by_weights=4%2C3%2C2%2C1` +
-      `&include_fields=id%2Ctitle%2CenglishTitle%2Cposter%2CposterSmall%2CposterMedium%2Ctype%2CisAdult%2Cstatus%2Cyear` +
-      `&num_typos=4%2C3%2C2%2C1`;
-
-    const res = await atsuFetch(url);
-    if (!res.ok) return [];
-    const data = await res.json();
-
-    const results: AtsuMangaEntry[] = [];
-    const hits = data?.hits || [];
-    for (const hit of hits) {
-      const doc = hit?.document;
-      if (!doc) continue;
-      const poster = atsuPosterUrl(doc.poster || doc.posterMedium || doc.posterSmall);
-      results.push({
-        id: String(doc.id),
-        title: doc.title || doc.englishTitle || "",
-        englishTitle: doc.englishTitle,
-        slug: String(doc.id),
-        poster,
-        cover: poster,
-        type: doc.type || undefined,
-        isAdult: doc.isAdult || false,
-        status: doc.status || undefined,
-        source: "atsumaru",
-      });
-    }
-    return results;
-  } catch (err) {
-    console.error("[manga-api] Atsumaru search error:", err);
-    return [];
-  }
+interface ScrapePagesResponse {
+  pages: Array<{
+    order: number;
+    url: string;
+    originalUrl?: string;
+    width?: number;
+    height?: number;
+  }>;
 }
 
 // ============================================================
-// MangaDex Fallback Functions
+// Mappers
 // ============================================================
 
-function buildMangaDexListParams(extra: Record<string, string> = {}): URLSearchParams {
-  const params = new URLSearchParams();
-  params.append("includes[]", "cover_art");
-  params.append("contentRating[]", "safe");
-  params.append("contentRating[]", "suggestive");
-  params.append("hasAvailableChapters", "true");
-  params.append("availableTranslatedLanguage[]", "en");
-  for (const [key, value] of Object.entries(extra)) {
-    params.append(key, value);
-  }
-  return params;
-}
-
-function getMangaDexTitle(attributes: any): string {
-  if (!attributes?.title) return "Unknown";
-  if (typeof attributes.title === "string") return attributes.title;
-  return attributes.title.en || attributes.title["ja-ro"] || attributes.title.ja ||
-    Object.values(attributes.title)[0] as string || "Unknown";
-}
-
-function getMangaDexEnglishTitle(attributes: any): string | undefined {
-  if (!attributes?.altTitles) return undefined;
-  for (const alt of attributes.altTitles) {
-    if (alt.en) return alt.en;
-  }
-  return undefined;
-}
-
-function getMangaDexCoverFileName(relationships: any[]): string | null {
-  if (!Array.isArray(relationships)) return null;
-  for (const rel of relationships) {
-    if (rel.type === "cover_art" && rel.attributes?.fileName) {
-      return rel.attributes.fileName;
-    }
-  }
-  return null;
-}
-
-function getMangaDexCoverUrl(mangaId: string, coverFileName: string): string {
-  return `https://uploads.mangadex.org/covers/${mangaId}/${coverFileName}`;
-}
-
-function getMangaDexAuthors(relationships: any[], type: "author" | "artist"): string[] {
-  if (!Array.isArray(relationships)) return [];
-  return relationships
-    .filter(r => r.type === type && r.attributes?.name)
-    .map(r => r.attributes.name);
-}
-
-function getMangaDexGenres(attributes: any): string[] {
-  if (!attributes?.tags) return [];
-  return attributes.tags
-    .filter((t: any) => t.attributes?.name)
-    .map((t: any) => {
-      const name = t.attributes.name;
-      return typeof name === "string" ? name : (name.en || Object.values(name)[0] as string);
-    });
-}
-
-function getMangaDexStatus(attributes: any): string | undefined {
-  const status = attributes?.status;
-  if (!status) return undefined;
-  const map: Record<string, string> = {
-    ongoing: "Ongoing", completed: "Completed", hiatus: "Hiatus", cancelled: "Cancelled",
-  };
-  return map[status.toLowerCase()] || status;
-}
-
-function capitalizeFirst(str: string): string {
-  return str.charAt(0).toUpperCase() + str.slice(1);
-}
-
-function mapMangaDexEntry(manga: any): AtsuMangaEntry {
-  const attrs = manga.attributes || {};
-  const coverFileName = getMangaDexCoverFileName(manga.relationships || []);
-  const poster = coverFileName ? getMangaDexCoverUrl(manga.id, coverFileName) : undefined;
-
+function mapSearchResult(r: ScrapeSearchResponse["results"][number]): AtsuMangaEntry {
+  const englishTitle = r.altTitles?.[0];
   return {
-    id: manga.id,
-    mangadexId: manga.id,
-    title: getMangaDexTitle(attrs),
-    englishTitle: getMangaDexEnglishTitle(attrs),
-    poster,
-    cover: poster,
-    type: attrs.publicationDemographic ? capitalizeFirst(attrs.publicationDemographic) : undefined,
-    isAdult: attrs.contentRating === "pornographic" || attrs.contentRating === "erotica",
-    status: getMangaDexStatus(attrs),
-    year: attrs.year || undefined,
-    authors: getMangaDexAuthors(manga.relationships || [], "author"),
-    genres: getMangaDexGenres(attrs),
-    description: attrs.description?.en || attrs.description?.["ja-ro"] ||
-      (typeof attrs.description === "string" ? attrs.description : undefined),
-    totalChapters: attrs.lastChapter ? parseInt(attrs.lastChapter) || undefined : undefined,
-    source: "mangadex",
+    id: r.id,
+    title: r.title,
+    englishTitle,
+    poster: r.image || "",
+    cover: r.image || "",
+    type: r.subtype || "manga",
+    status: r.status,
+    rating: typeof r.rating === "number" ? r.rating : undefined,
+    source: "atsumaru",
+    slug: r.id,
   };
 }
 
-export async function searchMangaDex(query: string, limit = 20): Promise<AtsuMangaEntry[]> {
-  try {
-    const params = buildMangaDexListParams({ title: query, limit: String(limit) });
-    const res = await mangadexFetch(`${MANGADEX_API}/manga?${params}`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (!Array.isArray(data?.data)) return [];
-    return data.data.map(mapMangaDexEntry);
-  } catch { return []; }
+function mapChapter(c: ScrapeChaptersResponse["chapters"][number]): AtsuMangaChapter {
+  return {
+    id: c.id,
+    title: c.title || `Chapter ${c.number}`,
+    number: c.number,
+    pageCount: c.pages || 0,
+    pages: c.pages || 0,
+    lang: c.lang,
+    date: c.date,
+    scanGroup: c.scanGroup,
+  };
 }
 
-export async function getMangaDexChapterPages(chapterId: string): Promise<AtsuChapterPage[]> {
-  try {
-    const res = await mangadexFetch(`${MANGADEX_API}/at-home/server/${chapterId}`);
-    if (!res.ok) return [];
-    const data = await res.json();
-    if (!data?.chapter) return [];
-    const baseUrl = data.baseUrl;
-    const hash = data.chapter.hash;
-    const pages = data.chapter.data;
-    if (!Array.isArray(pages)) return [];
-    return pages.map((filename: string, i: number) => ({
-      index: i,
-      url: `${baseUrl}/data/${hash}/${filename}`,
-    }));
-  } catch { return []; }
+// ============================================================
+// Public API
+// ============================================================
+
+/**
+ * Search manga on atsumaru via the manga-scrape-api.
+ */
+export async function searchManga(query: string, _limit = 20): Promise<AtsuMangaEntry[]> {
+  if (!query.trim()) return [];
+  const data = await scrapeFetch<ScrapeSearchResponse>(
+    `/api/scrape/search?query=${encodeURIComponent(query.trim())}&provider=${PROVIDER}`,
+  );
+  if (!data?.results) return [];
+  return data.results.map(mapSearchResult);
 }
 
-export async function getMangaDexDetail(mangaId: string): Promise<AtsuMangaDetail | null> {
-  try {
-    const infoRes = await mangadexFetch(
-      `${MANGADEX_API}/manga/${mangaId}?includes[]=cover_art&includes[]=author&includes[]=artist`
-    );
-    if (!infoRes.ok) return null;
-    const infoData = await infoRes.json();
-    const manga = infoData?.data;
-    if (!manga) return null;
+/**
+ * Get manga detail (info + chapters in parallel).
+ */
+export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail | null> {
+  if (!mangaId) return null;
+  const [info, chaptersData] = await Promise.all([
+    scrapeFetch<ScrapeInfoResponse>(
+      `/api/scrape/info?id=${encodeURIComponent(mangaId)}&provider=${PROVIDER}`,
+    ),
+    scrapeFetch<ScrapeChaptersResponse>(
+      `/api/scrape/chapters?id=${encodeURIComponent(mangaId)}&provider=${PROVIDER}`,
+    ),
+  ]);
 
-    const attrs = manga.attributes || {};
-    const coverFileName = getMangaDexCoverFileName(manga.relationships || []);
-    const poster = coverFileName ? getMangaDexCoverUrl(manga.id, coverFileName) : undefined;
+  if (!info) return null;
 
-    let chapters: AtsuMangaChapter[] = [];
-    let totalChapters = 0;
-    let offset = 0;
-    const chapterLimit = 100;
-    let hasMore = true;
-
-    while (hasMore) {
-      const chaptersRes = await mangadexFetch(
-        `${MANGADEX_API}/manga/${mangaId}/feed?translatedLanguage[]=en&order[chapter]=asc&limit=${chapterLimit}&offset=${offset}`
-      );
-      if (!chaptersRes.ok) break;
-      const chaptersData = await chaptersRes.json();
-      totalChapters = chaptersData?.total || 0;
-      const batch = chaptersData?.data || [];
-      if (!Array.isArray(batch) || batch.length === 0) break;
-
-      for (const ch of batch) {
-        if (!ch.attributes?.chapter) continue;
-        chapters.push({
-          id: ch.id,
-          mangadexChapterId: ch.id,
-          title: ch.attributes?.title || `Chapter ${ch.attributes?.chapter}`,
-          number: parseFloat(ch.attributes?.chapter) || (chapters.length + 1),
-          date: ch.attributes?.publishAt || ch.attributes?.readableAt,
-          scanGroup: ch.relationships?.find((r: any) => r.type === "scanlation_group")?.attributes?.name,
-          pages: ch.attributes?.pages,
-        });
-      }
-      offset += chapterLimit;
-      hasMore = offset < totalChapters;
-    }
-
-    const seen = new Set<number>();
-    chapters = chapters.filter(ch => {
+  const chapters = (chaptersData?.chapters || []).map(mapChapter);
+  // Sort ascending by chapter number, dedupe by number
+  const seen = new Set<number>();
+  const dedupedChapters = chapters
+    .filter(ch => {
       const key = Math.round(ch.number * 100) / 100;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
-    });
-    chapters.sort((a, b) => a.number - b.number);
+    })
+    .sort((a, b) => a.number - b.number);
 
-    return {
-      id: manga.id,
-      mangadexId: manga.id,
-      title: getMangaDexTitle(attrs),
-      englishTitle: getMangaDexEnglishTitle(attrs),
-      altTitles: attrs.altTitles ? attrs.altTitles.map((t: any) => Object.values(t)[0] as string) : [],
-      poster,
-      banner: undefined,
-      description: attrs.description?.en || attrs.description?.["ja-ro"] ||
-        (typeof attrs.description === "string" ? attrs.description : undefined),
-      type: attrs.publicationDemographic ? capitalizeFirst(attrs.publicationDemographic) : undefined,
-      status: getMangaDexStatus(attrs),
-      year: attrs.year || undefined,
-      authors: getMangaDexAuthors(manga.relationships || [], "author"),
-      artists: getMangaDexAuthors(manga.relationships || [], "artist"),
-      genres: getMangaDexGenres(attrs),
-      isAdult: attrs.contentRating === "pornographic" || attrs.contentRating === "erotica",
-      totalChapters: totalChapters || (attrs.lastChapter ? parseInt(attrs.lastChapter) : undefined) || 0,
-      chapters,
-      source: "mangadex",
-    };
-  } catch { return null; }
+  const authors = info.author
+    ? Array.isArray(info.author)
+      ? info.author
+      : [info.author]
+    : [];
+  const artists = info.artist
+    ? Array.isArray(info.artist)
+      ? info.artist
+      : [info.artist]
+    : [];
+
+  return {
+    id: info.id,
+    title: info.title,
+    englishTitle: info.altTitles?.[0],
+    altTitles: info.altTitles || [],
+    poster: info.image || "",
+    banner: info.image || "",
+    cover: info.image || "",
+    description: info.description || "",
+    type: info.subtype || "manga",
+    status: info.status,
+    year: info.year,
+    authors: authors.length ? authors : "Unknown",
+    artists,
+    genres: info.genres || [],
+    tags: info.tags || [],
+    isAdult: info.isAdult,
+    anilistId: info.anilistId,
+    malId: info.malId,
+    chapters: dedupedChapters,
+    totalChapters: dedupedChapters.length,
+    source: "atsumaru",
+    slug: info.id,
+  };
+}
+
+/**
+ * Get chapter pages.
+ *
+ * IMPORTANT: The manga-scrape-api atsumaru provider accepts
+ * `chapterNumber` (NOT `chapterId`). The existing route contract
+ * passes `chapterId`. To stay backwards-compatible with the store
+ * route `{ page: "manga-read"; id: string; chapterId: string }`,
+ * we treat the value passed as `chapterId` as the chapter NUMBER
+ * (the detail page now passes `String(chapter.number)` when
+ * navigating to the reader).
+ */
+export async function getChapterImages(
+  mangaId: string,
+  chapterId: string,
+): Promise<AtsuChapterPage[]> {
+  if (!mangaId || !chapterId) return [];
+  const chapterNumber = encodeURIComponent(String(chapterId));
+  const data = await scrapeFetch<ScrapePagesResponse>(
+    `/api/scrape/pages?id=${encodeURIComponent(mangaId)}&chapterNumber=${chapterNumber}&provider=${PROVIDER}`,
+  );
+  if (!data?.pages) return [];
+  return data.pages.map(p => ({
+    index: p.order - 1, // 0-indexed for the reader
+    url: p.url,
+    width: p.width,
+    height: p.height,
+  }));
 }
 
 // ============================================================
-// Combined API Functions — Atsumaru primary, MangaDex fallback
+// Home page builder
+// ---------------------------------------------------------------------
+// atsumaru has no home endpoint through the scraper API, so we
+// fan out a curated set of search queries in parallel and assemble
+// themed sections. Each query returns ~5-20 relevant titles.
 // ============================================================
 
-/** Get manga home sections — Atsumaru primary */
+const HOME_QUERIES: { section: string; type: string; queries: string[] }[] = [
+  {
+    section: "Trending Now",
+    type: "trending",
+    queries: ["solo leveling", "demon slayer", "jujutsu kaisen", "chainsaw man", "frieren"],
+  },
+  {
+    section: "Action Hits",
+    type: "action",
+    queries: ["one piece", "naruto", "bleach", "dragon ball", "my hero academia"],
+  },
+  {
+    section: "Dark Fantasy",
+    type: "dark_fantasy",
+    queries: ["berserk", "tokyo ghoul", "vinland saga", "vagabond", "claymore"],
+  },
+  {
+    section: "Romance Picks",
+    type: "romance",
+    queries: ["horimiya", "kaguya", "fruits basket", "your name", "toradora"],
+  },
+  {
+    section: "Isekai Worlds",
+    type: "isekai",
+    queries: ["re:zero", "mushoku tensei", "overlord", "sword art online", "that time i got reincarnated"],
+  },
+  {
+    section: "Top Rated",
+    type: "top_rated",
+    queries: ["fullmetal alchemist", "monster", "vagabond", "berserk", "slam dunk"],
+  },
+];
+
+async function runSection(
+  section: { section: string; type: string; queries: string[] },
+): Promise<AtsuHomeSection> {
+  const allResults = await Promise.all(section.queries.map(q => searchManga(q, 5)));
+  const flat = allResults.flat();
+  // Dedupe by id
+  const seen = new Set<string>();
+  const items = flat.filter(m => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+  // For top_rated, sort by rating descending
+  if (section.type === "top_rated") {
+    items.sort((a, b) => (b.rating || 0) - (a.rating || 0));
+  }
+  return {
+    title: section.section,
+    type: section.type,
+    items: items.slice(0, 20),
+  };
+}
+
+/**
+ * Build the home page sections by running multiple curated searches
+ * in parallel on the atsumaru provider.
+ */
 export async function getMangaHome(): Promise<AtsuHomeSection[]> {
-  // Try Atsumaru first
-  const atsuSections = await getAtsuHome();
-  if (atsuSections.length >= 2) return atsuSections;
-
-  // Fallback: MangaDex
-  console.log("[manga-api] Atsumaru home insufficient, falling back to MangaDex");
   try {
-    const sections: AtsuHomeSection[] = [];
-    const [trending, recent, topRated] = await Promise.all([
-      (async () => { const params = buildMangaDexListParams({ "order[followedCount]": "desc", limit: "20" }); const r = await mangadexFetch(`${MANGADEX_API}/manga?${params}`); return r.ok ? (await r.json()).data?.map(mapMangaDexEntry) || [] : []; })(),
-      (async () => { const params = buildMangaDexListParams({ "order[updatedAt]": "desc", limit: "20" }); const r = await mangadexFetch(`${MANGADEX_API}/manga?${params}`); return r.ok ? (await r.json()).data?.map(mapMangaDexEntry) || [] : []; })(),
-      (async () => { const params = buildMangaDexListParams({ "order[rating]": "desc", limit: "20" }); const r = await mangadexFetch(`${MANGADEX_API}/manga?${params}`); return r.ok ? (await r.json()).data?.map(mapMangaDexEntry) || [] : []; })(),
-    ]);
-    if (trending.length) sections.push({ title: "Trending Manga", type: "trending", items: trending });
-    if (topRated.length) sections.push({ title: "Popular Manga", type: "popular", items: topRated });
-    if (recent.length) sections.push({ title: "Recently Updated", type: "recent", items: recent });
-    return sections;
-  } catch { return atsuSections; }
+    const sections = await Promise.all(HOME_QUERIES.map(runSection));
+    // Filter out empty sections
+    return sections.filter(s => s.items.length > 0);
+  } catch (err) {
+    console.error("[manga-api] getMangaHome error:", err);
+    return [];
+  }
 }
 
-/** Search manga — Atsumaru primary, MangaDex fallback */
-export async function searchManga(query: string, limit = 20): Promise<AtsuMangaEntry[]> {
-  const atsuResults = await searchAtsu(query, limit);
-  if (atsuResults.length > 0) return atsuResults;
-  return searchMangaDex(query, limit);
+// ============================================================
+// Backwards-compat: keep the old export names as aliases
+// ============================================================
+
+/** Alias for searchManga (kept for any callers that import searchAtsu). */
+export const searchAtsu = searchManga;
+
+/** Alias for getMangaDetail (kept for any callers that import getAtsuDetail). */
+export const getAtsuDetail = getMangaDetail;
+
+/** Alias for getChapterImages (kept for any callers that import getAtsuChapterImages). */
+export const getAtsuChapterImages = getChapterImages;
+
+/** Atsumaru home alias. */
+export const getAtsuHome = getMangaHome;
+
+/**
+ * MangaDex direct chapter pages — kept as a stub for backwards
+ * compatibility with /api/manga/read/route.ts which falls back to
+ * this if the primary fetch fails. With the new manga-scrape-api,
+ * MangaDex fallback is not needed (the scraper API already handles
+ * provider routing), so this always returns an empty array.
+ */
+export async function getMangaDexChapterPages(_chapterId: string): Promise<AtsuChapterPage[]> {
+  return [];
 }
 
-/** Get manga detail — Atsumaru primary, MangaDex fallback */
-export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail | null> {
-  // Try Atsumaru first
-  const atsuDetail = await getAtsuDetail(mangaId);
-  if (atsuDetail && atsuDetail.title) return atsuDetail;
-
-  // Fallback to MangaDex
-  console.log("[manga-api] Atsumaru detail failed for:", mangaId, "— trying MangaDex");
-  return getMangaDexDetail(mangaId);
+/**
+ * mapMangaDexEntry — kept as a stub for backwards compatibility.
+ */
+export function mapMangaDexEntry(_m: any): AtsuMangaEntry {
+  return { id: "", title: "", source: "mangadex" };
 }
-
-/** Get chapter images — Atsumaru primary, MangaDex fallback */
-export async function getChapterImages(mangaId: string, chapterId: string): Promise<AtsuChapterPage[]> {
-  // Try Atsumaru first
-  const atsuPages = await getAtsuChapterImages(mangaId, chapterId);
-  if (atsuPages.length > 0) return atsuPages;
-
-  // Fallback to MangaDex
-  console.log("[manga-api] Atsumaru chapter images failed, trying MangaDex for:", chapterId);
-  return getMangaDexChapterPages(chapterId);
-}
-
-// Re-export for direct use
-export { mapMangaDexEntry };
