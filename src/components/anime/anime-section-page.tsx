@@ -567,8 +567,8 @@ function ContinueWatching({ navigate }: { navigate: (r: any) => void }) {
           const remainingMin = h.duration > 0 ? Math.max(0, Math.round((h.duration - (h.progress / 100) * h.duration) / 60)) : 0;
           return (
             <button
-              key={h.animeId + h.episode}
-              onClick={() => navigate({ page: "watch", id: h.animeId, episode: h.episode, title: h.animeName, image: h.thumbnail })}
+              key={h.animeId + h.episodeNum}
+              onClick={() => navigate({ page: "watch", id: h.animeId, episode: h.episodeNum, title: h.animeName, image: h.thumbnail })}
               className="group shrink-0 w-[300px] text-left"
             >
               <div className="relative w-full aspect-video bg-white/5 overflow-hidden" style={{ borderRadius: "4px" }}>
@@ -588,13 +588,13 @@ function ContinueWatching({ navigate }: { navigate: (r: any) => void }) {
                 </div>
                 {/* Episode badge */}
                 <div className="absolute top-2 right-2 px-2 py-0.5 bg-black/80 backdrop-blur-sm text-[10px] font-bold text-white" style={{ borderRadius: "3px" }}>
-                  EP {h.episode}
+                  EP {h.episodeNum}
                 </div>
               </div>
               <div className="mt-2.5">
                 <p className="text-sm font-semibold text-white truncate group-hover:text-white/80 transition-colors">{h.animeName}</p>
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs font-medium text-white/60">Episode {h.episode}</p>
+                  <p className="text-xs font-medium text-white/60">Episode {h.episodeNum}</p>
                   <p className="text-xs text-white/30">
                     {progressPercent > 0 ? `${Math.round(progressPercent)}%` : "Just started"}
                     {remainingMin > 0 && progressPercent < 95 ? ` · ${remainingMin}m left` : ""}
