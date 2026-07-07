@@ -111,8 +111,12 @@ export default function MovieDetailPage({ movieId }: { movieId: number }) {
 
   return (
     <div className="space-y-8 fade-in pb-4">
-      {/* ═══ Hero — full backdrop fading into page black ═══ */}
-      <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] bg-[#0a0d13]">
+      {/* ═══ Hero — marquee-framed backdrop fading into page black ═══ */}
+      <div className="ltv-cinema-marquee">
+        <div className="ltv-cinema-lights" aria-hidden="true">
+          {Array.from({ length: 20 }).map((_, i) => <i key={i} />)}
+        </div>
+        <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] bg-[#0a0d13]">
         <div className="relative h-[64vh] sm:h-[72vh]">
           {movie.backdrop_path && (
             <img
@@ -176,13 +180,12 @@ export default function MovieDetailPage({ movieId }: { movieId: number }) {
                 )}
 
                 <div className="flex items-center gap-3 flex-wrap">
-                  <button
-                    onClick={() => navigate({ page: "movie-watch", id: movie.id })}
-                    className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white transition-transform hover:-translate-y-0.5"
-                    style={{ background: ACCENT, boxShadow: "0 8px 28px rgba(30,136,255,0.35)", fontFamily: GROTESK }}
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                    Watch Now
+                  <button onClick={() => navigate({ page: "movie-watch", id: movie.id })} className="ltv-cinema-stub" style={{ fontFamily: GROTESK }}>
+                    <span className="ltv-cinema-stub-tab">ADMIT<br />ONE</span>
+                    <span className="ltv-cinema-stub-label">
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                      Watch Now
+                    </span>
                   </button>
                   {trailer && (
                     <button
@@ -196,8 +199,16 @@ export default function MovieDetailPage({ movieId }: { movieId: number }) {
                   )}
                 </div>
               </div>
+
+              {score > 0 && (
+                <div className="ltv-cinema-stamp hidden lg:flex">
+                  <b>{score.toFixed(1)}</b>
+                  <span>Rated</span>
+                </div>
+              )}
             </div>
           </div>
+        </div>
         </div>
       </div>
 

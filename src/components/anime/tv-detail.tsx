@@ -139,8 +139,12 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
 
   return (
     <div className="space-y-8 fade-in pb-4">
-      {/* ═══ Hero ═══ */}
-      <div className="relative rounded-2xl overflow-hidden border border-white/[0.06] bg-[#0a0d13]">
+      {/* ═══ Hero — broadcast monitor ═══ */}
+      <div className="ltv-tv-hero relative rounded-2xl overflow-hidden border border-white/[0.06] bg-[#0a0d13]">
+        <div className="ltv-tv-sweep" />
+        <div className="absolute top-5 left-5 sm:left-9 z-20 flex items-center gap-3">
+          <span className="ltv-tv-signal"><i /><i /><i />Signal Locked</span>
+        </div>
         <div className="relative h-[64vh] sm:h-[72vh]">
           {show.backdrop_path && (
             <img
@@ -281,12 +285,10 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
         </Panel>
       )}
 
-      {/* ═══ Episodes ═══ */}
+      {/* ═══ Episodes — program guide ═══ */}
       <section className="space-y-4">
         <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <span className="text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#34D399]" style={{ fontFamily: GROTESK }}>Episodes</span>
-          </div>
+          <span className="ltv-tv-chbadge"><i />Program Guide</span>
           {show.number_of_seasons && show.number_of_seasons > 1 && (
             <select
               value={selectedSeason}
@@ -306,7 +308,7 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
             <button
               key={ep.id}
               onClick={() => navigate({ page: "tv-watch", id: show.id, season: ep.season_number, episode: ep.episode_number })}
-              className="w-full flex items-center gap-3 sm:gap-4 p-2.5 sm:p-3 rounded-xl text-left bg-[#0a0d13] border border-white/[0.06] hover:border-[#34D399]/40 transition-all group"
+              className="ltv-tv-slot w-full flex items-center gap-3 sm:gap-4 p-2.5 sm:p-3 pl-4 sm:pl-5 rounded-xl text-left bg-[#0a0d13] border border-white/[0.06] hover:border-[#34D399]/40 transition-all group"
             >
               <div className="w-24 h-14 sm:w-32 sm:h-[74px] rounded-lg overflow-hidden shrink-0 bg-[#10141c] relative">
                 {ep.still_path ? (

@@ -8,8 +8,8 @@ const GROTESK = "var(--font-space-grotesk), 'Space Grotesk', sans-serif";
 const ACCENT = "#1e88ff";
 
 const CATEGORIES = [
-  { id: "popular", label: "Popular" },
-  { id: "top_rated", label: "Top Rated" },
+  { id: "popular", label: "Fan Favorites" },
+  { id: "top_rated", label: "Hall of Fame" },
   { id: "now_playing", label: "In Theaters" },
   { id: "upcoming", label: "Coming Soon" },
 ];
@@ -23,25 +23,38 @@ const GENRES = [
   { id: 53, name: "Thriller" }, { id: 10752, name: "War" }, { id: 37, name: "Western" },
 ];
 
+// ── Ticket-icon row heading ──
+function ReelHeading({ eyebrow, title }: { eyebrow?: string; title: string }) {
+  return (
+    <div>
+      {eyebrow && <span className="block text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#48a6ff] mb-1" style={{ fontFamily: GROTESK }}>{eyebrow}</span>}
+      <h2 className="inline-flex items-center gap-2.5 text-lg sm:text-xl font-extrabold text-[#e8eaee] tracking-tight" style={{ fontFamily: GROTESK }}>
+        <svg className="w-4 h-4 text-[#48a6ff]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+          <rect x="3" y="6" width="18" height="12" rx="2" strokeDasharray="2 2" />
+          <circle cx="8" cy="12" r="1.4" fill="currentColor" stroke="none" />
+        </svg>
+        {title}
+      </h2>
+    </div>
+  );
+}
+
 // ── Horizontal rail with arrow controls ──
-function Rail({ title, eyebrow, items, children }: { title: string; eyebrow?: string; items?: TMDBContentItem[]; children?: ReactNode }) {
+function Rail({ title, eyebrow, items }: { title: string; eyebrow?: string; items: TMDBContentItem[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollBy = (dir: 1 | -1) => scrollRef.current?.scrollBy({ left: dir * scrollRef.current.clientWidth * 0.8, behavior: "smooth" });
 
-  if (items && items.length === 0) return null;
+  if (items.length === 0) return null;
   return (
     <section className="space-y-3">
       <div className="flex items-end justify-between gap-3">
-        <div>
-          {eyebrow && <span className="block text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#48a6ff] mb-1" style={{ fontFamily: GROTESK }}>{eyebrow}</span>}
-          <h2 className="text-lg sm:text-xl font-extrabold text-[#e8eaee] tracking-tight" style={{ fontFamily: GROTESK }}>{title}</h2>
-        </div>
+        <ReelHeading eyebrow={eyebrow} title={title} />
         <div className="hidden sm:flex items-center gap-2">
           {([-1, 1] as const).map(dir => (
             <button
               key={dir}
               onClick={() => scrollBy(dir)}
-              className="w-8 h-8 rounded-full flex items-center justify-center border border-white/10 text-[#a1a7b3] hover:text-white hover:border-[#1e88ff]/60 transition-colors"
+              className="w-8 h-8 rounded-full flex items-center justify-center border border-white/10 text-[#a1a7b3] hover:text-white hover:border-[#48a6ff]/60 transition-colors"
               aria-label={dir === 1 ? "Scroll right" : "Scroll left"}
             >
               <svg className={`w-4 h-4 ${dir === -1 ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}><path d="M9 6l6 6-6 6" /></svg>
@@ -50,13 +63,11 @@ function Rail({ title, eyebrow, items, children }: { title: string; eyebrow?: st
         </div>
       </div>
       <div ref={scrollRef} className="flex gap-3 overflow-x-auto scroll-container pb-2 -mx-1 px-1">
-        {items
-          ? items.map((item, i) => (
-              <div key={`${item.id}-${i}`} className="shrink-0 w-[130px] sm:w-[150px] lg:w-[168px]">
-                <MovieCard item={item} priority={i < 6} />
-              </div>
-            ))
-          : children}
+        {items.map((item, i) => (
+          <div key={`${item.id}-${i}`} className="shrink-0 w-[130px] sm:w-[150px] lg:w-[168px]">
+            <MovieCard item={item} priority={i < 6} />
+          </div>
+        ))}
       </div>
     </section>
   );
@@ -65,13 +76,11 @@ function Rail({ title, eyebrow, items, children }: { title: string; eyebrow?: st
 export default function MoviesPage() {
   const navigate = useAppStore(s => s.navigate);
 
-  // ── Rails data ──
   const [trending, setTrending] = useState<TMDBContentItem[]>([]);
   const [popular, setPopular] = useState<TMDBContentItem[]>([]);
   const [topRated, setTopRated] = useState<TMDBContentItem[]>([]);
   const [nowPlaying, setNowPlaying] = useState<TMDBContentItem[]>([]);
   const [upcoming, setUpcoming] = useState<TMDBContentItem[]>([]);
-  const [railsLoading, setRailsLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,13 +106,12 @@ export default function MoviesPage() {
       setTopRated(top);
       setNowPlaying(now);
       setUpcoming(up);
-      setRailsLoading(false);
     }
     load();
     return () => { cancelled = true; };
   }, []);
 
-  // ── Hero slider (top trending with backdrops) ──
+  // ── Marquee hero ──
   const heroItems = trending.filter(t => t.backdrop_path && t.overview).slice(0, 6);
   const [slide, setSlide] = useState(0);
   useEffect(() => {
@@ -113,7 +121,10 @@ export default function MoviesPage() {
   }, [heroItems.length]);
   const hero = heroItems[slide % Math.max(heroItems.length, 1)];
 
-  // ── Explorer (browse-all grid) ──
+  // Ticker strip — titles from across all rails
+  const tickerItems = [...trending.slice(0, 8), ...popular.slice(0, 8)].filter(Boolean);
+
+  // ── Explorer ──
   const [category, setCategory] = useState("popular");
   const [genre, setGenre] = useState<number | null>(null);
   const [page, setPage] = useState(1);
@@ -146,110 +157,123 @@ export default function MoviesPage() {
 
   return (
     <div className="space-y-10 fade-in pb-4">
-      {/* ═══ Hero slider — top trending today ═══ */}
+      {/* ═══ Marquee hero — "Now Showing" ═══ */}
       {hero && (
-        <div className="relative w-full h-[52vh] sm:h-[62vh] lg:h-[72vh] rounded-2xl overflow-hidden border border-white/[0.06] bg-[#0a0d13]">
-          {heroItems.map((item, i) => (
-            <img
-              key={item.id}
-              src={getTMDBBackdrop(item)}
-              alt={getTMDBTitle(item)}
-              className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
-              style={{ opacity: i === slide ? 1 : 0 }}
-            />
-          ))}
-          <div className="absolute inset-0 bg-gradient-to-r from-[#050608] via-[#050608]/55 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-transparent to-transparent" />
-
-          <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10 lg:p-12">
-            <div className="max-w-2xl">
-              <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.24em] text-[#48a6ff] mb-3" style={{ fontFamily: GROTESK }}>
-                <span className="w-5 h-px bg-[#48a6ff]" />
-                #{slide + 1} Trending Today
-              </span>
-              <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#e8eaee] tracking-tight line-clamp-2 mb-3" style={{ fontFamily: GROTESK }}>
-                {getTMDBTitle(hero)}
-              </h1>
-              <div className="flex items-center gap-2 mb-4 flex-wrap">
-                {heroScore > 0 && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-bold text-[#48a6ff] border border-[#48a6ff]/30 bg-[#1e88ff]/10">
-                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
-                    {heroScore.toFixed(1)}
-                  </span>
-                )}
-                {getTMDBYear(hero) && <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#a1a7b3] border border-white/10 bg-white/[0.04]">{getTMDBYear(hero)}</span>}
-                <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#a1a7b3] border border-white/10 bg-white/[0.04]">HD</span>
-              </div>
-              {hero.overview && <p className="text-sm text-[#a1a7b3] line-clamp-2 max-w-lg mb-6 leading-relaxed">{hero.overview}</p>}
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => navigate({ page: "movie-watch", id: hero.id })}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-white transition-transform hover:-translate-y-0.5"
-                  style={{ background: ACCENT, boxShadow: "0 8px 28px rgba(30,136,255,0.35)", fontFamily: GROTESK }}
-                >
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                  Watch Now
-                </button>
-                <button
-                  onClick={() => navigate({ page: "movie-detail", id: hero.id })}
-                  className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-[#e8eaee] border border-white/15 bg-[#0a0d13]/80 hover:border-[#48a6ff]/50 transition-colors"
-                  style={{ fontFamily: GROTESK }}
-                >
-                  Details
-                </button>
-              </div>
-            </div>
+        <div className="ltv-cinema-marquee">
+          <div className="ltv-cinema-lights" aria-hidden="true">
+            {Array.from({ length: 24 }).map((_, i) => <i key={i} />)}
           </div>
+          <div className="relative w-full h-[52vh] sm:h-[62vh] lg:h-[72vh] rounded-2xl overflow-hidden border border-white/[0.06] bg-[#0a0d13]">
+            {heroItems.map((item, i) => (
+              <img
+                key={item.id}
+                src={getTMDBBackdrop(item)}
+                alt={getTMDBTitle(item)}
+                className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700"
+                style={{ opacity: i === slide ? 1 : 0 }}
+              />
+            ))}
+            <div className="absolute inset-0 bg-gradient-to-r from-[#050608] via-[#050608]/55 to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-transparent to-transparent" />
 
-          {/* Slide dots */}
-          {heroItems.length > 1 && (
-            <div className="absolute bottom-6 right-6 sm:right-10 hidden sm:flex items-center gap-2">
-              {heroItems.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setSlide(i)}
-                  aria-label={`Slide ${i + 1}`}
-                  className="h-1.5 rounded-full transition-all duration-300"
-                  style={{ width: i === slide ? 22 : 8, background: i === slide ? ACCENT : "rgba(255,255,255,0.25)" }}
-                />
-              ))}
+            <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10 lg:p-12">
+              <div className="flex items-end gap-6">
+                <div className="max-w-2xl">
+                  <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.24em] text-[#48a6ff] mb-3" style={{ fontFamily: GROTESK }}>
+                    <span className="w-5 h-px bg-[#48a6ff]" />
+                    Now Showing · Screen {slide + 1}
+                  </span>
+                  <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#e8eaee] tracking-tight line-clamp-2 mb-3" style={{ fontFamily: GROTESK }}>
+                    {getTMDBTitle(hero)}
+                  </h1>
+                  <div className="flex items-center gap-2 mb-4 flex-wrap">
+                    {getTMDBYear(hero) && <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#a1a7b3] border border-white/10 bg-white/[0.04]">{getTMDBYear(hero)}</span>}
+                    <span className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-[#a1a7b3] border border-white/10 bg-white/[0.04]">HD</span>
+                  </div>
+                  {hero.overview && <p className="text-sm text-[#a1a7b3] line-clamp-2 max-w-lg mb-6 leading-relaxed">{hero.overview}</p>}
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => navigate({ page: "movie-watch", id: hero.id })} className="ltv-cinema-stub" style={{ fontFamily: GROTESK }}>
+                      <span className="ltv-cinema-stub-tab">ADMIT<br />ONE</span>
+                      <span className="ltv-cinema-stub-label">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                        Watch Now
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => navigate({ page: "movie-detail", id: hero.id })}
+                      className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-bold text-[#e8eaee] border border-white/15 bg-[#0a0d13]/80 hover:border-[#48a6ff]/50 transition-colors"
+                      style={{ fontFamily: GROTESK }}
+                    >
+                      Details
+                    </button>
+                  </div>
+                </div>
+
+                {heroScore > 0 && (
+                  <div className="ltv-cinema-stamp hidden sm:flex">
+                    <b>{heroScore.toFixed(1)}</b>
+                    <span>Rated</span>
+                  </div>
+                )}
+              </div>
             </div>
-          )}
+
+            {heroItems.length > 1 && (
+              <div className="absolute bottom-6 right-6 sm:right-10 hidden sm:flex items-center gap-2">
+                {heroItems.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSlide(i)}
+                    aria-label={`Slide ${i + 1}`}
+                    className="h-1.5 rounded-full transition-all duration-300"
+                    style={{ width: i === slide ? 22 : 8, background: i === slide ? ACCENT : "rgba(255,255,255,0.25)" }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {railsLoading && !hero && (
-        <div className="w-full h-[52vh] sm:h-[62vh] lg:h-[72vh] rounded-2xl skeleton" />
+      {!hero && <div className="w-full h-[52vh] sm:h-[62vh] lg:h-[72vh] rounded-2xl skeleton" />}
+
+      {/* ═══ Ticker strip ═══ */}
+      {tickerItems.length > 0 && (
+        <div className="ltv-cinema-ticker">
+          <div className="ltv-cinema-ticker-track">
+            {[...tickerItems, ...tickerItems].map((item, i) => (
+              <span key={`${item.id}-${i}`} className="ltv-cinema-ticker-item">
+                <span className="ltv-cinema-ticker-dot" />
+                Now Showing <strong>{getTMDBTitle(item)}</strong>
+              </span>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* ═══ Rails ═══ */}
-      <Rail title="Trending Now" eyebrow="What everyone's watching" items={trending.slice(0, 18)} />
-      <Rail title="Popular Movies" items={popular.slice(0, 18)} />
-      <Rail title="Top Rated of All Time" items={topRated.slice(0, 18)} />
-      <Rail title="In Theaters" eyebrow="Now playing" items={nowPlaying.slice(0, 18)} />
+      <Rail title="Now Showing" eyebrow="What everyone's watching" items={trending.slice(0, 18)} />
+      <Rail title="Fan Favorites" items={popular.slice(0, 18)} />
+      <Rail title="Hall of Fame" items={topRated.slice(0, 18)} />
+      <Rail title="In Theaters" eyebrow="Currently screening" items={nowPlaying.slice(0, 18)} />
       <Rail title="Coming Soon" items={upcoming.slice(0, 18)} />
 
-      {/* ═══ Explorer — browse everything ═══ */}
+      {/* ═══ Explorer — "Box Office" browse ═══ */}
       <section ref={explorerRef} className="space-y-5 pt-4">
         <div className="flex items-end justify-between gap-3 border-t border-white/[0.06] pt-8">
-          <div>
-            <span className="block text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#48a6ff] mb-1" style={{ fontFamily: GROTESK }}>Explore</span>
-            <h2 className="text-xl font-extrabold text-[#e8eaee] tracking-tight" style={{ fontFamily: GROTESK }}>Browse All Movies</h2>
-          </div>
+          <ReelHeading eyebrow="Explore" title="Box Office — Browse All" />
         </div>
 
-        {/* Category tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto scroll-container pb-1">
+        {/* Category tabs — ticket admission style */}
+        <div className="flex items-center gap-3 overflow-x-auto scroll-container pb-1 pt-1">
           {CATEGORIES.map(cat => {
             const active = category === cat.id && !genre;
             return (
               <button
                 key={cat.id}
                 onClick={() => { setCategory(cat.id); setGenre(null); setPage(1); }}
-                className={`shrink-0 px-5 py-2.5 text-[13px] font-bold rounded-full transition-all whitespace-nowrap border ${
-                  active
-                    ? "text-white border-transparent"
-                    : "text-[#a1a7b3] border-white/[0.08] hover:text-white hover:border-white/20"
+                className={`ltv-cinema-chip shrink-0 px-5 py-2.5 text-[13px] font-bold rounded-lg transition-all whitespace-nowrap border ${
+                  active ? "text-white border-transparent" : "text-[#a1a7b3] border-white/[0.08] hover:text-white hover:border-white/20"
                 }`}
                 style={{ fontFamily: GROTESK, background: active ? ACCENT : "rgba(255,255,255,0.03)" }}
               >
@@ -259,7 +283,7 @@ export default function MoviesPage() {
           })}
         </div>
 
-        {/* Genre chips — neutral, blue when active */}
+        {/* Genre chips */}
         <div className="flex items-center gap-2 overflow-x-auto scroll-container pb-1">
           <button
             onClick={() => { setGenre(null); setPage(1); }}

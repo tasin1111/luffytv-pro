@@ -106,8 +106,8 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
         </button>
         <span className="w-px h-4 bg-white/10" />
         <div className="min-w-0 flex items-center gap-2.5">
-          <span className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse" style={{ background: ACCENT }} />
-          <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#34D399] shrink-0" style={{ fontFamily: GROTESK }}>Now Playing</span>
+          <span className="ltv-tv-signal shrink-0"><i /><i /><i /></span>
+          <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#34D399] shrink-0" style={{ fontFamily: GROTESK }}>Live Feed</span>
           <h1 className="text-[13px] font-bold text-[#e8eaee] truncate" style={{ fontFamily: GROTESK }}>
             {show?.name || "Loading..."} <span className="text-[#5b616c] font-semibold">· S{currentSeason} E{currentEpisode}{currentEp ? ` — ${currentEp.name}` : ""}</span>
           </h1>
@@ -156,7 +156,7 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
         {/* ═══ Server deck ═══ */}
         <div className="mx-4 lg:mx-0 rounded-2xl bg-[#0a0d13] border border-white/[0.07] p-4 sm:p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-[#34D399]" style={{ fontFamily: GROTESK }}>Servers</span>
+            <span className="ltv-tv-chbadge"><i />Channel Select</span>
             <span className="text-[11px] text-[#5b616c]">If playback fails, switch server</span>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
@@ -174,7 +174,7 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
                   style={{ fontFamily: GROTESK, background: active ? ACCENT : undefined }}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-white" : "bg-[#5b616c]"}`} />
-                  Server {idx + 1}
+                  CH {idx + 1}
                 </button>
               );
             })}
@@ -196,7 +196,7 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
         {/* ═══ Episode rail — season selector + horizontal episode strip ═══ */}
         <div ref={episodeRailRef} className="mx-4 lg:mx-0 rounded-2xl bg-[#0a0d13] border border-white/[0.07] p-4 sm:p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-[#34D399]" style={{ fontFamily: GROTESK }}>Episodes</span>
+            <span className="ltv-tv-chbadge"><i />Up Next</span>
             {show?.number_of_seasons && show.number_of_seasons > 1 && (
               <select
                 value={currentSeason}

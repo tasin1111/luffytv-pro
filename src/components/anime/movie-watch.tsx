@@ -85,8 +85,8 @@ export default function MovieWatchPage({ movieId }: { movieId: number }) {
         </button>
         <span className="w-px h-4 bg-white/10" />
         <div className="min-w-0 flex items-center gap-2.5">
-          <span className="w-1.5 h-1.5 rounded-full shrink-0 animate-pulse" style={{ background: ACCENT }} />
-          <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#48a6ff] shrink-0" style={{ fontFamily: GROTESK }}>Now Playing</span>
+          <svg className="w-3.5 h-3.5 text-[#48a6ff] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><rect x="3" y="6" width="18" height="12" rx="2" strokeDasharray="2 2" /><circle cx="8" cy="12" r="1.4" fill="currentColor" stroke="none" /></svg>
+          <span className="text-[10px] font-extrabold uppercase tracking-[0.2em] text-[#48a6ff] shrink-0" style={{ fontFamily: GROTESK }}>Screening Room</span>
           <h1 className="text-[13px] font-bold text-[#e8eaee] truncate" style={{ fontFamily: GROTESK }}>{movie?.title || "Loading..."}</h1>
         </div>
         <button
@@ -99,6 +99,13 @@ export default function MovieWatchPage({ movieId }: { movieId: number }) {
       </div>
 
       <div className="max-w-[1200px] mx-auto px-0 lg:px-8 pt-0 lg:pt-6 pb-16 space-y-4">
+        {/* ═══ Marquee lights strip ═══ */}
+        <div className="flex items-center justify-between mx-4 lg:mx-0 px-1" aria-hidden="true">
+          {Array.from({ length: 18 }).map((_, i) => (
+            <i key={i} className="w-1.5 h-1.5 rounded-full bg-[#48a6ff] shadow-[0_0_7px_1.5px_rgba(72,166,255,0.75)]" style={{ animation: `ltv-cinema-twinkle 2s ease-in-out ${(i % 3) * 0.5}s infinite` }} />
+          ))}
+        </div>
+
         {/* ═══ Player ═══ */}
         <div
           className="relative w-full aspect-video bg-black overflow-hidden lg:rounded-2xl border-y lg:border border-white/[0.07]"
@@ -143,7 +150,7 @@ export default function MovieWatchPage({ movieId }: { movieId: number }) {
                 <button
                   key={server.id}
                   onClick={() => { setActiveServer(server.id); setIframeError(false); setUseDirectEmbed(true); }}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold transition-all border ${
+                  className={`ltv-cinema-chip inline-flex items-center gap-2 px-4 py-2 rounded-lg text-[12px] font-bold transition-all border ${
                     active
                       ? "text-white border-transparent"
                       : "text-[#a1a7b3] border-white/[0.08] bg-white/[0.02] hover:text-white hover:border-white/20"
@@ -151,7 +158,7 @@ export default function MovieWatchPage({ movieId }: { movieId: number }) {
                   style={{ fontFamily: GROTESK, background: active ? ACCENT : undefined }}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-white" : "bg-[#5b616c]"}`} />
-                  Server {idx + 1}
+                  Screen {idx + 1}
                 </button>
               );
             })}

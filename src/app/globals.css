@@ -10031,3 +10031,232 @@ footer {
   0%, 100% { box-shadow: 0 0 24px -6px rgba(239, 68, 68, 0.45), inset 0 0 14px -8px rgba(239, 68, 68, 0.6); }
   50% { box-shadow: 0 0 34px -4px rgba(239, 68, 68, 0.65), inset 0 0 18px -8px rgba(239, 68, 68, 0.8); }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   CINEMA — Movies section identity: marquee lights, ticket stubs,
+   stamp score badges, scrolling ticker. "Now Showing" concept.
+   ════════════════════════════════════════════════════════════════ */
+
+.ltv-cinema-marquee {
+  position: relative;
+  padding-top: 16px;
+}
+.ltv-cinema-lights {
+  position: absolute;
+  top: 0; left: 20px; right: 20px;
+  height: 14px;
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+  z-index: 5;
+}
+.ltv-cinema-lights i {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #48a6ff;
+  box-shadow: 0 0 7px 1.5px rgba(72, 166, 255, 0.75);
+  animation: ltv-cinema-twinkle 2s ease-in-out infinite;
+}
+.ltv-cinema-lights i:nth-child(3n) { animation-delay: 0.5s; }
+.ltv-cinema-lights i:nth-child(3n+1) { animation-delay: 1s; }
+@keyframes ltv-cinema-twinkle { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
+
+.ltv-cinema-ticker {
+  overflow: hidden;
+  white-space: nowrap;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+.ltv-cinema-ticker-track {
+  display: inline-flex;
+  gap: 36px;
+  animation: ltv-cinema-scroll 26s linear infinite;
+  padding-right: 36px;
+}
+@keyframes ltv-cinema-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.ltv-cinema-ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #5b616c;
+  white-space: nowrap;
+}
+.ltv-cinema-ticker-item strong { color: #a1a7b3; }
+.ltv-cinema-ticker-dot { width: 4px; height: 4px; border-radius: 50%; background: #48a6ff; }
+
+/* Round dashed "certified" score stamp — rotated, film-critic style */
+.ltv-cinema-stamp {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: 2px dashed rgba(72, 166, 255, 0.55);
+  background: rgba(30, 136, 255, 0.07);
+  color: #48a6ff;
+  transform: rotate(-9deg);
+  flex-shrink: 0;
+}
+.ltv-cinema-stamp b { font-size: 15px; font-weight: 800; line-height: 1; }
+.ltv-cinema-stamp span { font-size: 7px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; margin-top: 1px; opacity: 0.75; }
+
+/* Ticket-stub CTA button — perforated divider between stub and label,
+   same visual family as the hub page's ADMIT ONE button. */
+.ltv-cinema-stub {
+  display: inline-flex;
+  align-items: stretch;
+  transition: transform 0.2s;
+}
+.ltv-cinema-stub:hover { transform: translateY(-2px); }
+.ltv-cinema-stub-tab {
+  display: flex;
+  align-items: center;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  line-height: 1.35;
+  color: #05070b;
+  background: #48a6ff;
+  padding: 0 10px;
+  border-radius: 10px 0 0 10px;
+  border-right: 2px dashed rgba(5, 7, 11, 0.5);
+  text-transform: uppercase;
+}
+.ltv-cinema-stub-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  background: #1e88ff;
+  border-radius: 0 10px 10px 0;
+  padding: 12px 20px;
+  box-shadow: 0 8px 28px -6px rgba(30, 136, 255, 0.55);
+  transition: background 0.2s;
+}
+.ltv-cinema-stub:hover .ltv-cinema-stub-label { background: #2f95ff; }
+
+/* Ticket-shaped genre/category chip — small notches top+bottom */
+.ltv-cinema-chip {
+  position: relative;
+}
+.ltv-cinema-chip::before,
+.ltv-cinema-chip::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #050608;
+  z-index: 1;
+}
+.ltv-cinema-chip::before { top: -4px; }
+.ltv-cinema-chip::after { bottom: -4px; }
+
+/* ════════════════════════════════════════════════════════════════
+   BROADCAST — TV Shows section identity: on-air scanline sweep,
+   channel numbers, signal-lock chip. Extends the Hub page's
+   channel-switcher language into the TV catalog itself.
+   ════════════════════════════════════════════════════════════════ */
+
+.ltv-tv-hero {
+  position: relative;
+  overflow: hidden;
+}
+.ltv-tv-sweep {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 0%, rgba(52, 211, 153, 0.12) 50%, transparent 100%);
+  transform: translateY(-100%);
+  animation: ltv-tv-sweep-move 0.7s ease-out forwards;
+  z-index: 6;
+}
+@keyframes ltv-tv-sweep-move { to { transform: translateY(100%); } }
+
+.ltv-tv-signal {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: #34d399;
+  text-transform: uppercase;
+}
+.ltv-tv-signal i {
+  width: 3px;
+  border-radius: 1px;
+  background: #34d399;
+}
+.ltv-tv-signal i:nth-child(1) { height: 5px; }
+.ltv-tv-signal i:nth-child(2) { height: 8px; }
+.ltv-tv-signal i:nth-child(3) { height: 11px; margin-right: 6px; }
+
+.ltv-tv-chbadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.3);
+  background: rgba(52, 211, 153, 0.08);
+  border-radius: 6px;
+  padding: 4px 9px;
+  text-transform: uppercase;
+}
+.ltv-tv-chbadge i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #34d399;
+  animation: ltv-hub-blink 1.4s ease-in-out infinite;
+}
+
+/* TV monitor bezel frame around poster art in rails */
+.ltv-tv-bezel {
+  position: relative;
+  border-radius: 12px;
+  padding: 4px;
+  background: linear-gradient(155deg, #16191f 0%, #0a0d13 60%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.ltv-tv-bezel-led {
+  position: absolute;
+  top: 7px; right: 9px;
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 4px 1px rgba(52, 211, 153, 0.8);
+  z-index: 2;
+}
+
+/* Program-guide row — thin left accent bar, like a schedule slot */
+.ltv-tv-slot {
+  position: relative;
+}
+.ltv-tv-slot::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 10%; bottom: 10%;
+  width: 2px;
+  border-radius: 2px;
+  background: #34d399;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.ltv-tv-slot:hover::before,
+.ltv-tv-slot.active::before { opacity: 1; }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, type ReactNode } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAppStore, getTMDBTitle, getTMDBBackdrop, getTMDBYear, type TMDBContentItem } from "./store";
 import MovieCard from "./movie-card";
 
@@ -21,8 +21,21 @@ const GENRES = [
   { id: 37, name: "Western" },
 ];
 
+// ── Channel-numbered row heading ──
+function ChannelHeading({ ch, eyebrow, title }: { ch: string; eyebrow?: string; title: string }) {
+  return (
+    <div>
+      {eyebrow && <span className="block text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#34D399] mb-1" style={{ fontFamily: GROTESK }}>{eyebrow}</span>}
+      <h2 className="inline-flex items-center gap-2.5 text-lg sm:text-xl font-extrabold text-[#e8eaee] tracking-tight" style={{ fontFamily: GROTESK }}>
+        <span className="ltv-tv-chbadge"><i />CH {ch}</span>
+        {title}
+      </h2>
+    </div>
+  );
+}
+
 // ── Horizontal rail with arrow controls ──
-function Rail({ title, eyebrow, items }: { title: string; eyebrow?: string; items: TMDBContentItem[] }) {
+function Rail({ ch, title, eyebrow, items }: { ch: string; title: string; eyebrow?: string; items: TMDBContentItem[] }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollBy = (dir: 1 | -1) => scrollRef.current?.scrollBy({ left: dir * scrollRef.current.clientWidth * 0.8, behavior: "smooth" });
 
@@ -30,10 +43,7 @@ function Rail({ title, eyebrow, items }: { title: string; eyebrow?: string; item
   return (
     <section className="space-y-3">
       <div className="flex items-end justify-between gap-3">
-        <div>
-          {eyebrow && <span className="block text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#34D399] mb-1" style={{ fontFamily: GROTESK }}>{eyebrow}</span>}
-          <h2 className="text-lg sm:text-xl font-extrabold text-[#e8eaee] tracking-tight" style={{ fontFamily: GROTESK }}>{title}</h2>
-        </div>
+        <ChannelHeading ch={ch} eyebrow={eyebrow} title={title} />
         <div className="hidden sm:flex items-center gap-2">
           {([-1, 1] as const).map(dir => (
             <button
@@ -61,7 +71,6 @@ function Rail({ title, eyebrow, items }: { title: string; eyebrow?: string; item
 export default function TVPage() {
   const navigate = useAppStore(s => s.navigate);
 
-  // ── Rails data ──
   const [trending, setTrending] = useState<TMDBContentItem[]>([]);
   const [popular, setPopular] = useState<TMDBContentItem[]>([]);
   const [topRated, setTopRated] = useState<TMDBContentItem[]>([]);
@@ -94,7 +103,7 @@ export default function TVPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // ── Hero slider ──
+  // ── Hero: broadcast monitor ──
   const heroItems = trending.filter(t => t.backdrop_path && t.overview).slice(0, 6);
   const [slide, setSlide] = useState(0);
   useEffect(() => {
@@ -104,7 +113,7 @@ export default function TVPage() {
   }, [heroItems.length]);
   const hero = heroItems[slide % Math.max(heroItems.length, 1)];
 
-  // ── Explorer (browse-all grid) ──
+  // ── Explorer ──
   const [category, setCategory] = useState("popular");
   const [genre, setGenre] = useState<number | null>(null);
   const [page, setPage] = useState(1);
@@ -138,9 +147,10 @@ export default function TVPage() {
 
   return (
     <div className="space-y-10 fade-in pb-4">
-      {/* ═══ Hero slider — top trending today ═══ */}
+      {/* ═══ Hero — broadcast monitor, "ON AIR" ═══ */}
       {hero && (
-        <div className="relative w-full h-[52vh] sm:h-[62vh] lg:h-[72vh] rounded-2xl overflow-hidden border border-white/[0.06] bg-[#0a0d13]">
+        <div key={hero.id} className="ltv-tv-hero relative w-full h-[52vh] sm:h-[62vh] lg:h-[72vh] rounded-2xl overflow-hidden border border-white/[0.06] bg-[#0a0d13]">
+          <div className="ltv-tv-sweep" />
           {heroItems.map((item, i) => (
             <img
               key={item.id}
@@ -153,11 +163,16 @@ export default function TVPage() {
           <div className="absolute inset-0 bg-gradient-to-r from-[#050608] via-[#050608]/55 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-transparent to-transparent" />
 
+          <div className="absolute top-6 left-6 sm:left-10 flex items-center gap-3 z-10">
+            <span className="ltv-tv-signal"><i /><i /><i />Signal Locked</span>
+            <span className="ltv-tv-chbadge"><i />CH {String(slide + 1).padStart(2, "0")}</span>
+          </div>
+
           <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-10 lg:p-12">
             <div className="max-w-2xl">
               <span className="inline-flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[0.24em] text-[#34D399] mb-3" style={{ fontFamily: GROTESK }}>
                 <span className="w-5 h-px bg-[#34D399]" />
-                #{slide + 1} Trending Today
+                Now Airing
               </span>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-[#e8eaee] tracking-tight line-clamp-2 mb-3" style={{ fontFamily: GROTESK }}>
                 {heroTitle}
@@ -180,7 +195,7 @@ export default function TVPage() {
                   style={{ background: "#34D399", boxShadow: "0 8px 28px rgba(52,211,153,0.30)", fontFamily: GROTESK }}
                 >
                   <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                  Watch Now
+                  Tune In
                 </button>
                 <button
                   onClick={() => navigate({ page: "tv-detail", id: hero.id })}
@@ -211,19 +226,16 @@ export default function TVPage() {
 
       {!hero && <div className="w-full h-[52vh] sm:h-[62vh] lg:h-[72vh] rounded-2xl skeleton" />}
 
-      {/* ═══ Rails ═══ */}
-      <Rail title="Trending Now" eyebrow="What everyone's watching" items={trending.slice(0, 18)} />
-      <Rail title="Popular Shows" items={popular.slice(0, 18)} />
-      <Rail title="Top Rated of All Time" items={topRated.slice(0, 18)} />
-      <Rail title="On The Air" eyebrow="Currently airing" items={onTheAir.slice(0, 18)} />
+      {/* ═══ Channel rails ═══ */}
+      <Rail ch="01" title="Trending Now" eyebrow="What everyone's watching" items={trending.slice(0, 18)} />
+      <Rail ch="02" title="Popular Shows" items={popular.slice(0, 18)} />
+      <Rail ch="03" title="Top Rated of All Time" items={topRated.slice(0, 18)} />
+      <Rail ch="04" title="On The Air" eyebrow="Currently airing" items={onTheAir.slice(0, 18)} />
 
-      {/* ═══ Explorer — browse everything ═══ */}
+      {/* ═══ Explorer — "Program Guide" browse ═══ */}
       <section ref={explorerRef} className="space-y-5 pt-4">
         <div className="flex items-end justify-between gap-3 border-t border-white/[0.06] pt-8">
-          <div>
-            <span className="block text-[10px] font-extrabold uppercase tracking-[0.22em] text-[#34D399] mb-1" style={{ fontFamily: GROTESK }}>Explore</span>
-            <h2 className="text-xl font-extrabold text-[#e8eaee] tracking-tight" style={{ fontFamily: GROTESK }}>Browse All TV Shows</h2>
-          </div>
+          <ChannelHeading ch="05" eyebrow="Explore" title="Program Guide — Browse All" />
         </div>
 
         {/* Category tabs */}

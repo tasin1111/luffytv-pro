@@ -39,17 +39,26 @@ export default function MovieCard({ item, priority = false }: { item: TMDBConten
         {/* Hover overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300 scale-90 group-hover:scale-100">
-          <span className="w-11 h-11 rounded-full bg-[#1e88ff] flex items-center justify-center shadow-lg shadow-[#1e88ff]/40">
+          <span className="w-11 h-11 rounded-full flex items-center justify-center shadow-lg" style={{ background: type === "tv" ? "#34D399" : "#1e88ff", boxShadow: type === "tv" ? "0 8px 24px rgba(52,211,153,0.4)" : "0 8px 24px rgba(30,136,255,0.4)" }}>
             <svg className="w-4.5 h-4.5 text-white translate-x-[1px]" width="17" height="17" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
           </span>
         </div>
-        {/* Type badge */}
-        <span
-          className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider uppercase bg-black/70 text-[#c4c9d2] border border-white/10"
-          style={{ fontFamily: GROTESK }}
-        >
-          {type === "tv" ? "TV" : "Movie"}
-        </span>
+        {/* Type badge — ticket tab for movies, channel LED for TV */}
+        {type === "tv" ? (
+          <span className="absolute top-2 left-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[9px] font-extrabold tracking-wider uppercase bg-black/70 border border-[#34D399]/30 text-[#34D399]" style={{ fontFamily: GROTESK }}>
+            <i className="w-1.5 h-1.5 rounded-full bg-[#34D399] animate-pulse" />
+            TV
+          </span>
+        ) : (
+          <span className="absolute top-2 left-2 flex items-center" style={{ fontFamily: GROTESK }}>
+            <span className="px-1.5 py-0.5 rounded-l-md text-[9px] font-extrabold tracking-wider uppercase bg-[#48a6ff] text-[#05070b] border-r border-dashed border-black/30">
+              🎬
+            </span>
+            <span className="px-1.5 py-0.5 rounded-r-md text-[9px] font-extrabold tracking-wider uppercase bg-black/70 text-[#c4c9d2] border border-white/10 border-l-0">
+              Movie
+            </span>
+          </span>
+        )}
       </div>
       <div className="pt-2 px-0.5">
         <p className="text-[13px] font-semibold text-[#e8eaee] truncate transition-colors group-hover:text-[#48a6ff]" style={{ fontFamily: GROTESK }}>{title}</p>
