@@ -135,7 +135,7 @@ type Route =
 // ============================================================
 
 // Section sub-page type — each section can have its own sub-navigation
-export type SectionSubPage = "home" | "sub" | "dub" | "schedule" | "genres" | "browse" | "trending" | "top-rated" | "tv-channels" | "sports" | "news";
+export type SectionSubPage = "home" | "sub" | "dub" | "schedule" | "genres" | "browse" | "trending" | "top-rated" | "tv-channels" | "sports" | "news" | "popular" | "recently-added" | "recently-updated";
 
 interface AppState {
   route: Route;
@@ -291,9 +291,20 @@ export const useAppStore = create<AppState>()(
 // Get the section-specific nav links based on current route
 export function getSectionNavLinks(route: Route): { id: SectionSubPage; label: string }[] {
   const page = route.page;
+
+  // Manga section — has its OWN navbar (Popular, Top Rated, Recently Added, Schedule)
+  if (page === "manga" || page === "manga-detail" || page === "manga-read") {
+    return [
+      { id: "home", label: "Home" },
+      { id: "popular", label: "Popular" },
+      { id: "top-rated", label: "Top Rated" },
+      { id: "recently-added", label: "Recently Added" },
+      { id: "schedule", label: "Schedule" },
+    ];
+  }
   
-  // Anime section (includes home, anime detail, watch, genre, bookmarks, history, manga)
-  if (page === "home" || page === "anime" || page === "watch" || page === "genre" || page === "bookmarks" || page === "history" || page === "manga" || page === "manga-detail" || page === "manga-read") {
+  // Anime section (includes home, anime detail, watch, genre, bookmarks, history)
+  if (page === "home" || page === "anime" || page === "watch" || page === "genre" || page === "bookmarks" || page === "history") {
     return [
       { id: "home", label: "Home" },
       { id: "sub", label: "SUB" },

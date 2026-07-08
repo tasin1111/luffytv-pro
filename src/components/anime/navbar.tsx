@@ -46,9 +46,10 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Movies/TV section searches TMDB; everywhere else searches anime (AniList)
+  // Movies/TV section searches TMDB; manga section searches manga; everywhere else searches anime (AniList)
   const page = route.page;
   const isMoviesSection = ["movies", "movie-detail", "tv", "tv-detail"].includes(page);
+  const isMangaSection = ["manga", "manga-detail", "manga-read"].includes(page);
 
   // Real-time search with debounce
   const doSearch = useCallback(async (q: string) => {
@@ -73,6 +74,22 @@ export default function Navbar() {
         }
         return;
       }
+      if (isMangaSection) {
+        // Search manga via atsumaru
+        const res = await fetch(`/api/manga/search?q=${encodeURIComponent(q)}`);
+        if (res.ok) {
+          const data = await res.json();
+          const results = (data?.results || []).slice(0, 6).map((item: any) => ({
+            id: item.id,
+            title: item.englishTitle || item.title || "Unknown",
+            image: item.poster || item.cover || "",
+            format: item.type?.toUpperCase() || "MANGA",
+            isManga: true,
+          }));
+          setSearchResults(results);
+        }
+        return;
+      }
       const res = await fetch(`/api/anime/search?q=${encodeURIComponent(q)}&page=1`);
       if (res.ok) {
         const data = await res.json();
@@ -92,7 +109,7 @@ export default function Navbar() {
     } finally {
       setSearchLoading(false);
     }
-  }, [isMoviesSection]);
+  }, [isMoviesSection, isMangaSection]);
 
   const queryRef = useRef("");
   useEffect(() => {
@@ -123,9 +140,11 @@ export default function Navbar() {
     }
   };
 
-  const handleResultClick = (id: number, mediaType?: "movie" | "tv") => {
+  const handleResultClick = (id: number | string, mediaType?: "movie" | "tv") => {
     if (isMoviesSection) {
-      navigate(mediaType === "tv" ? { page: "tv-detail", id } : { page: "movie-detail", id });
+      navigate(mediaType === "tv" ? { page: "tv-detail", id: id as number } : { page: "movie-detail", id: id as number });
+    } else if (isMangaSection) {
+      navigate({ page: "manga-detail", id: String(id) });
     } else {
       navigate({ page: "anime", id: String(id) });
     }
@@ -170,10 +189,8 @@ export default function Navbar() {
   const isMangaReader = page === "manga-read" || page === "novel-read";
   if (isWatchPage || isMangaReader || page === "signin" || page === "signup") return null;
 
-  // Section-aware nav links: the Live and Movies/TV sections get their OWN
-  // links instead of the anime ones — previously the anime links leaked
-  // onto those pages.
-  // "home" included: root route renders the same anime section home as "dub".
+  // Section-aware nav links: the Live, Movies/TV, and Manga sections get
+  // their OWN links instead of the anime ones.
   const isAnimePage = ["home", "anime", "watch", "genre", "bookmarks", "history"].includes(page);
   const isLiveSection = page === "live";
 
@@ -191,6 +208,14 @@ export default function Navbar() {
         { label: "Anime", active: false },
         { label: "Live", active: false },
       ]
+    : isMangaSection
+    ? [
+        { label: "Home", active: sectionSubPage === "home" },
+        { label: "Popular", active: sectionSubPage === "popular" },
+        { label: "Top Rated", active: sectionSubPage === "top-rated" },
+        { label: "Recently Added", active: sectionSubPage === "recently-added" },
+        { label: "Schedule", active: sectionSubPage === "schedule" },
+      ]
     : [
         { label: "Home", active: isAnimePage && sectionSubPage === "home" },
         { label: "Browse", active: isAnimePage && (sectionSubPage === "browse" || sectionSubPage === "genres") },
@@ -207,6 +232,14 @@ export default function Navbar() {
       };
       const sub = liveMap[label];
       if (sub) setSectionSubPage(sub);
+    } else if (isMangaSection) {
+      // Manga-section links switch the manga sub-page
+      navigate({ page: "manga" });
+      if (label === "Home") setSectionSubPage("home");
+      else if (label === "Popular") setSectionSubPage("popular");
+      else if (label === "Top Rated") setSectionSubPage("top-rated");
+      else if (label === "Recently Added") setSectionSubPage("recently-added");
+      else if (label === "Schedule") setSectionSubPage("schedule");
     } else if (isMoviesSection) {
       if (label === "Movies") navigate({ page: "movies" });
       else if (label === "TV Shows") navigate({ page: "tv" });
@@ -450,7 +483,7 @@ export default function Navbar() {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder={isMoviesSection ? "Search movies & TV shows..." : "Search anime..."}
+                placeholder={isMoviesSection ? "Search movies & TV shows..." : isMangaSection ? "Search manga..." : "Search anime..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => { if (searchQuery.trim().length >= 2) setShowSearchResults(true); }}

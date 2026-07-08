@@ -103,6 +103,7 @@ function getDescription(m: EnrichedManga): string {
 
 export default function MangaPage() {
   const navigate = useAppStore(s => s.navigate);
+  const sectionSubPage = useAppStore(s => s.sectionSubPage);
 
   const [sections, setSections] = useState<MangaSection[]>([]);
   const [searchResults, setSearchResults] = useState<MangaEntry[]>([]);
@@ -111,6 +112,10 @@ export default function MangaPage() {
   const [searching, setSearching] = useState(false);
   const [searchMode, setSearchMode] = useState(false);
   const [enriched, setEnriched] = useState<EnrichedManga[]>([]);
+
+  // Sub-page data (Popular, Top Rated, Recently Added, Schedule)
+  const [subPageData, setSubPageData] = useState<MangaEntry[]>([]);
+  const [subPageLoading, setSubPageLoading] = useState(false);
 
   // Inline filter state (folded into page, not a second navbar)
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -206,6 +211,35 @@ export default function MangaPage() {
     return () => { cancelled = true; };
   }, [sections]);
 
+  // ── Load sub-page data (Popular / Top Rated / Recently Added / Schedule) ──
+  useEffect(() => {
+    if (sectionSubPage === "home") {
+      setSubPageData([]);
+      return;
+    }
+    let cancelled = false;
+    async function loadSubPage() {
+      setSubPageLoading(true);
+      try {
+        let endpoint = "";
+        let label = "";
+        if (sectionSubPage === "popular") { endpoint = "/api/manga/popular"; label = "Popular"; }
+        else if (sectionSubPage === "top-rated") { endpoint = "/api/manga/top-rated"; label = "Top Rated"; }
+        else if (sectionSubPage === "recently-added") { endpoint = "/api/manga/recently-added"; label = "Recently Added"; }
+        else if (sectionSubPage === "schedule") { endpoint = "/api/manga/schedule"; label = "Schedule"; }
+        if (!endpoint) { setSubPageLoading(false); return; }
+        const res = await fetch(endpoint);
+        if (res.ok && !cancelled) {
+          const data = await res.json();
+          setSubPageData(data.items || data.results || []);
+        }
+      } catch { /* ignore */ }
+      if (!cancelled) setSubPageLoading(false);
+    }
+    loadSubPage();
+    return () => { cancelled = true; };
+  }, [sectionSubPage]);
+
   // ── Search (debounced) ──
   const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const handleSearch = useCallback(async (query: string) => {
@@ -263,8 +297,8 @@ export default function MangaPage() {
 
   return (
     <div className="min-h-screen bg-black text-white pb-12">
-      {/* ═══ HERO ═══ */}
-      {!searchMode && heroItems.length > 0 && (
+      {/* ═══ HERO (only on home sub-page) ═══ */}
+      {!searchMode && sectionSubPage === "home" && heroItems.length > 0 && (
         <HeroCarousel items={heroItems} navigate={navigate} />
       )}
 
@@ -292,7 +326,7 @@ export default function MangaPage() {
             )}
           </div>
           {/* Filter chips */}
-          {!searchMode && (
+          {!searchMode && sectionSubPage === "home" && (
             <div className="flex gap-1.5 flex-wrap">
               {(["all", "manga", "manhwa", "manhua"] as const).map(t => (
                 <button
@@ -344,6 +378,18 @@ export default function MangaPage() {
             </div>
           ) : null}
         </section>
+      ) : sectionSubPage !== "home" ? (
+        /* ═══ SUB-PAGE GRID (Popular / Top Rated / Recently Added / Schedule) ═══ */
+        <SubPageGrid
+          title={sectionSubPage === "popular" ? "Popular Manga"
+            : sectionSubPage === "top-rated" ? "Top Rated Manga"
+            : sectionSubPage === "recently-added" ? "Recently Added Manga"
+            : sectionSubPage === "schedule" ? "Manga Schedule — Recently Updated"
+            : "Manga"}
+          items={subPageData}
+          loading={subPageLoading}
+          navigate={navigate}
+        />
       ) : (
         <>
           {/* ═══ TOP TRENDING ═══ */}
@@ -377,6 +423,48 @@ export default function MangaPage() {
         </>
       )}
     </div>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SUB-PAGE GRID — Popular / Top Rated / Recently Added / Schedule
+   A full-width poster grid with a title header.
+   ═══════════════════════════════════════════════════════════════ */
+
+function SubPageGrid({ title, items, loading, navigate }: {
+  title: string;
+  items: MangaEntry[];
+  loading: boolean;
+  navigate: (r: any) => void;
+}) {
+  if (loading) {
+    return (
+      <section className="px-4 md:px-8 lg:px-8 py-8">
+        <div className="h-8 w-64 skeleton rounded mb-6" />
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+          {Array.from({ length: 18 }).map((_, i) => (
+            <div key={i} className="aspect-[3/4] skeleton rounded" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="px-4 md:px-8 lg:px-8 py-8">
+      <h2 className="text-2xl font-bold text-white mb-6">{title}</h2>
+      {items.length > 0 ? (
+        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+          {items.map(m => (
+            <PosterCard key={m.id} manga={m} navigate={navigate} />
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-12 text-white/40 text-sm">
+          No manga found.
+        </div>
+      )}
+    </section>
   );
 }
 

@@ -348,80 +348,149 @@ export async function getChapterImages(
 }
 
 // ============================================================
-// Home page builder
+// Direct atsu.moe scraper
 // ---------------------------------------------------------------------
-// atsumaru has no home endpoint through the scraper API, so we
-// fan out a curated set of search queries in parallel and assemble
-// themed sections. Each query returns ~5-20 relevant titles.
+// The manga-scrape-api atsumaru provider has no home/popular endpoint,
+// so we scrape atsu.moe's own /api/home/page directly. This returns
+// real sections (Trending, Popular, Top Rated, Recently Updated,
+// Recently Added, Hot Updates, Most Bookmarked) with proper views,
+// ratings, and full-size image URLs.
 // ============================================================
 
-const HOME_QUERIES: { section: string; type: string; queries: string[] }[] = [
-  {
-    section: "Trending Now",
-    type: "trending",
-    queries: ["solo leveling", "demon slayer", "jujutsu kaisen", "chainsaw man", "frieren"],
-  },
-  {
-    section: "Action Hits",
-    type: "action",
-    queries: ["one piece", "naruto", "bleach", "dragon ball", "my hero academia"],
-  },
-  {
-    section: "Dark Fantasy",
-    type: "dark_fantasy",
-    queries: ["berserk", "tokyo ghoul", "vinland saga", "vagabond", "claymore"],
-  },
-  {
-    section: "Romance Picks",
-    type: "romance",
-    queries: ["horimiya", "kaguya", "fruits basket", "your name", "toradora"],
-  },
-  {
-    section: "Isekai Worlds",
-    type: "isekai",
-    queries: ["re:zero", "mushoku tensei", "overlord", "sword art online", "that time i got reincarnated"],
-  },
-  {
-    section: "Top Rated",
-    type: "top_rated",
-    queries: ["fullmetal alchemist", "monster", "vagabond", "berserk", "slam dunk"],
-  },
-];
+const ATSU_DIRECT_BASE = "https://atsu.moe";
 
-async function runSection(
-  section: { section: string; type: string; queries: string[] },
-): Promise<AtsuHomeSection> {
-  const allResults = await Promise.all(section.queries.map(q => searchManga(q, 5)));
-  const flat = allResults.flat();
-  // Dedupe by id
-  const seen = new Set<string>();
-  const items = flat.filter(m => {
-    if (seen.has(m.id)) return false;
-    seen.add(m.id);
-    return true;
-  });
-  // For top_rated, sort by rating descending
-  if (section.type === "top_rated") {
-    items.sort((a, b) => (b.rating || 0) - (a.rating || 0));
-  }
+const ATSU_DIRECT_HEADERS: Record<string, string> = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.5",
+  Referer: `${ATSU_DIRECT_BASE}/`,
+};
+
+/** Build a full image URL from an atsu.moe relative path */
+function atsuImageUrl(path: string | undefined | null): string {
+  if (!path) return "";
+  if (path.startsWith("http")) return path;
+  const cleaned = path.replace(/^\/+/, "");
+  return `${ATSU_DIRECT_BASE}/${cleaned}`;
+}
+
+/** Map an atsu.moe home section item to our AtsuMangaEntry */
+function mapAtsuHomeItem(item: any): AtsuMangaEntry {
+  const poster = atsuImageUrl(item.mediumImage || item.largeImage || item.smallImage || item.image);
   return {
-    title: section.section,
-    type: section.type,
-    items: items.slice(0, 20),
+    id: String(item.id || ""),
+    title: item.title || "",
+    poster,
+    cover: poster,
+    type: (item.type || "manga").toLowerCase(),
+    isAdult: item.isAdult || false,
+    rating: typeof item.mbRating === "number" ? item.mbRating : undefined,
+    source: "atsumaru",
+    slug: String(item.id || ""),
   };
 }
 
-/**
- * Build the home page sections by running multiple curated searches
- * in parallel on the atsumaru provider.
- */
+/** Fetch atsu.moe home page directly and return curated sections */
 export async function getMangaHome(): Promise<AtsuHomeSection[]> {
   try {
-    const sections = await Promise.all(HOME_QUERIES.map(runSection));
-    // Filter out empty sections
-    return sections.filter(s => s.items.length > 0);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(`${ATSU_DIRECT_BASE}/api/home/page`, {
+      headers: ATSU_DIRECT_HEADERS,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const rawSections: any[] = data?.homePage?.sections || [];
+    const sections: AtsuHomeSection[] = [];
+    for (const s of rawSections) {
+      if (s.layout === "static") continue;
+      if (!Array.isArray(s.items) || s.items.length === 0) continue;
+      const items = s.items.map(mapAtsuHomeItem).filter((m: AtsuMangaEntry) => m.id);
+      if (items.length === 0) continue;
+      sections.push({
+        title: s.title || s.key || "Section",
+        type: s.key?.replace(/-/g, "_") || "section",
+        items,
+      });
+    }
+    return sections;
   } catch (err) {
-    console.error("[manga-api] getMangaHome error:", err);
+    console.error("[manga-api] getMangaHome (atsu direct) error:", err);
+    return [];
+  }
+}
+
+/**
+ * Get a single section by type from atsu.moe's home page.
+ * Used by the manga navbar sub-pages (Popular, Top Rated, Recently Added, etc.)
+ */
+export async function getMangaSection(sectionType: string): Promise<AtsuMangaEntry[]> {
+  try {
+    const sections = await getMangaHome();
+    const section = sections.find(s => s.type === sectionType);
+    return section?.items || [];
+  } catch {
+    return [];
+  }
+}
+
+/** Popular manga from atsu.moe */
+export async function getPopularManga(): Promise<AtsuMangaEntry[]> {
+  return getMangaSection("popular");
+}
+
+/** Top rated manga from atsu.moe */
+export async function getTopRatedManga(): Promise<AtsuMangaEntry[]> {
+  return getMangaSection("top_rated");
+}
+
+/** Recently added manga from atsu.moe */
+export async function getRecentlyAddedManga(): Promise<AtsuMangaEntry[]> {
+  return getMangaSection("recently_added");
+}
+
+/** Recently updated manga from atsu.moe */
+export async function getRecentlyUpdatedManga(): Promise<AtsuMangaEntry[]> {
+  return getMangaSection("recently_updated");
+}
+
+/** Trending manga from atsu.moe */
+export async function getTrendingManga(): Promise<AtsuMangaEntry[]> {
+  return getMangaSection("trending_carousel");
+}
+
+/**
+ * Get manga "schedule" — currently releasing manga sorted by most recently
+ * updated, fetched from AniList (manga doesn't have airing schedules like
+ * anime, so we use UPDATED_AT_DESC as the closest equivalent).
+ */
+export async function getMangaSchedule(): Promise<AtsuMangaEntry[]> {
+  try {
+    const res = await fetch("https://graphql.anilist.co", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        query: `query{Page(perPage:30){media(type:MANGA,status:RELEASING,sort:UPDATED_AT_DESC){id title{english romaji} coverImage{extraLarge large} format chapters genres}}}`,
+      }),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const media = data?.data?.Page?.media || [];
+    return media.map((m: any) => ({
+      id: String(m.id),
+      title: m.title?.english || m.title?.romaji || "Unknown",
+      englishTitle: m.title?.english,
+      poster: m.coverImage?.extraLarge || m.coverImage?.large || "",
+      cover: m.coverImage?.extraLarge || m.coverImage?.large || "",
+      type: (m.format || "manga").toLowerCase(),
+      genres: m.genres || [],
+      anilistId: m.id,
+      source: "anilist",
+      slug: String(m.id),
+    }));
+  } catch {
     return [];
   }
 }
