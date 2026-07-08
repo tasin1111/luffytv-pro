@@ -5,7 +5,7 @@ import { useAppStore } from "./store";
 import { Search, Menu, X } from "lucide-react";
 
 interface QuickResult {
-  id: number | string;
+  id: number;
   title: string;
   image: string;
   format?: string;
@@ -46,29 +46,13 @@ export default function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Movies/TV section searches TMDB; manga section searches the manga
-  // scrape API; everywhere else searches anime (AniList)
+  // Movies/TV section searches TMDB; everywhere else searches anime (AniList)
   const page = route.page;
   const isMoviesSection = ["movies", "movie-detail", "tv", "tv-detail"].includes(page);
-  const isMangaSection = ["manga", "manga-detail"].includes(page);
 
   // Real-time search with debounce
   const doSearch = useCallback(async (q: string) => {
     try {
-      if (isMangaSection) {
-        const res = await fetch(`/api/manga/search?q=${encodeURIComponent(q)}`);
-        if (res.ok) {
-          const data = await res.json();
-          const results = (data?.results || []).slice(0, 6).map((item: any) => ({
-            id: item.id,
-            title: item.englishTitle || item.title || "Unknown",
-            image: item.poster || item.cover || "",
-            format: item.type,
-          }));
-          setSearchResults(results);
-        }
-        return;
-      }
       if (isMoviesSection) {
         const res = await fetch(`/api/tmdb/search?q=${encodeURIComponent(q)}&type=multi&page=1`);
         if (res.ok) {
@@ -139,11 +123,9 @@ export default function Navbar() {
     }
   };
 
-  const handleResultClick = (id: number | string, mediaType?: "movie" | "tv") => {
-    if (isMangaSection) {
-      navigate({ page: "manga-detail", id: String(id) });
-    } else if (isMoviesSection) {
-      navigate(mediaType === "tv" ? { page: "tv-detail", id: Number(id) } : { page: "movie-detail", id: Number(id) });
+  const handleResultClick = (id: number, mediaType?: "movie" | "tv") => {
+    if (isMoviesSection) {
+      navigate(mediaType === "tv" ? { page: "tv-detail", id } : { page: "movie-detail", id });
     } else {
       navigate({ page: "anime", id: String(id) });
     }
@@ -209,13 +191,6 @@ export default function Navbar() {
         { label: "Anime", active: false },
         { label: "Live", active: false },
       ]
-    : isMangaSection
-    ? [
-        { label: "Archive", active: page === "manga" },
-        { label: "Anime", active: false },
-        { label: "Movies", active: false },
-        { label: "Live", active: false },
-      ]
     : [
         { label: "Home", active: isAnimePage && sectionSubPage === "home" },
         { label: "Browse", active: isAnimePage && (sectionSubPage === "browse" || sectionSubPage === "genres") },
@@ -236,11 +211,6 @@ export default function Navbar() {
       if (label === "Movies") navigate({ page: "movies" });
       else if (label === "TV Shows") navigate({ page: "tv" });
       else if (label === "Anime") { navigate({ page: "home" }); setSectionSubPage("home"); }
-      else if (label === "Live") navigate({ page: "live" });
-    } else if (isMangaSection) {
-      if (label === "Archive") navigate({ page: "manga" });
-      else if (label === "Anime") { navigate({ page: "home" }); setSectionSubPage("home"); }
-      else if (label === "Movies") navigate({ page: "movies" });
       else if (label === "Live") navigate({ page: "live" });
     } else if (label === "Home") {
       navigate({ page: "home" });
@@ -480,7 +450,7 @@ export default function Navbar() {
               <input
                 ref={searchInputRef}
                 type="text"
-                placeholder={isMangaSection ? "Search the archive..." : isMoviesSection ? "Search movies & TV shows..." : "Search anime..."}
+                placeholder={isMoviesSection ? "Search movies & TV shows..." : "Search anime..."}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => { if (searchQuery.trim().length >= 2) setShowSearchResults(true); }}
