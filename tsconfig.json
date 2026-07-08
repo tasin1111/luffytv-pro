@@ -38,14 +38,8 @@
   ],
   "exclude": [
     "node_modules",
-    "myanime-backup",
-    "myanime",
-    "skills",
     "animex-scraper",
     "worker",
-    "scripts",
-    "tool-results",
-    "download",
-    "upload"
+    "scripts"
   ]
 }

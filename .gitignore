@@ -16,3 +16,7 @@ restore_all.py
 
 # Prisma local sqlite
 prisma/*.db
+*.db
+
+# TypeScript incremental build cache
+tsconfig.tsbuildinfo
