@@ -79,7 +79,8 @@ export default function MangaDetailPage({ mangaId }: { mangaId: string }) {
   }, [mangaId]);
 
   const navigateToChapter = useCallback((ch: MangaChapter) => {
-    navigate({ page: "manga-read", id: mangaId, chapterId: String(ch.number) });
+    // The atsumaru images endpoint keys off the chapter id, not its number.
+    navigate({ page: "manga-read", id: mangaId, chapterId: ch.id });
   }, [navigate, mangaId]);
 
   const displayTitle = manga?.englishTitle || manga?.title || "";

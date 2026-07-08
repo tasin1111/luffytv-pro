@@ -9475,14 +9475,3 @@ footer {
   .mx-body { flex-direction: column; }
   .mx-sidebar { width: 100%; position: relative; top: 0; max-height: none; }
 }
-
-/* ════════════════════════════════════════════════════════════════════════════
-   LUFFYTV MANGA — "The Archive" identity (pink #F472B6, no glassmorphism)
-   ════════════════════════════════════════════════════════════════════════════ */
-.ltv-archive-spotlight::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(ellipse at 20% 100%, rgba(244,114,182,0.08), transparent 55%);
-}
