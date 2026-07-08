@@ -675,7 +675,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
           {/* Prev chapter */}
           {prevChapter ? (
             <button
-              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: prevChapter.id })}
+              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: String(prevChapter.number) })}
               className="mr-bottom-chapter-btn"
               title="Previous chapter"
               aria-label="Previous chapter"
@@ -712,7 +712,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
           {/* Next chapter */}
           {nextChapter ? (
             <button
-              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: nextChapter.id })}
+              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: String(nextChapter.number) })}
               className="mr-bottom-chapter-btn"
               title="Next chapter"
               aria-label="Next chapter"

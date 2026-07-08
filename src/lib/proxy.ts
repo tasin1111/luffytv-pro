@@ -192,6 +192,28 @@ export const proxifyImage = (url: string) => wrapStreamUrl(url);
 export const proxifyRaw   = (url: string) => wrapStreamUrl(url);
 
 /**
+ * Wrap a manga image (poster/cover/banner/page) through the Cloudflare
+ * Worker proxy, picking the right Referer for the source CDN so the
+ * image doesn't 403. Used instead of round-tripping through our own
+ * Next.js server (/api/manga/image) — the worker is edge-hosted and
+ * a single hop, so pages load noticeably faster.
+ */
+export function proxifyMangaImage(url: string | null | undefined): string {
+  if (!url) return "";
+  if (typeof url !== "string") return "";
+  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+  if (url.startsWith(WORKER_PROXY)) return url;
+
+  let referer = "https://mangadex.org/";
+  if (url.includes("atsu.moe")) referer = "https://atsu.moe/";
+  else if (url.includes("mangadex.org") || url.includes("uploads.mangadex.org")) referer = "https://mangadex.org/";
+  else if (url.includes("comix.to")) referer = "https://comix.to/";
+
+  const token = encodeWorkerToken(url, referer);
+  return `${WORKER_TOKEN_BASE}/${token}`;
+}
+
+/**
  * Wrap a URL through our Cloudflare Worker (for API calls, NOT streams).
  * Used by anixtv-api.ts, anilight-api.ts, anistream-api.ts to bypass
  * Cloudflare bot detection on API endpoints. Uses the worker's legacy

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAppStore } from "./store";
+import { proxifyMangaImage } from "@/lib/proxy";
 
 /* ═══════════════════════════════════════════════════════════════
    MANGA DETAIL PAGE — Full Structural Redesign v3
@@ -186,12 +187,12 @@ function StarRating({ rating }: { rating: number }) {
     <div className="md-rating-stars">
       {[1, 2, 3, 4, 5].map(star => (
         <svg key={star} className="md-star" viewBox="0 0 24 24"
-          fill={star <= fullStars ? "#FBBF24" : star === fullStars + 1 && halfStar ? "url(#mdHalfStar)" : "none"}
-          stroke="#FBBF24" strokeWidth={1.5}
+          fill={star <= fullStars ? "#F472B6" : star === fullStars + 1 && halfStar ? "url(#mdHalfStar)" : "none"}
+          stroke="#F472B6" strokeWidth={1.5}
         >
           <defs>
             <linearGradient id="mdHalfStar">
-              <stop offset="50%" stopColor="#FBBF24" />
+              <stop offset="50%" stopColor="#F472B6" />
               <stop offset="50%" stopColor="transparent" />
             </linearGradient>
           </defs>
@@ -216,7 +217,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   const [readingStatus, setReadingStatus] = useState<ReadingStatus>("none");
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [chapterView, setChapterView] = useState<"list" | "grid">("list");
-  const [expandedGroup, setExpandedGroup] = useState<string | null>("1-50");
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(true);
 
   useEffect(() => {
@@ -251,8 +252,8 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
 
   // Computed values that depend on manga — must be before early returns (rules of hooks)
   const displayTitle = manga?.englishTitle || manga?.title || "";
-  const poster = manga?.poster || manga?.cover || "";
-  const bannerImg = manga?.banner || poster;
+  const poster = proxifyMangaImage(manga?.poster || manga?.cover || "");
+  const bannerImg = proxifyMangaImage(manga?.banner || manga?.poster || manga?.cover || "");
 
   const authorsText = manga
     ? (Array.isArray(manga.authors) ? manga.authors.join(", ") : (manga.authors || "Unknown"))
@@ -290,6 +291,15 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
     }
     return groups;
   }, [filteredChapters, sortOrder]);
+
+  // Auto-expand the first chapter group once it's loaded.
+  useEffect(() => {
+    if (chapterGroups.length > 0 && expandedGroup === null) {
+      const range = chapterGroups[0].range;
+      const t = setTimeout(() => setExpandedGroup(range), 0);
+      return () => clearTimeout(t);
+    }
+  }, [chapterGroups, expandedGroup]);
 
   const firstChapter = useMemo(() => {
     if (filteredChapters.length === 0) return null;

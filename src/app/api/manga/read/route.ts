@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getChapterImages, getMangaDexChapterPages } from "@/lib/manga-api";
+import { proxifyMangaImage } from "@/lib/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,10 +22,10 @@ export async function GET(request: NextRequest) {
       } catch { /* direct MangaDex also failed */ }
     }
 
-    // Proxy images through our server to add the Referer header
+    // Proxy images through our Cloudflare Worker (edge, single-hop, fast)
     const proxiedPages = pages.map(page => ({
       ...page,
-      proxiedUrl: `/api/manga/image?url=${encodeURIComponent(page.url)}`,
+      proxiedUrl: proxifyMangaImage(page.url),
     }));
     return NextResponse.json({ pages: proxiedPages });
   } catch {
