@@ -233,7 +233,7 @@ export default function MainPage() {
   // Guide/Contact/Features keep the floating Navbar/footer but own their own
   // cinematic hero spacing, so they render full-bleed (no extra top offset).
   const isCinematicOwnLayout = isStandalonePage || route.page === "guide" || route.page === "contact" || route.page === "features";
-  const isHomeFullBleed = (isAnimeSectionRoute && sectionSubPage === "home") || isCinematicOwnLayout || isAuthPage;
+  const isHomeFullBleed = (isAnimeSectionRoute && sectionSubPage === "home") || isCinematicOwnLayout || isAuthPage || route.page === "manga";
   // Browse sub-page wants true full-screen (no main padding) — its own internal layout handles spacing
   const isBrowseFullBleed = isAnimeSectionRoute && (sectionSubPage === "browse" || sectionSubPage === "schedule");
 
