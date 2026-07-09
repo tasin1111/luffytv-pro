@@ -470,16 +470,89 @@ export async function searchMangaMangaball(query: string): Promise<AtsuMangaEntr
  */
 export async function searchMangaBoth(query: string): Promise<AtsuMangaEntry[]> {
   if (!query.trim()) return [];
-  // Comix.to search is CF-protected (requires browser challenge),
-  // so we use mangaball for search. Comix.to is used for detail/pages
-  // when a cx: ID is encountered (e.g., from home browse sections).
-  const [mangaballResult] = await Promise.allSettled([
+
+  // Search mangaball (multi-language) and comix.to (English) in parallel
+  const [mangaballResult, comixResult] = await Promise.allSettled([
     searchMangaMangaball(query),
+    searchComixViaProxy(query),
   ]);
 
   const mb = mangaballResult.status === "fulfilled" ? mangaballResult.value : [];
+  const cx = comixResult.status === "fulfilled" ? comixResult.value : [];
 
-  return mb;
+  // Merge: comix.to first (English primary), then mangaball (multi-language)
+  const seen = new Set<string>();
+  const merged: AtsuMangaEntry[] = [];
+  for (const m of [...cx, ...mb]) {
+    const key = (m.englishTitle || m.title || "").toLowerCase().trim();
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      merged.push(m);
+    }
+  }
+  return merged;
+}
+
+/**
+ * Search comix.to via the comix-proxy route (z-ai page_reader).
+ * Comix.to search is CF-protected, so we use our proxy route which
+ * can bypass the challenge. The browse page HTML contains manga data
+ * in the text (title, type, chapter count) and title links (/title/{hid}-{slug}).
+ */
+async function searchComixViaProxy(query: string): Promise<AtsuMangaEntry[]> {
+  try {
+    const origin = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const proxyUrl = `${origin}/api/manga/comix-proxy?url=${encodeURIComponent(
+      `https://comix.to/browse?q=${encodeURIComponent(query)}`
+    )}`;
+    const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(20000) });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const html = data.html || "";
+    if (!html) return [];
+
+    // Parse title links from HTML: /title/{hid}-{slug}
+    const linkPattern = /\/title\/([a-z0-9]+)-([a-z0-9-]+)/g;
+    const results: AtsuMangaEntry[] = [];
+    const seenHids = new Set<string>();
+    let match;
+    while ((match = linkPattern.exec(html)) !== null) {
+      const hid = match[1];
+      const slug = match[2];
+      if (seenHids.has(hid)) continue;
+      seenHids.add(hid);
+
+      // Convert slug to title (e.g., "player-celestial" → "Player Celestial")
+      const title = slug.split("-").map((w: string) =>
+        w.charAt(0).toUpperCase() + w.slice(1)
+      ).join(" ");
+
+      results.push({
+        id: `cx:${hid}`,
+        title,
+        poster: "",
+        cover: "",
+        type: "manga",
+        source: "comix",
+        slug: hid,
+      });
+    }
+
+    // Filter results by matching the query against the title
+    const queryLower = query.toLowerCase();
+    const filtered = results.filter(r =>
+      r.title.toLowerCase().includes(queryLower) ||
+      queryLower.includes(r.title.toLowerCase().slice(0, 10))
+    );
+
+    // If no exact matches, return all results (comix.to browse shows latest
+    // updates, not filtered by search — but we still want to offer them)
+    return filtered.length > 0 ? filtered.slice(0, 10) : results.slice(0, 10);
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -683,11 +756,23 @@ export async function getChapterImages(
   }
 
   // For mangaball, chapterId might be a translation ID (24 hex chars)
-  // or a chapter number. Try translation ID first for multi-language support.
+  // or a chapter number. For translation IDs, ALWAYS use the direct
+  // mangaball.net scraper FIRST because the manga-scrape-api returns
+  // WRONG language pages (it ignores the translation ID and falls back
+  // to chapter number, returning English pages for ALL languages).
   const isTranslationId = provider === "mangaball" && /^[0-9a-f]{24}$/i.test(chapterId);
 
   if (isTranslationId) {
-    // Try fetching pages with the translation ID via manga-scrape-api
+    // ALWAYS try direct mangaball.net scraper FIRST — it returns the
+    // correct language-specific images from `const chapterImages` in
+    // the chapter-detail page HTML.
+    const directPages = await getMangaballChapterPagesDirect(chapterId);
+    if (directPages.length > 0) {
+      return directPages;
+    }
+    // If direct scrape failed, try manga-scrape-api as fallback
+    // (this may return English pages instead of the correct language,
+    // but it's better than returning nothing)
     const data = await scrapeFetch<ScrapePagesResponse>(
       `/api/scrape/pages?id=${encodeURIComponent(rawId)}&chapterNumber=${encodeURIComponent(chapterId)}&provider=${provider}`,
     );
@@ -699,15 +784,7 @@ export async function getChapterImages(
         height: p.height,
       }));
     }
-    // If manga-scrape-api failed (translation IDs starting with digits
-    // get misparsed as numbers), fall back to direct mangaball.net scraping.
-    // This scrapes the chapter-detail page HTML which has the correct
-    // language-specific image URLs embedded as `const chapterImages`.
-    const directPages = await getMangaballChapterPagesDirect(chapterId);
-    if (directPages.length > 0) {
-      return directPages;
-    }
-    // If direct scrape also failed, fall through to chapter number approach
+    // If both failed, fall through to chapter number approach
   }
 
   // Use chapter number (works for atsumaru, and as fallback for mangaball)
