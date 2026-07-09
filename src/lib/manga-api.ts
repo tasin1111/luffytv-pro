@@ -471,22 +471,33 @@ export async function searchMangaMangaball(query: string): Promise<AtsuMangaEntr
 export async function searchMangaBoth(query: string): Promise<AtsuMangaEntry[]> {
   if (!query.trim()) return [];
 
-  // Search mangaball (multi-language) and comix.to (English) in parallel
-  const [mangaballResult, comixResult] = await Promise.allSettled([
+  // Search atsumaru (English) + mangaball (multi-language) in parallel
+  const [atsumaruResult, mangaballResult] = await Promise.allSettled([
+    searchManga(query),
     searchMangaMangaball(query),
-    searchComixViaProxy(query),
   ]);
 
+  const at = atsumaruResult.status === "fulfilled" ? atsumaruResult.value : [];
   const mb = mangaballResult.status === "fulfilled" ? mangaballResult.value : [];
-  const cx = comixResult.status === "fulfilled" ? comixResult.value : [];
 
-  // Merge: comix.to first (English primary), then mangaball (multi-language)
-  const seen = new Set<string>();
+  // Merge WITHOUT cross-provider dedup — the same manga on both providers
+  // should show as separate results (at: and mb:) so the cross-provider
+  // merge in the detail page can find the mangaball version.
+  // Only dedupe within the same provider.
+  const seenAt = new Set<string>();
+  const seenMb = new Set<string>();
   const merged: AtsuMangaEntry[] = [];
-  for (const m of [...cx, ...mb]) {
+  for (const m of at) {
     const key = (m.englishTitle || m.title || "").toLowerCase().trim();
-    if (key && !seen.has(key)) {
-      seen.add(key);
+    if (key && !seenAt.has(key)) {
+      seenAt.add(key);
+      merged.push(m);
+    }
+  }
+  for (const m of mb) {
+    const key = (m.englishTitle || m.title || "").toLowerCase().trim();
+    if (key && !seenMb.has(key)) {
+      seenMb.add(key);
       merged.push(m);
     }
   }
@@ -729,29 +740,25 @@ export async function getChapterImages(
     return getComixChapterPages(rawId, chapterId);
   }
 
-  // Check if chapterId is a comix.to chapter (merged from cross-provider)
-  // Format: "cx:{hid}:{chapterDbId}" or "cx_{chapterDbId}_{groupId}"
-  if (chapterId.startsWith("cx:") || chapterId.startsWith("cx_")) {
-    // Extract the comix HID and chapter ID
-    if (chapterId.startsWith("cx:")) {
-      // Format: cx:{hid}:{chapterDbId}
-      const parts = chapterId.split(":");
-      if (parts.length >= 3) {
-        const comixHid = parts[1];
-        const comixChapterId = parts.slice(2).join(":");
-        return getComixChapterPages(comixHid, comixChapterId);
+  // Check if chapterId is an atsumaru chapter merged from cross-provider
+  // Format: "at:{atsumaruMangaId}:{chapterNumber}"
+  if (chapterId.startsWith("at:")) {
+    const parts = chapterId.split(":");
+    if (parts.length >= 3) {
+      const atsuMangaId = parts[1];
+      const chapterNumber = parts.slice(2).join(":");
+      const data = await scrapeFetch<ScrapePagesResponse>(
+        `/api/scrape/pages?id=${encodeURIComponent(atsuMangaId)}&chapterNumber=${encodeURIComponent(chapterNumber)}&provider=atsumaru`,
+      );
+      if (data?.pages) {
+        return data.pages.map(p => ({
+          index: p.order - 1,
+          url: p.url,
+          width: p.width,
+          height: p.height,
+        }));
       }
-    } else {
-      // Format: cx_{chapterDbId} or cx_{chapterDbId}_{groupId}
-      // The chapter DB ID is everything after "cx_" up to the last "_{groupId}"
-      const match = chapterId.match(/^cx_(\d+)(?:_\d+)?$/);
-      if (match) {
-        // We need the comix HID — try to extract from mangaId
-        // For mangaball manga with merged comix chapters, we need to
-        // pass the comix HID. The detail route stores it in the chapter ID.
-        // Fall back to using the raw manga ID as comix HID
-        return getComixChapterPages(rawId, match[1]);
-      }
+      return [];
     }
   }
 
