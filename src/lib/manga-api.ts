@@ -628,25 +628,25 @@ async function getAtsumaruHomeDirect(): Promise<AtsuHomeSection[]> {
 }
 
 /**
- * Get manga home sections — MANGABALL PRIMARY, atsumaru fallback.
+ * Get manga home sections — ATSUMARU PRIMARY (real trending data).
  *
- * Tries mangaball curated searches first. If mangaball returns enough
- * sections (>=3), uses those. Otherwise falls back to atsumaru's
- * atsu.moe direct scraper which has real trending/popular data.
+ * atsu.moe's /api/home/page returns REAL curated sections (Trending,
+ * Popular, Top Rated, Recently Updated, etc.) with actual view counts
+ * and ratings — NOT search results. This is the primary source for
+ * the home page.
+ *
+ * Mangaball has NO home/trending endpoint, so using it for home would
+ * just show the same popular titles (Solo Leveling, One Piece) in
+ * every section. Mangaball is primary for SEARCH and DETAIL only.
  */
 export async function getMangaHome(): Promise<AtsuHomeSection[]> {
-  // Try mangaball first (primary)
-  const mangaballSections = await getMangaballHome();
-  if (mangaballSections.length >= 3) {
-    return mangaballSections;
-  }
-  // Fallback to atsumaru's atsu.moe direct scraper
+  // Atsumaru's atsu.moe direct scraper is primary for home (real data)
   const atsumaruSections = await getAtsumaruHomeDirect();
   if (atsumaruSections.length > 0) {
     return atsumaruSections;
   }
-  // Last resort: return whatever mangaball gave us (even if < 3)
-  return mangaballSections;
+  // Fallback to mangaball curated searches (rarely needed)
+  return getMangaballHome();
 }
 
 /**
