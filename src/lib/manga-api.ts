@@ -478,13 +478,84 @@ export async function getChapterImages(
 }
 
 // ============================================================
-// Direct atsu.moe scraper
+// MANGABALL — primary source (larger library, multi-language)
 // ---------------------------------------------------------------------
-// The manga-scrape-api atsumaru provider has no home/popular endpoint,
-// so we scrape atsu.moe's own /api/home/page directly. This returns
-// real sections (Trending, Popular, Top Rated, Recently Updated,
-// Recently Added, Hot Updates, Most Bookmarked) with proper views,
-// ratings, and full-size image URLs.
+// Mangaball has no home/trending endpoint, so we build home sections
+// from curated search queries. Mangaball is the PRIMARY provider;
+// atsumaru's atsu.moe direct scraper is the FALLBACK for home sections
+// (it has real trending/popular data that mangaball can't provide).
+// ============================================================
+
+// Curated queries for building mangaball home sections
+const MANGABALL_HOME_QUERIES: { section: string; type: string; queries: string[] }[] = [
+  {
+    section: "Trending Now",
+    type: "trending",
+    queries: ["solo leveling", "one piece", "jujutsu kaisen", "chainsaw man", "tower of god"],
+  },
+  {
+    section: "Popular Manhwa",
+    type: "popular_manhwa",
+    queries: ["noblesse", "the beginning after the end", "omniscient reader", "nano machine", "return of the mount hua sect"],
+  },
+  {
+    section: "Action Hits",
+    type: "action",
+    queries: ["naruto", "bleach", "my hero academia", "demon slayer", "dragon ball super"],
+  },
+  {
+    section: "Dark Fantasy",
+    type: "dark_fantasy",
+    queries: ["berserk", "tokyo ghoul", "vinland saga", "vagabond", "claymore"],
+  },
+  {
+    section: "Romance Picks",
+    type: "romance",
+    queries: ["horimiya", "kaguya sama", "fruits basket", "toradora", "my dress up darling"],
+  },
+  {
+    section: "Isekai Worlds",
+    type: "isekai",
+    queries: ["re:zero", "mushoku tensei", "overlord", "sword art online", "that time i got reincarnated"],
+  },
+];
+
+/** Build a home section from mangaball search queries */
+async function buildMangaballSection(
+  section: { section: string; type: string; queries: string[] },
+): Promise<AtsuHomeSection> {
+  const allResults = await Promise.all(section.queries.map(q => searchMangaMangaball(q)));
+  const flat = allResults.flat();
+  const seen = new Set<string>();
+  const items = flat.filter(m => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+  return {
+    title: section.section,
+    type: section.type,
+    items: items.slice(0, 20),
+  };
+}
+
+/** Build home sections from mangaball curated searches (primary) */
+async function getMangaballHome(): Promise<AtsuHomeSection[]> {
+  try {
+    const sections = await Promise.all(MANGABALL_HOME_QUERIES.map(buildMangaballSection));
+    return sections.filter(s => s.items.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+// ============================================================
+// Atsumaru direct scraper (FALLBACK for home sections)
+// ---------------------------------------------------------------------
+// atsu.moe's /api/home/page returns real trending/popular data with
+// views and ratings. Used as fallback when mangaball doesn't have
+// enough results, and for the Popular/Top Rated/Recently Added
+// sub-pages (which need real curated data, not search results).
 // ============================================================
 
 const ATSU_DIRECT_BASE = "https://atsu.moe";
@@ -496,19 +567,11 @@ const ATSU_DIRECT_HEADERS: Record<string, string> = {
   Referer: `${ATSU_DIRECT_BASE}/`,
 };
 
-/** Build a full image URL from an atsu.moe relative path.
- *
- * atsu.moe returns relative paths like "posters/xxx-medium.webp".
- * The correct full URL needs a "/static/" prefix — without it, the URL
- * hits the SPA route and returns HTML (not an image), so cards show blank.
- * Verified: https://atsu.moe/posters/x.webp  → text/html (BROKEN)
- *           https://atsu.moe/static/posters/x.webp → image/webp (CORRECT)
- */
+/** Build a full image URL from an atsu.moe relative path. */
 function atsuImageUrl(path: string | undefined | null): string {
   if (!path) return "";
   if (path.startsWith("http")) return path;
   const cleaned = path.replace(/^\/+/, "");
-  // Insert /static/ prefix if the path doesn't already have it
   if (cleaned.startsWith("static/")) {
     return `${ATSU_DIRECT_BASE}/${cleaned}`;
   }
@@ -533,7 +596,7 @@ function mapAtsuHomeItem(item: any): AtsuMangaEntry {
 }
 
 /** Fetch atsu.moe home page directly and return curated sections */
-export async function getMangaHome(): Promise<AtsuHomeSection[]> {
+async function getAtsumaruHomeDirect(): Promise<AtsuHomeSection[]> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -559,18 +622,40 @@ export async function getMangaHome(): Promise<AtsuHomeSection[]> {
     }
     return sections;
   } catch (err) {
-    console.error("[manga-api] getMangaHome (atsu direct) error:", err);
+    console.error("[manga-api] getAtsumaruHomeDirect error:", err);
     return [];
   }
 }
 
 /**
+ * Get manga home sections — MANGABALL PRIMARY, atsumaru fallback.
+ *
+ * Tries mangaball curated searches first. If mangaball returns enough
+ * sections (>=3), uses those. Otherwise falls back to atsumaru's
+ * atsu.moe direct scraper which has real trending/popular data.
+ */
+export async function getMangaHome(): Promise<AtsuHomeSection[]> {
+  // Try mangaball first (primary)
+  const mangaballSections = await getMangaballHome();
+  if (mangaballSections.length >= 3) {
+    return mangaballSections;
+  }
+  // Fallback to atsumaru's atsu.moe direct scraper
+  const atsumaruSections = await getAtsumaruHomeDirect();
+  if (atsumaruSections.length > 0) {
+    return atsumaruSections;
+  }
+  // Last resort: return whatever mangaball gave us (even if < 3)
+  return mangaballSections;
+}
+
+/**
  * Get a single section by type from atsu.moe's home page.
- * Used by the manga navbar sub-pages (Popular, Top Rated, Recently Added, etc.)
+ * Used by the manga navbar sub-pages (Popular, Top Rated, Recently Added).
  */
 export async function getMangaSection(sectionType: string): Promise<AtsuMangaEntry[]> {
   try {
-    const sections = await getMangaHome();
+    const sections = await getAtsumaruHomeDirect();
     const section = sections.find(s => s.type === sectionType);
     return section?.items || [];
   } catch {
@@ -578,27 +663,27 @@ export async function getMangaSection(sectionType: string): Promise<AtsuMangaEnt
   }
 }
 
-/** Popular manga from atsu.moe */
+/** Popular manga — atsumaru's atsu.moe (has real popular data) */
 export async function getPopularManga(): Promise<AtsuMangaEntry[]> {
   return getMangaSection("popular");
 }
 
-/** Top rated manga from atsu.moe */
+/** Top rated manga — atsumaru's atsu.moe (has real rating data) */
 export async function getTopRatedManga(): Promise<AtsuMangaEntry[]> {
   return getMangaSection("top_rated");
 }
 
-/** Recently added manga from atsu.moe */
+/** Recently added manga — atsumaru's atsu.moe */
 export async function getRecentlyAddedManga(): Promise<AtsuMangaEntry[]> {
   return getMangaSection("recently_added");
 }
 
-/** Recently updated manga from atsu.moe */
+/** Recently updated manga — atsumaru's atsu.moe */
 export async function getRecentlyUpdatedManga(): Promise<AtsuMangaEntry[]> {
   return getMangaSection("recently_updated");
 }
 
-/** Trending manga from atsu.moe */
+/** Trending manga — atsumaru's atsu.moe */
 export async function getTrendingManga(): Promise<AtsuMangaEntry[]> {
   return getMangaSection("trending_carousel");
 }
