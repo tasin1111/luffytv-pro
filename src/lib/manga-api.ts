@@ -297,6 +297,40 @@ async function getMangaballSession(): Promise<{ csrf: string; cookie: string } |
  *   - pages: the page count
  *   - group: the scanlation group name
  */
+/**
+ * Get chapter pages directly from mangaball.net by scraping the
+ * chapter-detail page HTML. The page has `const chapterImages = JSON.parse(...)`
+ * embedded in a script tag with all image URLs for that specific
+ * translation (language-specific).
+ *
+ * Used as fallback when the manga-scrape-api fails for translation IDs
+ * that start with digits (the API misparses them as numbers).
+ */
+export async function getMangaballChapterPagesDirect(translationId: string): Promise<AtsuChapterPage[]> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(`${MANGABALL_BASE}/chapter-detail/${translationId}/`, {
+      headers: MANGABALL_HEADERS,
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    if (!res.ok) return [];
+    const html = await res.text();
+    // Extract chapterImages JSON array from the page
+    const match = html.match(/const chapterImages = JSON\.parse\(`(.*?)`\)/s);
+    if (!match) return [];
+    const images: string[] = JSON.parse(match[1]);
+    return images.map((url, i) => ({
+      index: i,
+      url,
+    }));
+  } catch (err) {
+    console.error("[manga-api] getMangaballChapterPagesDirect error:", err);
+    return [];
+  }
+}
+
 export async function getMangaballChaptersDirect(mangaId: string): Promise<AtsuMangaChapter[]> {
   try {
     const session = await getMangaballSession();
@@ -439,11 +473,11 @@ export async function searchMangaBoth(query: string): Promise<AtsuMangaEntry[]> 
   // Comix.to search is CF-protected (requires browser challenge),
   // so we use mangaball for search. Comix.to is used for detail/pages
   // when a cx: ID is encountered (e.g., from home browse sections).
-  const mangaballResults = await Promise.allSettled([
+  const [mangaballResult] = await Promise.allSettled([
     searchMangaMangaball(query),
   ]);
 
-  const mb = mangaballResults.status === "fulfilled" ? mangaballResults.value : [];
+  const mb = mangaballResult.status === "fulfilled" ? mangaballResult.value : [];
 
   return mb;
 }
@@ -627,7 +661,7 @@ export async function getChapterImages(
   const isTranslationId = provider === "mangaball" && /^[0-9a-f]{24}$/i.test(chapterId);
 
   if (isTranslationId) {
-    // Try fetching pages with the translation ID
+    // Try fetching pages with the translation ID via manga-scrape-api
     const data = await scrapeFetch<ScrapePagesResponse>(
       `/api/scrape/pages?id=${encodeURIComponent(rawId)}&chapterNumber=${encodeURIComponent(chapterId)}&provider=${provider}`,
     );
@@ -639,8 +673,15 @@ export async function getChapterImages(
         height: p.height,
       }));
     }
-    // If translation ID failed (manga-scrape-api might parse it as a number),
-    // fall through to chapter number approach
+    // If manga-scrape-api failed (translation IDs starting with digits
+    // get misparsed as numbers), fall back to direct mangaball.net scraping.
+    // This scrapes the chapter-detail page HTML which has the correct
+    // language-specific image URLs embedded as `const chapterImages`.
+    const directPages = await getMangaballChapterPagesDirect(chapterId);
+    if (directPages.length > 0) {
+      return directPages;
+    }
+    // If direct scrape also failed, fall through to chapter number approach
   }
 
   // Use chapter number (works for atsumaru, and as fallback for mangaball)

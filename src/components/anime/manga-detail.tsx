@@ -154,11 +154,18 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
     return Array.from(langs).sort();
   }, [manga]);
 
-  // Language display names
+  // Language display names — full names, not short codes
   const LANG_NAMES: Record<string, string> = {
-    en: "English", fr: "Français", id: "Indonesia",
-    ja: "日本語", ko: "한국어", zh: "中文", es: "Español",
-    pt: "Português", de: "Deutsch", ru: "Русский",
+    en: "English", fr: "French", id: "Indonesian",
+    ja: "Japanese", ko: "Korean", zh: "Chinese",
+    es: "Spanish", "pt-br": "Portuguese (Brazil)", "pt-pt": "Portuguese (Portugal)",
+    pt: "Portuguese", de: "German", ru: "Russian",
+    vi: "Vietnamese", it: "Italian", th: "Thai", pl: "Polish",
+    ar: "Arabic", bg: "Bulgarian", bn: "Bengali", ca: "Catalan",
+    cs: "Czech", da: "Danish", el: "Greek", he: "Hebrew",
+    hi: "Hindi", hu: "Hungarian", ms: "Malay", nl: "Dutch",
+    no: "Norwegian", ro: "Romanian", sk: "Slovak", sl: "Slovenian",
+    sr: "Serbian", sv: "Swedish", tr: "Turkish", uk: "Ukrainian",
   };
 
   const filteredChapters = useMemo(() => {
@@ -503,7 +510,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                         className="group flex items-center gap-3 px-4 py-2 hover:bg-white/[0.06] transition-colors text-left w-full"
                         style={si > 0 ? { borderTop: "1px solid rgba(255,255,255,0.03)" } : {}}
                       >
-                        {/* Language badge */}
+                        {/* Language badge — show full name */}
                         <span
                           className="shrink-0 px-1.5 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider"
                           style={{
@@ -512,7 +519,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                             border: `1px solid ${LANG_COLORS[scan.lang || "en"] || "#666"}40`,
                           }}
                         >
-                          {scan.lang || "?"}
+                          {LANG_NAMES[scan.lang || "en"] || scan.lang || "Unknown"}
                         </span>
                         {/* Scan group name */}
                         <span className="text-xs font-medium text-white/60 group-hover:text-white/90 transition-colors shrink-0">
