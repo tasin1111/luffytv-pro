@@ -128,64 +128,108 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
             } catch { /* ignore */ }
           }
 
-          // CLIENT-SIDE comix.to merge:
+          // CLIENT-SIDE comix.to metadata merge:
           // If this is a mangaball manga, search comix.to for the same title
-          // and replace English chapters with comix.to's English chapters.
-          // English = comix.to ONLY, other languages = mangaball ONLY.
-          if (mangaId.startsWith("mb:") && data.chapters?.length) {
-            // Use fbTitle FIRST (from sessionStorage, set when user clicked the manga card)
-            // because mangaball's info endpoint often fails and returns "Unknown Title"
+          // and merge METADATA ONLY (genres, tags, synopsis, poster).
+          // We do NOT merge chapters because comix.to chapter pages are
+          // CF-protected and cannot be read.
+          // ALL chapters (English + other languages) come from mangaball.
+          if (mangaId.startsWith("mb:") && (!data.genres?.length || !data.description)) {
             const titleForSearch = fbTitle || data.englishTitle || data.title || "";
             if (titleForSearch && titleForSearch !== "Unknown Title") {
               try {
-                // Step 1: Search comix.to for the title
                 const searchRes = await fetch(
                   `/api/manga/comix-search?q=${encodeURIComponent(titleForSearch)}`
                 );
                 if (searchRes.ok) {
                   const searchData = await searchRes.json();
                   if (searchData.hid) {
-                    // Step 2: Fetch comix.to detail
                     const comixRes = await fetch(
                       `/api/manga/detail?id=cx:${searchData.hid}`
                     );
                     if (comixRes.ok) {
                       const comixData = await comixRes.json();
-                      if (comixData.chapters?.length) {
-                        // Step 3: Remove mangaball English chapters
-                        // English = comix.to ONLY
-                        const nonEnChapters = data.chapters.filter(
-                          (ch: any) => ch.lang !== "en"
-                        );
-                        // Step 4: Add comix.to English chapters
-                        const comixEnChapters = comixData.chapters.map((ch: any) => ({
-                          ...ch,
-                          id: `cx:${searchData.hid}:${ch.id}`,
-                          lang: "en",
-                          scanGroup: ch.scanGroup || "Comix",
-                        }));
-                        // Step 5: Merge — comix English + mangaball non-English
-                        data.chapters = [...comixEnChapters, ...nonEnChapters];
-                        data.totalChapters = data.chapters.length;
-                        // Merge metadata if missing
-                        if (!data.description && comixData.description) {
-                          data.description = comixData.description;
-                        }
-                        if (!data.genres?.length && comixData.genres?.length) {
-                          data.genres = comixData.genres;
-                          data.tags = comixData.tags;
-                        }
-                        setManga({ ...data });
+                      // Merge METADATA ONLY — keep mangaball chapters
+                      let updated = false;
+                      if (!data.description && comixData.description) {
+                        data.description = comixData.description;
+                        updated = true;
                       }
+                      if (!data.genres?.length && comixData.genres?.length) {
+                        data.genres = comixData.genres;
+                        data.tags = comixData.tags;
+                        updated = true;
+                      }
+                      if (!data.poster && comixData.poster) {
+                        data.poster = comixData.poster;
+                        data.cover = comixData.cover;
+                        updated = true;
+                      }
+                      if (data.title === "Unknown Title" && comixData.title) {
+                        data.title = comixData.title;
+                        data.englishTitle = comixData.englishTitle;
+                        updated = true;
+                      }
+                      if (updated) setManga({ ...data });
                     }
                   }
                 }
-              } catch { /* ignore comix merge errors */ }
+              } catch { /* ignore comix metadata merge errors */ }
             }
           }
         }
       } catch { /* ignore */ }
+
+      // Set loading=false BEFORE the comix.to metadata merge
+      // so the page renders immediately with mangaball data.
+      // The comix.to metadata (genres, tags, synopsis) will be
+      // merged in the background and update via setManga().
       setLoading(false);
+
+      // CLIENT-SIDE comix.to metadata merge (runs AFTER page renders)
+      if (mangaId.startsWith("mb:") && (!data.genres?.length || !data.description)) {
+        const titleForSearch = fbTitle || data.englishTitle || data.title || "";
+        if (titleForSearch && titleForSearch !== "Unknown Title") {
+          (async () => {
+            try {
+              const searchRes = await fetch(
+                `/api/manga/comix-search?q=${encodeURIComponent(titleForSearch)}`
+              );
+              if (searchRes.ok) {
+                const searchData = await searchRes.json();
+                if (searchData.hid) {
+                  const comixRes = await fetch(
+                    `/api/manga/detail?id=cx:${searchData.hid}`
+                  );
+                  if (comixRes.ok) {
+                    const comixData = await comixRes.json();
+                    setManga(prev => {
+                      if (!prev) return prev;
+                      const updated = { ...prev };
+                      if (!updated.description && comixData.description) {
+                        updated.description = comixData.description;
+                      }
+                      if (!updated.genres?.length && comixData.genres?.length) {
+                        updated.genres = comixData.genres;
+                        updated.tags = comixData.tags;
+                      }
+                      if (!updated.poster && comixData.poster) {
+                        updated.poster = comixData.poster;
+                        updated.cover = comixData.cover;
+                      }
+                      if (updated.title === "Unknown Title" && comixData.title) {
+                        updated.title = comixData.title;
+                        updated.englishTitle = comixData.englishTitle;
+                      }
+                      return updated;
+                    });
+                  }
+                }
+              }
+            } catch { /* ignore */ }
+          })();
+        }
+      }
     }
     load();
   }, [mangaId]);
