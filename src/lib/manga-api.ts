@@ -472,40 +472,6 @@ export async function getTrendingManga(): Promise<AtsuMangaEntry[]> {
   return getMangaSection("trending_carousel");
 }
 
-/**
- * Get manga "schedule" — currently releasing manga sorted by most recently
- * updated, fetched from AniList (manga doesn't have airing schedules like
- * anime, so we use UPDATED_AT_DESC as the closest equivalent).
- */
-export async function getMangaSchedule(): Promise<AtsuMangaEntry[]> {
-  try {
-    const res = await fetch("https://graphql.anilist.co", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        query: `query{Page(perPage:30){media(type:MANGA,status:RELEASING,sort:UPDATED_AT_DESC){id title{english romaji} coverImage{extraLarge large} format chapters genres}}}`,
-      }),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const media = data?.data?.Page?.media || [];
-    return media.map((m: any) => ({
-      id: String(m.id),
-      title: m.title?.english || m.title?.romaji || "Unknown",
-      englishTitle: m.title?.english,
-      poster: m.coverImage?.extraLarge || m.coverImage?.large || "",
-      cover: m.coverImage?.extraLarge || m.coverImage?.large || "",
-      type: (m.format || "manga").toLowerCase(),
-      genres: m.genres || [],
-      anilistId: m.id,
-      source: "anilist",
-      slug: String(m.id),
-    }));
-  } catch {
-    return [];
-  }
-}
-
 // ============================================================
 // Backwards-compat: keep the old export names as aliases
 // ============================================================

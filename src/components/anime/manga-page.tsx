@@ -226,7 +226,6 @@ export default function MangaPage() {
         if (sectionSubPage === "popular") { endpoint = "/api/manga/popular"; label = "Popular"; }
         else if (sectionSubPage === "top-rated") { endpoint = "/api/manga/top-rated"; label = "Top Rated"; }
         else if (sectionSubPage === "recently-added") { endpoint = "/api/manga/recently-added"; label = "Recently Added"; }
-        else if (sectionSubPage === "schedule") { endpoint = "/api/manga/schedule"; label = "Schedule"; }
         if (!endpoint) { setSubPageLoading(false); return; }
         const res = await fetch(endpoint);
         if (res.ok && !cancelled) {
@@ -384,7 +383,6 @@ export default function MangaPage() {
           title={sectionSubPage === "popular" ? "Popular Manga"
             : sectionSubPage === "top-rated" ? "Top Rated Manga"
             : sectionSubPage === "recently-added" ? "Recently Added Manga"
-            : sectionSubPage === "schedule" ? "Manga Schedule — Recently Updated"
             : "Manga"}
           items={subPageData}
           loading={subPageLoading}

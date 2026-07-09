@@ -214,7 +214,6 @@ export default function Navbar() {
         { label: "Popular", active: sectionSubPage === "popular" },
         { label: "Top Rated", active: sectionSubPage === "top-rated" },
         { label: "Recently Added", active: sectionSubPage === "recently-added" },
-        { label: "Schedule", active: sectionSubPage === "schedule" },
       ]
     : [
         { label: "Home", active: isAnimePage && sectionSubPage === "home" },
@@ -239,7 +238,6 @@ export default function Navbar() {
       else if (label === "Popular") setSectionSubPage("popular");
       else if (label === "Top Rated") setSectionSubPage("top-rated");
       else if (label === "Recently Added") setSectionSubPage("recently-added");
-      else if (label === "Schedule") setSectionSubPage("schedule");
     } else if (isMoviesSection) {
       if (label === "Movies") navigate({ page: "movies" });
       else if (label === "TV Shows") navigate({ page: "tv" });

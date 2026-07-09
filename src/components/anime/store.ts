@@ -292,14 +292,13 @@ export const useAppStore = create<AppState>()(
 export function getSectionNavLinks(route: Route): { id: SectionSubPage; label: string }[] {
   const page = route.page;
 
-  // Manga section — has its OWN navbar (Popular, Top Rated, Recently Added, Schedule)
+  // Manga section — has its OWN navbar (Popular, Top Rated, Recently Added)
   if (page === "manga" || page === "manga-detail" || page === "manga-read") {
     return [
       { id: "home", label: "Home" },
       { id: "popular", label: "Popular" },
       { id: "top-rated", label: "Top Rated" },
       { id: "recently-added", label: "Recently Added" },
-      { id: "schedule", label: "Schedule" },
     ];
   }
   
