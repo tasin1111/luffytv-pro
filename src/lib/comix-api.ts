@@ -32,6 +32,43 @@ const COMIX_HEADERS: Record<string, string> = {
   "Upgrade-Insecure-Requests": "1",
 };
 
+/** Fetch raw HTML from comix.to page (via comix-proxy route for CF bypass) */
+async function fetchComixRawHtml(path: string): Promise<string> {
+  const fullUrl = `${COMIX_BASE}${path}`;
+
+  // Step 1: Try direct fetch
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10000);
+    const res = await fetch(fullUrl, {
+      headers: COMIX_HEADERS,
+      signal: controller.signal,
+      redirect: "follow",
+    });
+    clearTimeout(timeout);
+    if (res.ok) {
+      return await res.text();
+    }
+  } catch { /* fall through */ }
+
+  // Step 2: Try via comix-proxy route (uses z-ai page_reader)
+  try {
+    const origin = process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+    const proxyRes = await fetch(
+      `${origin}/api/manga/comix-proxy?url=${encodeURIComponent(fullUrl)}`,
+      { signal: AbortSignal.timeout(20000) }
+    );
+    if (proxyRes.ok) {
+      const data = await proxyRes.json();
+      if (data.html) return data.html;
+    }
+  } catch { /* fall through */ }
+
+  return "";
+}
+
 /** Fetch a comix.to page and extract #initial-data JSON.
  * Comix.to is Cloudflare-protected — uses the z-ai-web-dev-sdk page_reader
  * function which can bypass CF challenges.
@@ -171,39 +208,82 @@ export async function getComixDetail(hid: string): Promise<AtsuMangaDetail | nul
 
     if (!detail) return null;
 
-    // Extract chapter URLs
-    const firstChapterUrl = detail.firstChapterUrl || "";
-    const latestChapterUrl = detail.latestChapterUrl || "";
-    const latestChapter = detail.latestChapter || 0;
+    // Extract scan groups from the initial-data
+    let groups: { id: number; name: string }[] = [];
+    for (const [key, val] of Object.entries(data.queries || {})) {
+      if (key.includes("groups") && Array.isArray(val)) {
+        groups = val.map((g: any) => ({ id: g.id, name: g.name }));
+        break;
+      }
+    }
 
-    // Build chapter list from the URL pattern
-    // URL format: /title/{hid}-{slug}/{chapterId}-chapter-{num}
+    // Extract ALL chapter links from the HTML
+    // The title page HTML contains chapter links with the pattern:
+    // /title/{hid}-{slug}/{chapterDbId}-chapter-{num}
+    // We need to fetch the raw HTML to extract these links
+    const rawHtml = await fetchComixRawHtml(`/title/${hid}`);
+    const chapterLinkPattern = /\/title\/[a-z0-9]+-[^"'\s]+\/(\d+)-chapter-(\d+(?:\.\d+)?)/g;
+    const chapterLinks: { dbId: string; number: number }[] = [];
+    let linkMatch;
+    while ((linkMatch = chapterLinkPattern.exec(rawHtml)) !== null) {
+      chapterLinks.push({
+        dbId: linkMatch[1],
+        number: parseFloat(linkMatch[2]),
+      });
+    }
+
+    // Dedupe by number (keep first dbId per number)
+    const seenNumbers = new Set<number>();
     const chapters: AtsuMangaChapter[] = [];
-    if (firstChapterUrl && latestChapterUrl) {
-      // Extract the chapter ID from firstChapterUrl
-      const firstMatch = firstChapterUrl.match(/\/(\d+)-chapter-(\d+(?:\.\d+)?)$/);
-      const latestMatch = latestChapterUrl.match(/\/(\d+)-chapter-(\d+(?:\.\d+)?)$/);
-
-      if (firstMatch && latestMatch) {
-        const firstId = parseInt(firstMatch[1]);
-        const firstNum = parseFloat(firstMatch[2]);
-        const latestId = parseInt(latestMatch[1]);
-        const latestNum = parseFloat(latestMatch[2]);
-
-        // Generate chapters from first to latest
-        // We can't get all chapter IDs without the API, so we construct
-        // them by incrementing. This is approximate — the actual IDs
-        // may have gaps. For reading, we'll use the chapter number
-        // and construct the URL on the fly.
-        for (let num = firstNum; num <= latestNum; num++) {
+    for (const link of chapterLinks) {
+      if (!seenNumbers.has(link.number)) {
+        seenNumbers.add(link.number);
+        // If there are multiple scan groups, create one chapter entry per group
+        if (groups.length > 1) {
+          for (const group of groups) {
+            chapters.push({
+              id: `cx_${link.dbId}_${group.id}`,  // Unique per chapter+group
+              title: `Chapter ${link.number}`,
+              number: link.number,
+              lang: "en",  // Comix.to is English-only
+              pages: 0,
+              pageCount: 0,
+              scanGroup: group.name,
+            });
+          }
+        } else {
           chapters.push({
-            id: `cx_${hid}_${num}`,  // Synthetic ID — used for dedup
-            title: `Chapter ${num}`,
-            number: num,
-            lang: "en",  // Comix.to is English-only
+            id: `cx_${link.dbId}`,  // Use the real chapter DB ID
+            title: `Chapter ${link.number}`,
+            number: link.number,
+            lang: "en",
             pages: 0,
             pageCount: 0,
+            scanGroup: groups[0]?.name,
           });
+        }
+      }
+    }
+
+    // If no chapter links found, fall back to generating from first/latest
+    if (chapters.length === 0) {
+      const firstChapterUrl = detail.firstChapterUrl || "";
+      const latestChapterNum = detail.latestChapter || 0;
+      if (firstChapterUrl && latestChapterNum > 0) {
+        const firstMatch = firstChapterUrl.match(/\/(\d+)-chapter-(\d+(?:\.\d+)?)$/);
+        if (firstMatch) {
+          const firstDbId = firstMatch[1];
+          const firstNum = parseFloat(firstMatch[2]);
+          for (let num = firstNum; num <= latestChapterNum; num++) {
+            chapters.push({
+              id: `cx_${hid}_${num}`,
+              title: `Chapter ${num}`,
+              number: num,
+              lang: "en",
+              pages: 0,
+              pageCount: 0,
+            });
+          }
         }
       }
     }
