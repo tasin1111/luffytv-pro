@@ -208,6 +208,7 @@ export function proxifyMangaImage(url: string | null | undefined): string {
   if (url.includes("atsu.moe")) referer = "https://atsu.moe/";
   else if (url.includes("mangadex.org") || url.includes("uploads.mangadex.org")) referer = "https://mangadex.org/";
   else if (url.includes("comix.to")) referer = "https://comix.to/";
+  else if (url.includes("poke-black-and-white.net")) referer = "https://mangaball.net/";
 
   const token = encodeWorkerToken(url, referer);
   return `${WORKER_TOKEN_BASE}/${token}`;

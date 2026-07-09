@@ -125,9 +125,13 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   // Filter chapters by language for navigation
   const langFilteredChapters = useMemo(() => {
     if (readerLang === "all") return allChapters;
+    // When a specific language is selected, only show chapters in that
+    // language. Chapters without a lang field (atsumaru) are always included.
     return allChapters.filter((c: any) => c.lang === readerLang || !c.lang);
   }, [allChapters, readerLang]);
 
+  // Find the current chapter in the FILTERED list.
+  // This ensures prev/next stays within the same language.
   const currentChapterIdx = langFilteredChapters.findIndex((c: any) => String(c.number) === String(chapterId));
   const prevChapter = currentChapterIdx > 0 ? langFilteredChapters[currentChapterIdx - 1] : null;
   const nextChapter = currentChapterIdx < langFilteredChapters.length - 1 ? langFilteredChapters[currentChapterIdx + 1] : null;
@@ -535,7 +539,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
             </button>
           </div>
           <div className="mr-sidebar-list">
-            {allChapters.sort((a: any, b: any) => a.number - b.number).map((ch: any) => (
+            {langFilteredChapters.sort((a: any, b: any) => a.number - b.number).map((ch: any) => (
               <button
                 key={ch.id}
                 onClick={() => {

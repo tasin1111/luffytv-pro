@@ -364,11 +364,16 @@ export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail |
   if (!info && !chaptersData?.chapters?.length) return null;
 
   const chapters = (chaptersData?.chapters || []).map(mapChapter);
-  // Sort ascending by chapter number, dedupe by number
-  const seen = new Set<number>();
+  // Sort ascending by chapter number, dedupe by number AND language.
+  // Two chapters with the same number but different languages (e.g.,
+  // chapter 1 in English and chapter 1 in Spanish) must BOTH be kept.
+  // Only exact duplicates (same number + same language) are removed.
+  const seen = new Set<string>();
   const dedupedChapters = chapters
     .filter(ch => {
-      const key = Math.round(ch.number * 100) / 100;
+      const numKey = Math.round(ch.number * 100) / 100;
+      const langKey = ch.lang || "none";
+      const key = `${numKey}:${langKey}`;
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -476,7 +481,9 @@ export async function getChapterImages(
   mangaId: string,
   chapterId: string,
 ): Promise<AtsuChapterPage[]> {
-  if (!mangaId || !chapterId) return [];
+  // Note: chapterId can be "0" (valid chapter number), so we check for
+  // null/undefined/empty string, not falsiness
+  if (!mangaId || chapterId === null || chapterId === undefined || chapterId === "") return [];
   const { provider, rawId } = parseProviderFromId(mangaId);
   const chapterNumber = encodeURIComponent(String(chapterId));
   const data = await scrapeFetch<ScrapePagesResponse>(

@@ -16,6 +16,9 @@ export async function GET(request: NextRequest) {
       referer = "https://mangadex.org/";
     } else if (url.includes("comix.to")) {
       referer = "https://comix.to/";
+    } else if (url.includes("poke-black-and-white.net")) {
+      // Mangaball CDN (jigglypuff, bulbasaur, etc.)
+      referer = "https://mangaball.net/";
     }
 
     const imgRes = await fetch(url, {
