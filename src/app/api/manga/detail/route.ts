@@ -63,8 +63,16 @@ export async function GET(request: NextRequest) {
     }
 
     // Cross-provider chapter merge: if this is a mangaball manga,
-    // ALSO fetch comix.to chapters for the same title and merge them.
-    // This adds additional English scan groups from comix.to's huge library.
+    // fetch comix.to chapters for the same title.
+    //
+    // LANGUAGE RULES:
+    // - English: ONLY from comix.to (skip all mangaball English scans)
+    // - Other languages (Spanish, Vietnamese, etc.): ONLY from mangaball
+    //
+    // So we:
+    // 1. REMOVE all mangaball English chapters (lang === "en")
+    // 2. ADD comix.to English chapters (all are English)
+    // 3. KEEP all mangaball non-English chapters (Spanish, Vietnamese, etc.)
     if (detail && fallbackTitle && id.startsWith("mb:") && detail.chapters?.length) {
       try {
         // Search comix.to via the comix-proxy route for the title
@@ -72,7 +80,6 @@ export async function GET(request: NextRequest) {
           ? `https://${process.env.VERCEL_URL}`
           : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
-        // Fetch comix.to browse page and search for the title
         const comixSearchUrl = `${origin}/api/manga/comix-proxy?url=${encodeURIComponent(
           `https://comix.to/browse?q=${encodeURIComponent(fallbackTitle)}`
         )}`;
@@ -84,8 +91,7 @@ export async function GET(request: NextRequest) {
           const comixSearchData = await comixSearchRes.json();
           const comixHtml = comixSearchData.html || "";
 
-          // Parse manga entries from the browse page HTML
-          // Look for title links that match the search title
+          // Parse manga HIDs from browse page
           const titleLinks = comixHtml.match(/\/title\/([a-z0-9]+)-([a-z0-9-]+)/g) || [];
           const uniqueHids = new Set<string>();
           for (const link of titleLinks) {
@@ -98,35 +104,38 @@ export async function GET(request: NextRequest) {
             try {
               const comixDetail = await getComixDetail(hid);
               if (comixDetail && comixDetail.chapters?.length) {
-                // Check if titles match (case-insensitive, partial match)
                 const comixTitle = (comixDetail.englishTitle || comixDetail.title || "").toLowerCase();
                 const searchTitle = fallbackTitle.toLowerCase();
                 if (comixTitle.includes(searchTitle) || searchTitle.includes(comixTitle) ||
                     comixTitle.slice(0, 30) === searchTitle.slice(0, 30)) {
-                  // Merge comix.to chapters into the mangaball chapters
-                  // Mark them with source "comix" so the reader knows how to load pages
+
+                  // STEP 1: Remove ALL mangaball English chapters
+                  // (English = comix.to only, per user's rule)
+                  detail.chapters = detail.chapters.filter(
+                    ch => ch.lang !== "en"
+                  );
+
+                  // STEP 2: Add comix.to English chapters
                   const comixChapters = comixDetail.chapters.map(ch => ({
                     ...ch,
-                    id: `cx:${hid}:${ch.id}`,  // Prefix with comix HID for reader routing
+                    id: `cx:${hid}:${ch.id}`,
                     lang: "en",
                     scanGroup: ch.scanGroup || "Comix",
                   }));
 
-                  // Merge: add comix chapters that don't duplicate existing mangaball chapters
-                  // (by number + group name)
-                  const existingKeys = new Set(
-                    detail.chapters.map(ch => `${ch.number}:${ch.scanGroup || ch.lang || ""}`)
-                  );
-                  const newChapters = comixChapters.filter(ch => {
-                    const key = `${ch.number}:${ch.scanGroup || "Comix"}`;
-                    return !existingKeys.has(key);
-                  });
+                  // STEP 3: Merge — comix.to English + mangaball non-English
+                  detail.chapters = [...comixChapters, ...detail.chapters];
+                  detail.totalChapters = detail.chapters.length;
 
-                  if (newChapters.length > 0) {
-                    detail.chapters = [...detail.chapters, ...newChapters];
-                    detail.totalChapters = detail.chapters.length;
+                  // Also merge comix.to metadata if mangaball's is missing
+                  if (!detail.description && comixDetail.description) {
+                    detail.description = comixDetail.description;
                   }
-                  break; // Found the match, stop searching
+                  if (!detail.genres?.length && comixDetail.genres?.length) {
+                    detail.genres = comixDetail.genres;
+                    detail.tags = comixDetail.tags;
+                  }
+                  break;
                 }
               }
             } catch { /* ignore individual comix title fetch errors */ }
