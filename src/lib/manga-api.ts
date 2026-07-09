@@ -366,12 +366,23 @@ const ATSU_DIRECT_HEADERS: Record<string, string> = {
   Referer: `${ATSU_DIRECT_BASE}/`,
 };
 
-/** Build a full image URL from an atsu.moe relative path */
+/** Build a full image URL from an atsu.moe relative path.
+ *
+ * atsu.moe returns relative paths like "posters/xxx-medium.webp".
+ * The correct full URL needs a "/static/" prefix — without it, the URL
+ * hits the SPA route and returns HTML (not an image), so cards show blank.
+ * Verified: https://atsu.moe/posters/x.webp  → text/html (BROKEN)
+ *           https://atsu.moe/static/posters/x.webp → image/webp (CORRECT)
+ */
 function atsuImageUrl(path: string | undefined | null): string {
   if (!path) return "";
   if (path.startsWith("http")) return path;
   const cleaned = path.replace(/^\/+/, "");
-  return `${ATSU_DIRECT_BASE}/${cleaned}`;
+  // Insert /static/ prefix if the path doesn't already have it
+  if (cleaned.startsWith("static/")) {
+    return `${ATSU_DIRECT_BASE}/${cleaned}`;
+  }
+  return `${ATSU_DIRECT_BASE}/static/${cleaned}`;
 }
 
 /** Map an atsu.moe home section item to our AtsuMangaEntry */
