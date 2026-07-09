@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useAppStore } from "./store";
+import AnimeComments from "./anime-comments";
 
 /* ═══════════════════════════════════════════════════════════════
    MANGA DETAIL PAGE — v4 (site-blue, mirrors anime-detail layout)
@@ -19,6 +20,13 @@ import { useAppStore } from "./store";
    ═══════════════════════════════════════════════════════════════ */
 
 const ACCENT = "#1e88ff";
+
+// Language badge colors
+const LANG_COLORS: Record<string, string> = {
+  en: "#3B82F6", es: "#EF4444", fr: "#6366F1", id: "#10B981",
+  it: "#22C55E", "pt-br": "#F59E0B", vi: "#EC4899", zh: "#F43F5E",
+  th: "#8B5CF6", pl: "#EAB308", ja: "#06B6D4", ko: "#3B82F6",
+};
 
 interface MangaChapter {
   id: string;
@@ -166,6 +174,22 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
       })
       .sort((a, b) => sortOrder === "asc" ? a.number - b.number : b.number - a.number);
   }, [manga, chapterSearch, sortOrder, selectedLang]);
+
+  // Group chapters by number — each group contains all scan/language variants
+  const chapterGroups = useMemo(() => {
+    const groups: { number: number; scans: MangaChapter[] }[] = [];
+    const byNumber = new Map<number, MangaChapter[]>();
+    for (const ch of filteredChapters) {
+      const arr = byNumber.get(ch.number) || [];
+      arr.push(ch);
+      byNumber.set(ch.number, arr);
+    }
+    for (const [number, scans] of byNumber) {
+      groups.push({ number, scans });
+    }
+    groups.sort((a, b) => sortOrder === "asc" ? a.number - b.number : b.number - a.number);
+    return groups;
+  }, [filteredChapters, sortOrder]);
 
   const navigateToChapter = useCallback((ch: MangaChapter) => {
     // For mangaball chapters, pass the translation ID (ch.id) as chapterId
@@ -408,10 +432,10 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
             {/* Chapter header + controls */}
             <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
               <h2 className="text-lg font-bold text-white">
-                Chapters <span className="text-white/40">({filteredChapters.length})</span>
+                Chapters <span className="text-white/40">({chapterGroups.length})</span>
               </h2>
               <div className="flex items-center gap-2">
-                {/* Language selector (only show if multiple languages available) */}
+                {/* Language selector */}
                 {availableLangs.length > 1 && (
                   <select
                     value={selectedLang}
@@ -453,44 +477,84 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
               </div>
             </div>
 
-            {/* Chapter grid — 4 columns */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-              {filteredChapters.slice(0, 80).map(ch => (
-                <button
-                  key={ch.id}
-                  onClick={() => navigateToChapter(ch)}
-                  className="group flex items-center gap-3 p-3 bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.08] hover:border-white/20 transition-all text-left"
+            {/* Chapter list — grouped by chapter number, each scan shown inline */}
+            <div className="flex flex-col gap-2">
+              {chapterGroups.slice(0, 100).map(group => (
+                <div
+                  key={group.number}
+                  className="bg-white/[0.03] border border-white/[0.06] overflow-hidden"
                   style={{ borderRadius: "8px" }}
                 >
-                  {/* Chapter number badge */}
-                  <div className="shrink-0 w-10 h-10 flex items-center justify-center font-extrabold text-sm" style={{ background: `${ACCENT}15`, color: ACCENT, borderRadius: "6px" }}>
-                    {ch.number}
+                  {/* Chapter number header */}
+                  <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/[0.04]">
+                    <span className="text-sm font-extrabold" style={{ color: ACCENT }}>
+                      Ch. {group.number}
+                    </span>
+                    <span className="text-xs text-white/30">
+                      {group.scans.length} scan{group.scans.length > 1 ? "s" : ""}
+                    </span>
                   </div>
-                  {/* Chapter info */}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white/80 truncate group-hover:text-white transition-colors">
-                      {ch.title || `Chapter ${ch.number}`}
-                    </p>
-                    {ch.pages ? (
-                      <p className="text-[10px] text-white/30 mt-0.5">{ch.pages} pages</p>
-                    ) : null}
+                  {/* Scan rows */}
+                  <div className="flex flex-col">
+                    {group.scans.map((scan, si) => (
+                      <button
+                        key={scan.id}
+                        onClick={() => navigateToChapter(scan)}
+                        className="group flex items-center gap-3 px-4 py-2 hover:bg-white/[0.06] transition-colors text-left w-full"
+                        style={si > 0 ? { borderTop: "1px solid rgba(255,255,255,0.03)" } : {}}
+                      >
+                        {/* Language badge */}
+                        <span
+                          className="shrink-0 px-1.5 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider"
+                          style={{
+                            background: `${LANG_COLORS[scan.lang || "en"] || "#666"}20`,
+                            color: LANG_COLORS[scan.lang || "en"] || "#999",
+                            border: `1px solid ${LANG_COLORS[scan.lang || "en"] || "#666"}40`,
+                          }}
+                        >
+                          {scan.lang || "?"}
+                        </span>
+                        {/* Scan group name */}
+                        <span className="text-xs font-medium text-white/60 group-hover:text-white/90 transition-colors shrink-0">
+                          {scan.scanGroup || "Unknown"}
+                        </span>
+                        {/* Chapter title */}
+                        <span className="flex-1 min-w-0 text-xs text-white/40 truncate">
+                          {scan.title || `Chapter ${scan.number}`}
+                        </span>
+                        {/* Page count */}
+                        {scan.pages ? (
+                          <span className="text-[10px] text-white/30 shrink-0 hidden sm:inline">
+                            {scan.pages}p
+                          </span>
+                        ) : null}
+                        {/* Play icon on hover */}
+                        <svg className="w-3.5 h-3.5 text-white/0 group-hover:text-white/60 transition-colors shrink-0" fill="currentColor" viewBox="0 0 24 24">
+                          <polygon points="5 3 19 12 5 21 5 3" />
+                        </svg>
+                      </button>
+                    ))}
                   </div>
-                  {/* Play icon on hover */}
-                  <svg className="w-4 h-4 text-white/0 group-hover:text-white/60 transition-colors shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                </button>
+                </div>
               ))}
             </div>
 
-            {filteredChapters.length > 80 && (
+            {chapterGroups.length > 100 && (
               <p className="text-center text-xs text-white/30 mt-6">
-                Showing first 80 chapters. Use search to find specific chapters.
+                Showing first 100 chapters. Use search to find specific chapters.
               </p>
             )}
           </div>
         </section>
       )}
+
+      {/* ═══ COMMENTS ═══ */}
+      <section className="px-4 md:px-8 lg:px-8 py-8">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-lg font-bold text-white mb-4">Comments</h2>
+          <AnimeComments animeId={mangaId} animeTitle={displayTitle} />
+        </div>
+      </section>
     </div>
   );
 }
