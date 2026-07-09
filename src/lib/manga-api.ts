@@ -238,6 +238,114 @@ function mapChapter(c: ScrapeChaptersResponse["chapters"][number]): AtsuMangaCha
 }
 
 // ============================================================
+// Direct mangaball.net chapter scraper
+// ---------------------------------------------------------------------
+// The manga-scrape-api's mangaball provider only returns ONE chapter
+// per number (English), dropping all multi-language translations.
+// This direct scraper calls mangaball.net's own API to get ALL chapter
+// translations (1089+ chapters in 10+ languages).
+//
+// Flow:
+// 1. Fetch mangaball.net page → extract CSRF token + session cookie
+// 2. POST to /api/v1/chapter/chapter-listing-by-title-id/ with manga ID
+// 3. Flatten the response: each translation becomes a separate chapter
+//    entry with its own ID, language, and page count
+// ============================================================
+
+const MANGABALL_BASE = "https://mangaball.net";
+
+const MANGABALL_HEADERS: Record<string, string> = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+  Accept: "text/html,application/json,*/*",
+  "Accept-Language": "en-US,en;q=0.5",
+};
+
+/** Get a CSRF token + session cookie from mangaball.net */
+async function getMangaballSession(): Promise<{ csrf: string; cookie: string } | null> {
+  try {
+    const res = await fetch(`${MANGABALL_BASE}/`, {
+      headers: MANGABALL_HEADERS,
+    });
+    // Extract CSRF token from HTML
+    const html = await res.text();
+    const csrfMatch = html.match(/csrf-token" content="([^"]+)"/);
+    if (!csrfMatch) return null;
+    // Extract cookies from response headers
+    const cookies = res.headers.get("set-cookie") || "";
+    const sessionCookie = cookies.split(";")[0]; // Get PHPSESSID=xxx
+    return { csrf: csrfMatch[1], cookie: sessionCookie };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get ALL chapters from mangaball.net directly (including ALL languages).
+ * Returns a flat list of chapter translations, each with its own ID,
+ * language, and page count.
+ *
+ * Each entry in the returned array has:
+ *   - id: the translation ID (used for fetching pages)
+ *   - number: the chapter number (float)
+ *   - title: the chapter title
+ *   - lang: the language code (en, es, fr, id, it, pt-br, vi, etc.)
+ *   - pages: the page count
+ *   - group: the scanlation group name
+ */
+export async function getMangaballChaptersDirect(mangaId: string): Promise<AtsuMangaChapter[]> {
+  try {
+    const session = await getMangaballSession();
+    if (!session) return [];
+
+    const res = await fetch(`${MANGABALL_BASE}/api/v1/chapter/chapter-listing-by-title-id/`, {
+      method: "POST",
+      headers: {
+        ...MANGABALL_HEADERS,
+        "X-CSRF-TOKEN": session.csrf,
+        "X-Requested-With": "XMLHttpRequest",
+        "Content-Type": "application/x-www-form-urlencoded",
+        Cookie: session.cookie,
+        Referer: `${MANGABALL_BASE}/`,
+      },
+      body: `title_id=${encodeURIComponent(mangaId)}&userSettingsEnabled=false`,
+    });
+
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (data?.code !== 200 || !data?.ALL_CHAPTERS) return [];
+
+    // Flatten: each chapter has multiple translations (one per language)
+    const chapters: AtsuMangaChapter[] = [];
+    for (const ch of data.ALL_CHAPTERS) {
+      const number = parseFloat(ch.number_float) || 0;
+      for (const tr of ch.translations || []) {
+        chapters.push({
+          id: tr.id,  // Translation ID — used for fetching pages
+          title: tr.name || `Chapter ${number}`,
+          number,
+          lang: tr.language,
+          pages: tr.pages || 0,
+          pageCount: tr.pages || 0,
+          date: tr.date,
+          scanGroup: tr.group?.name,
+        });
+      }
+    }
+
+    // Sort by number, then by language
+    chapters.sort((a, b) => {
+      if (a.number !== b.number) return a.number - b.number;
+      return (a.lang || "").localeCompare(b.lang || "");
+    });
+
+    return chapters;
+  } catch (err) {
+    console.error("[manga-api] getMangaballChaptersDirect error:", err);
+    return [];
+  }
+}
+
+// ============================================================
 // Public API
 // ============================================================
 
@@ -351,19 +459,37 @@ export async function searchMangaBoth(query: string): Promise<AtsuMangaEntry[]> 
 export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail | null> {
   if (!mangaId) return null;
   const { provider, rawId } = parseProviderFromId(mangaId);
-  const [info, chaptersData] = await Promise.all([
+
+  // For mangaball, fetch info from manga-scrape-api AND chapters directly
+  // from mangaball.net (which returns ALL language translations, not just
+  // the deduped English-only list from manga-scrape-api)
+  const [info, chaptersData, directChapters] = await Promise.all([
     scrapeFetch<ScrapeInfoResponse>(
       `/api/scrape/info?id=${encodeURIComponent(rawId)}&provider=${provider}`,
     ),
-    scrapeFetch<ScrapeChaptersResponse>(
-      `/api/scrape/chapters?id=${encodeURIComponent(rawId)}&provider=${provider}`,
-    ),
+    // For mangaball, still fetch from manga-scrape-api as fallback
+    provider === "mangaball"
+      ? Promise.resolve(null as ScrapeChaptersResponse | null)
+      : scrapeFetch<ScrapeChaptersResponse>(
+          `/api/scrape/chapters?id=${encodeURIComponent(rawId)}&provider=${provider}`,
+        ),
+    // For mangaball, get ALL chapters directly from mangaball.net
+    provider === "mangaball"
+      ? getMangaballChaptersDirect(rawId)
+      : Promise.resolve([] as AtsuMangaChapter[]),
   ]);
 
-  // If both info and chapters failed, return null
-  if (!info && !chaptersData?.chapters?.length) return null;
+  // Use direct mangaball chapters if available (has all languages),
+  // otherwise fall back to manga-scrape-api chapters
+  let chapters: AtsuMangaChapter[];
+  if (directChapters && directChapters.length > 0) {
+    chapters = directChapters;
+  } else {
+    chapters = (chaptersData?.chapters || []).map(mapChapter);
+  }
 
-  const chapters = (chaptersData?.chapters || []).map(mapChapter);
+  // If both info and chapters failed, return null
+  if (!info && chapters.length === 0) return null;
   // Sort ascending by chapter number, dedupe by number AND language.
   // Two chapters with the same number but different languages (e.g.,
   // chapter 1 in English and chapter 1 in Spanish) must BOTH be kept.
@@ -466,25 +592,47 @@ export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail |
 /**
  * Get chapter pages.
  *
- * IMPORTANT: The manga-scrape-api providers accept `chapterNumber`
- * (NOT `chapterId`). The existing route contract passes `chapterId`.
- * To stay backwards-compatible with the store route
- * `{ page: "manga-read"; id: string; chapterId: string }`,
- * we treat the value passed as `chapterId` as the chapter NUMBER
- * (the detail page passes `String(chapter.number)` when navigating
- * to the reader).
+ * For mangaball: tries the translation ID first (so Spanish ch68 gets
+ * Spanish images, not English). If the translation ID starts with digits
+ * that get misparsed by the manga-scrape-api as a chapter number, falls
+ * back to the chapter number.
  *
- * Also parses the provider from the mangaId prefix so it works with
- * both atsumaru (at:) and mangaball (mb:) IDs.
+ * For atsumaru: uses chapter number as before.
+ *
+ * The chapterId can be either:
+ *   - A chapter number (like "68") — used for atsumaru and as fallback
+ *   - A translation ID (like "6a27a45c48701b8c5c57de1a") — used for
+ *     mangaball to get language-specific images
  */
 export async function getChapterImages(
   mangaId: string,
   chapterId: string,
 ): Promise<AtsuChapterPage[]> {
-  // Note: chapterId can be "0" (valid chapter number), so we check for
-  // null/undefined/empty string, not falsiness
   if (!mangaId || chapterId === null || chapterId === undefined || chapterId === "") return [];
   const { provider, rawId } = parseProviderFromId(mangaId);
+
+  // For mangaball, chapterId might be a translation ID (24 hex chars)
+  // or a chapter number. Try translation ID first for multi-language support.
+  const isTranslationId = provider === "mangaball" && /^[0-9a-f]{24}$/i.test(chapterId);
+
+  if (isTranslationId) {
+    // Try fetching pages with the translation ID
+    const data = await scrapeFetch<ScrapePagesResponse>(
+      `/api/scrape/pages?id=${encodeURIComponent(rawId)}&chapterNumber=${encodeURIComponent(chapterId)}&provider=${provider}`,
+    );
+    if (data?.pages && data.pages.length > 0) {
+      return data.pages.map(p => ({
+        index: p.order - 1,
+        url: p.url,
+        width: p.width,
+        height: p.height,
+      }));
+    }
+    // If translation ID failed (manga-scrape-api might parse it as a number),
+    // fall through to chapter number approach
+  }
+
+  // Use chapter number (works for atsumaru, and as fallback for mangaball)
   const chapterNumber = encodeURIComponent(String(chapterId));
   const data = await scrapeFetch<ScrapePagesResponse>(
     `/api/scrape/pages?id=${encodeURIComponent(rawId)}&chapterNumber=${chapterNumber}&provider=${provider}`,

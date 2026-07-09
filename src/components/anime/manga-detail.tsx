@@ -168,12 +168,16 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   }, [manga, chapterSearch, sortOrder, selectedLang]);
 
   const navigateToChapter = useCallback((ch: MangaChapter) => {
-    // Pass the selected language to the reader so prev/next navigation
-    // stays within the same language
+    // For mangaball chapters, pass the translation ID (ch.id) as chapterId
+    // so the reader fetches the correct language's images.
+    // For atsumaru chapters, pass the chapter number (ch.number) as before.
+    // The chapterId field is 24 hex chars for mangaball translations,
+    // or a number string for atsumaru.
+    const chapterId = ch.id && ch.id.length === 24 ? ch.id : String(ch.number);
     navigate({
       page: "manga-read",
       id: mangaId,
-      chapterId: String(ch.number),
+      chapterId,
     } as any);
     // Store selected lang in sessionStorage for the reader to use
     try {
