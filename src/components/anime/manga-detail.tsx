@@ -428,7 +428,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
       {/* ═══ CHAPTERS ═══ */}
       {manga.chapters && manga.chapters.length > 0 && (
         <section className="px-4 md:px-8 lg:px-8 py-8">
-          <div className="max-w-5xl mx-auto">
+          <div className="max-w-5xl">
             {/* Chapter header + controls */}
             <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
               <h2 className="text-lg font-bold text-white">
@@ -550,7 +550,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
 
       {/* ═══ COMMENTS ═══ */}
       <section className="px-4 md:px-8 lg:px-8 py-8">
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-5xl">
           <h2 className="text-lg font-bold text-white mb-4">Comments</h2>
           <AnimeComments animeId={mangaId} animeTitle={displayTitle} />
         </div>
