@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAppStore } from "./store";
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -114,9 +114,23 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   // ── Find prev/next chapters ──
   // Compare by chapter number (as string) since the store route now passes
   // the chapter number as chapterId (string).
-  const currentChapterIdx = allChapters.findIndex((c: any) => String(c.number) === String(chapterId));
-  const prevChapter = currentChapterIdx > 0 ? allChapters[currentChapterIdx - 1] : null;
-  const nextChapter = currentChapterIdx < allChapters.length - 1 ? allChapters[currentChapterIdx + 1] : null;
+  // Also filter by language (stored in sessionStorage by the detail page)
+  // so prev/next navigation stays within the same language.
+  const readerLang = useMemo(() => {
+    try {
+      return sessionStorage.getItem(`manga-lang-${mangaId}`) || "all";
+    } catch { return "all"; }
+  }, [mangaId]);
+
+  // Filter chapters by language for navigation
+  const langFilteredChapters = useMemo(() => {
+    if (readerLang === "all") return allChapters;
+    return allChapters.filter((c: any) => c.lang === readerLang || !c.lang);
+  }, [allChapters, readerLang]);
+
+  const currentChapterIdx = langFilteredChapters.findIndex((c: any) => String(c.number) === String(chapterId));
+  const prevChapter = currentChapterIdx > 0 ? langFilteredChapters[currentChapterIdx - 1] : null;
+  const nextChapter = currentChapterIdx < langFilteredChapters.length - 1 ? langFilteredChapters[currentChapterIdx + 1] : null;
 
   // ── Auto-hide controls after 3s of inactivity ──
   const resetHideTimer = useCallback(() => {

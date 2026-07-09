@@ -47,6 +47,7 @@ interface MangaDetailData {
   artists?: string[];
   genres?: string[];
   isAdult?: boolean;
+  tags?: string[];
   anilistId?: number;
   malId?: number;
   totalChapters?: number;
@@ -76,26 +77,32 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
     async function load() {
       setLoading(true);
       try {
-        const res = await fetch(`/api/manga/detail?id=${encodeURIComponent(mangaId)}`);
+        // Get fallback title from sessionStorage (for cross-provider metadata merge)
+        let fbTitle = "";
+        let fbPoster = "";
+        try {
+          fbTitle = sessionStorage.getItem(`manga-title-${mangaId}`) || "";
+          fbPoster = sessionStorage.getItem(`manga-poster-${mangaId}`) || "";
+        } catch { /* ignore */ }
+
+        // Pass title to the API for cross-provider fallback
+        const titleParam = fbTitle ? `&title=${encodeURIComponent(fbTitle)}` : "";
+        const res = await fetch(`/api/manga/detail?id=${encodeURIComponent(mangaId)}${titleParam}`);
         if (res.ok) {
           const data = await res.json();
 
           // Fallback poster/title from sessionStorage (for mangaball manga
           // where the info endpoint fails and returns empty poster)
           if (!data.poster || data.poster === "") {
-            try {
-              const fbPoster = sessionStorage.getItem(`manga-poster-${mangaId}`);
-              const fbTitle = sessionStorage.getItem(`manga-title-${mangaId}`);
-              if (fbPoster) {
-                data.poster = fbPoster;
-                data.cover = fbPoster;
-                data.banner = fbPoster;
-              }
-              if (fbTitle && (!data.title || data.title === "Unknown Title")) {
-                data.title = fbTitle;
-                data.englishTitle = fbTitle;
-              }
-            } catch { /* ignore */ }
+            if (fbPoster) {
+              data.poster = fbPoster;
+              data.cover = fbPoster;
+              data.banner = fbPoster;
+            }
+            if (fbTitle && (!data.title || data.title === "Unknown Title")) {
+              data.title = fbTitle;
+              data.englishTitle = fbTitle;
+            }
           }
 
           setManga(data);
@@ -161,8 +168,18 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   }, [manga, chapterSearch, sortOrder, selectedLang]);
 
   const navigateToChapter = useCallback((ch: MangaChapter) => {
-    navigate({ page: "manga-read", id: mangaId, chapterId: String(ch.number) });
-  }, [navigate, mangaId]);
+    // Pass the selected language to the reader so prev/next navigation
+    // stays within the same language
+    navigate({
+      page: "manga-read",
+      id: mangaId,
+      chapterId: String(ch.number),
+    } as any);
+    // Store selected lang in sessionStorage for the reader to use
+    try {
+      sessionStorage.setItem(`manga-lang-${mangaId}`, selectedLang);
+    } catch { /* ignore */ }
+  }, [navigate, mangaId, selectedLang]);
 
   // ── Loading ──
   if (loading) {
@@ -303,6 +320,82 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
           )}
         </section>
       )}
+
+      {/* ═══ DETAILS / TAGS ═══ */}
+      <section className="px-4 md:px-8 lg:px-8 py-4 max-w-5xl">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Author */}
+          {authors && authors !== "Unknown" && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Author</span>
+              <span className="text-sm text-white/80">{authors}</span>
+            </div>
+          )}
+          {/* Status */}
+          {manga.status && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Status</span>
+              <span className="text-sm text-white/80">{manga.status}</span>
+            </div>
+          )}
+          {/* Type */}
+          {manga.type && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Type</span>
+              <span className="text-sm text-white/80 uppercase">{manga.type}</span>
+            </div>
+          )}
+          {/* Year */}
+          {manga.year && (
+            <div className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Year</span>
+              <span className="text-sm text-white/80">{manga.year}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Tags */}
+        {manga.tags && manga.tags.length > 0 && (
+          <div className="mt-4">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-2 block">Tags</span>
+            <div className="flex flex-wrap gap-1.5">
+              {manga.tags.slice(0, 20).map(tag => (
+                <span key={tag} className="px-2 py-1 text-[10px] font-medium text-white/50 bg-white/[0.04] border border-white/[0.08] rounded">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Genres */}
+        {manga.genres && manga.genres.length > 0 && (
+          <div className="mt-4">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-2 block">Genres</span>
+            <div className="flex flex-wrap gap-1.5">
+              {manga.genres.map(g => (
+                <span key={g} className="px-2.5 py-1 text-xs font-medium text-white/60 bg-white/[0.04] border border-white/[0.08] rounded-full">
+                  {g}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Available languages */}
+        {availableLangs.length > 0 && (
+          <div className="mt-4">
+            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-2 block">Available Languages</span>
+            <div className="flex flex-wrap gap-1.5">
+              {availableLangs.map(lang => (
+                <span key={lang} className="px-2.5 py-1 text-xs font-bold rounded" style={{ background: `${ACCENT}15`, color: ACCENT, border: `1px solid ${ACCENT}30` }}>
+                  {LANG_NAMES[lang] || lang.toUpperCase()}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
 
       {/* ═══ CHAPTERS ═══ */}
       {manga.chapters && manga.chapters.length > 0 && (
