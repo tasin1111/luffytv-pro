@@ -656,6 +656,32 @@ export async function getChapterImages(
     return getComixChapterPages(rawId, chapterId);
   }
 
+  // Check if chapterId is a comix.to chapter (merged from cross-provider)
+  // Format: "cx:{hid}:{chapterDbId}" or "cx_{chapterDbId}_{groupId}"
+  if (chapterId.startsWith("cx:") || chapterId.startsWith("cx_")) {
+    // Extract the comix HID and chapter ID
+    if (chapterId.startsWith("cx:")) {
+      // Format: cx:{hid}:{chapterDbId}
+      const parts = chapterId.split(":");
+      if (parts.length >= 3) {
+        const comixHid = parts[1];
+        const comixChapterId = parts.slice(2).join(":");
+        return getComixChapterPages(comixHid, comixChapterId);
+      }
+    } else {
+      // Format: cx_{chapterDbId} or cx_{chapterDbId}_{groupId}
+      // The chapter DB ID is everything after "cx_" up to the last "_{groupId}"
+      const match = chapterId.match(/^cx_(\d+)(?:_\d+)?$/);
+      if (match) {
+        // We need the comix HID — try to extract from mangaId
+        // For mangaball manga with merged comix chapters, we need to
+        // pass the comix HID. The detail route stores it in the chapter ID.
+        // Fall back to using the raw manga ID as comix HID
+        return getComixChapterPages(rawId, match[1]);
+      }
+    }
+  }
+
   // For mangaball, chapterId might be a translation ID (24 hex chars)
   // or a chapter number. Try translation ID first for multi-language support.
   const isTranslationId = provider === "mangaball" && /^[0-9a-f]{24}$/i.test(chapterId);
