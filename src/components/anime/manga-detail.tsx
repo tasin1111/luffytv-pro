@@ -133,7 +133,9 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
           // and replace English chapters with comix.to's English chapters.
           // English = comix.to ONLY, other languages = mangaball ONLY.
           if (mangaId.startsWith("mb:") && data.chapters?.length) {
-            const titleForSearch = data.englishTitle || data.title || fbTitle || "";
+            // Use fbTitle FIRST (from sessionStorage, set when user clicked the manga card)
+            // because mangaball's info endpoint often fails and returns "Unknown Title"
+            const titleForSearch = fbTitle || data.englishTitle || data.title || "";
             if (titleForSearch && titleForSearch !== "Unknown Title") {
               try {
                 // Step 1: Search comix.to for the title
