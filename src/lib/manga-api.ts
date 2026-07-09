@@ -241,6 +241,47 @@ function mapChapter(c: ScrapeChaptersResponse["chapters"][number]): AtsuMangaCha
 // Public API
 // ============================================================
 
+// ── Provider prefix helpers ──
+// IDs are prefixed with the provider name so we know which API to call:
+//   "mb:685158ff..." → mangaball
+//   "at:oZOG5"       → atsumaru
+//   "oZOG5" (no prefix) → atsumaru (backwards compat)
+
+const MANGABALL_PREFIX = "mb:";
+const ATSUMARU_PREFIX = "at:";
+
+function parseProviderFromId(id: string): { provider: string; rawId: string } {
+  if (id.startsWith(MANGABALL_PREFIX)) {
+    return { provider: "mangaball", rawId: id.slice(MANGABALL_PREFIX.length) };
+  }
+  if (id.startsWith(ATSUMARU_PREFIX)) {
+    return { provider: "atsumaru", rawId: id.slice(ATSUMARU_PREFIX.length) };
+  }
+  // No prefix = atsumaru (backwards compat with existing bookmarks/URLs)
+  return { provider: "atsumaru", rawId: id };
+}
+
+function prefixId(provider: string, id: string): string {
+  if (provider === "mangaball") return MANGABALL_PREFIX + id;
+  if (provider === "atsumaru") return ATSUMARU_PREFIX + id;
+  return id;
+}
+
+/** Map a mangaball search result to our AtsuMangaEntry (with prefixed id) */
+function mapMangaballSearchResult(r: ScrapeSearchResponse["results"][number]): AtsuMangaEntry {
+  return {
+    id: prefixId("mangaball", r.id),
+    title: r.title || "",
+    poster: r.image || "",
+    cover: r.image || "",
+    type: r.subtype || "manga",
+    status: r.status,
+    rating: typeof r.rating === "number" ? r.rating : undefined,
+    source: "mangaball",
+    slug: r.id,
+  };
+}
+
 /**
  * Search manga on atsumaru via the manga-scrape-api.
  */
@@ -250,24 +291,77 @@ export async function searchManga(query: string, _limit = 20): Promise<AtsuManga
     `/api/scrape/search?query=${encodeURIComponent(query.trim())}&provider=${PROVIDER}`,
   );
   if (!data?.results) return [];
-  return data.results.map(mapSearchResult);
+  return data.results.map(r => {
+    const mapped = mapSearchResult(r);
+    // Prefix the id so we know to use atsumaru provider for detail/chapters
+    mapped.id = prefixId("atsumaru", mapped.id);
+    return mapped;
+  });
+}
+
+/**
+ * Search manga on mangaball via the manga-scrape-api.
+ */
+export async function searchMangaMangaball(query: string): Promise<AtsuMangaEntry[]> {
+  if (!query.trim()) return [];
+  const data = await scrapeFetch<ScrapeSearchResponse>(
+    `/api/scrape/search?query=${encodeURIComponent(query.trim())}&provider=mangaball`,
+  );
+  if (!data?.results) return [];
+  return data.results.map(mapMangaballSearchResult);
+}
+
+/**
+ * Search BOTH providers in parallel and merge results.
+ * Mangaball results come first (primary — larger library, multi-language),
+ * then atsumaru results (backup). Dedupes by normalized title.
+ */
+export async function searchMangaBoth(query: string): Promise<AtsuMangaEntry[]> {
+  if (!query.trim()) return [];
+  const [mangaballResults, atsumaruResults] = await Promise.allSettled([
+    searchMangaMangaball(query),
+    searchManga(query),
+  ]);
+
+  const mb = mangaballResults.status === "fulfilled" ? mangaballResults.value : [];
+  const at = atsumaruResults.status === "fulfilled" ? atsumaruResults.value : [];
+
+  // Merge: mangaball first, then atsumaru, dedupe by normalized title
+  const seen = new Set<string>();
+  const merged: AtsuMangaEntry[] = [];
+  for (const m of [...mb, ...at]) {
+    const key = (m.englishTitle || m.title || "").toLowerCase().trim();
+    if (key && !seen.has(key)) {
+      seen.add(key);
+      merged.push(m);
+    }
+  }
+  return merged;
 }
 
 /**
  * Get manga detail (info + chapters in parallel).
+ * Parses the provider from the ID prefix to know which API to call.
+ *
+ * FALLBACK: If the primary provider's info endpoint fails (mangaball's
+ * info endpoint is known to be intermittent), but chapters work, we
+ * construct a minimal detail from chapters data alone. This ensures
+ * the detail page still renders even when info is unavailable.
  */
 export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail | null> {
   if (!mangaId) return null;
+  const { provider, rawId } = parseProviderFromId(mangaId);
   const [info, chaptersData] = await Promise.all([
     scrapeFetch<ScrapeInfoResponse>(
-      `/api/scrape/info?id=${encodeURIComponent(mangaId)}&provider=${PROVIDER}`,
+      `/api/scrape/info?id=${encodeURIComponent(rawId)}&provider=${provider}`,
     ),
     scrapeFetch<ScrapeChaptersResponse>(
-      `/api/scrape/chapters?id=${encodeURIComponent(mangaId)}&provider=${PROVIDER}`,
+      `/api/scrape/chapters?id=${encodeURIComponent(rawId)}&provider=${provider}`,
     ),
   ]);
 
-  if (!info) return null;
+  // If both info and chapters failed, return null
+  if (!info && !chaptersData?.chapters?.length) return null;
 
   const chapters = (chaptersData?.chapters || []).map(mapChapter);
   // Sort ascending by chapter number, dedupe by number
@@ -281,6 +375,28 @@ export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail |
     })
     .sort((a, b) => a.number - b.number);
 
+  // If info endpoint failed but chapters work, build minimal detail
+  if (!info) {
+    return {
+      id: prefixId(provider, rawId),
+      title: "Unknown Title",
+      poster: "",
+      banner: "",
+      cover: "",
+      description: "",
+      type: "manga",
+      status: "",
+      authors: "Unknown",
+      artists: [],
+      genres: [],
+      tags: [],
+      chapters: dedupedChapters,
+      totalChapters: dedupedChapters.length,
+      source: provider,
+      slug: rawId,
+    };
+  }
+
   const authors = info.author
     ? Array.isArray(info.author)
       ? info.author
@@ -292,9 +408,19 @@ export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail |
       : [info.artist]
     : [];
 
+  // Clean up mangaball title (has "{{chapter_name}} Online Free - Multiple Languages")
+  let cleanTitle = info.title || "";
+  if (provider === "mangaball") {
+    cleanTitle = cleanTitle
+      .replace(/\{\{chapter_name\}\}/gi, "")
+      .replace(/\s*Online Free.*$/i, "")
+      .replace(/\s*-\s*Multiple Languages.*$/i, "")
+      .trim();
+  }
+
   return {
-    id: info.id,
-    title: info.title,
+    id: prefixId(provider, info.id),
+    title: cleanTitle,
     englishTitle: info.altTitles?.[0],
     altTitles: info.altTitles || [],
     poster: info.image || "",
@@ -313,7 +439,7 @@ export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail |
     malId: info.malId,
     chapters: dedupedChapters,
     totalChapters: dedupedChapters.length,
-    source: "atsumaru",
+    source: provider,
     slug: info.id,
   };
 }
@@ -321,22 +447,26 @@ export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail |
 /**
  * Get chapter pages.
  *
- * IMPORTANT: The manga-scrape-api atsumaru provider accepts
- * `chapterNumber` (NOT `chapterId`). The existing route contract
- * passes `chapterId`. To stay backwards-compatible with the store
- * route `{ page: "manga-read"; id: string; chapterId: string }`,
+ * IMPORTANT: The manga-scrape-api providers accept `chapterNumber`
+ * (NOT `chapterId`). The existing route contract passes `chapterId`.
+ * To stay backwards-compatible with the store route
+ * `{ page: "manga-read"; id: string; chapterId: string }`,
  * we treat the value passed as `chapterId` as the chapter NUMBER
- * (the detail page now passes `String(chapter.number)` when
- * navigating to the reader).
+ * (the detail page passes `String(chapter.number)` when navigating
+ * to the reader).
+ *
+ * Also parses the provider from the mangaId prefix so it works with
+ * both atsumaru (at:) and mangaball (mb:) IDs.
  */
 export async function getChapterImages(
   mangaId: string,
   chapterId: string,
 ): Promise<AtsuChapterPage[]> {
   if (!mangaId || !chapterId) return [];
+  const { provider, rawId } = parseProviderFromId(mangaId);
   const chapterNumber = encodeURIComponent(String(chapterId));
   const data = await scrapeFetch<ScrapePagesResponse>(
-    `/api/scrape/pages?id=${encodeURIComponent(mangaId)}&chapterNumber=${chapterNumber}&provider=${PROVIDER}`,
+    `/api/scrape/pages?id=${encodeURIComponent(rawId)}&chapterNumber=${chapterNumber}&provider=${provider}`,
   );
   if (!data?.pages) return [];
   return data.pages.map(p => ({
@@ -385,11 +515,12 @@ function atsuImageUrl(path: string | undefined | null): string {
   return `${ATSU_DIRECT_BASE}/static/${cleaned}`;
 }
 
-/** Map an atsu.moe home section item to our AtsuMangaEntry */
+/** Map an atsu.moe home section item to our AtsuMangaEntry (with prefixed id) */
 function mapAtsuHomeItem(item: any): AtsuMangaEntry {
   const poster = atsuImageUrl(item.mediumImage || item.largeImage || item.smallImage || item.image);
+  const rawId = String(item.id || "");
   return {
-    id: String(item.id || ""),
+    id: prefixId("atsumaru", rawId),
     title: item.title || "",
     poster,
     cover: poster,
@@ -397,7 +528,7 @@ function mapAtsuHomeItem(item: any): AtsuMangaEntry {
     isAdult: item.isAdult || false,
     rating: typeof item.mbRating === "number" ? item.mbRating : undefined,
     source: "atsumaru",
-    slug: String(item.id || ""),
+    slug: rawId,
   };
 }
 
