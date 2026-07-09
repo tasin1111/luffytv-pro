@@ -28,6 +28,7 @@ interface MangaChapter {
   scanGroup?: string;
   pageCount?: number;
   pages?: number;
+  lang?: string;
 }
 
 interface MangaDetailData {
@@ -68,6 +69,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   const [chapterSearch, setChapterSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [showFullDesc, setShowFullDesc] = useState(false);
+  const [selectedLang, setSelectedLang] = useState<string>("all");
 
   // ── Load manga detail ──
   useEffect(() => {
@@ -77,6 +79,25 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
         const res = await fetch(`/api/manga/detail?id=${encodeURIComponent(mangaId)}`);
         if (res.ok) {
           const data = await res.json();
+
+          // Fallback poster/title from sessionStorage (for mangaball manga
+          // where the info endpoint fails and returns empty poster)
+          if (!data.poster || data.poster === "") {
+            try {
+              const fbPoster = sessionStorage.getItem(`manga-poster-${mangaId}`);
+              const fbTitle = sessionStorage.getItem(`manga-title-${mangaId}`);
+              if (fbPoster) {
+                data.poster = fbPoster;
+                data.cover = fbPoster;
+                data.banner = fbPoster;
+              }
+              if (fbTitle && (!data.title || data.title === "Unknown Title")) {
+                data.title = fbTitle;
+                data.englishTitle = fbTitle;
+              }
+            } catch { /* ignore */ }
+          }
+
           setManga(data);
           // Fetch AniList banner if we have an anilistId
           const alId = data.anilistId ? parseInt(String(data.anilistId), 10) : null;
@@ -108,16 +129,36 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   const descTruncated = cleanDesc.length > 400 && !showFullDesc;
   const descDisplay = descTruncated ? cleanDesc.slice(0, 400) + "..." : cleanDesc;
 
+  // Extract available languages from chapters (mangaball has en/fr/id)
+  const availableLangs = useMemo(() => {
+    if (!manga?.chapters) return [];
+    const langs = new Set<string>();
+    for (const ch of manga.chapters) {
+      if (ch.lang) langs.add(ch.lang);
+    }
+    return Array.from(langs).sort();
+  }, [manga]);
+
+  // Language display names
+  const LANG_NAMES: Record<string, string> = {
+    en: "English", fr: "Français", id: "Indonesia",
+    ja: "日本語", ko: "한국어", zh: "中文", es: "Español",
+    pt: "Português", de: "Deutsch", ru: "Русский",
+  };
+
   const filteredChapters = useMemo(() => {
     if (!manga?.chapters) return [];
     return manga.chapters
       .filter(ch => {
+        // Language filter
+        if (selectedLang !== "all" && ch.lang !== selectedLang) return false;
+        // Search filter
         if (!chapterSearch) return true;
         const q = chapterSearch.toLowerCase();
         return ch.title.toLowerCase().includes(q) || String(ch.number).includes(q);
       })
       .sort((a, b) => sortOrder === "asc" ? a.number - b.number : b.number - a.number);
-  }, [manga, chapterSearch, sortOrder]);
+  }, [manga, chapterSearch, sortOrder, selectedLang]);
 
   const navigateToChapter = useCallback((ch: MangaChapter) => {
     navigate({ page: "manga-read", id: mangaId, chapterId: String(ch.number) });
@@ -273,6 +314,22 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                 Chapters <span className="text-white/40">({filteredChapters.length})</span>
               </h2>
               <div className="flex items-center gap-2">
+                {/* Language selector (only show if multiple languages available) */}
+                {availableLangs.length > 1 && (
+                  <select
+                    value={selectedLang}
+                    onChange={e => setSelectedLang(e.target.value)}
+                    className="px-3 py-1.5 text-xs font-semibold bg-white/5 border border-white/10 text-white/60 focus:outline-none focus:border-white/30 cursor-pointer"
+                    style={{ borderRadius: "4px" }}
+                  >
+                    <option value="all">All Languages</option>
+                    {availableLangs.map(lang => (
+                      <option key={lang} value={lang}>
+                        {LANG_NAMES[lang] || lang.toUpperCase()}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 {/* Search */}
                 <div className="relative">
                   <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

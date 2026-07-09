@@ -31,6 +31,15 @@ import { useAppStore } from "./store";
 
 const ACCENT = "#1e88ff";
 
+// Type badge colors
+const TYPE_COLORS: Record<string, string> = {
+  manga: "#8E7CE6",
+  manhwa: "#3B82F6",
+  manhua: "#F59E0B",
+  novel: "#10B981",
+  "one shot": "#EC4899",
+};
+
 // ────────────────────────────────────────────────────────────────────────
 // Types
 // ────────────────────────────────────────────────────────────────────────
@@ -104,6 +113,19 @@ function getDescription(m: EnrichedManga): string {
 export default function MangaPage() {
   const navigate = useAppStore(s => s.navigate);
   const sectionSubPage = useAppStore(s => s.sectionSubPage);
+
+  // Helper: navigate to manga detail, storing poster as fallback
+  // (mangaball info endpoint is broken for some manga, so the detail
+  // page may get an empty poster — this ensures we always have one)
+  const goToDetail = useCallback((manga: { id: string; poster?: string; cover?: string; title?: string; englishTitle?: string }) => {
+    try {
+      const poster = manga.poster || manga.cover || "";
+      const title = manga.englishTitle || manga.title || "";
+      if (poster) sessionStorage.setItem(`manga-poster-${manga.id}`, poster);
+      if (title) sessionStorage.setItem(`manga-title-${manga.id}`, title);
+    } catch { /* ignore */ }
+    navigate({ page: "manga-detail", id: manga.id });
+  }, [navigate]);
 
   const [sections, setSections] = useState<MangaSection[]>([]);
   const [searchResults, setSearchResults] = useState<MangaEntry[]>([]);
@@ -298,7 +320,7 @@ export default function MangaPage() {
     <div className="min-h-screen bg-black text-white pb-12">
       {/* ═══ HERO (only on home sub-page) ═══ */}
       {!searchMode && sectionSubPage === "home" && heroItems.length > 0 && (
-        <HeroCarousel items={heroItems} navigate={navigate} />
+        <HeroCarousel items={heroItems} goToDetail={goToDetail} />
       )}
 
       {/* ═══ INLINE SEARCH + FILTER BAR ═══ */}
@@ -368,7 +390,7 @@ export default function MangaPage() {
           {searchResults.length > 0 ? (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
               {searchResults.map(m => (
-                <PosterCard key={m.id} manga={m} navigate={navigate} />
+                <PosterCard key={m.id} manga={m} goToDetail={goToDetail} />
               ))}
             </div>
           ) : !searching ? (
@@ -386,15 +408,15 @@ export default function MangaPage() {
             : "Manga"}
           items={subPageData}
           loading={subPageLoading}
-          navigate={navigate}
+          goToDetail={goToDetail}
         />
       ) : (
         <>
           {/* ═══ TOP TRENDING ═══ */}
-          <TopTrending trending={trending} topRated={topRated} navigate={navigate} />
+          <TopTrending trending={trending} topRated={topRated} goToDetail={goToDetail} />
 
           {/* ═══ FEATURED ═══ */}
-          {featured && <FeaturedMangaSection manga={featured} navigate={navigate} />}
+          {featured && <FeaturedMangaSection manga={featured} goToDetail={goToDetail} />}
 
           {/* ═══ CAROUSELS ═══ */}
           {sections.map((section, si) => (
@@ -402,7 +424,7 @@ export default function MangaPage() {
               key={si}
               title={section.title}
               items={applyFilters(section.items)}
-              navigate={navigate}
+              goToDetail={goToDetail}
             />
           ))}
 
@@ -412,7 +434,7 @@ export default function MangaPage() {
             popular={popular}
             topRated={topRated}
             recent={recent}
-            navigate={navigate}
+            goToDetail={goToDetail}
             typeFilter={typeFilter}
             sort={sort}
             setSort={setSort}
@@ -429,19 +451,19 @@ export default function MangaPage() {
    A full-width poster grid with a title header.
    ═══════════════════════════════════════════════════════════════ */
 
-function SubPageGrid({ title, items, loading, navigate }: {
+function SubPageGrid({ title, items, loading, goToDetail }: {
   title: string;
   items: MangaEntry[];
   loading: boolean;
-  navigate: (r: any) => void;
+  goToDetail: (m: any) => void;
 }) {
   if (loading) {
     return (
       <section className="px-4 md:px-8 lg:px-8 py-8">
         <div className="h-8 w-64 skeleton rounded mb-6" />
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-          {Array.from({ length: 18 }).map((_, i) => (
-            <div key={i} className="aspect-[3/4] skeleton rounded" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="h-32 skeleton rounded-lg" />
           ))}
         </div>
       </section>
@@ -449,12 +471,12 @@ function SubPageGrid({ title, items, loading, navigate }: {
   }
 
   return (
-    <section className="px-4 md:px-8 lg:px-8 py-8">
+    <section className="px-4 md:px-8 lg:px-8 py-8 max-w-7xl mx-auto">
       <h2 className="text-2xl font-bold text-white mb-6">{title}</h2>
       {items.length > 0 ? (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           {items.map(m => (
-            <PosterCard key={m.id} manga={m} navigate={navigate} />
+            <RecentUpdateCard key={m.id} manga={m} goToDetail={goToDetail} />
           ))}
         </div>
       ) : (
@@ -467,10 +489,91 @@ function SubPageGrid({ title, items, loading, navigate }: {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   RECENT UPDATE CARD — 2-column wide card (matches screenshot style)
+   Poster on left, title + type + rating + status on right
+   ═══════════════════════════════════════════════════════════════ */
+
+function RecentUpdateCard({ manga, goToDetail }: { manga: MangaEntry; goToDetail: (m: any) => void }) {
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const displayTitle = manga.englishTitle || manga.title;
+  const poster = manga.poster || manga.cover || "";
+  const score = manga.rating ? (manga.rating > 10 ? Math.round(manga.rating) : Math.round(manga.rating * 10)) : 0;
+  const tColor = manga.type ? (TYPE_COLORS[manga.type.toLowerCase()] || "#8E7CE6") : "#8E7CE6";
+
+  return (
+    <button
+      onClick={() => goToDetail(manga)}
+      className="group flex items-center gap-4 p-3 bg-white/[0.03] border border-white/[0.06] hover:bg-white/[0.06] hover:border-white/20 transition-all text-left w-full"
+      style={{ borderRadius: "8px" }}
+    >
+      {/* Poster thumbnail */}
+      <div className="shrink-0 w-16 h-24 sm:w-20 sm:h-28 rounded-lg overflow-hidden bg-white/5 relative">
+        {!imgLoaded && <div className="absolute inset-0 skeleton" />}
+        {poster && (
+          <img
+            src={poster}
+            alt={displayTitle}
+            className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${imgLoaded ? "opacity-100" : "opacity-0"}`}
+            onLoad={() => setImgLoaded(true)}
+            loading="lazy"
+          />
+        )}
+      </div>
+
+      {/* Info */}
+      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+        {/* Top row: type badge + time */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span
+            className="text-[8px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider"
+            style={{ background: `${tColor}20`, color: tColor, border: `1px solid ${tColor}40` }}
+          >
+            {manga.type || "Manga"}
+          </span>
+          {manga.status && (
+            <span className="text-[9px] text-white/40 font-medium uppercase tracking-wider">
+              {manga.status}
+            </span>
+          )}
+        </div>
+
+        {/* Title */}
+        <h3 className="text-sm font-bold text-white line-clamp-1 group-hover:text-white/80 transition-colors">
+          {displayTitle}
+        </h3>
+
+        {/* Bottom row: rating + chapter hint */}
+        <div className="flex items-center gap-3 flex-wrap text-[10px] text-white/40">
+          {score > 0 && (
+            <span className="flex items-center gap-0.5" style={{ color: ACCENT }}>
+              <svg className="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              </svg>
+              {score}%
+            </span>
+          )}
+          {manga.source && manga.source === "mangaball" && (
+            <span className="px-1.5 py-0.5 rounded bg-white/5 text-white/50 font-medium uppercase text-[8px]">
+              Multi-lang
+            </span>
+          )}
+          <span className="text-white/30">Tap to read</span>
+        </div>
+      </div>
+
+      {/* Arrow */}
+      <svg className="w-4 h-4 text-white/20 group-hover:text-white/60 transition-colors shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path d="M9 5l7 7-7 7" />
+      </svg>
+    </button>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════════════
    HERO CAROUSEL — full-screen, bottom-left (mirrors anime-section-page)
    ═══════════════════════════════════════════════════════════════ */
 
-function HeroCarousel({ items, navigate }: { items: EnrichedManga[]; navigate: (r: any) => void }) {
+function HeroCarousel({ items, goToDetail }: { items: EnrichedManga[]; goToDetail: (m: any) => void }) {
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -558,7 +661,7 @@ function HeroCarousel({ items, navigate }: { items: EnrichedManga[]; navigate: (
 
           <div className="flex items-center gap-3 flex-wrap">
             <button
-              onClick={() => navigate({ page: "manga-detail", id: manga.id })}
+              onClick={() => goToDetail(manga)}
               className="inline-flex items-center gap-2 px-8 py-3 bg-white text-black font-bold text-sm hover:bg-white/90 transition-colors"
               style={{ borderRadius: "4px" }}
             >
@@ -569,7 +672,7 @@ function HeroCarousel({ items, navigate }: { items: EnrichedManga[]; navigate: (
               Read Now
             </button>
             <button
-              onClick={() => navigate({ page: "manga-detail", id: manga.id })}
+              onClick={() => goToDetail(manga)}
               className="inline-flex items-center gap-2 px-6 py-3 bg-white/15 text-white font-bold text-sm hover:bg-white/25 backdrop-blur-sm transition-colors border border-white/20"
               style={{ borderRadius: "4px" }}
             >
@@ -603,10 +706,10 @@ function HeroCarousel({ items, navigate }: { items: EnrichedManga[]; navigate: (
 
 type TrendingTab = "trending" | "topRated" | "newest";
 
-function TopTrending({ trending, topRated, navigate }: {
+function TopTrending({ trending, topRated, goToDetail }: {
   trending: EnrichedManga[];
   topRated: MangaEntry[];
-  navigate: (r: any) => void;
+  goToDetail: (m: any) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [tab, setTab] = useState<TrendingTab>("trending");
@@ -674,7 +777,7 @@ function TopTrending({ trending, topRated, navigate }: {
           return (
             <button
               key={`${tab}-${manga.id}-${idx}`}
-              onClick={() => navigate({ page: "manga-detail", id: manga.id })}
+              onClick={() => goToDetail(manga)}
               className="group shrink-0 text-left"
               style={{ width: "170px" }}
             >
@@ -731,7 +834,7 @@ function TopTrending({ trending, topRated, navigate }: {
    FEATURED MANGA — rounded card (mirrors anime-section-page)
    ═══════════════════════════════════════════════════════════════ */
 
-function FeaturedMangaSection({ manga, navigate }: { manga: EnrichedManga; navigate: (r: any) => void }) {
+function FeaturedMangaSection({ manga, goToDetail }: { manga: EnrichedManga; goToDetail: (m: any) => void }) {
   const title = getTitle(manga);
   const cover = getCover(manga);
   const banner = getBanner(manga);
@@ -793,7 +896,7 @@ function FeaturedMangaSection({ manga, navigate }: { manga: EnrichedManga; navig
 
             <div className="flex items-center gap-3 pt-1">
               <button
-                onClick={() => navigate({ page: "manga-detail", id: manga.id })}
+                onClick={() => goToDetail(manga)}
                 className="inline-flex items-center gap-2 px-6 py-2.5 bg-white text-black font-bold text-sm hover:bg-white/90 transition-colors"
                 style={{ borderRadius: "8px" }}
               >
@@ -804,7 +907,7 @@ function FeaturedMangaSection({ manga, navigate }: { manga: EnrichedManga; navig
                 Read Now
               </button>
               <button
-                onClick={() => navigate({ page: "manga-detail", id: manga.id })}
+                onClick={() => goToDetail(manga)}
                 className="inline-flex items-center gap-2 px-6 py-2.5 bg-white/10 text-white font-bold text-sm hover:bg-white/20 transition-colors border border-white/20 backdrop-blur-sm"
                 style={{ borderRadius: "8px" }}
               >
@@ -827,14 +930,14 @@ function FeaturedMangaSection({ manga, navigate }: { manga: EnrichedManga; navig
    POSTER CARD (mirrors anime-section-page PosterCard)
    ═══════════════════════════════════════════════════════════════ */
 
-function PosterCard({ manga, navigate }: { manga: MangaEntry; navigate: (r: any) => void }) {
+function PosterCard({ manga, goToDetail }: { manga: MangaEntry; goToDetail: (m: any) => void }) {
   const title = getTitle(manga);
   const cover = getCover(manga);
   const score = getScore(manga);
 
   return (
     <button
-      onClick={() => navigate({ page: "manga-detail", id: manga.id })}
+      onClick={() => goToDetail(manga)}
       className="group shrink-0 w-[170px] md:w-[185px] text-left"
     >
       <div className="relative w-full aspect-[3/4] bg-white/5 overflow-hidden" style={{ borderRadius: "4px" }}>
@@ -868,10 +971,10 @@ function PosterCard({ manga, navigate }: { manga: MangaEntry; navigate: (r: any)
    CAROUSEL (mirrors anime-section-page Carousel)
    ═══════════════════════════════════════════════════════════════ */
 
-function Carousel({ title, items, navigate }: {
+function Carousel({ title, items, goToDetail }: {
   title: string;
   items: MangaEntry[];
-  navigate: (r: any) => void;
+  goToDetail: (m: any) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -899,7 +1002,7 @@ function Carousel({ title, items, navigate }: {
       </div>
       <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
         {items.map(m => (
-          <PosterCard key={m.id} manga={m} navigate={navigate} />
+          <PosterCard key={m.id} manga={m} goToDetail={goToDetail} />
         ))}
       </div>
     </section>
@@ -912,12 +1015,12 @@ function Carousel({ title, items, navigate }: {
 
 type DiscoverTab = "trending" | "topRated" | "popular";
 
-function Discover({ trending, popular, topRated, recent, navigate, typeFilter, sort, setSort, applyFilters }: {
+function Discover({ trending, popular, topRated, recent, goToDetail, typeFilter, sort, setSort, applyFilters }: {
   trending: EnrichedManga[];
   popular: MangaEntry[];
   topRated: MangaEntry[];
   recent: MangaEntry[];
-  navigate: (r: any) => void;
+  goToDetail: (m: any) => void;
   typeFilter: string;
   sort: "latest" | "rating" | "az";
   setSort: (s: "latest" | "rating" | "az") => void;
@@ -970,7 +1073,7 @@ function Discover({ trending, popular, topRated, recent, navigate, typeFilter, s
           {items.length > 0 ? (
             <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-4 lg:grid-cols-4 gap-2">
               {items.slice(0, 12).map(m => (
-                <PosterCard key={m.id} manga={m} navigate={navigate} />
+                <PosterCard key={m.id} manga={m} goToDetail={goToDetail} />
               ))}
             </div>
           ) : (
@@ -991,7 +1094,7 @@ function Discover({ trending, popular, topRated, recent, navigate, typeFilter, s
                 return (
                   <button
                     key={m.id}
-                    onClick={() => navigate({ page: "manga-detail", id: m.id })}
+                    onClick={() => goToDetail(m)}
                     className="relative flex items-center gap-2.5 text-left group overflow-hidden rounded-lg border border-white/[0.06] bg-[#0D0D0D] transition-all duration-300 hover:border-white/20"
                   >
                     {cover && (
@@ -1030,7 +1133,7 @@ function Discover({ trending, popular, topRated, recent, navigate, typeFilter, s
                 return (
                   <button
                     key={m.id}
-                    onClick={() => navigate({ page: "manga-detail", id: m.id })}
+                    onClick={() => goToDetail(m)}
                     className="relative flex items-center gap-2.5 text-left group overflow-hidden rounded-lg border border-white/[0.06] bg-[#0D0D0D] transition-all duration-300 hover:border-white/20"
                   >
                     {cover && (
