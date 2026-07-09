@@ -114,6 +114,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
           }
 
           setManga(data);
+
           // Fetch AniList banner if we have an anilistId
           const alId = data.anilistId ? parseInt(String(data.anilistId), 10) : null;
           if (alId && !isNaN(alId)) {
@@ -125,6 +126,60 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                 if (b) setBanner(b);
               }
             } catch { /* ignore */ }
+          }
+
+          // CLIENT-SIDE comix.to merge:
+          // If this is a mangaball manga, search comix.to for the same title
+          // and replace English chapters with comix.to's English chapters.
+          // English = comix.to ONLY, other languages = mangaball ONLY.
+          if (mangaId.startsWith("mb:") && data.chapters?.length) {
+            const titleForSearch = data.englishTitle || data.title || fbTitle || "";
+            if (titleForSearch && titleForSearch !== "Unknown Title") {
+              try {
+                // Step 1: Search comix.to for the title
+                const searchRes = await fetch(
+                  `/api/manga/comix-search?q=${encodeURIComponent(titleForSearch)}`
+                );
+                if (searchRes.ok) {
+                  const searchData = await searchRes.json();
+                  if (searchData.hid) {
+                    // Step 2: Fetch comix.to detail
+                    const comixRes = await fetch(
+                      `/api/manga/detail?id=cx:${searchData.hid}`
+                    );
+                    if (comixRes.ok) {
+                      const comixData = await comixRes.json();
+                      if (comixData.chapters?.length) {
+                        // Step 3: Remove mangaball English chapters
+                        // English = comix.to ONLY
+                        const nonEnChapters = data.chapters.filter(
+                          (ch: any) => ch.lang !== "en"
+                        );
+                        // Step 4: Add comix.to English chapters
+                        const comixEnChapters = comixData.chapters.map((ch: any) => ({
+                          ...ch,
+                          id: `cx:${searchData.hid}:${ch.id}`,
+                          lang: "en",
+                          scanGroup: ch.scanGroup || "Comix",
+                        }));
+                        // Step 5: Merge — comix English + mangaball non-English
+                        data.chapters = [...comixEnChapters, ...nonEnChapters];
+                        data.totalChapters = data.chapters.length;
+                        // Merge metadata if missing
+                        if (!data.description && comixData.description) {
+                          data.description = comixData.description;
+                        }
+                        if (!data.genres?.length && comixData.genres?.length) {
+                          data.genres = comixData.genres;
+                          data.tags = comixData.tags;
+                        }
+                        setManga({ ...data });
+                      }
+                    }
+                  }
+                }
+              } catch { /* ignore comix merge errors */ }
+            }
           }
         }
       } catch { /* ignore */ }
