@@ -28,19 +28,30 @@ export async function GET(request: NextRequest) {
       query: `site:comix.to "${q}"`,
     });
 
+    // The response can be a list or {data: {results: [...]}}
+    let results: any[] = [];
+    if (Array.isArray(searchResult)) {
+      results = searchResult;
+    } else if (Array.isArray(searchResult?.data)) {
+      results = searchResult.data;
+    } else if (Array.isArray(searchResult?.data?.results)) {
+      results = searchResult.data.results;
+    } else if (Array.isArray(searchResult?.results)) {
+      results = searchResult.results;
+    }
+
     // Extract comix.to title URLs from search results
-    const results = searchResult?.data?.results || searchResult?.results || [];
     let hid: string | null = null;
     let title: string = "";
     let url: string = "";
 
     for (const result of results) {
-      const link = result.link || result.url || "";
+      const link = result.link || result.url || result.href || "";
       // Match comix.to/title/{hid}-{slug} pattern
       const match = link.match(/comix\.to\/title\/([a-z0-9]+)-/i);
       if (match) {
         hid = match[1];
-        title = result.title?.replace(/\s*-\s*Comix.*$/i, "").replace(/\s*-\s*Read.*$/i, "").trim() || "";
+        title = result.title?.replace(/\s*-\s*Comix.*$/i, "").replace(/\s*-\s*Read.*$/i, "").trim() || q;
         url = link;
         break;
       }
