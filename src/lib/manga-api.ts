@@ -1,8 +1,10 @@
 // =====================================================================
-//  LuffyTV Manga API — v2 (manga-scrape-api.vercel.app + atsumaru)
+//  LuffyTV Manga API — v3 (comix.to + mangaball + atsumaru)
 // ---------------------------------------------------------------------
-//  Provider: atsumaru (atsu.moe) — accessed via the unified
-//  manga-scrape-api hosted at https://manga-scrape-api.vercel.app
+//  Providers:
+//    comix.to   — English primary (huge library, 71K+ titles)
+//    mangaball  — Multi-language primary (10+ languages)
+//    atsumaru   — Home/trending data only (atsu.moe direct scraper)
 //
 //  Available endpoints (atsumaru provider):
 //    GET /api/scrape/search?query={q}&provider=atsumaru
@@ -32,6 +34,9 @@
 
 const SCRAPE_API_BASE = "https://manga-scrape-api.vercel.app";
 const PROVIDER = "atsumaru";
+
+// Import comix.to scraper
+import { searchComix, getComixDetail, getComixChapterPages } from "./comix-api";
 
 const SCRAPE_HEADERS: Record<string, string> = {
   "User-Agent":
@@ -351,14 +356,19 @@ export async function getMangaballChaptersDirect(mangaId: string): Promise<AtsuM
 
 // ── Provider prefix helpers ──
 // IDs are prefixed with the provider name so we know which API to call:
-//   "mb:685158ff..." → mangaball
-//   "at:oZOG5"       → atsumaru
+//   "cx:wmqjr"       → comix.to (English primary)
+//   "mb:685158ff..." → mangaball (multi-language)
+//   "at:oZOG5"       → atsumaru (home/trending only)
 //   "oZOG5" (no prefix) → atsumaru (backwards compat)
 
 const MANGABALL_PREFIX = "mb:";
 const ATSUMARU_PREFIX = "at:";
+const COMIX_PREFIX = "cx:";
 
 function parseProviderFromId(id: string): { provider: string; rawId: string } {
+  if (id.startsWith(COMIX_PREFIX)) {
+    return { provider: "comix", rawId: id.slice(COMIX_PREFIX.length) };
+  }
   if (id.startsWith(MANGABALL_PREFIX)) {
     return { provider: "mangaball", rawId: id.slice(MANGABALL_PREFIX.length) };
   }
@@ -426,25 +436,16 @@ export async function searchMangaMangaball(query: string): Promise<AtsuMangaEntr
  */
 export async function searchMangaBoth(query: string): Promise<AtsuMangaEntry[]> {
   if (!query.trim()) return [];
-  const [mangaballResults, atsumaruResults] = await Promise.allSettled([
+  // Comix.to search is CF-protected (requires browser challenge),
+  // so we use mangaball for search. Comix.to is used for detail/pages
+  // when a cx: ID is encountered (e.g., from home browse sections).
+  const mangaballResults = await Promise.allSettled([
     searchMangaMangaball(query),
-    searchManga(query),
   ]);
 
   const mb = mangaballResults.status === "fulfilled" ? mangaballResults.value : [];
-  const at = atsumaruResults.status === "fulfilled" ? atsumaruResults.value : [];
 
-  // Merge: mangaball first, then atsumaru, dedupe by normalized title
-  const seen = new Set<string>();
-  const merged: AtsuMangaEntry[] = [];
-  for (const m of [...mb, ...at]) {
-    const key = (m.englishTitle || m.title || "").toLowerCase().trim();
-    if (key && !seen.has(key)) {
-      seen.add(key);
-      merged.push(m);
-    }
-  }
-  return merged;
+  return mb;
 }
 
 /**
@@ -459,6 +460,11 @@ export async function searchMangaBoth(query: string): Promise<AtsuMangaEntry[]> 
 export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail | null> {
   if (!mangaId) return null;
   const { provider, rawId } = parseProviderFromId(mangaId);
+
+  // Comix.to has its own scraper — handle separately
+  if (provider === "comix") {
+    return getComixDetail(rawId);
+  }
 
   // For mangaball, fetch info from manga-scrape-api AND chapters directly
   // from mangaball.net (which returns ALL language translations, not just
@@ -610,6 +616,11 @@ export async function getChapterImages(
 ): Promise<AtsuChapterPage[]> {
   if (!mangaId || chapterId === null || chapterId === undefined || chapterId === "") return [];
   const { provider, rawId } = parseProviderFromId(mangaId);
+
+  // Comix.to has its own page scraper
+  if (provider === "comix") {
+    return getComixChapterPages(rawId, chapterId);
+  }
 
   // For mangaball, chapterId might be a translation ID (24 hex chars)
   // or a chapter number. Try translation ID first for multi-language support.
