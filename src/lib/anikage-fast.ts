@@ -33,8 +33,13 @@ const HEADERS: Record<string, string> = {
   "Sec-Fetch-Site": "same-origin",
 };
 
-// All working AniKage providers (tested)
-const ANIKAGE_PROVIDERS = ["miko", "senshi", "koto"];
+// All working AniKage providers (tested live)
+// miko:   1 source, 1 embed
+// senshi: 1 source, 1 embed
+// koto:   2 sources, 2 embeds
+// neko:   4 sources (hardsub+softsub), 9 embeds
+// dib:    1 source, 2 embeds (1 ok, 1 blocked)
+const ANIKAGE_PROVIDERS = ["miko", "senshi", "koto", "neko", "dib"];
 
 // ── Caches ──
 const anikageIdCache = new Map<number, string | null>();
@@ -162,13 +167,15 @@ async function resolveAniKageId(
 }
 
 // ── Step 2: Fetch sources from ALL providers in parallel ──
+// Uses the Worker proxy because anikage.cc is Cloudflare-protected for
+// server-side fetch (returns CF challenge page from Vercel IPs).
 async function getSourcesFromAllProviders(
   anikageId: string,
   epNum: number,
   type: "sub" | "dub",
 ): Promise<AniKageResult | null> {
   try {
-    // Fetch ALL providers in parallel
+    // Fetch ALL providers in parallel via Worker proxy
     const providerResults = await Promise.all(
       ANIKAGE_PROVIDERS.map(async (provider) => {
         const cacheKey = `anikage-src:${anikageId}:${epNum}:${type}:${provider}`;
@@ -177,12 +184,18 @@ async function getSourcesFromAllProviders(
         }
 
         try {
+          const apiUrl = encodeURIComponent(
+            `${ANIKAGE_BASE}/api/media/anime/${anikageId}/episodes/${epNum}/sources?provider=${provider}&lang=${type}`,
+          );
+          const ref = encodeURIComponent(`${ANIKAGE_BASE}/`);
+          const proxyUrl = `${WORKER_BASE}/proxy?url=${apiUrl}&ref=${ref}`;
+
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 8000);
-          const res = await fetch(
-            `${ANIKAGE_BASE}/api/media/anime/${anikageId}/episodes/${epNum}/sources?provider=${provider}&lang=${type}`,
-            { headers: HEADERS, signal: controller.signal },
-          );
+          const res = await fetch(proxyUrl, {
+            headers: { "User-Agent": HEADERS["User-Agent"] },
+            signal: controller.signal,
+          });
           clearTimeout(timeout);
 
           if (!res.ok) return { provider, data: null };
@@ -212,38 +225,40 @@ async function getSourcesFromAllProviders(
         outro = { start: data.outro.start, end: data.outro.end };
       }
 
-      // Extract working embed URLs
+      // Extract ALL sources (prox.anikage.cc tokens — these are the REAL streams)
+      // Each source is a different quality/variant (hardsub, softsub, etc.)
+      const sources = (data.sources || []).filter((s: any) => s.url && s.isM3U8);
+      for (const src of sources) {
+        // The source URL is a token for prox.anikage.cc/m3u8/{token}
+        const streamUrl = `https://prox.anikage.cc/m3u8/${src.url}`;
+        // Dedupe by URL
+        if (servers.some((s) => s.m3u8Url === streamUrl)) continue;
+        const qualityLabel = src.quality || "auto";
+        const providerName = provider.charAt(0).toUpperCase() + provider.slice(1);
+        servers.push({
+          name: `AniKage ${providerName} (${qualityLabel})`,
+          provider,
+          m3u8Url: streamUrl,
+          type,
+          quality: qualityLabel,
+        });
+      }
+
+      // ALSO extract working embed URLs (some providers have unique embeds)
       const embeds = (data.embeds || []).filter(
         (e: any) => e.status === "ok" && e.url,
       );
       for (const embed of embeds) {
-        // Dedupe by URL
         if (servers.some((s) => s.m3u8Url === embed.url)) continue;
         const serverName = embed.server || provider;
+        const serverNameCap = serverName.charAt(0).toUpperCase() + serverName.slice(1);
         servers.push({
-          name: `AniKage ${serverName.charAt(0).toUpperCase() + serverName.slice(1)}`,
+          name: `AniKage ${serverNameCap}`,
           provider,
           m3u8Url: embed.url,
           type,
           quality: "1080p",
         });
-      }
-
-      // If no embeds, try the source URL (prox.anikage.cc token)
-      if (embeds.length === 0 && data.sources?.length > 0) {
-        const m3u8Source = data.sources.find((s: any) => s.isM3U8);
-        if (m3u8Source?.url) {
-          const streamUrl = `https://prox.anikage.cc/m3u8/${m3u8Source.url}`;
-          if (!servers.some((s) => s.m3u8Url === streamUrl)) {
-            servers.push({
-              name: `AniKage ${provider.charAt(0).toUpperCase() + provider.slice(1)}`,
-              provider,
-              m3u8Url: streamUrl,
-              type,
-              quality: m3u8Source.quality || "1080p",
-            });
-          }
-        }
       }
     }
 
