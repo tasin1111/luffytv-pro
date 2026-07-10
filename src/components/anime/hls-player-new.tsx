@@ -211,18 +211,31 @@ export default function HLSPlayerNew({
       if (video.buffered.length > 0) {
         setBuffered(video.buffered.end(video.buffered.length - 1));
       }
-      // Show skip intro button from 3s BEFORE intro starts until 5s AFTER it ends
-      // (gives the user time to click it)
+      // Show skip intro button from 3s BEFORE intro starts until 5s AFTER it ends.
+      // Also show immediately if video just loaded and we're already in the intro range
+      // (happens when mimi loads super fast and starts playing at 0s, which is before intro.start)
       if (intro && video.currentTime >= (intro.start - 3) && video.currentTime < (intro.end + 5)) {
         setShowSkipIntro(true);
       } else {
         setShowSkipIntro(false);
       }
-      // Show skip outro button from 3s BEFORE outro starts until 10s AFTER it ends
       if (outro && video.currentTime >= (outro.start - 3) && video.currentTime < (outro.end + 10)) {
         setShowSkipOutro(true);
       } else {
         setShowSkipOutro(false);
+      }
+    };
+
+    // Also check on MANIFEST_PARSED / loadedmetadata — if intro data is available
+    // and we're at position 0, show the skip button immediately (before timeupdate fires)
+    const onLoadedMetadata = () => {
+      setDuration(video.duration || 0);
+      // If intro starts soon (within first 60s), show the button immediately
+      if (intro && intro.start < 60 && video.currentTime < intro.end) {
+        setShowSkipIntro(true);
+      }
+      if (outro && video.duration && outro.start < video.duration) {
+        // Don't show outro yet, just confirm we have the data
       }
     };
     const onDur = () => setDuration(video.duration || 0);
@@ -249,6 +262,7 @@ export default function HLSPlayerNew({
     video.addEventListener('pause', onPause);
     video.addEventListener('timeupdate', onTime);
     video.addEventListener('durationchange', onDur);
+    video.addEventListener('loadedmetadata', onLoadedMetadata);
     video.addEventListener('waiting', onWaiting);
     video.addEventListener('playing', onPlaying);
     video.addEventListener('canplay', onCanPlay);
@@ -260,6 +274,7 @@ export default function HLSPlayerNew({
       video.removeEventListener('pause', onPause);
       video.removeEventListener('timeupdate', onTime);
       video.removeEventListener('durationchange', onDur);
+      video.removeEventListener('loadedmetadata', onLoadedMetadata);
       video.removeEventListener('waiting', onWaiting);
       video.removeEventListener('playing', onPlaying);
       video.removeEventListener('canplay', onCanPlay);
