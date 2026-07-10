@@ -22,8 +22,10 @@ import AnimeComments from "./anime-comments";
 const ACCENT = "#1e88ff";
 
 // Language badge colors — includes regional variants (es-419, pt-br, etc.)
+// English is white (neutral) so it blends in; only non-English gets colored.
 const LANG_COLORS: Record<string, string> = {
-  en: "#3B82F6", es: "#EF4444", "es-419": "#EF4444", "es-es": "#EF4444",
+  en: "#ffffff",                  // English = white (neutral, no special color)
+  es: "#EF4444", "es-419": "#EF4444", "es-es": "#EF4444",
   fr: "#6366F1", "fr-ca": "#6366F1",
   id: "#10B981", it: "#22C55E",
   "pt-br": "#F59E0B", "pt-pt": "#F59E0B", pt: "#F59E0B",
