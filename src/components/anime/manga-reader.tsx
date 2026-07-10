@@ -595,7 +595,12 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
                   className={`mr-sidebar-item ${isActive ? "active" : ""}`}
                 >
                   <span className="mr-sidebar-num">Ch. {ch.number}</span>
-                  <span className="mr-sidebar-name">{ch.title || `Chapter ${ch.number}`}</span>
+                  <span className="mr-sidebar-name">
+                    {ch.title || `Chapter ${ch.number}`}
+                    {ch.scanGroup && (
+                      <span className="text-white/35 ml-1 text-[10px]">({ch.scanGroup})</span>
+                    )}
+                  </span>
                   {isActive && (
                     <span className="mr-sidebar-current">
                       <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">

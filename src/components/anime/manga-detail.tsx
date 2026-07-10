@@ -659,10 +659,14 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                         >
                           {LANG_NAMES[scan.lang || "en"] || scan.lang || "Unknown"}
                         </span>
-                        {/* Language + scanlation-index label (e.g. "English 1", "Indonesian 2").
-                            NO scanlator names — just generic numbered labels per language. */}
+                        {/* Language + scanlation-index label (e.g. "English 1", "Indonesian 2")
+                            with the scanlator name appended so users can identify which
+                            scanlation each row is (e.g. "English 1 (Gamma)"). */}
                         <span className="text-xs font-medium text-white/60 group-hover:text-white/90 transition-colors shrink-0">
                           {chapterLabel(scan)}
+                          {scan.scanGroup && (
+                            <span className="text-white/35 ml-1">({scan.scanGroup})</span>
+                          )}
                         </span>
                         {/* Chapter title */}
                         <span className="flex-1 min-w-0 text-xs text-white/40 truncate">
