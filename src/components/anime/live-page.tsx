@@ -314,93 +314,129 @@ const SF_CHANNEL_META: Record<string, { icon: string; color: string; category: s
   supersport: { icon: "🏟️", color: "#22c55e", category: "Sports", streamCategory: "football", description: "24/7 SuperSport — Multi-sport coverage" },
 };
 
-function Stream247Card({ stream, onWatch, isActive }: { stream: Stream247; onWatch: (s: Stream247) => void; isActive: boolean }) {
+// ═══════════════════════════════════════════════════════════════
+// HERO CAROUSEL — featured event, top of page (DamiTV-style)
+// ═══════════════════════════════════════════════════════════════
+function HeroCarousel({ matches, onWatch }: { matches: LiveMatch[]; onWatch: (m: LiveMatch) => void }) {
+  const [current, setCurrent] = useState(0);
+  const [paused, setPaused] = useState(false);
+
+  useEffect(() => {
+    if (paused || matches.length <= 1) return;
+    const t = setTimeout(() => setCurrent(p => (p + 1) % matches.length), 7000);
+    return () => clearTimeout(t);
+  }, [current, paused, matches.length]);
+
+  if (matches.length === 0) return null;
+  const match = matches[Math.min(current, matches.length - 1)];
+  const sportColor = getSportColor(match.sport);
+  const [gFrom, gTo] = getSportGradient(match.sport);
+
+  return (
+    <div
+      className="relative w-full h-[300px] sm:h-[360px] md:h-[420px] rounded-2xl overflow-hidden border border-white/[0.06]"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
+      {match.poster ? (
+        <img src={match.poster} alt="" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover opacity-50" key={`hero-bg-${match.id}`} />
+      ) : (
+        <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${gFrom}, ${gTo})` }} />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/55 to-black/15" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/20" />
+
+      <div className="relative h-full flex items-center px-6 sm:px-10 md:px-14" key={`hero-content-${match.id}`}>
+        <div className="max-w-lg space-y-3">
+          <span
+            className="inline-block px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-wider"
+            style={{ background: sportColor, color: "#000" }}
+          >
+            {match.sportName || capitalize(match.sport)}
+          </span>
+          <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-white leading-tight tracking-tight" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
+            {match.title}
+          </h1>
+          <p className="text-sm text-white/60 flex items-center gap-2">
+            {match.isLive ? (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-red-600/90 text-white text-[10px] font-black uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> Live Now
+              </span>
+            ) : (
+              <span>{formatMatchTime(match.date)} — {match.sportName || capitalize(match.sport)}</span>
+            )}
+          </p>
+          <button
+            onClick={() => onWatch(match)}
+            className="inline-flex items-center gap-2 px-6 py-2.5 bg-white text-black font-bold text-sm rounded-lg hover:bg-white/90 transition-colors"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+            Watch Event
+          </button>
+        </div>
+
+        {(match.homeBadge || match.awayBadge) && (
+          <div className="hidden md:flex items-center gap-4 absolute right-10 top-1/2 -translate-y-1/2">
+            {match.homeBadge && <img src={match.homeBadge} alt="" loading="lazy" decoding="async" className="w-20 h-20 lg:w-24 lg:h-24 object-contain drop-shadow-2xl" />}
+            <span className="text-white/40 font-black text-lg">VS</span>
+            {match.awayBadge && <img src={match.awayBadge} alt="" loading="lazy" decoding="async" className="w-20 h-20 lg:w-24 lg:h-24 object-contain drop-shadow-2xl" />}
+          </div>
+        )}
+      </div>
+
+      {matches.length > 1 && (
+        <>
+          <button
+            onClick={() => setCurrent(p => (p - 1 + matches.length) % matches.length)}
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/70 transition-all flex items-center justify-center border border-white/10"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <button
+            onClick={() => setCurrent(p => (p + 1) % matches.length)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-black/50 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/70 transition-all flex items-center justify-center border border-white/10"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
+          </button>
+          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+            {matches.slice(0, 9).map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setCurrent(i)}
+                className="h-1.5 rounded-full transition-all"
+                style={{ width: i === current ? "20px" : "6px", background: i === current ? "#ffffff" : "rgba(255,255,255,0.25)" }}
+              />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// COMPACT 24/7 CARD — small square tile for the "Live Now" rail
+// ═══════════════════════════════════════════════════════════════
+function Stream247MiniCard({ stream, onWatch }: { stream: Stream247; onWatch: (s: Stream247) => void }) {
   return (
     <button
       onClick={() => onWatch(stream)}
-      className="group relative w-full rounded-2xl overflow-hidden transition-all duration-500 cursor-pointer border border-white/[0.08] hover:border-white/[0.20] hover:shadow-2xl backdrop-blur-sm"
-      style={{ opacity: isActive ? 1 : 0.3, transform: isActive ? 'scale(1)' : 'scale(0.95)' }}
+      className="group relative flex-shrink-0 w-[150px] rounded-xl overflow-hidden border border-white/[0.06] hover:border-white/[0.15] transition-all"
     >
-      <div className="relative h-[200px] sm:h-[240px] md:h-[280px]" style={{ background: `linear-gradient(135deg, ${stream.color}35, ${stream.color}12, rgba(8,8,12,0.95))` }}>
-        {/* Background image — full bleed with cover */}
-        {stream.backgroundImage && (
-          <img
-            src={stream.backgroundImage}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="absolute inset-0 w-full h-full object-cover opacity-60"
-          />
+      <div className="relative h-[90px] flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${stream.color}30, #0d0d12)` }}>
+        {stream.backgroundImage ? (
+          <img src={stream.backgroundImage} alt="" loading="lazy" decoding="async" className="absolute inset-0 w-full h-full object-cover opacity-60" />
+        ) : (
+          <span className="text-3xl opacity-30">{stream.icon}</span>
         )}
-
-        {/* Large watermark icon — only show if no background image */}
-        {!stream.backgroundImage && (
-          <div className="absolute right-12 top-1/2 -translate-y-1/2 opacity-[0.04] text-[180px] select-none pointer-events-none">
-            {stream.icon}
-          </div>
-        )}
-
-        {/* Decorative glow */}
-        <div className="absolute top-0 right-0 w-1/2 h-full opacity-20" style={{ background: `radial-gradient(ellipse at 70% 50%, ${stream.color}30, transparent 70%)` }} />
-
-        {/* Gradient overlay from left — stronger to ensure text readability over image */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-black/20" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
-        {/* Color tint overlay */}
-        <div className="absolute inset-0 opacity-30" style={{ background: `linear-gradient(135deg, ${stream.color}40, transparent)` }} />
-
-        {/* Content */}
-        <div className="absolute inset-0 p-6 sm:p-8 md:p-10 flex items-center">
-          <div className="flex-1 min-w-0">
-            {/* LIVE 24/7 badge + Source badge */}
-            <div className="mb-3 flex items-center gap-2">
-              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600/90 text-white text-[10px] font-black uppercase tracking-wider shadow-lg shadow-red-600/20">
-                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                LIVE 24/7
-              </span>
-              <span
-                className="px-2.5 py-1 rounded-lg text-[9px] font-bold"
-                style={{
-                  background: stream.source === "streamfree" ? "rgba(168,85,247,0.15)" : "rgba(6,182,212,0.15)",
-                  color: stream.source === "streamfree" ? "#a855f7" : "#06b6d4",
-                  border: `1px solid ${stream.source === "streamfree" ? "rgba(168,85,247,0.25)" : "rgba(6,182,212,0.25)"}`,
-                }}
-              >
-                {stream.source === "streamfree" ? "StreamFree" : "EmbleSports"}
-              </span>
-            </div>
-
-            {/* Channel name */}
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white mb-2 tracking-tight" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-              {stream.name}
-            </h2>
-
-            {/* Description */}
-            <p className="text-sm text-white/50 font-medium mb-4 max-w-md">{stream.description}</p>
-
-            {/* Category + Watch button row */}
-            <div className="flex items-center gap-3">
-              <span
-                className="px-3 py-1.5 rounded-lg text-[10px] font-bold"
-                style={{ background: `${stream.color}20`, color: stream.color, border: `1px solid ${stream.color}30` }}
-              >
-                {stream.category}
-              </span>
-              <span
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[11px] font-bold uppercase text-white transition-all group-hover:shadow-lg"
-                style={{
-                  background: `linear-gradient(135deg, ${stream.color}, ${stream.color}cc)`,
-                  boxShadow: `0 0 20px ${stream.color}30`,
-                }}
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                Watch Now
-              </span>
-            </div>
-          </div>
-        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+        <span className="absolute top-1.5 left-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-600 text-white text-[7px] font-black uppercase tracking-wider">
+          <span className="w-1 h-1 rounded-full bg-white animate-pulse" /> Live
+        </span>
+      </div>
+      <div className="px-2 py-1.5 bg-[#0d0d12]">
+        <p className="text-[10px] font-bold text-white truncate group-hover:text-white/80 transition-colors">{stream.name}</p>
+        <p className="text-[8px] text-white/30 truncate">{stream.category}</p>
       </div>
     </button>
   );
@@ -889,6 +925,9 @@ export default function LivePage() {
   const sportCardsRef = useRef<HTMLDivElement>(null);
   const popularRef = useRef<HTMLDivElement>(null);
   const stream247Ref = useRef<HTMLDivElement>(null);
+  const liveNowRef = useRef<HTMLDivElement>(null);
+  const upcomingRailRef = useRef<HTMLDivElement>(null);
+  const fightsRef = useRef<HTMLDivElement>(null);
 
   // ── Fetch data ──
   const fetchData = useCallback(async () => {
@@ -1158,6 +1197,26 @@ export default function LivePage() {
     return liveMatches.filter(m => !popularIds.has(m.id));
   }, [liveMatches, popularLive]);
 
+  // Featured events for the top hero carousel — popular live/upcoming with a poster,
+  // falling back to the next upcoming matches if none are marked popular.
+  const heroMatches = useMemo(() => {
+    const withPoster = filteredMatches.filter(m => m.poster);
+    const popular = withPoster.filter(m => m.popular);
+    const pool = popular.length > 0 ? popular : withPoster;
+    return pool.slice(0, 6);
+  }, [filteredMatches]);
+
+  // Upcoming matches — flat horizontal rail (DamiTV-style), independent of the
+  // time-grouped vertical sections further down the page.
+  const upcomingRail = useMemo(() => {
+    return [...startingSoon, ...todayUpcoming, ...laterMatches].slice(0, 14);
+  }, [startingSoon, todayUpcoming, laterMatches]);
+
+  // Upcoming fights — combat-sport matches that haven't started yet.
+  const upcomingFights = useMemo(() => {
+    return filteredMatches.filter(m => (m.sport === "fight" || m.sport === "combat") && !m.isLive).slice(0, 10);
+  }, [filteredMatches]);
+
   // Group matches by sport for sport sections
   const matchesBySport = useMemo(() => {
     const groups: Record<string, LiveMatch[]> = {};
@@ -1207,9 +1266,6 @@ export default function LivePage() {
   const topNavSports = sortedNavSports.slice(0, 7);
   const moreNavSports = sortedNavSports.slice(7);
   const [showMoreDropdown, setShowMoreDropdown] = useState(false);
-
-  // ── 24/7 Slider state ──
-  const [slider247Index, setSlider247Index] = useState(0);
 
   // Dynamic 24/7 streams: Build from available TV channels (StreamFree + EmbleSports)
   // Falls back to static FALLBACK_STREAMS_247 if no channels are loaded yet
@@ -1280,15 +1336,6 @@ export default function LivePage() {
     if (!ref.current) return;
     ref.current.scrollBy({ left: direction === "left" ? -400 : 400, behavior: "smooth" });
   };
-
-  // Auto-rotate 24/7 slider
-  useEffect(() => {
-    if (STREAMS_247.length <= 1) return;
-    const timer = setInterval(() => {
-      setSlider247Index(prev => (prev + 1) % STREAMS_247.length);
-    }, 5000);
-    return () => clearInterval(timer);
-  }, [STREAMS_247.length]);
 
   // ═══════════════════════════════════════════════════════════════
   // RENDER
@@ -1494,62 +1541,40 @@ export default function LivePage() {
         {!loading && (
           <>
             {/* ══════════════════════════════════════════
-                24/7 STREAMS — Full-Width Hero Slider (TOP OF PAGE)
+                HERO — featured event carousel (top of page)
                 ══════════════════════════════════════════ */}
-            {STREAMS_247.length > 0 && (
-              <div className="relative">
-                {/* Slider */}
-                <div className="relative overflow-hidden rounded-2xl">
-                  {STREAMS_247.map((stream, i) => (
-                    <div key={stream.id} className={`${i === slider247Index ? 'block' : 'hidden'}`}>
-                      <Stream247Card stream={stream} onWatch={handleWatch247} isActive={true} />
-                    </div>
-                  ))}
-                </div>
-
-                {/* Navigation arrows — only show if more than 1 stream */}
-                {STREAMS_247.length > 1 && (
-                  <>
-                    <button
-                      onClick={() => setSlider247Index(prev => (prev - 1 + STREAMS_247.length) % STREAMS_247.length)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/80 transition-all flex items-center justify-center border border-white/10"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
-                    </button>
-                    <button
-                      onClick={() => setSlider247Index(prev => (prev + 1) % STREAMS_247.length)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/80 transition-all flex items-center justify-center border border-white/10"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
-                    </button>
-
-                    {/* Dot indicators */}
-                    <div className="flex items-center justify-center gap-2 mt-3">
-                      {STREAMS_247.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setSlider247Index(i)}
-                          className={`h-1.5 rounded-full transition-all duration-300 ${
-                            i === slider247Index ? 'w-6 bg-[#ffffff]' : 'w-1.5 bg-white/20 hover:bg-white/40'
-                          }`
-                          }
-                        />
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )}
+            <HeroCarousel matches={heroMatches} onWatch={handleWatchMatch} />
 
             {/* ══════════════════════════════════════════
-                POPULAR LIVE — Merged (DamiTV + WatchFooty)
+                SPORTS — flat category pill row (DamiTV-style)
+                ══════════════════════════════════════════ */}
+            <div ref={sportCardsRef} className="flex flex-wrap gap-2">
+              {displayCategories.filter(c => c.id !== "all").map(cat => {
+                const isActive = selectedSport === cat.id;
+                return (
+                  <button
+                    key={cat.id}
+                    onClick={() => setSelectedSport(isActive ? "all" : cat.id)}
+                    className={`px-3.5 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
+                      isActive ? "text-white" : "bg-[#1a1a1a] text-white/50 hover:text-white/80 hover:bg-[#222]"
+                    }`}
+                    style={isActive ? { background: `${cat.color}25`, border: `1px solid ${cat.color}50`, color: cat.color } : undefined}
+                  >
+                    {cat.label}
+                    {cat.liveCount > 0 && <span className="ml-1.5 text-red-400">{cat.liveCount}</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ══════════════════════════════════════════
+                TRENDING TODAY — Popular live/featured matches
                 ══════════════════════════════════════════ */}
             {popularLive.length > 0 && (
               <div ref={popularRef}>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-bold text-white flex items-center gap-2" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-                    <span className="text-base">🔥</span> Popular Live
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400">Live ({popularLive.length})</span>
+                    <span className="text-red-500 uppercase text-[10px] tracking-widest">Popular</span> Trending Today
                   </h2>
                   <div className="flex items-center gap-1">
                     <button onClick={() => scrollContainer(popularRef, "left")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
@@ -1569,48 +1594,56 @@ export default function LivePage() {
             )}
 
             {/* ══════════════════════════════════════════
-                C. SPORTS CATEGORY CARDS (Horizontal Scroll)
+                LIVE NOW — 24/7 streams (compact rail)
                 ══════════════════════════════════════════ */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-bold text-white/60 uppercase tracking-wider flex items-center gap-2" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-                  <span className="text-base">🏟️</span> Sports
-                </h2>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => scrollContainer(sportCardsRef, "left")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
-                  </button>
-                  <button onClick={() => scrollContainer(sportCardsRef, "right")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
-                  </button>
+            {STREAMS_247.length > 0 && (
+              <div ref={liveNowRef}>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-bold text-white flex items-center gap-2" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
+                    <span className="text-red-500 uppercase text-[10px] tracking-widest">Live</span> Live Now
+                  </h2>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => scrollContainer(liveNowRef, "left")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <button onClick={() => scrollContainer(liveNowRef, "right")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
+                  {STREAMS_247.map(stream => (
+                    <Stream247MiniCard key={stream.id} stream={stream} onWatch={handleWatch247} />
+                  ))}
                 </div>
               </div>
-              <div ref={sportCardsRef} className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-                {displayCategories.filter(c => c.id !== "all").map(cat => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedSport(selectedSport === cat.id ? "all" : cat.id)}
-                    className={`group flex flex-col items-center gap-2 px-5 py-4 rounded-xl min-w-[100px] flex-shrink-0 transition-all duration-200 ${
-                      selectedSport === cat.id
-                        ? "border-[1.5px]"
-                        : "bg-[#222] border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04]"
-                    }`}
-                    style={{
-                      ...(selectedSport === cat.id ? {
-                        background: `linear-gradient(135deg, ${cat.color}20, ${cat.color}08)`,
-                        borderColor: `${cat.color}50`,
-                      } : {}),
-                    }}
-                  >
-                    <span className="text-2xl">{cat.icon}</span>
-                    <span className="text-[10px] font-bold text-white/70 group-hover:text-white whitespace-nowrap" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>{cat.label}</span>
-                    {cat.liveCount > 0 && (
-                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400">Live ({cat.liveCount})</span>
-                    )}
-                  </button>
-                ))}
+            )}
+
+            {/* ══════════════════════════════════════════
+                UPCOMING MATCHES — flat rail (DamiTV-style)
+                ══════════════════════════════════════════ */}
+            {upcomingRail.length > 0 && (
+              <div ref={upcomingRailRef}>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-bold text-white flex items-center gap-2" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
+                    Upcoming Matches
+                  </h2>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => scrollContainer(upcomingRailRef, "left")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <button onClick={() => scrollContainer(upcomingRailRef, "right")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
+                  {upcomingRail.map(match => (
+                    <MatchCard key={`rail-${match.id}`} match={match} onWatch={handleWatchMatch} onWatchChannel={handleWatchTVFromMatch} variant="poster" />
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* ══════════════════════════════════════════
                 D.5. TV CHANNELS (Sky F1, Willow, 24/7, etc.)
@@ -1632,12 +1665,38 @@ export default function LivePage() {
             )}
 
             {/* ══════════════════════════════════════════
+                UPCOMING FIGHTS — combat sports rail
+                ══════════════════════════════════════════ */}
+            {upcomingFights.length > 0 && (
+              <div ref={fightsRef}>
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-bold text-white flex items-center gap-2" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
+                    <span className="text-base">🥊</span> Upcoming Fights
+                  </h2>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => scrollContainer(fightsRef, "left")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <button onClick={() => scrollContainer(fightsRef, "right")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                  </div>
+                </div>
+                <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
+                  {upcomingFights.map(match => (
+                    <MatchCard key={`fight-${match.id}`} match={match} onWatch={handleWatchMatch} onWatchChannel={handleWatchTVFromMatch} variant="poster" />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ══════════════════════════════════════════
                 E. MATCHES BY SPORT SECTIONS (Vertical List)
                 ══════════════════════════════════════════ */}
-            {/* Live Now */}
+            {/* Live Matches */}
             {liveMatchesNoPopular.length > 0 && (
               <MatchSection
-                title="Live Now"
+                title="Live Matches"
                 icon="🔴"
                 matches={liveMatchesNoPopular}
                 onWatch={handleWatchMatch}
@@ -1668,10 +1727,10 @@ export default function LivePage() {
               />
             )}
 
-            {/* Upcoming */}
+            {/* All Matches (full list, further out than Today) */}
             {laterMatches.length > 0 && (
               <MatchSection
-                title="Upcoming"
+                title="All Matches"
                 icon="📆"
                 matches={laterMatches}
                 onWatch={handleWatchMatch}
