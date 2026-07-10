@@ -181,7 +181,7 @@ export interface User {
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-  route: { page: "home" },
+  route: { page: "landing" },
   sectionSubPage: "home",
   setSectionSubPage: (subPage) => set({ sectionSubPage: subPage }),
   navigate: (route) => {
@@ -348,7 +348,7 @@ export function getSectionNavLinks(route: Route): { id: SectionSubPage; label: s
 
 export function parseHash(hash: string): Route {
   const h = hash.replace("#", "");
-  if (!h) return { page: "home" };
+  if (!h) return { page: "landing" };
   const parts = h.split("/");
   if (parts[0] === "hub") return { page: "hub" };
   if (parts[0] === "home") return { page: "home" };
