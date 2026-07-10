@@ -96,6 +96,12 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   const [showFullDesc, setShowFullDesc] = useState(false);
   const [selectedLang, setSelectedLang] = useState<string>("all");
 
+  // ── New UI-only state for atsu.moe-style redesign ──
+  // (does NOT touch any existing data-fetching / chapter-filter logic)
+  const [showAllTags, setShowAllTags] = useState(false);
+  const [showAllAltTitles, setShowAllAltTitles] = useState(false);
+  const [selectedScanlator, setSelectedScanlator] = useState<string>("all");
+
   // ── Load manga detail ──
   useEffect(() => {
     let fbTitle = "";
@@ -375,357 +381,701 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
     } catch { /* ignore */ }
   }, [navigate, mangaId, selectedLang]);
 
+  // ── UI helpers for atsu.moe-style redesign (pure functions, no data logic) ──
+  const formatViews = (views: number | string | undefined | null): string => {
+    if (views == null) return "0";
+    const n = typeof views === "number"
+      ? views
+      : parseInt(String(views).replace(/[^0-9]/g, ""), 10) || 0;
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace(/\.0$/, "") + "M";
+    if (n >= 1_000) return (n / 1_000).toFixed(1).replace(/\.0$/, "") + "K";
+    return String(n);
+  };
+
+  const formatRelativeDate = (dateStr?: string): string => {
+    if (!dateStr) return "";
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return "";
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      if (diffMs < 0) return "just now";
+      const seconds = Math.floor(diffMs / 1000);
+      const minutes = Math.floor(seconds / 60);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+      const weeks = Math.floor(days / 7);
+      const months = Math.floor(days / 30);
+      const years = Math.floor(days / 365);
+      if (years > 0) return years === 1 ? "last year" : `${years} years ago`;
+      if (months > 0) return months === 1 ? "last month" : `${months} months ago`;
+      if (weeks > 0) return weeks === 1 ? "last week" : `${weeks} weeks ago`;
+      if (days > 0) return days === 1 ? "yesterday" : `${days} days ago`;
+      if (hours > 0) return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+      if (minutes > 0) return minutes === 1 ? "1 minute ago" : `${minutes} minutes ago`;
+      return "just now";
+    } catch { return ""; }
+  };
+
+  // Scanlation-group filter — applied on top of existing chapterGroups.
+  // Does NOT modify any existing useMemo / filter logic.
+  const visibleChapterGroups = useMemo(() => {
+    if (selectedScanlator === "all") return chapterGroups;
+    return chapterGroups
+      .map(g => ({ ...g, scans: g.scans.filter(s => s.scanId === selectedScanlator) }))
+      .filter(g => g.scans.length > 0);
+  }, [chapterGroups, selectedScanlator]);
+
+  // ── atsu.moe design tokens ──
+  const COLOR_BG = "#1d1e20";
+  const COLOR_TEXT = "rgb(184, 188, 192)";
+  const COLOR_HEADING = "rgb(249, 248, 246)";
+  const COLOR_ACCENT = "#8e7ce6";
+  const COLOR_SLATE3 = "#313234";
+  const COLOR_SLATE2 = "#282828";
+  const COLOR_MUTED = "#888888";
+  const FONT_STACK = "Geist, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+
+  const genrePillStyle = {
+    background: COLOR_SLATE3,
+    color: COLOR_HEADING,
+    padding: "4px 8px",
+    borderRadius: "6px",
+    fontSize: "12px",
+    display: "inline-block",
+  } as const;
+
+  const tagPillStyle = {
+    background: COLOR_SLATE2,
+    color: "rgba(249,248,246,0.8)",
+    padding: "4px 8px",
+    borderRadius: "6px",
+    fontSize: "12px",
+    display: "inline-block",
+  } as const;
+
+  const metaLabelStyle = {
+    color: COLOR_MUTED,
+    fontSize: "11px",
+    fontWeight: 600,
+    letterSpacing: "0.05em",
+    textTransform: "uppercase",
+    marginBottom: "4px",
+  } as const;
+
+  const metaValueStyle = {
+    color: COLOR_HEADING,
+    fontSize: "14px",
+  } as const;
+
+  const controlStyle = {
+    background: COLOR_SLATE2,
+    color: COLOR_HEADING,
+    border: "1px solid #424144",
+    borderRadius: "6px",
+    padding: "6px 10px",
+    fontSize: "13px",
+    outline: "none",
+    cursor: "pointer",
+    fontFamily: FONT_STACK,
+  } as const;
+
+  const linkButtonStyle = {
+    background: "transparent",
+    border: "none",
+    color: COLOR_ACCENT,
+    cursor: "pointer",
+    padding: "4px 8px",
+    fontSize: "12px",
+    fontFamily: FONT_STACK,
+  } as const;
+
   // ── Loading ──
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-10 h-10 border-2 border-white/10 border-t-white rounded-full animate-spin" />
+      <div style={{
+        minHeight: "100vh",
+        background: COLOR_BG,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}>
+        <style>{`@keyframes atsu-spin { to { transform: rotate(360deg); } }`}</style>
+        <div style={{
+          width: "40px",
+          height: "40px",
+          border: "3px solid rgba(142,124,230,0.2)",
+          borderTopColor: COLOR_ACCENT,
+          borderRadius: "50%",
+          animation: "atsu-spin 0.8s linear infinite",
+        }} />
       </div>
     );
   }
 
   if (!manga) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center text-white/40">
+      <div style={{
+        minHeight: "100vh",
+        background: COLOR_BG,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: COLOR_MUTED,
+        fontFamily: FONT_STACK,
+        fontSize: "16px",
+      }}>
         Manga not found.
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      {/* ═══ HERO — full-screen banner + poster + info ═══ */}
-      <div className="relative w-full h-[70vh] min-h-[500px] overflow-hidden bg-black">
-        {/* Blurred banner background */}
-        {heroBanner && (
-          <img
-            src={heroBanner}
-            alt=""
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ filter: "blur(12px) brightness(0.4)", transform: "scale(1.1)" }}
-          />
-        )}
-        {/* Gradient overlays */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-black/50 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-transparent to-transparent" />
-
-        {/* Content — poster + info */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 md:p-12 lg:p-16">
-          <div className="flex items-end gap-6 md:gap-8 max-w-7xl mx-auto">
-            {/* Poster */}
-            <div className="shrink-0 w-[120px] h-[170px] md:w-[180px] md:h-[260px] overflow-hidden rounded-xl shadow-2xl border border-white/10">
-              {poster && <img src={poster} alt={displayTitle} className="w-full h-full object-cover" />}
-            </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0 space-y-3 pb-2">
-              {/* Type + status badges */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {manga.type && (
-                  <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded" style={{ background: `${ACCENT}20`, color: ACCENT, border: `1px solid ${ACCENT}40` }}>
-                    {manga.type}
-                  </span>
-                )}
-                {manga.status && (
-                  <span className="px-2.5 py-1 text-xs font-bold uppercase tracking-wider rounded bg-white/10 text-white/60 border border-white/10">
-                    {manga.status}
-                  </span>
-                )}
-                {manga.rating ? (
-                  <span className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold rounded bg-white/10 text-white/80 border border-white/10">
-                    <svg className="w-3 h-3" fill="currentColor" style={{ color: ACCENT }} viewBox="0 0 20 20">
-                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                    </svg>
-                    {manga.rating.toFixed(1)}
-                  </span>
-                ) : null}
+    <div style={{
+      minHeight: "100vh",
+      background: COLOR_BG,
+      color: COLOR_TEXT,
+      fontFamily: FONT_STACK,
+    }}>
+      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px" }}>
+        <div className="grid grid-cols-1 md:grid-cols-[210px_1fr]" style={{ gap: "32px" }}>
+          {/* ═══ LEFT COLUMN — poster + actions + side meta ═══ */}
+          <aside
+            className="md:sticky md:top-6 md:self-start"
+            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+          >
+            {/* Poster (2:3 aspect ratio) */}
+            {poster && (
+              <div style={{
+                width: "100%",
+                aspectRatio: "2 / 3",
+                borderRadius: "8px",
+                overflow: "hidden",
+                background: COLOR_SLATE2,
+              }}>
+                <img
+                  src={poster}
+                  alt={displayTitle}
+                  style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                />
               </div>
+            )}
 
-              {/* Title */}
-              <h1 className="text-2xl md:text-4xl lg:text-5xl font-extrabold text-white leading-[1.05] tracking-tight">
-                {displayTitle}
-              </h1>
+            {/* Read First Chapter — primary purple button */}
+            {manga.chapters && manga.chapters.length > 0 && (
+              <button
+                onClick={() => navigateToChapter(
+                  [...manga.chapters!].sort((a, b) => a.number - b.number)[0]
+                )}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: "8px",
+                  background: COLOR_ACCENT,
+                  color: "#ffffff",
+                  fontWeight: 600,
+                  fontSize: "14px",
+                  border: "none",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  fontFamily: FONT_STACK,
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+                </svg>
+                Read First Chapter
+              </button>
+            )}
 
-              {/* Meta row */}
-              <div className="flex items-center gap-3 flex-wrap text-sm text-white/60">
-                {authors && authors !== "Unknown" && <span>by {authors}</span>}
-                {manga.totalChapters ? <span>• {manga.totalChapters} chapters</span> : null}
+            {/* Latest Chapter — secondary slate button */}
+            {manga.chapters && manga.chapters.length > 1 && (
+              <button
+                onClick={() => navigateToChapter(
+                  [...manga.chapters!].sort((a, b) => b.number - a.number)[0]
+                )}
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: "8px",
+                  background: COLOR_SLATE3,
+                  color: COLOR_HEADING,
+                  fontWeight: 500,
+                  fontSize: "14px",
+                  border: "1px solid #424144",
+                  cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  fontFamily: FONT_STACK,
+                }}
+              >
+                Latest Chapter
+              </button>
+            )}
+
+            {/* Rating (with purple star) */}
+            {manga.rating ? (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 0 4px" }}>
+                <svg width="16" height="16" viewBox="0 0 20 20" fill={COLOR_ACCENT}>
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                <span style={{ color: COLOR_HEADING, fontWeight: 600, fontSize: "14px" }}>
+                  {manga.rating.toFixed(1)}/10
+                </span>
+                <span style={{ color: COLOR_MUTED, fontSize: "12px" }}>average</span>
               </div>
+            ) : null}
 
-              {/* Genres */}
-              {manga.genres && manga.genres.length > 0 && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {manga.genres.slice(0, 5).map(g => (
-                    <span key={g} className="px-3 py-1 text-xs font-medium text-white/60 border border-white/15 rounded-full">
-                      {g}
-                    </span>
+            {/* Views */}
+            {manga.views != null && (
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLOR_TEXT} strokeWidth={2}>
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <span style={{ color: COLOR_HEADING, fontSize: "14px" }}>
+                  {formatViews(manga.views)} views
+                </span>
+              </div>
+            )}
+
+            {/* Scanlation groups */}
+            {manga.scanlators && manga.scanlators.length > 0 && (
+              <div style={{ marginTop: "8px" }}>
+                <div style={{
+                  color: COLOR_MUTED,
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  marginBottom: "8px",
+                }}>
+                  Groups
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                  {manga.scanlators.map(s => (
+                    <span key={s.id} style={genrePillStyle}>{s.name}</span>
                   ))}
                 </div>
-              )}
-
-              {/* Action buttons */}
-              <div className="flex items-center gap-3 flex-wrap pt-2">
-                {manga.chapters && manga.chapters.length > 0 && (
-                  <button
-                    onClick={() => navigateToChapter(
-                      [...manga.chapters!].sort((a, b) => a.number - b.number)[0]
-                    )}
-                    className="inline-flex items-center gap-2 px-8 py-3 bg-white text-black font-bold text-sm hover:bg-white/90 transition-colors"
-                    style={{ borderRadius: "4px" }}
-                  >
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                      <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
-                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-                    </svg>
-                    Read Ch. 1
-                  </button>
-                )}
-                {manga.chapters && manga.chapters.length > 1 && (
-                  <button
-                    onClick={() => navigateToChapter(
-                      [...manga.chapters!].sort((a, b) => b.number - a.number)[0]
-                    )}
-                    className="inline-flex items-center gap-2 px-6 py-3 bg-white/15 text-white font-bold text-sm hover:bg-white/25 backdrop-blur-sm transition-colors border border-white/20"
-                    style={{ borderRadius: "4px" }}
-                  >
-                    Latest Chapter
-                  </button>
-                )}
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
+            )}
 
-      {/* ═══ SYNOPSIS ═══ */}
-      {cleanDesc && (
-        <section className="px-4 md:px-8 lg:px-8 py-8 max-w-4xl">
-          <h2 className="text-lg font-bold text-white mb-3">Synopsis</h2>
-          <p className="text-sm md:text-base text-white/60 leading-relaxed">
-            {descDisplay}
-          </p>
-          {cleanDesc.length > 400 && (
-            <button
-              onClick={() => setShowFullDesc(!showFullDesc)}
-              className="mt-2 text-xs font-bold text-white/40 hover:text-white transition-colors"
-            >
-              {showFullDesc ? "Show Less" : "Read More"}
-            </button>
-          )}
-        </section>
-      )}
+            {/* External links */}
+            {(manga.anilistId || manga.malId) && (
+              <div style={{ marginTop: "8px" }}>
+                <div style={{
+                  color: COLOR_MUTED,
+                  fontSize: "11px",
+                  fontWeight: 600,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  marginBottom: "8px",
+                }}>
+                  Links
+                </div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {manga.anilistId && (
+                    <a
+                      href={`https://anilist.co/manga/${manga.anilistId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        background: COLOR_SLATE3,
+                        color: COLOR_HEADING,
+                        padding: "6px 10px",
+                        borderRadius: "6px",
+                        fontSize: "12px",
+                        textDecoration: "none",
+                        fontFamily: FONT_STACK,
+                      }}
+                    >
+                      AniList
+                    </a>
+                  )}
+                  {manga.malId && (
+                    <a
+                      href={`https://myanimelist.net/manga/${manga.malId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        background: COLOR_SLATE3,
+                        color: COLOR_HEADING,
+                        padding: "6px 10px",
+                        borderRadius: "6px",
+                        fontSize: "12px",
+                        textDecoration: "none",
+                        fontFamily: FONT_STACK,
+                      }}
+                    >
+                      MAL
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+          </aside>
 
-      {/* ═══ DETAILS / TAGS ═══ */}
-      <section className="px-4 md:px-8 lg:px-8 py-4 max-w-5xl">
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {/* Author */}
-          {authors && authors !== "Unknown" && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Author</span>
-              <span className="text-sm text-white/80">{authors}</span>
-            </div>
-          )}
-          {/* Status */}
-          {manga.status && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Status</span>
-              <span className="text-sm text-white/80">{manga.status}</span>
-            </div>
-          )}
-          {/* Type */}
-          {manga.type && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Type</span>
-              <span className="text-sm text-white/80 uppercase">{manga.type}</span>
-            </div>
-          )}
-          {/* Year */}
-          {manga.year && (
-            <div className="flex flex-col gap-1">
-              <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider">Year</span>
-              <span className="text-sm text-white/80">{manga.year}</span>
-            </div>
-          )}
-        </div>
+          {/* ═══ RIGHT COLUMN — title + meta + synopsis + chapters ═══ */}
+          <div style={{ minWidth: 0 }}>
+            {/* Title */}
+            <h1 style={{
+              color: COLOR_HEADING,
+              fontSize: "30px",
+              fontWeight: 700,
+              lineHeight: 1.2,
+              marginTop: 0,
+              marginBottom: "16px",
+            }}>
+              {displayTitle}
+            </h1>
 
-        {/* Tags */}
-        {manga.tags && manga.tags.length > 0 && (
-          <div className="mt-4">
-            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-2 block">Tags</span>
-            <div className="flex flex-wrap gap-1.5">
-              {manga.tags.slice(0, 20).map(tag => (
-                <span key={tag} className="px-2 py-1 text-[10px] font-medium text-white/50 bg-white/[0.04] border border-white/[0.08] rounded">
-                  {tag}
-                </span>
-              ))}
+            {/* Type / Status / Year badges */}
+            <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "16px" }}>
+              {manga.type && <span style={genrePillStyle}>{manga.type}</span>}
+              {manga.status && <span style={genrePillStyle}>{manga.status}</span>}
+              {manga.year ? <span style={genrePillStyle}>{manga.year}</span> : null}
             </div>
-          </div>
-        )}
 
-        {/* Genres */}
-        {manga.genres && manga.genres.length > 0 && (
-          <div className="mt-4">
-            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-2 block">Genres</span>
-            <div className="flex flex-wrap gap-1.5">
-              {manga.genres.map(g => (
-                <span key={g} className="px-2.5 py-1 text-xs font-medium text-white/60 bg-white/[0.04] border border-white/[0.08] rounded-full">
-                  {g}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+            {/* Genres */}
+            {manga.genres && manga.genres.length > 0 && (
+              <div style={{ marginBottom: "12px" }}>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {manga.genres.map(g => (
+                    <span key={g} style={genrePillStyle}>{g}</span>
+                  ))}
+                </div>
+              </div>
+            )}
 
-        {/* Available languages */}
-        {availableLangs.length > 0 && (
-          <div className="mt-4">
-            <span className="text-[10px] font-bold text-white/40 uppercase tracking-wider mb-2 block">Available Languages</span>
-            <div className="flex flex-wrap gap-1.5">
-              {availableLangs.map(lang => (
-                <span key={lang} className="px-2.5 py-1 text-xs font-bold rounded" style={{ background: `${ACCENT}15`, color: ACCENT, border: `1px solid ${ACCENT}30` }}>
-                  {LANG_NAMES[lang] || lang.toUpperCase()}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </section>
+            {/* Tags (first 15, with Show more) */}
+            {manga.tags && manga.tags.length > 0 && (
+              <div style={{ marginBottom: "20px" }}>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", alignItems: "center" }}>
+                  {(showAllTags ? manga.tags : manga.tags.slice(0, 15)).map(tag => (
+                    <span key={tag} style={tagPillStyle}>{tag}</span>
+                  ))}
+                  {manga.tags.length > 15 && (
+                    <button
+                      onClick={() => setShowAllTags(!showAllTags)}
+                      style={linkButtonStyle}
+                    >
+                      {showAllTags ? "Show less" : `+${manga.tags.length - 15} more`}
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
 
-      {/* ═══ CHAPTERS ═══ */}
-      {manga.chapters && manga.chapters.length > 0 && (
-        <section className="px-4 md:px-8 lg:px-8 py-8">
-          <div className="max-w-5xl">
-            {/* Chapter header + controls */}
-            <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-              <h2 className="text-lg font-bold text-white">
-                Chapters <span className="text-white/40">({chapterGroups.length})</span>
-              </h2>
-              <div className="flex items-center gap-2">
-                {/* Language selector */}
-                {availableLangs.length > 1 && (
-                  <select
-                    value={selectedLang}
-                    onChange={e => setSelectedLang(e.target.value)}
-                    className="px-3 py-1.5 text-xs font-semibold bg-white/5 border border-white/10 text-white/60 focus:outline-none focus:border-white/30 cursor-pointer"
-                    style={{ borderRadius: "4px" }}
-                  >
-                    <option value="all">All Languages</option>
-                    {availableLangs.map(lang => (
-                      <option key={lang} value={lang}>
-                        {LANG_NAMES[lang] || lang.toUpperCase()}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {/* Search */}
-                <div className="relative">
-                  <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            {/* Stats line — rating • views • chapters */}
+            <div style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              flexWrap: "wrap",
+              color: COLOR_TEXT,
+              fontSize: "14px",
+              marginBottom: "24px",
+            }}>
+              {manga.rating ? (
+                <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill={COLOR_ACCENT}>
+                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
+                  <span style={{ color: COLOR_HEADING, fontWeight: 600 }}>{manga.rating.toFixed(1)}/10</span>
+                  <span style={{ color: COLOR_MUTED }}>average rating</span>
+                </span>
+              ) : null}
+              {manga.views != null && (
+                <>
+                  {manga.rating && <span style={{ color: COLOR_MUTED }}>•</span>}
+                  <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={COLOR_TEXT} strokeWidth={2}>
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <span style={{ color: COLOR_HEADING, fontWeight: 600 }}>{formatViews(manga.views)}</span>
+                    <span style={{ color: COLOR_MUTED }}>views</span>
+                  </span>
+                </>
+              )}
+              {manga.totalChapters != null && (
+                <>
+                  <span style={{ color: COLOR_MUTED }}>•</span>
+                  <span>
+                    <span style={{ color: COLOR_HEADING, fontWeight: 600 }}>{manga.totalChapters}</span>
+                    <span style={{ color: COLOR_MUTED }}> chapters</span>
+                  </span>
+                </>
+              )}
+            </div>
+
+            {/* Meta grid — TYPE / STATUS / YEAR / AUTHORS / ARTIST / OTHER NAMES */}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+              gap: "16px",
+              marginBottom: "28px",
+            }}>
+              {manga.type && (
+                <div>
+                  <div style={metaLabelStyle}>Type</div>
+                  <div style={metaValueStyle}>{manga.type}</div>
+                </div>
+              )}
+              {manga.status && (
+                <div>
+                  <div style={metaLabelStyle}>Status</div>
+                  <div style={metaValueStyle}>{manga.status}</div>
+                </div>
+              )}
+              {manga.year ? (
+                <div>
+                  <div style={metaLabelStyle}>Year</div>
+                  <div style={metaValueStyle}>{manga.year}</div>
+                </div>
+              ) : null}
+              {authors && authors !== "Unknown" && (
+                <div>
+                  <div style={metaLabelStyle}>Authors</div>
+                  <div style={metaValueStyle}>{authors}</div>
+                </div>
+              )}
+              {manga.artists && manga.artists.length > 0 && (
+                <div>
+                  <div style={metaLabelStyle}>Artist</div>
+                  <div style={metaValueStyle}>{manga.artists.join(", ")}</div>
+                </div>
+              )}
+              {manga.altTitles && manga.altTitles.length > 0 && (
+                <div>
+                  <div style={metaLabelStyle}>Other Names</div>
+                  <div style={{ ...metaValueStyle, display: "flex", flexDirection: "column", gap: "2px" }}>
+                    {(showAllAltTitles ? manga.altTitles : manga.altTitles.slice(0, 3)).map((alt, i) => (
+                      <span key={i}>{alt}</span>
+                    ))}
+                    {manga.altTitles.length > 3 && (
+                      <button
+                        onClick={() => setShowAllAltTitles(!showAllAltTitles)}
+                        style={{ ...linkButtonStyle, padding: "2px 0", textAlign: "left" }}
+                      >
+                        {showAllAltTitles ? "Show less" : `+${manga.altTitles.length - 3} more`}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Synopsis */}
+            {cleanDesc && (
+              <section style={{ marginBottom: "32px" }}>
+                <h2 style={{
+                  color: COLOR_HEADING,
+                  fontSize: "20px",
+                  fontWeight: 600,
+                  marginTop: 0,
+                  marginBottom: "8px",
+                }}>Synopsis</h2>
+                <p style={{
+                  color: COLOR_TEXT,
+                  fontSize: "14px",
+                  lineHeight: 1.6,
+                  margin: 0,
+                }}>
+                  {descDisplay}
+                </p>
+                {cleanDesc.length > 400 && (
+                  <button
+                    onClick={() => setShowFullDesc(!showFullDesc)}
+                    style={{ ...linkButtonStyle, padding: "4px 0", fontSize: "13px", marginTop: "4px" }}
+                  >
+                    {showFullDesc ? "Read less" : "Read more"}
+                  </button>
+                )}
+              </section>
+            )}
+
+            {/* Chapters */}
+            {manga.chapters && manga.chapters.length > 0 && (
+              <section style={{ marginBottom: "40px" }}>
+                <h2 style={{
+                  color: COLOR_HEADING,
+                  fontSize: "24px",
+                  fontWeight: 400,
+                  marginTop: 0,
+                  marginBottom: "16px",
+                }}>
+                  Chapters{" "}
+                  <span style={{ color: COLOR_MUTED, fontSize: "16px" }}>
+                    ({visibleChapterGroups.length})
+                  </span>
+                </h2>
+
+                {/* Controls row */}
+                <div style={{
+                  display: "flex",
+                  gap: "8px",
+                  flexWrap: "wrap",
+                  marginBottom: "16px",
+                  alignItems: "center",
+                }}>
+                  {availableLangs.length > 0 && (
+                    <select
+                      value={selectedLang}
+                      onChange={e => setSelectedLang(e.target.value)}
+                      style={controlStyle}
+                    >
+                      <option value="all">All Languages</option>
+                      {availableLangs.map(lang => (
+                        <option key={lang} value={lang}>
+                          {LANG_NAMES[lang] || lang.toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {manga.scanlators && manga.scanlators.length > 0 && (
+                    <select
+                      value={selectedScanlator}
+                      onChange={e => setSelectedScanlator(e.target.value)}
+                      style={controlStyle}
+                    >
+                      <option value="all">All Groups</option>
+                      {manga.scanlators.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))}
+                    </select>
+                  )}
                   <input
                     type="text"
                     placeholder="Search chapters..."
                     value={chapterSearch}
                     onChange={e => setChapterSearch(e.target.value)}
-                    className="pl-9 pr-3 py-1.5 text-xs bg-white/5 border border-white/10 text-white placeholder-white/30 focus:outline-none focus:border-white/30 w-40"
-                    style={{ borderRadius: "4px" }}
+                    style={{
+                      ...controlStyle,
+                      flex: "1 1 200px",
+                      minWidth: "150px",
+                    }}
                   />
+                  <button
+                    onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
+                    style={controlStyle}
+                  >
+                    {sortOrder === "asc" ? "↑ Asc" : "↓ Desc"}
+                  </button>
                 </div>
-                {/* Sort */}
-                <button
-                  onClick={() => setSortOrder(sortOrder === "asc" ? "desc" : "asc")}
-                  className="px-3 py-1.5 text-xs font-semibold bg-white/5 border border-white/10 text-white/60 hover:text-white transition-colors"
-                  style={{ borderRadius: "4px" }}
-                >
-                  {sortOrder === "asc" ? "↑ Asc" : "↓ Desc"}
-                </button>
-              </div>
-            </div>
 
-            {/* Chapter list — grouped by chapter number, each scan shown inline */}
-            <div className="flex flex-col gap-2">
-              {chapterGroups.slice(0, 100).map(group => (
-                <div
-                  key={group.number}
-                  className="bg-white/[0.03] border border-white/[0.06] overflow-hidden"
-                  style={{ borderRadius: "8px" }}
-                >
-                  {/* Chapter number header */}
-                  <div className="flex items-center gap-3 px-4 py-2.5 border-b border-white/[0.04]">
-                    <span className="text-sm font-extrabold" style={{ color: ACCENT }}>
-                      Ch. {group.number}
-                    </span>
-                    <span className="text-xs text-white/30">
-                      {group.scans.length} scan{group.scans.length > 1 ? "s" : ""}
-                    </span>
-                  </div>
-                  {/* Scan rows */}
-                  <div className="flex flex-col">
-                    {group.scans.map((scan, si) => (
-                      <button
-                        key={scan.id}
-                        onClick={() => navigateToChapter(scan)}
-                        className="group flex items-center gap-3 px-4 py-2 hover:bg-white/[0.06] transition-colors text-left w-full"
-                        style={si > 0 ? { borderTop: "1px solid rgba(255,255,255,0.03)" } : {}}
-                      >
-                        {/* Language badge — show full name */}
-                        <span
-                          className="shrink-0 px-1.5 py-0.5 text-[8px] font-bold rounded uppercase tracking-wider"
+                {/* Chapter list — grouped by number */}
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                  {visibleChapterGroups.slice(0, 100).map(group => (
+                    <div key={group.number}>
+                      {/* Chapter number header */}
+                      <div style={{
+                        color: COLOR_MUTED,
+                        fontSize: "12px",
+                        fontWeight: 600,
+                        letterSpacing: "0.05em",
+                        textTransform: "uppercase",
+                        padding: "8px 0 4px",
+                      }}>
+                        CH. {group.number}
+                      </div>
+                      {/* Scan rows */}
+                      {group.scans.map(scan => (
+                        <button
+                          key={scan.id}
+                          onClick={() => navigateToChapter(scan)}
                           style={{
-                            background: `${LANG_COLORS[scan.lang || "en"] || "#666"}20`,
-                            color: LANG_COLORS[scan.lang || "en"] || "#999",
-                            border: `1px solid ${LANG_COLORS[scan.lang || "en"] || "#666"}40`,
+                            width: "100%",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            gap: "12px",
+                            padding: "6px 12px",
+                            borderRadius: "8px",
+                            border: "1px solid transparent",
+                            background: "transparent",
+                            color: COLOR_HEADING,
+                            cursor: "pointer",
+                            textAlign: "left",
+                            marginBottom: "2px",
+                            fontFamily: FONT_STACK,
+                            transition: "background 0.15s, border-color 0.15s",
+                          }}
+                          onMouseEnter={e => {
+                            e.currentTarget.style.background = COLOR_SLATE2;
+                            e.currentTarget.style.borderColor = COLOR_ACCENT;
+                          }}
+                          onMouseLeave={e => {
+                            e.currentTarget.style.background = "transparent";
+                            e.currentTarget.style.borderColor = "transparent";
                           }}
                         >
-                          {LANG_NAMES[scan.lang || "en"] || scan.lang || "Unknown"}
-                        </span>
-                        {/* Language + scanlation-index label (e.g. "English 1", "Indonesian 2")
-                            with the scanlator name appended so users can identify which
-                            scanlation each row is (e.g. "English 1 (Gamma)"). */}
-                        <span className="text-xs font-medium text-white/60 group-hover:text-white/90 transition-colors shrink-0">
-                          {chapterLabel(scan)}
-                          {scan.scanGroup && (
-                            <span className="text-white/35 ml-1">({scan.scanGroup})</span>
-                          )}
-                        </span>
-                        {/* Chapter title */}
-                        <span className="flex-1 min-w-0 text-xs text-white/40 truncate">
-                          {scan.title || `Chapter ${scan.number}`}
-                        </span>
-                        {/* Page count */}
-                        {scan.pages ? (
-                          <span className="text-[10px] text-white/30 shrink-0 hidden sm:inline">
-                            {scan.pages}p
-                          </span>
-                        ) : null}
-                        {/* Play icon on hover */}
-                        <svg className="w-3.5 h-3.5 text-white/0 group-hover:text-white/60 transition-colors shrink-0" fill="currentColor" viewBox="0 0 24 24">
-                          <polygon points="5 3 19 12 5 21 5 3" />
-                        </svg>
-                      </button>
-                    ))}
-                  </div>
+                          {/* Left: title + scanlation label */}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, flex: 1 }}>
+                            <span style={{
+                              color: COLOR_HEADING,
+                              fontSize: "16px",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}>
+                              {scan.title || `Chapter ${scan.number}`}
+                            </span>
+                            <span style={{ color: COLOR_MUTED, fontSize: "12px", fontWeight: 600 }}>
+                              {chapterLabel(scan)}
+                              {scan.scanGroup && ` · ${scan.scanGroup}`}
+                            </span>
+                          </div>
+                          {/* Right: page count + relative date */}
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                            {scan.pages ? (
+                              <span style={{ color: COLOR_MUTED, fontSize: "12px" }}>{scan.pages}p</span>
+                            ) : null}
+                            {scan.date && (
+                              <span style={{ color: COLOR_MUTED, fontSize: "12px" }}>
+                                {formatRelativeDate(scan.date)}
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            {chapterGroups.length > 100 && (
-              <p className="text-center text-xs text-white/30 mt-6">
-                Showing first 100 chapters. Use search to find specific chapters.
-              </p>
+                {visibleChapterGroups.length > 100 && (
+                  <p style={{ color: COLOR_MUTED, fontSize: "12px", textAlign: "center", marginTop: "16px" }}>
+                    Showing first 100 chapters. Use search to find specific chapters.
+                  </p>
+                )}
+                {visibleChapterGroups.length === 0 && (
+                  <p style={{ color: COLOR_MUTED, fontSize: "13px", textAlign: "center", padding: "24px 0" }}>
+                    No chapters match the current filters.
+                  </p>
+                )}
+              </section>
             )}
-          </div>
-        </section>
-      )}
 
-      {/* ═══ COMMENTS ═══ */}
-      <section className="px-4 md:px-8 lg:px-8 py-8">
-        <div className="max-w-5xl">
-          <h2 className="text-lg font-bold text-white mb-4">Comments</h2>
-          <AnimeComments animeId={mangaId} animeTitle={displayTitle} />
+            {/* Comments */}
+            <section style={{ marginTop: "16px" }}>
+              <h2 style={{
+                color: COLOR_HEADING,
+                fontSize: "20px",
+                fontWeight: 600,
+                marginTop: 0,
+                marginBottom: "16px",
+              }}>Comments</h2>
+              <AnimeComments animeId={mangaId} animeTitle={displayTitle} />
+            </section>
+          </div>
         </div>
-      </section>
+      </div>
     </div>
   );
 }
