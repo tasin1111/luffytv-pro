@@ -521,14 +521,15 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   }, [chapterGroups, selectedScanlator]);
 
   // ── atsu.moe design tokens ──
-  const COLOR_BG = "#1d1e20";
-  const COLOR_TEXT = "rgb(184, 188, 192)";
-  const COLOR_HEADING = "rgb(249, 248, 246)";
-  const COLOR_ACCENT = "#8e7ce6";
-  const COLOR_SLATE3 = "#313234";
-  const COLOR_SLATE2 = "#282828";
-  const COLOR_MUTED = "#888888";
-  const COLOR_BORDER = "#3a3a3a";
+  // ── Color tokens — pure black base, blue accent for chapters/scanlators ──
+  const COLOR_BG = "#000000";              // pure black background
+  const COLOR_TEXT = "#b0b0b0";            // medium gray body text
+  const COLOR_HEADING = "#ffffff";         // pure white headings
+  const COLOR_ACCENT = "#1e88ff";          // blue — used for chapter names, scanlator names, rating star
+  const COLOR_SLATE3 = "#1a1a1a";          // darkest panel (genre pills)
+  const COLOR_SLATE2 = "#141414";          // darker panel (tag pills, hover bg)
+  const COLOR_MUTED = "#666666";           // muted gray for labels
+  const COLOR_BORDER = "#222222";          // subtle border
   const FONT_STACK = "Geist, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
   const genrePillStyle = {
@@ -937,7 +938,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
               <div style={{
                 marginBottom: "28px",
                 padding: "16px",
-                background: "#282828",
+                background: COLOR_SLATE2,
                 borderRadius: "8px",
                 border: `1px solid ${COLOR_BORDER}`,
               }}>
@@ -1002,7 +1003,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
               <div style={{
                 marginBottom: "28px",
                 padding: "12px 16px",
-                background: "#282828",
+                background: COLOR_SLATE2,
                 borderRadius: "8px",
                 border: `1px solid ${COLOR_BORDER}`,
                 fontSize: "12px",
@@ -1188,9 +1189,9 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                     <div key={group.number}>
                       {/* Chapter number header */}
                       <div style={{
-                        color: COLOR_MUTED,
+                        color: COLOR_ACCENT,             // blue chapter number
                         fontSize: "12px",
-                        fontWeight: 600,
+                        fontWeight: 700,
                         letterSpacing: "0.05em",
                         textTransform: "uppercase",
                         padding: "8px 0 4px",
@@ -1231,15 +1232,16 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                           {/* Left: title + scanlation label */}
                           <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, flex: 1 }}>
                             <span style={{
-                              color: COLOR_HEADING,
+                              color: COLOR_ACCENT,           // blue chapter name
                               fontSize: "16px",
+                              fontWeight: 500,
                               overflow: "hidden",
                               textOverflow: "ellipsis",
                               whiteSpace: "nowrap",
                             }}>
                               {scan.title || `Chapter ${scan.number}`}
                             </span>
-                            <span style={{ color: COLOR_MUTED, fontSize: "12px", fontWeight: 600 }}>
+                            <span style={{ color: COLOR_ACCENT, fontSize: "12px", fontWeight: 600, opacity: 0.8 }}>
                               {chapterLabel(scan)}
                               {scan.scanGroup && ` · ${scan.scanGroup}`}
                             </span>
