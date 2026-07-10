@@ -98,9 +98,26 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
           setMangaTitle(detail.englishTitle || detail.title || "");
           const chs = detail.chapters || [];
           setAllChapters(chs);
-          // The store now passes the chapter NUMBER as chapterId (string),
-          // because the new atsumaru scraper API uses chapterNumber.
-          const ch = chs.find((c: any) => c.id === chapterId || String(c.number) === String(chapterId));
+          // Match the current chapter by ID or by number.
+          // chapterId can be one of:
+          //   - A mangaball translation ID (24 hex chars)
+          //   - A short atsu.moe chapter ID (e.g. "LMHqVf")
+          //   - A cross-provider merge ID "at:{mangaId}:{number}:{chapterId}"
+          //   - A plain chapter number (string)
+          const ch = chs.find((c: any) => {
+            if (c.id === chapterId) return true;
+            // For cross-provider merge IDs, also check if c.id ends with
+            // the same final segment (the real atsu chapter ID)
+            if (typeof c.id === "string" && c.id.startsWith("at:") && typeof chapterId === "string" && chapterId.startsWith("at:")) {
+              const cParts = c.id.split(":");
+              const jParts = chapterId.split(":");
+              // Compare the last segment (the real chapter ID)
+              if (cParts.length >= 4 && jParts.length >= 4 && cParts[cParts.length - 1] === jParts[jParts.length - 1]) {
+                return true;
+              }
+            }
+            return String(c.number) === String(chapterId);
+          });
           setChapterTitle(ch?.title || `Chapter ${ch?.number || chapterId}`);
         }
       } catch {
@@ -112,8 +129,12 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   }, [mangaId, chapterId]);
 
   // ── Find prev/next chapters ──
-  // Compare by chapter number (as string) since the store route now passes
-  // the chapter number as chapterId (string).
+  // Match the current chapter by ID or by number.
+  // chapterId can be one of:
+  //   - A mangaball translation ID (24 hex chars)
+  //   - A short atsu.moe chapter ID (e.g. "LMHqVf")
+  //   - A cross-provider merge ID "at:{mangaId}:{number}:{chapterId}"
+  //   - A plain chapter number (string)
   // Also filter by language (stored in sessionStorage by the detail page)
   // so prev/next navigation stays within the same language.
   const readerLang = useMemo(() => {
@@ -131,11 +152,19 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   }, [allChapters, readerLang]);
 
   // Find the current chapter in the FILTERED list.
-  // Match by ID (translation ID for mangaball) or by number (for atsumaru).
-  // This ensures prev/next stays within the same language.
-  const currentChapterIdx = langFilteredChapters.findIndex((c: any) =>
-    c.id === chapterId || String(c.number) === String(chapterId)
-  );
+  const currentChapterIdx = langFilteredChapters.findIndex((c: any) => {
+    if (c.id === chapterId) return true;
+    // For cross-provider merge IDs, also match by the last segment
+    // (the real atsu chapter ID)
+    if (typeof c.id === "string" && c.id.startsWith("at:") && typeof chapterId === "string" && chapterId.startsWith("at:")) {
+      const cParts = c.id.split(":");
+      const jParts = chapterId.split(":");
+      if (cParts.length >= 4 && jParts.length >= 4 && cParts[cParts.length - 1] === jParts[jParts.length - 1]) {
+        return true;
+      }
+    }
+    return String(c.number) === String(chapterId);
+  });
   const prevChapter = currentChapterIdx > 0 ? langFilteredChapters[currentChapterIdx - 1] : null;
   const nextChapter = currentChapterIdx < langFilteredChapters.length - 1 ? langFilteredChapters[currentChapterIdx + 1] : null;
 
@@ -542,26 +571,41 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
             </button>
           </div>
           <div className="mr-sidebar-list">
-            {langFilteredChapters.sort((a: any, b: any) => a.number - b.number).map((ch: any) => (
-              <button
-                key={ch.id}
-                onClick={() => {
-                  navigate({ page: "manga-read", id: mangaId, chapterId: (ch.id && ch.id.length === 24 ? ch.id : String(ch.number)) });
-                  setShowChapterSidebar(false);
-                }}
-                className={`mr-sidebar-item ${(ch.id === chapterId || String(ch.number) === String(chapterId)) ? "active" : ""}`}
-              >
-                <span className="mr-sidebar-num">Ch. {ch.number}</span>
-                <span className="mr-sidebar-name">{ch.title || `Chapter ${ch.number}`}</span>
-                {(ch.id === chapterId || String(ch.number) === String(chapterId)) && (
-                  <span className="mr-sidebar-current">
-                    <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z" />
-                    </svg>
-                  </span>
-                )}
-              </button>
-            ))}
+            {langFilteredChapters.sort((a: any, b: any) => a.number - b.number).map((ch: any) => {
+              // Build the chapterId for navigation — same logic as
+              // manga-detail.tsx's navigateToChapter
+              const navChapterId: string =
+                ch.id && ch.id.length === 24 ? ch.id :
+                ch.id && ch.id.startsWith("at:") ? ch.id :
+                ch.id && /^[A-Za-z0-9_-]{3,20}$/.test(ch.id) && !/^\d+$/.test(ch.id) ? ch.id :
+                String(ch.number);
+              // Check if this is the active chapter
+              const isActive = ch.id === chapterId ||
+                String(ch.number) === String(chapterId) ||
+                (typeof ch.id === "string" && ch.id.startsWith("at:") &&
+                 typeof chapterId === "string" && chapterId.startsWith("at:") &&
+                 ch.id.split(":").pop() === chapterId.split(":").pop());
+              return (
+                <button
+                  key={ch.id}
+                  onClick={() => {
+                    navigate({ page: "manga-read", id: mangaId, chapterId: navChapterId });
+                    setShowChapterSidebar(false);
+                  }}
+                  className={`mr-sidebar-item ${isActive ? "active" : ""}`}
+                >
+                  <span className="mr-sidebar-num">Ch. {ch.number}</span>
+                  <span className="mr-sidebar-name">{ch.title || `Chapter ${ch.number}`}</span>
+                  {isActive && (
+                    <span className="mr-sidebar-current">
+                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
+                      </svg>
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -606,7 +650,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
                 <div className="mr-end-nav-buttons">
                   {prevChapter && (
                     <button
-                      onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: (prevChapter.id && prevChapter.id.length === 24 ? prevChapter.id : String(prevChapter.number)) })}
+                      onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: (prevChapter.id && (prevChapter.id.length === 24 || prevChapter.id.startsWith("at:") || (/^[A-Za-z0-9_-]{3,20}$/.test(prevChapter.id) && !/^\d+$/.test(prevChapter.id))) ? prevChapter.id : String(prevChapter.number)) })}
                       className="mr-end-btn mr-end-btn-prev"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -627,7 +671,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
                   </button>
                   {nextChapter && (
                     <button
-                      onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: (nextChapter.id && nextChapter.id.length === 24 ? nextChapter.id : String(nextChapter.number)) })}
+                      onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: (nextChapter.id && (nextChapter.id.length === 24 || nextChapter.id.startsWith("at:") || (/^[A-Za-z0-9_-]{3,20}$/.test(nextChapter.id) && !/^\d+$/.test(nextChapter.id))) ? nextChapter.id : String(nextChapter.number)) })}
                       className="mr-end-btn mr-end-btn-next"
                     >
                       <span>Next Chapter</span>
@@ -696,7 +740,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
           {/* Prev chapter */}
           {prevChapter ? (
             <button
-              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: (prevChapter.id && prevChapter.id.length === 24 ? prevChapter.id : String(prevChapter.number)) })}
+              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: (prevChapter.id && (prevChapter.id.length === 24 || prevChapter.id.startsWith("at:") || (/^[A-Za-z0-9_-]{3,20}$/.test(prevChapter.id) && !/^\d+$/.test(prevChapter.id))) ? prevChapter.id : String(prevChapter.number)) })}
               className="mr-bottom-chapter-btn"
               title="Previous chapter"
               aria-label="Previous chapter"
@@ -733,7 +777,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
           {/* Next chapter */}
           {nextChapter ? (
             <button
-              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: (nextChapter.id && nextChapter.id.length === 24 ? nextChapter.id : String(nextChapter.number)) })}
+              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: (nextChapter.id && (nextChapter.id.length === 24 || nextChapter.id.startsWith("at:") || (/^[A-Za-z0-9_-]{3,20}$/.test(nextChapter.id) && !/^\d+$/.test(nextChapter.id))) ? nextChapter.id : String(nextChapter.number)) })}
               className="mr-bottom-chapter-btn"
               title="Next chapter"
               aria-label="Next chapter"

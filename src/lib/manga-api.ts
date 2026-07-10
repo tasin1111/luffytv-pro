@@ -108,6 +108,10 @@ export interface AtsuMangaChapter {
   pages?: number;
   pageCount?: number;
   lang?: string;
+  /** atsu.moe scanlation group ID (links to scanlators[].id on detail). */
+  scanId?: string;
+  /** Chapter index inside its scanlation (atsu.moe specific). */
+  chapterIndex?: number;
 }
 
 export interface AtsuMangaDetail {
@@ -136,6 +140,12 @@ export interface AtsuMangaDetail {
   source?: string;
   cover?: string;
   slug?: string;
+  /**
+   * Scanlation groups / "sources" for this manga, as exposed by atsu.moe.
+   * Each chapter's `scanGroup` will match one of these names so the UI
+   * can cross-reference chapters ↔ scanlation groups.
+   */
+  scanlators?: { id: string; name: string }[];
 }
 
 export interface AtsuChapterPage {
@@ -570,6 +580,14 @@ async function searchComixViaProxy(query: string): Promise<AtsuMangaEntry[]> {
  * Get manga detail (info + chapters in parallel).
  * Parses the provider from the ID prefix to know which API to call.
  *
+ * PROVIDER ROUTING:
+ *   comix    → getComixDetail (comix.to scraper)
+ *   atsumaru → getAtsumaruDetailDirect (atsu.moe /api/manga/page — RICH data
+ *              with poster, banner, synopsis, scanlators, proper chapters)
+ *              with manga-scrape-api /api/scrape/info as a fallback
+ *   mangaball → manga-scrape-api /api/scrape/info + getMangaballChaptersDirect
+ *               (mangaball.net direct API returns ALL language translations)
+ *
  * FALLBACK: If the primary provider's info endpoint fails (mangaball's
  * info endpoint is known to be intermittent), but chapters work, we
  * construct a minimal detail from chapters data alone. This ensures
@@ -582,6 +600,15 @@ export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail |
   // Comix.to has its own scraper — handle separately
   if (provider === "comix") {
     return getComixDetail(rawId);
+  }
+
+  // Atsumaru — try direct atsu.moe /api/manga/page FIRST (rich data:
+  // poster, banner, synopsis, scanlators, proper chapter IDs).
+  // Fall back to manga-scrape-api /api/scrape/info if direct fails.
+  if (provider === "atsumaru") {
+    const directDetail = await getAtsumaruDetailDirect(rawId);
+    if (directDetail) return directDetail;
+    // Direct failed → fall through to scrape-api path below
   }
 
   // For mangaball, fetch info from manga-scrape-api AND chapters directly
@@ -740,8 +767,51 @@ export async function getChapterImages(
     return getComixChapterPages(rawId, chapterId);
   }
 
-  // Check if chapterId is an atsumaru chapter merged from cross-provider
-  // Format: "at:{atsumaruMangaId}:{chapterNumber}"
+  // Atsumaru — go DIRECT to atsu.moe's static page URL pattern.
+  // We build the page URLs ourselves from the chapter ID + page count,
+  // skipping the manga-scrape-api's pages endpoint entirely.
+  //
+  // Why: the scrape-api's atsumaru pages endpoint only takes
+  // chapterNumber (not chapterId), so it always returns the SAME
+  // scanlation's pages regardless of which scanlation the user picked.
+  // Going direct via /static/pages/{chapterId}/{i}.webp fixes that —
+  // each chapter ID is unique per scanlation, so we get the correct
+  // scanlation's pages.
+  //
+  // Handles three chapterId formats:
+  //   1. "LMHqVf"          — short atsu.moe chapter ID (direct from detail)
+  //   2. "at:{mangaId}:{n}" — cross-provider merge format (client-side merge)
+  //   3. "176"             — chapter number only (legacy fallback)
+  if (provider === "atsumaru") {
+    // Format 1 or 2: starts with "at:" or looks like a short atsu ID
+    // (alnum, 4-12 chars, not all digits)
+    const looksLikeAtsuId = !chapterId.startsWith("at:") &&
+      /^[A-Za-z0-9_-]{3,20}$/.test(chapterId) &&
+      !/^\d+$/.test(chapterId);
+
+    if (chapterId.startsWith("at:") || looksLikeAtsuId) {
+      const directPages = await getAtsumaruChapterPagesDirect(mangaId, chapterId);
+      if (directPages.length > 0) return directPages;
+      // Fall through to scrape-api if direct fails
+    }
+
+    // Format 3: chapter number — use scrape-api as fallback
+    const chapterNumber = encodeURIComponent(String(chapterId));
+    const data = await scrapeFetch<ScrapePagesResponse>(
+      `/api/scrape/pages?id=${encodeURIComponent(rawId)}&chapterNumber=${chapterNumber}&provider=atsumaru`,
+    );
+    if (data?.pages) {
+      return data.pages.map(p => ({
+        index: p.order - 1,
+        url: p.url,
+        width: p.width,
+        height: p.height,
+      }));
+    }
+    return [];
+  }
+
+  // Mangaball — check for cross-provider merge format first
   if (chapterId.startsWith("at:")) {
     const parts = chapterId.split(":");
     if (parts.length >= 3) {
@@ -778,8 +848,6 @@ export async function getChapterImages(
       return directPages;
     }
     // If direct scrape failed, try manga-scrape-api as fallback
-    // (this may return English pages instead of the correct language,
-    // but it's better than returning nothing)
     const data = await scrapeFetch<ScrapePagesResponse>(
       `/api/scrape/pages?id=${encodeURIComponent(rawId)}&chapterNumber=${encodeURIComponent(chapterId)}&provider=${provider}`,
     );
@@ -794,7 +862,7 @@ export async function getChapterImages(
     // If both failed, fall through to chapter number approach
   }
 
-  // Use chapter number (works for atsumaru, and as fallback for mangaball)
+  // Use chapter number (works as fallback for mangaball)
   const chapterNumber = encodeURIComponent(String(chapterId));
   const data = await scrapeFetch<ScrapePagesResponse>(
     `/api/scrape/pages?id=${encodeURIComponent(rawId)}&chapterNumber=${chapterNumber}&provider=${provider}`,
@@ -956,6 +1024,398 @@ async function getAtsumaruHomeDirect(): Promise<AtsuHomeSection[]> {
     console.error("[manga-api] getAtsumaruHomeDirect error:", err);
     return [];
   }
+}
+
+// ============================================================
+// Atsumaru direct DETAIL scraper (primary for at: manga detail)
+// ---------------------------------------------------------------------
+// atsu.moe's /api/manga/page?id={mangaId} returns rich metadata that
+// the manga-scrape-api's /api/scrape/info endpoint DOES NOT expose:
+//
+//   • poster.{small,medium,large}Image  (proper sized poster URLs)
+//   • banner.{url, aspectRatio}         (real hero banner image)
+//   • synopsis                          (full synopsis — not truncated)
+//   • scanlators: [{id, name}]          (scanlation groups = "sources")
+//   • authors: [{id, name, slug, type}] (type = "Author" | "Artist")
+//   • genres: [{id, name, weight}]
+//   • tags: [{id, name, namePath, weight}]
+//   • status, type, released, views, avgRating, isAdult
+//   • anilistId, malId, apId, kitsuId, annId, mangaBakaId, mangaUpdatesId
+//   • chapters: [{id, scanlationMangaId, title, number, createdAt, pageCount, index}]
+//     — each chapter ID is the SHORT atsu.moe chapter ID (e.g. "LMHqVf")
+//       used for fetching pages directly via the
+//       https://atsu.moe/static/pages/{chapterId}/{i}.webp URL pattern.
+//
+// IMPORTANT — image URL format:
+//   The manga-scrape-api returns image URLs WITHOUT the /static/ prefix
+//   (e.g. "https://atsu.moe/posters/xxx.webp") which 404s. atsu.moe
+//   serves images from /static/{path}. This function uses the existing
+//   atsuImageUrl() helper to ALWAYS emit /static/-prefixed URLs.
+//
+// IMPORTANT — chapter pages URL pattern:
+//   Chapter images live at https://atsu.moe/static/pages/{chapterId}/{i}.webp
+//   where {chapterId} is the SHORT atsu.moe chapter ID (e.g. "LMHqVf")
+//   and {i} is the 0-indexed page number. Each chapter knows its own
+//   pageCount so we can build the URLs without any API call.
+// ============================================================
+
+interface AtsuDirectMangaPageResponse {
+  mangaPage: {
+    id: string;
+    title: string;
+    englishTitle?: string | null;
+    otherNames?: string[];
+    type?: string;
+    status?: string;
+    released?: number;           // ms epoch
+    views?: string;
+    avgRating?: number;
+    isAdult?: boolean;
+    synopsis?: string;
+    poster?: {
+      id?: string;
+      image?: string;
+      smallImage?: string;
+      mediumImage?: string;
+      largeImage?: string;
+    } | null;
+    banner?: { url?: string; aspectRatio?: number } | null;
+    authors?: Array<{ id?: string; name?: string; slug?: string; type?: string }> | null;
+    genres?: Array<{ id?: string; name?: string; weight?: string }> | null;
+    tags?: Array<{ id?: string; name?: string; namePath?: string; weight?: string }> | null;
+    scanlators?: Array<{ id?: string; name?: string }> | null;
+    anilistId?: string | null;
+    malId?: string | null;
+    apId?: string | null;
+    kitsuId?: string | null;
+    annId?: string | null;
+    mangaBakaId?: string | null;
+    mangaUpdatesId?: string | null;
+    totalChapterCount?: number | null;
+    hasMoreChapters?: boolean | null;
+    chapters?: Array<{
+      id: string;
+      scanlationMangaId?: string;
+      title?: string;
+      number?: number;
+      createdAt?: number;
+      index?: number;
+      pageCount?: number;
+    }> | null;
+  } | null;
+}
+
+interface AtsuDirectChaptersPageResponse {
+  chapters?: Array<{
+    id: string;
+    scanlationMangaId?: string;
+    title?: string;
+    number?: number;
+    createdAt?: number;
+    index?: number;
+    pageCount?: number;
+  }> | null;
+  hasMore?: boolean | null;
+}
+
+/**
+ * Fetch ALL chapters for an atsu.moe manga via paginated
+ * /api/manga/chapters?id={mangaId}&page={n} endpoint.
+ *
+ * Each page returns 50 chapters (newest first). We fan out up to 30 pages
+ * in parallel (covers up to 1500 chapters). The first page that returns
+ * an empty array signals the end of the chapter list.
+ *
+ * NOTE: paginated chapters do NOT include `scanlationMangaId` — only
+ * the manga/page endpoint (initial 80 chapters) does. We merge both
+ * sources and rely on chapter IDs to dedupe.
+ */
+async function fetchAllAtsuChapters(rawId: string): Promise<NonNullable<AtsuDirectChaptersPageResponse["chapters"]>> {
+  const MAX_PAGES = 30;
+  const all: NonNullable<AtsuDirectChaptersPageResponse["chapters"]> = [];
+  const seen = new Set<string>();
+
+  const pagePromises = Array.from({ length: MAX_PAGES }, (_, i) => i + 1).map(async (page) => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(
+        `${ATSU_DIRECT_BASE}/api/manga/chapters?id=${encodeURIComponent(rawId)}&page=${page}`,
+        { headers: ATSU_DIRECT_HEADERS, signal: controller.signal },
+      );
+      clearTimeout(timeout);
+      if (!res.ok) return [];
+      const data = (await res.json()) as AtsuDirectChaptersPageResponse;
+      return data?.chapters || [];
+    } catch {
+      return [];
+    }
+  });
+
+  const results = await Promise.all(pagePromises);
+  for (const chs of results) {
+    if (!chs || chs.length === 0) continue;
+    for (const ch of chs) {
+      if (ch.id && !seen.has(ch.id)) {
+        seen.add(ch.id);
+        all.push(ch);
+      }
+    }
+  }
+  return all;
+}
+
+/**
+ * Fetch rich manga detail directly from atsu.moe.
+ * Returns null if the manga isn't found or the request fails.
+ *
+ * The returned AtsuMangaDetail includes:
+ *   • Properly-sized poster URL (medium preferred, /static/-prefixed)
+ *   • Banner URL (/static/-prefixed) — may be empty if manga has no banner
+ *   • Full synopsis (NOT truncated)
+ *   • scanlators: [{id, name}] — the scanlation groups ("sources") for this manga
+ *   • Chapters with their short atsu.moe IDs + scanlationMangaId (linked to scanlators)
+ *   • Properly-typed authors/artists arrays (filtered by type=Author/Artist)
+ *
+ * CHAPTER PAGINATION:
+ *   /api/manga/page?id=X returns only the first ~80 chapters (latest +
+ *   startReading). We ALSO call /api/manga/chapters?id=X&page=N (50 per
+ *   page, newest first) in parallel to fetch ALL chapters — this is
+ *   essential for manga with hundreds of chapters.
+ */
+async function getAtsumaruDetailDirect(rawId: string): Promise<AtsuMangaDetail | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    const [pageRes, allPaginatedChapters] = await Promise.all([
+      fetch(
+        `${ATSU_DIRECT_BASE}/api/manga/page?id=${encodeURIComponent(rawId)}`,
+        { headers: ATSU_DIRECT_HEADERS, signal: controller.signal },
+      ),
+      fetchAllAtsuChapters(rawId),
+    ]);
+    clearTimeout(timeout);
+    if (!pageRes.ok) return null;
+    const data = (await pageRes.json()) as AtsuDirectMangaPageResponse;
+    const mp = data?.mangaPage;
+    if (!mp || !mp.id) return null;
+
+    // ── Poster ──
+    const posterPath =
+      mp.poster?.mediumImage ||
+      mp.poster?.largeImage ||
+      mp.poster?.smallImage ||
+      mp.poster?.image ||
+      "";
+    const posterUrl = atsuImageUrl(posterPath);
+
+    // ── Banner ──
+    const bannerPath = mp.banner?.url || "";
+    const bannerUrl = bannerPath ? atsuImageUrl(bannerPath) : "";
+
+    // ── Authors / Artists (split by type) ──
+    const rawAuthors = mp.authors || [];
+    const authors = rawAuthors
+      .filter(a => (a.type || "").toLowerCase() === "author" && a.name)
+      .map(a => a.name!.trim());
+    const artists = rawAuthors
+      .filter(a => (a.type || "").toLowerCase() === "artist" && a.name)
+      .map(a => a.name!.trim());
+
+    // ── Genres / Tags ──
+    const genres = (mp.genres || []).map(g => g.name).filter(Boolean) as string[];
+    const tags = (mp.tags || []).map(t => t.name).filter(Boolean) as string[];
+
+    // ── Scanlators (the "sources" for this manga) ──
+    const scanlators = (mp.scanlators || [])
+      .filter(s => s.id && s.name)
+      .map(s => ({ id: String(s.id), name: String(s.name) }));
+
+    // Build a lookup from scanlationMangaId → scanlator name
+    const scanlatorNameById = new Map<string, string>();
+    for (const s of scanlators) scanlatorNameById.set(s.id, s.name);
+
+    // ── Merge chapters from both sources (dedupe by chapter ID) ──
+    type AtsuChapter = NonNullable<NonNullable<AtsuDirectMangaPageResponse["mangaPage"]>["chapters"]>[number];
+    const chapterMap = new Map<string, AtsuChapter>();
+    for (const ch of mp.chapters || []) {
+      if (ch.id) chapterMap.set(ch.id, ch);
+    }
+    for (const ch of allPaginatedChapters || []) {
+      if (ch.id && !chapterMap.has(ch.id)) chapterMap.set(ch.id, ch);
+    }
+
+    const chapters: AtsuMangaChapter[] = Array.from(chapterMap.values()).map(ch => {
+      const scanId = ch.scanlationMangaId || "";
+      const scanName = scanlatorNameById.get(scanId);
+      return {
+        id: ch.id,
+        title: ch.title || `Chapter ${ch.number ?? "?"}`,
+        number: typeof ch.number === "number" ? ch.number : parseFloat(String(ch.number)) || 0,
+        date: ch.createdAt ? new Date(ch.createdAt).toISOString() : undefined,
+        scanGroup: scanName,
+        scanId,
+        chapterIndex: ch.index,
+        pages: ch.pageCount || 0,
+        pageCount: ch.pageCount || 0,
+        lang: "en", // atsumaru is English-only
+      };
+    });
+
+    // Dedupe by chapter ID (atsu.moe IDs are unique per chapter+scanlation).
+    const seenChId = new Set<string>();
+    const dedupedChapters = chapters.filter(ch => {
+      if (ch.id && seenChId.has(ch.id)) return false;
+      if (ch.id) seenChId.add(ch.id);
+      return true;
+    }).sort((a, b) => {
+      if (a.number !== b.number) return a.number - b.number;
+      const aWeight = a.scanGroup ? 0 : 1;
+      const bWeight = b.scanGroup ? 0 : 1;
+      if (aWeight !== bWeight) return aWeight - bWeight;
+      return (a.scanGroup || "").localeCompare(b.scanGroup || "");
+    });
+
+    const year = mp.released ? new Date(mp.released).getUTCFullYear() : undefined;
+
+    const anilistId = mp.anilistId ? parseInt(String(mp.anilistId), 10) : undefined;
+    const malId = mp.malId ? parseInt(String(mp.malId), 10) : undefined;
+
+    return {
+      id: prefixId("atsumaru", mp.id),
+      title: mp.title || "Unknown Title",
+      englishTitle: mp.englishTitle || undefined,
+      altTitles: mp.otherNames || [],
+      poster: posterUrl,
+      banner: bannerUrl,
+      cover: posterUrl,
+      description: mp.synopsis || "",
+      type: mp.type || "manga",
+      status: mp.status,
+      year,
+      authors: authors.length ? authors : "Unknown",
+      artists,
+      genres,
+      tags,
+      isAdult: mp.isAdult || false,
+      anilistId: anilistId && !isNaN(anilistId) ? anilistId : undefined,
+      malId: malId && !isNaN(malId) ? malId : undefined,
+      chapters: dedupedChapters,
+      totalChapters: dedupedChapters.length,
+      rating: typeof mp.avgRating === "number" ? mp.avgRating : undefined,
+      views: mp.views,
+      source: "atsumaru",
+      slug: mp.id,
+      scanlators,
+    };
+  } catch (err) {
+    console.error("[manga-api] getAtsumaruDetailDirect error:", err);
+    return null;
+  }
+}
+
+/**
+ * Build chapter page URLs directly from the atsu.moe URL pattern.
+ *
+ * URL pattern: https://atsu.moe/static/pages/{chapterId}/{i}.webp
+ *   where {chapterId} is the short atsu.moe chapter ID (e.g. "LMHqVf")
+ *   and {i} is the 0-indexed page number.
+ *
+ * This skips the manga-scrape-api's atsumaru pages endpoint entirely
+ * — the scrape-api always returns the SAME chapter's pages regardless
+ * of which scanlation the user picked (because it only takes
+ * chapterNumber, not chapterId). Going direct fixes that bug and is
+ * also faster (one less API hop).
+ *
+ * pageCount comes from the chapter object stored in AtsuMangaDetail.
+ * If we don't have it, we try a few pages and stop at the first 404.
+ */
+async function getAtsumaruChapterPagesDirect(
+  mangaId: string,
+  chapterId: string,
+): Promise<AtsuChapterPage[]> {
+  // chapterId for atsumaru is the short atsu.moe ID (e.g. "LMHqVf").
+  // It may also arrive as "at:{mangaId}:{number}" from the cross-provider
+  // merge path — in that case we need to look up the real chapter ID.
+  let realChapterId = chapterId;
+  let pageCount: number | undefined;
+
+  if (chapterId.startsWith("at:")) {
+    // Cross-provider merge format: at:{mangaId}:{chapterNumber}
+    const parts = chapterId.split(":");
+    if (parts.length >= 3) {
+      const atsuMangaId = parts[1];
+      const chapterNumber = parseFloat(parts.slice(2).join(":"));
+      // Look up the real chapter ID + pageCount from atsu.moe
+      try {
+        const detail = await getAtsumaruDetailDirect(atsuMangaId);
+        if (detail?.chapters) {
+          // Pick the first scanlation's chapter for this number
+          const ch = detail.chapters.find(c => c.number === chapterNumber);
+          if (ch) {
+            realChapterId = ch.id;
+            pageCount = ch.pageCount;
+          }
+        }
+      } catch { /* fall through to direct URL probe */ }
+    }
+  } else {
+    // chapterId IS the short atsu.moe chapter ID — try to get pageCount
+    // from cache. We don't have a global cache here, so we'll just probe.
+  }
+
+  if (!realChapterId || realChapterId.startsWith("at:")) {
+    return []; // couldn't resolve the real chapter ID
+  }
+
+  // If we know the page count, build URLs directly (fast path)
+  if (pageCount && pageCount > 0) {
+    return Array.from({ length: pageCount }, (_, i) => ({
+      index: i,
+      url: `${ATSU_DIRECT_BASE}/static/pages/${realChapterId}/${i}.webp`,
+    }));
+  }
+
+  // Otherwise probe for pages until we hit a 404 (slow path, but rare)
+  // Probe in small batches to find the page count quickly
+  const pages: AtsuChapterPage[] = [];
+  let i = 0;
+  const BATCH = 5;
+  while (true) {
+    const batch = Array.from({ length: BATCH }, (_, j) => i + j);
+    const results = await Promise.all(
+      batch.map(async (idx) => {
+        try {
+          const url = `${ATSU_DIRECT_BASE}/static/pages/${realChapterId}/${idx}.webp`;
+          const res = await fetch(url, {
+            method: "HEAD",
+            headers: { "User-Agent": ATSU_DIRECT_HEADERS["User-Agent"] },
+            signal: AbortSignal.timeout(8000),
+          });
+          return { idx, ok: res.ok };
+        } catch {
+          return { idx, ok: false };
+        }
+      })
+    );
+    // Stop at the first failure in the batch
+    let anyFailed = false;
+    for (const r of results) {
+      if (r.ok) {
+        pages.push({
+          index: r.idx,
+          url: `${ATSU_DIRECT_BASE}/static/pages/${realChapterId}/${r.idx}.webp`,
+        });
+      } else {
+        anyFailed = true;
+        break;
+      }
+    }
+    if (anyFailed) break;
+    i += BATCH;
+    if (i > 200) break; // safety cap
+  }
+  return pages;
 }
 
 /**

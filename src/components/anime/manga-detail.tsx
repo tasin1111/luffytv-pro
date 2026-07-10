@@ -37,6 +37,15 @@ interface MangaChapter {
   pageCount?: number;
   pages?: number;
   lang?: string;
+  /** atsu.moe scanlation group ID (links to scanlators[].id on detail). */
+  scanId?: string;
+  /** Chapter index inside its scanlation (atsu.moe specific). */
+  chapterIndex?: number;
+}
+
+interface MangaScanlator {
+  id: string;
+  name: string;
 }
 
 interface MangaDetailData {
@@ -64,6 +73,8 @@ interface MangaDetailData {
   chapters?: MangaChapter[];
   source?: string;
   slug?: string;
+  /** Scanlation groups / "sources" for this manga (from atsu.moe). */
+  scanlators?: MangaScanlator[];
 }
 
 interface MangaDetailProps {
@@ -82,12 +93,14 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
 
   // ── Load manga detail ──
   useEffect(() => {
+    let fbTitle = "";
+    let fbPoster = "";
+    let data: MangaDetailData | null = null;
+
     async function load() {
       setLoading(true);
       try {
         // Get fallback title from sessionStorage (for cross-provider metadata merge)
-        let fbTitle = "";
-        let fbPoster = "";
         try {
           fbTitle = sessionStorage.getItem(`manga-title-${mangaId}`) || "";
           fbPoster = sessionStorage.getItem(`manga-poster-${mangaId}`) || "";
@@ -97,7 +110,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
         const titleParam = fbTitle ? `&title=${encodeURIComponent(fbTitle)}` : "";
         const res = await fetch(`/api/manga/detail?id=${encodeURIComponent(mangaId)}${titleParam}`);
         if (res.ok) {
-          const data = await res.json();
+          data = await res.json() as MangaDetailData;
 
           // Fallback poster/title from sessionStorage (for mangaball manga
           // where the info endpoint fails and returns empty poster)
@@ -137,7 +150,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
       // - If atsumaru manga (at:): search mangaball, merge non-English chapters
       // - If mangaball manga (mb:): search atsumaru, merge English chapters
       // Result: ALL English scans from atsumaru + ALL non-English from mangaball
-      if (data.chapters?.length) {
+      if (data?.chapters?.length) {
         const titleForSearch = fbTitle || data.englishTitle || data.title || "";
         if (titleForSearch && titleForSearch !== "Unknown Title") {
           (async () => {
@@ -163,16 +176,23 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                     if (atsuRes.ok) {
                       const atsuData = await atsuRes.json();
                       if (atsuData.chapters?.length) {
+                        // Preserve the real scanlator name from atsu.moe
+                        // (e.g. "Gamma", "Alpha") so we can derive the
+                        // "English 1/English 2" label from scanId.
                         const atsuEnChapters = atsuData.chapters.map((ch: any) => ({
                           ...ch,
-                          id: `at:${atsuMangaId}:${ch.number}`,
+                          id: `at:${atsuMangaId}:${ch.number}:${ch.id}`,
                           lang: "en",
-                          scanGroup: "Atsumaru",
+                          scanGroup: ch.scanGroup,
+                          scanId: ch.scanId,
                         }));
                         setManga(prev => prev ? {
                           ...prev,
                           chapters: [...atsuEnChapters, ...(prev.chapters || [])],
                           totalChapters: (prev.chapters?.length || 0) + atsuEnChapters.length,
+                          scanlators: prev.scanlators?.length
+                            ? prev.scanlators
+                            : (atsuData.scanlators || []),
                         } : prev);
                       }
                     }
@@ -278,13 +298,51 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
     return groups;
   }, [filteredChapters, sortOrder]);
 
+  // ── Build a stable language-based label for each chapter row ──
+  // NO scanlator names — just "English 1", "English 2", "Indonesian 1", etc.
+  // The number suffix disambiguates multiple scanlations of the same language
+  // (e.g. four English scanlations → English 1, English 2, English 3, English 4).
+  //
+  // We compute the index PER (chapter number, language) group, stable-sorted
+  // by scanId so the same scanlation always gets the same number across
+  // different chapter numbers.
+  const chapterLabel = useCallback((ch: MangaChapter): string => {
+    const lang = ch.lang || "en";
+    const langName = LANG_NAMES[lang] || lang.toUpperCase();
+    // Find all scans of the SAME chapter number AND same language
+    const sameLangScans = (manga?.chapters || [])
+      .filter(c => c.number === ch.number && (c.lang || "en") === lang)
+      .sort((a, b) => (a.scanId || a.id || "").localeCompare(b.scanId || b.id || ""));
+    // If only one scan for this language, no suffix needed
+    if (sameLangScans.length <= 1) return langName;
+    const idx = sameLangScans.findIndex(c => c.id === ch.id);
+    return `${langName} ${idx + 1}`;
+  }, [manga]);
+
   const navigateToChapter = useCallback((ch: MangaChapter) => {
-    // For mangaball chapters, pass the translation ID (ch.id) as chapterId
-    // so the reader fetches the correct language's images.
-    // For atsumaru chapters, pass the chapter number (ch.number) as before.
-    // The chapterId field is 24 hex chars for mangaball translations,
-    // or a number string for atsumaru.
-    const chapterId = ch.id && ch.id.length === 24 ? ch.id : String(ch.number);
+    // Build the chapterId to pass to the reader. Three cases:
+    //   1. Mangaball translation ID (24 hex chars) → pass as-is
+    //   2. Atsumaru short chapter ID (e.g. "LMHqVf") → pass as-is
+    //      (the reader's /api/manga/read route will detect it and build
+    //       /static/pages/{chapterId}/{i}.webp URLs directly)
+    //   3. Atsumaru cross-provider merge ID
+    //      "at:{mangaId}:{number}:{chapterId}" → pass as-is
+    //      (the reader will extract the real chapter ID from the last segment)
+    //   4. Atsumaru chapter number only (legacy) → pass as string number
+    let chapterId: string;
+    if (ch.id && ch.id.length === 24) {
+      // Mangaball translation ID
+      chapterId = ch.id;
+    } else if (ch.id && ch.id.startsWith("at:")) {
+      // Cross-provider merge format — pass as-is
+      chapterId = ch.id;
+    } else if (ch.id && /^[A-Za-z0-9_-]{3,20}$/.test(ch.id) && !/^\d+$/.test(ch.id)) {
+      // Short atsu.moe chapter ID
+      chapterId = ch.id;
+    } else {
+      // Fallback: chapter number
+      chapterId = String(ch.number);
+    }
     navigate({
       page: "manga-read",
       id: mangaId,
@@ -601,9 +659,10 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                         >
                           {LANG_NAMES[scan.lang || "en"] || scan.lang || "Unknown"}
                         </span>
-                        {/* Scan group name */}
+                        {/* Language + scanlation-index label (e.g. "English 1", "Indonesian 2").
+                            NO scanlator names — just generic numbered labels per language. */}
                         <span className="text-xs font-medium text-white/60 group-hover:text-white/90 transition-colors shrink-0">
-                          {scan.scanGroup || "Unknown"}
+                          {chapterLabel(scan)}
                         </span>
                         {/* Chapter title */}
                         <span className="flex-1 min-w-0 text-xs text-white/40 truncate">
