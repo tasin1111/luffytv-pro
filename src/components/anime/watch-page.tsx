@@ -1191,7 +1191,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     let cancelled = false;
     setAniskipData({ intro: null, outro: null }); // reset on episode change
 
-    fetch(`https://api.aniskip.com/v2/skip-times/${anilistId}/${episodeNum}?types[]=op&types[]=ed&episodeLength=24`)
+    fetch(`https://api.aniskip.com/v2/skip-times/${anilistId}/${episodeNum}?types[]=op&types[]=ed&episodeLength=0`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (cancelled || !data?.found || !Array.isArray(data.results)) return;

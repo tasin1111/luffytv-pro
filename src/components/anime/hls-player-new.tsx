@@ -211,12 +211,15 @@ export default function HLSPlayerNew({
       if (video.buffered.length > 0) {
         setBuffered(video.buffered.end(video.buffered.length - 1));
       }
-      if (intro && video.currentTime >= intro.start && video.currentTime < intro.end) {
+      // Show skip intro button from 3s BEFORE intro starts until 5s AFTER it ends
+      // (gives the user time to click it)
+      if (intro && video.currentTime >= (intro.start - 3) && video.currentTime < (intro.end + 5)) {
         setShowSkipIntro(true);
       } else {
         setShowSkipIntro(false);
       }
-      if (outro && video.currentTime >= outro.start && video.currentTime < outro.end) {
+      // Show skip outro button from 3s BEFORE outro starts until 10s AFTER it ends
+      if (outro && video.currentTime >= (outro.start - 3) && video.currentTime < (outro.end + 10)) {
         setShowSkipOutro(true);
       } else {
         setShowSkipOutro(false);

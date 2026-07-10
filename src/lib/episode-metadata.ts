@@ -105,7 +105,7 @@ export async function getEpisodeMetadata(
 export async function getSkipTimes(
   anilistId: number,
   episodeNum: number,
-  episodeLength: number = 24,
+  episodeLength: number = 0,
 ): Promise<SkipTimesResponse> {
   const cacheKey = `${anilistId}:${episodeNum}`;
   const cached = _aniskipCache.get(cacheKey);
