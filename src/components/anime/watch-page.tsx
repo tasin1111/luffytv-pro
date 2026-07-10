@@ -398,13 +398,14 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   interface ServerEntry {
     id: string;
     name: string;
-    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream" | "anikuro" | "anipm" | "animetsu" | "animeheaven" | "aniwaves";
+    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream" | "anikuro" | "anipm" | "animetsu" | "animeheaven" | "aniwaves" | "anidb" | "anikoto" | "anineko";
     provider: string;
     type: "sub" | "dub";
     quality?: string;
     streamUrl?: string;
     isM3U8?: boolean;
     isMP4?: boolean;
+    isEmbed?: boolean;
     /** Whether subtitles are burned into the video (hard sub) vs soft sub */
     hardsub?: boolean;
     /** AniDap/AniLight streams include WebVTT subtitle tracks + intro/outro chapters */
@@ -949,6 +950,39 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
       });
     }, 30000);
 
+    // ── Fetch INSTANT servers FIRST (AniDB, AniKoto, AniNeko) ──
+    // These are reliable providers that don't dead-link. They resolve
+    // in ~2-3 seconds and are auto-selected as the default.
+    // AniDB is priority 0 — always the first server shown.
+    const animeTitleForInstant = animeTitle || animeTitleRomaji || "";
+    fetch(`/api/anime/instant-servers/${anilistId}/${episodeNum}${animeTitleForInstant ? `?title=${encodeURIComponent(animeTitleForInstant)}` : ""}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data?.servers?.length) return;
+        setServerList(prev => {
+          const existingIds = new Set(prev.map(s => s.id));
+          const newServers = data.servers.filter((s: ServerEntry) => !existingIds.has(s.id));
+          return [...prev, ...newServers];
+        });
+        // Auto-select AniDB sub as the DEFAULT server (priority 0)
+        // Only auto-select if no server is selected yet
+        setSelectedServer(prev => {
+          if (prev) return prev; // don't override if already selected
+          const anidbSub = data.servers.find((s: ServerEntry) => s.id === "anidb:sub");
+          if (anidbSub) {
+            setStreamLoading(false);
+            return anidbSub.id;
+          }
+          // Fallback: first instant server
+          if (data.servers[0]) {
+            setStreamLoading(false);
+            return data.servers[0].id;
+          }
+          return prev;
+        });
+      })
+      .catch(() => { /* instant servers are best-effort */ });
+
     fetch(`/api/anime/servers/${anilistId}/${episodeNum}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
@@ -985,42 +1019,49 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         });
 
         // Auto-select first server matching current translation mode.
+        // DON'T override if a server is already selected (instant servers
+        // like AniDB may have already been auto-selected).
         // Translation modes: "sub" (soft sub preferred, falls back to hardsub),
         // "hardsub", "dub" (English dub), "hindi" (Hindi dub from AnixTV).
-        let firstMatch: ServerEntry | undefined;
-        if (translation === "hindi") {
-          firstMatch = data.servers.find((s: ServerEntry) => s.source === "anixtv");
-        } else if (translation === "dub") {
-          firstMatch = data.servers.find((s: ServerEntry) => s.type === "dub" && s.source !== "anixtv");
-        } else if (translation === "hardsub") {
-          firstMatch = data.servers.find((s: ServerEntry) => s.type === "sub" && s.hardsub === true);
-        } else {
-          // "sub" → soft sub preferred, fall back to any sub (hardsub ok)
-          firstMatch = data.servers.find((s: ServerEntry) => s.type === "sub" && s.hardsub !== true)
-                    || data.servers.find((s: ServerEntry) => s.type === "sub");
-        }
+        setSelectedServer(prevSelected => {
+          if (prevSelected) return prevSelected; // don't override instant-server selection
 
-        // If first match doesn't exist (e.g. user picked "hardsub" but only
-        // soft sub is available), fall back to whatever's first available
-        // in priority order: soft sub → hard sub → dub
-        if (!firstMatch) {
-          firstMatch = data.servers.find((s: ServerEntry) => s.type === "sub" && s.hardsub !== true)
-                    || data.servers.find((s: ServerEntry) => s.type === "sub")
-                    || data.servers.find((s: ServerEntry) => s.type === "dub")
-                    || data.servers[0];
-          // Update translation to match what we actually picked
-          if (firstMatch) {
-            if (firstMatch.type === "dub") setTranslation("dub");
-            else if (firstMatch.hardsub === true) setTranslation("hardsub");
-            else setTranslation("sub");
+          let firstMatch: ServerEntry | undefined;
+          if (translation === "hindi") {
+            firstMatch = data.servers.find((s: ServerEntry) => s.source === "anixtv");
+          } else if (translation === "dub") {
+            firstMatch = data.servers.find((s: ServerEntry) => s.type === "dub" && s.source !== "anixtv");
+          } else if (translation === "hardsub") {
+            firstMatch = data.servers.find((s: ServerEntry) => s.type === "sub" && s.hardsub === true);
+          } else {
+            // "sub" → soft sub preferred, fall back to any sub (hardsub ok)
+            firstMatch = data.servers.find((s: ServerEntry) => s.type === "sub" && s.hardsub !== true)
+                      || data.servers.find((s: ServerEntry) => s.type === "sub");
           }
-        }
 
-        if (firstMatch) {
-          setSelectedServer(firstMatch.id);
-        } else if (data.servers[0]) {
-          setSelectedServer(data.servers[0].id);
-        }
+          // If first match doesn't exist (e.g. user picked "hardsub" but only
+          // soft sub is available), fall back to whatever's first available
+          // in priority order: soft sub → hard sub → dub
+          if (!firstMatch) {
+            firstMatch = data.servers.find((s: ServerEntry) => s.type === "sub" && s.hardsub !== true)
+                      || data.servers.find((s: ServerEntry) => s.type === "sub")
+                      || data.servers.find((s: ServerEntry) => s.type === "dub")
+                      || data.servers[0];
+            // Update translation to match what we actually picked
+            if (firstMatch) {
+              if (firstMatch.type === "dub") setTranslation("dub");
+              else if (firstMatch.hardsub === true) setTranslation("hardsub");
+              else setTranslation("sub");
+            }
+          }
+
+          if (firstMatch) {
+            return firstMatch.id;
+          } else if (data.servers[0]) {
+            return data.servers[0].id;
+          }
+          return prevSelected;
+        });
       })
       .catch(() => {
         if (!cancelled) {
