@@ -21,11 +21,16 @@ import AnimeComments from "./anime-comments";
 
 const ACCENT = "#1e88ff";
 
-// Language badge colors
+// Language badge colors — includes regional variants (es-419, pt-br, etc.)
 const LANG_COLORS: Record<string, string> = {
-  en: "#3B82F6", es: "#EF4444", fr: "#6366F1", id: "#10B981",
-  it: "#22C55E", "pt-br": "#F59E0B", vi: "#EC4899", zh: "#F43F5E",
+  en: "#3B82F6", es: "#EF4444", "es-419": "#EF4444", "es-es": "#EF4444",
+  fr: "#6366F1", "fr-ca": "#6366F1",
+  id: "#10B981", it: "#22C55E",
+  "pt-br": "#F59E0B", "pt-pt": "#F59E0B", pt: "#F59E0B",
+  vi: "#EC4899", zh: "#F43F5E", "zh-hans": "#F43F5E", "zh-hant": "#F43F5E",
   th: "#8B5CF6", pl: "#EAB308", ja: "#06B6D4", ko: "#3B82F6",
+  de: "#F97316", ru: "#A855F7", ka: "#14B8A6", ms: "#06B6D4",
+  he: "#84CC16",
 };
 
 interface MangaChapter {
@@ -254,18 +259,22 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
     return Array.from(langs).sort();
   }, [manga]);
 
-  // Language display names — full names, not short codes
+  // Language display names — full names, includes regional variants
+  // (es-419 = Latin American Spanish, zh-hans = Simplified Chinese, etc.)
   const LANG_NAMES: Record<string, string> = {
-    en: "English", fr: "French", id: "Indonesian",
-    ja: "Japanese", ko: "Korean", zh: "Chinese",
-    es: "Spanish", "pt-br": "Portuguese (Brazil)", "pt-pt": "Portuguese (Portugal)",
-    pt: "Portuguese", de: "German", ru: "Russian",
+    en: "English", fr: "French", "fr-ca": "French (Canada)", id: "Indonesian",
+    ja: "Japanese", ko: "Korean",
+    zh: "Chinese", "zh-hans": "Chinese (Simplified)", "zh-hant": "Chinese (Traditional)",
+    es: "Spanish", "es-419": "Spanish", "es-es": "Spanish (Spain)",
+    "pt-br": "Portuguese (Brazil)", "pt-pt": "Portuguese (Portugal)", pt: "Portuguese",
+    de: "German", ru: "Russian",
     vi: "Vietnamese", it: "Italian", th: "Thai", pl: "Polish",
     ar: "Arabic", bg: "Bulgarian", bn: "Bengali", ca: "Catalan",
     cs: "Czech", da: "Danish", el: "Greek", he: "Hebrew",
     hi: "Hindi", hu: "Hungarian", ms: "Malay", nl: "Dutch",
     no: "Norwegian", ro: "Romanian", sk: "Slovak", sl: "Slovenian",
     sr: "Serbian", sv: "Swedish", tr: "Turkish", uk: "Ukrainian",
+    ka: "Georgian",
   };
 
   const filteredChapters = useMemo(() => {
@@ -298,20 +307,32 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
     return groups;
   }, [filteredChapters, sortOrder]);
 
+  // ── Normalize a language code to its base language ──
+  // e.g. "es-419" → "es", "pt-br" → "pt", "zh-hans" → "zh"
+  // This is used for grouping chapters by language so that
+  // "es-419" and "es" are treated as the same language.
+  const normalizeLang = (lang: string): string => {
+    if (!lang) return "en";
+    // Keep pt-br as-is (it's a common distinct code), but strip other regional variants
+    if (lang === "pt-br" || lang === "pt-pt") return lang;
+    return lang.split("-")[0];
+  };
+
   // ── Build a stable language-based label for each chapter row ──
-  // NO scanlator names — just "English 1", "English 2", "Indonesian 1", etc.
-  // The number suffix disambiguates multiple scanlations of the same language
-  // (e.g. four English scanlations → English 1, English 2, English 3, English 4).
+  // Shows "English 1", "English 2", "Indonesian 1", etc. with the
+  // scanlator name appended so users can identify which scanlation
+  // each row is (e.g. "English 1 (Gamma)").
   //
   // We compute the index PER (chapter number, language) group, stable-sorted
   // by scanId so the same scanlation always gets the same number across
   // different chapter numbers.
   const chapterLabel = useCallback((ch: MangaChapter): string => {
     const lang = ch.lang || "en";
-    const langName = LANG_NAMES[lang] || lang.toUpperCase();
-    // Find all scans of the SAME chapter number AND same language
+    const langName = LANG_NAMES[lang] || LANG_NAMES[normalizeLang(lang)] || lang.toUpperCase();
+    const baseLang = normalizeLang(lang);
+    // Find all scans of the SAME chapter number AND same base language
     const sameLangScans = (manga?.chapters || [])
-      .filter(c => c.number === ch.number && (c.lang || "en") === lang)
+      .filter(c => c.number === ch.number && normalizeLang(c.lang || "en") === baseLang)
       .sort((a, b) => (a.scanId || a.id || "").localeCompare(b.scanId || b.id || ""));
     // If only one scan for this language, no suffix needed
     if (sameLangScans.length <= 1) return langName;
