@@ -44,6 +44,95 @@ type ReadingMode = "vertical" | "single" | "double";
 type ImageFit = "width" | "height" | "original";
 type ReadingDirection = "ltr" | "rtl";
 
+// ═══════════════════════════════════════════════════════════════════════
+//  CHAPTER ID HELPERS
+//  ---------------------------------------------------------------------
+//  A chapter ID can be one of four shapes (depending on provider):
+//    1. Mangaball translation ID — 24-char hex (e.g. "6a27a45c48701b8c5c57de1a")
+//    2. Cross-provider merge ID — starts with "at:" (e.g. "at:3xHoW:1:LMHqVf")
+//    3. Short atsu.moe chapter ID — alnum 3–20 chars, not all digits (e.g. "LMHqVf")
+//    4. Plain chapter number — string (e.g. "68")
+//  These helpers centralize the detection so it isn't duplicated 6 times.
+// ═══════════════════════════════════════════════════════════════════════
+
+/** True if `id` looks like a mangaball translation ID (24-char hex). */
+function isMangaballTranslationId(id: string | undefined | null): id is string {
+  return !!id && /^[0-9a-f]{24}$/i.test(id);
+}
+
+/** True if `id` is a cross-provider merge ID (starts with "at:"). */
+function isCrossProviderMergeId(id: string | undefined | null): id is string {
+  return !!id && id.startsWith("at:");
+}
+
+/** True if `id` is a short atsu.moe chapter ID (alnum 3–20 chars, not all digits). */
+function isAtsuShortId(id: string | undefined | null): id is string {
+  return !!id &&
+    !isMangaballTranslationId(id) &&
+    !isCrossProviderMergeId(id) &&
+    /^[A-Za-z0-9_-]{3,20}$/.test(id) &&
+    !/^\d+$/.test(id);
+}
+
+/**
+ * Build the chapterId to pass to `navigate({ page: "manga-read", chapterId })`.
+ * Returns the raw `ch.id` when it's a recognizable provider ID, otherwise
+ * falls back to the chapter number as a string.
+ */
+function buildNavChapterId(ch: { id?: string; number?: number | string }): string {
+  if (ch.id && (
+    isMangaballTranslationId(ch.id) ||
+    isCrossProviderMergeId(ch.id) ||
+    isAtsuShortId(ch.id)
+  )) {
+    return ch.id;
+  }
+  return String(ch.number ?? "");
+}
+
+/**
+ * True if the given chapter matches the currently-loaded `chapterId`.
+ * Handles all four ID shapes including cross-provider merge IDs whose
+ * final segment is the real atsu chapter ID.
+ */
+function chapterMatches(
+  ch: { id?: string; number?: number | string },
+  chapterId: string,
+): boolean {
+  if (ch.id === chapterId) return true;
+  if (String(ch.number) === String(chapterId)) return true;
+  // Cross-provider merge IDs: compare the last segment (the real chapter ID)
+  if (isCrossProviderMergeId(ch.id) && isCrossProviderMergeId(chapterId)) {
+    const cParts = ch.id!.split(":");
+    const jParts = chapterId.split(":");
+    if (cParts.length >= 4 && jParts.length >= 4 &&
+        cParts[cParts.length - 1] === jParts[jParts.length - 1]) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  LOCAL STORAGE KEYS — for persisting reader settings per browser.
+// ═══════════════════════════════════════════════════════════════════════
+const LS_KEY_READING_MODE = "manga-reader-mode";
+const LS_KEY_IMAGE_FIT = "manga-reader-fit";
+const LS_KEY_READING_DIR = "manga-reader-dir";
+
+/** Safe localStorage read with fallback. */
+function lsGet<T extends string>(key: string, fallback: T): T {
+  try {
+    const v = localStorage.getItem(key);
+    return (v as T) || fallback;
+  } catch { return fallback; }
+}
+
+/** Safe localStorage write. */
+function lsSet(key: string, value: string): void {
+  try { localStorage.setItem(key, value); } catch { /* ignore quota/SSR */ }
+}
+
 export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   const navigate = useAppStore(s => s.navigate);
 
@@ -56,15 +145,22 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   const [allChapters, setAllChapters] = useState<any[]>([]);
 
   // ── UI State ──
+  // Reading settings are initialized from localStorage so the user's
+  // last choice persists across chapter navigation and page reloads.
   const [showControls, setShowControls] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
-  const [readingMode, setReadingMode] = useState<ReadingMode>("vertical");
-  const [imageFit, setImageFit] = useState<ImageFit>("width");
+  const [readingMode, setReadingMode] = useState<ReadingMode>(() => lsGet(LS_KEY_READING_MODE, "vertical"));
+  const [imageFit, setImageFit] = useState<ImageFit>(() => lsGet(LS_KEY_IMAGE_FIT, "width"));
   const [showSettings, setShowSettings] = useState(false);
   const [showChapterSidebar, setShowChapterSidebar] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [readingDir, setReadingDir] = useState<ReadingDirection>("ltr");
+  const [readingDir, setReadingDir] = useState<ReadingDirection>(() => lsGet(LS_KEY_READING_DIR, "ltr"));
   const [hoveredPageIndex, setHoveredPageIndex] = useState<number | null>(null);
+
+  // ── Persist reading settings whenever they change ──
+  useEffect(() => { lsSet(LS_KEY_READING_MODE, readingMode); }, [readingMode]);
+  useEffect(() => { lsSet(LS_KEY_IMAGE_FIT, imageFit); }, [imageFit]);
+  useEffect(() => { lsSet(LS_KEY_READING_DIR, readingDir); }, [readingDir]);
 
   // ── Refs ──
   const containerRef = useRef<HTMLDivElement>(null);
@@ -73,7 +169,10 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   const readerRootRef = useRef<HTMLDivElement>(null);
 
   // ── Load chapter pages ──
+  // Loads pages + manga detail in parallel, then pushes a reading-history
+  // entry to /api/history so the user can resume from the home page.
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       setLoading(true);
       setError(null);
@@ -83,9 +182,12 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
           fetch(`/api/manga/read?mangaId=${encodeURIComponent(mangaId)}&chapterId=${encodeURIComponent(chapterId)}`),
           fetch(`/api/manga/detail?id=${encodeURIComponent(mangaId)}`),
         ]);
+        if (cancelled) return;
+        let loadedPages: ChapterPage[] = [];
         if (pagesRes.ok) {
           const data = await pagesRes.json();
           if (data.pages?.length > 0) {
+            loadedPages = data.pages;
             setPages(data.pages);
           } else {
             setError("No pages available for this chapter.");
@@ -95,37 +197,40 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
         }
         if (detailRes.ok) {
           const detail = await detailRes.json();
+          if (cancelled) return;
           setMangaTitle(detail.englishTitle || detail.title || "");
           const chs = detail.chapters || [];
           setAllChapters(chs);
-          // Match the current chapter by ID or by number.
-          // chapterId can be one of:
-          //   - A mangaball translation ID (24 hex chars)
-          //   - A short atsu.moe chapter ID (e.g. "LMHqVf")
-          //   - A cross-provider merge ID "at:{mangaId}:{number}:{chapterId}"
-          //   - A plain chapter number (string)
-          const ch = chs.find((c: any) => {
-            if (c.id === chapterId) return true;
-            // For cross-provider merge IDs, also check if c.id ends with
-            // the same final segment (the real atsu chapter ID)
-            if (typeof c.id === "string" && c.id.startsWith("at:") && typeof chapterId === "string" && chapterId.startsWith("at:")) {
-              const cParts = c.id.split(":");
-              const jParts = chapterId.split(":");
-              // Compare the last segment (the real chapter ID)
-              if (cParts.length >= 4 && jParts.length >= 4 && cParts[cParts.length - 1] === jParts[jParts.length - 1]) {
-                return true;
-              }
-            }
-            return String(c.number) === String(chapterId);
-          });
+          // Match the current chapter using the centralized helper.
+          const ch = chs.find((c: any) => chapterMatches(c, chapterId));
           setChapterTitle(ch?.title || `Chapter ${ch?.number || chapterId}`);
+
+          // ── Save to reading history (best-effort, non-blocking) ──
+          // Reuses WatchHistory with episodeNum = chapter number.
+          try {
+            await fetch("/api/history", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                animeId: mangaId,
+                animeName: detail.englishTitle || detail.title || "Unknown Manga",
+                thumbnail: detail.poster || detail.cover || "",
+                episodeNum: typeof ch?.number === "number" ? ch.number : parseFloat(String(ch?.number ?? chapterId)) || 0,
+                episodeTitle: ch?.title || `Chapter ${ch?.number || chapterId}`,
+                progress: 0,
+                duration: loadedPages.length,
+              }),
+            });
+          } catch { /* history is best-effort */ }
         }
-      } catch {
+      } catch (err) {
+        console.error("[manga-reader] load error:", err);
         setError("Failed to load chapter.");
       }
-      setLoading(false);
+      if (!cancelled) setLoading(false);
     }
     load();
+    return () => { cancelled = true; };
   }, [mangaId, chapterId]);
 
   // ── Find prev/next chapters ──
@@ -151,20 +256,8 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
     return allChapters.filter((c: any) => c.lang === readerLang || !c.lang);
   }, [allChapters, readerLang]);
 
-  // Find the current chapter in the FILTERED list.
-  const currentChapterIdx = langFilteredChapters.findIndex((c: any) => {
-    if (c.id === chapterId) return true;
-    // For cross-provider merge IDs, also match by the last segment
-    // (the real atsu chapter ID)
-    if (typeof c.id === "string" && c.id.startsWith("at:") && typeof chapterId === "string" && chapterId.startsWith("at:")) {
-      const cParts = c.id.split(":");
-      const jParts = chapterId.split(":");
-      if (cParts.length >= 4 && jParts.length >= 4 && cParts[cParts.length - 1] === jParts[jParts.length - 1]) {
-        return true;
-      }
-    }
-    return String(c.number) === String(chapterId);
-  });
+  // Find the current chapter in the FILTERED list using the centralized helper.
+  const currentChapterIdx = langFilteredChapters.findIndex((c: any) => chapterMatches(c, chapterId));
   const prevChapter = currentChapterIdx > 0 ? langFilteredChapters[currentChapterIdx - 1] : null;
   const nextChapter = currentChapterIdx < langFilteredChapters.length - 1 ? langFilteredChapters[currentChapterIdx + 1] : null;
 
@@ -571,20 +664,12 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
             </button>
           </div>
           <div className="mr-sidebar-list">
-            {langFilteredChapters.sort((a: any, b: any) => a.number - b.number).map((ch: any) => {
-              // Build the chapterId for navigation — same logic as
-              // manga-detail.tsx's navigateToChapter
-              const navChapterId: string =
-                ch.id && ch.id.length === 24 ? ch.id :
-                ch.id && ch.id.startsWith("at:") ? ch.id :
-                ch.id && /^[A-Za-z0-9_-]{3,20}$/.test(ch.id) && !/^\d+$/.test(ch.id) ? ch.id :
-                String(ch.number);
+            {/* Copy before sorting to avoid mutating the memo's array. */}
+            {[...langFilteredChapters].sort((a: any, b: any) => a.number - b.number).map((ch: any) => {
+              // Build the chapterId for navigation using the centralized helper.
+              const navChapterId = buildNavChapterId(ch);
               // Check if this is the active chapter
-              const isActive = ch.id === chapterId ||
-                String(ch.number) === String(chapterId) ||
-                (typeof ch.id === "string" && ch.id.startsWith("at:") &&
-                 typeof chapterId === "string" && chapterId.startsWith("at:") &&
-                 ch.id.split(":").pop() === chapterId.split(":").pop());
+              const isActive = chapterMatches(ch, chapterId);
               return (
                 <button
                   key={ch.id}
@@ -642,7 +727,14 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
                   alt={`Page ${i + 1}`}
                   className="mr-page-img"
                   loading={i < 3 ? "eager" : "lazy"}
-                  style={{ minHeight: "200px" }}
+                  style={{ minHeight: "200px", aspectRatio: page.width && page.height ? `${page.width} / ${page.height}` : undefined }}
+                  onError={(e) => {
+                    // If the proxied URL 404s, fall back to the raw URL.
+                    const img = e.currentTarget;
+                    if (page.proxiedUrl && img.src === page.proxiedUrl && page.url && page.url !== page.proxiedUrl) {
+                      img.src = page.url;
+                    }
+                  }}
                 />
               </div>
             ))}
@@ -655,7 +747,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
                 <div className="mr-end-nav-buttons">
                   {prevChapter && (
                     <button
-                      onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: (prevChapter.id && (prevChapter.id.length === 24 || prevChapter.id.startsWith("at:") || (/^[A-Za-z0-9_-]{3,20}$/.test(prevChapter.id) && !/^\d+$/.test(prevChapter.id))) ? prevChapter.id : String(prevChapter.number)) })}
+                      onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: buildNavChapterId(prevChapter) })}
                       className="mr-end-btn mr-end-btn-prev"
                     >
                       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -676,7 +768,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
                   </button>
                   {nextChapter && (
                     <button
-                      onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: (nextChapter.id && (nextChapter.id.length === 24 || nextChapter.id.startsWith("at:") || (/^[A-Za-z0-9_-]{3,20}$/.test(nextChapter.id) && !/^\d+$/.test(nextChapter.id))) ? nextChapter.id : String(nextChapter.number)) })}
+                      onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: buildNavChapterId(nextChapter) })}
                       className="mr-end-btn mr-end-btn-next"
                     >
                       <span>Next Chapter</span>
@@ -706,6 +798,12 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
                 alt={`Page ${i + 1}`}
                 className={`mr-snap-img mr-fit-${imageFit}`}
                 loading={i < 3 ? "eager" : "lazy"}
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (page.proxiedUrl && img.src === page.proxiedUrl && page.url && page.url !== page.proxiedUrl) {
+                    img.src = page.url;
+                  }
+                }}
               />
               <div className="mr-snap-page-num">{i + 1}</div>
             </div>
@@ -726,6 +824,12 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
                 alt={`Page ${currentPage + i + 1}`}
                 className={`mr-double-img mr-fit-${imageFit}`}
                 loading="eager"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (page.proxiedUrl && img.src === page.proxiedUrl && page.url && page.url !== page.proxiedUrl) {
+                    img.src = page.url;
+                  }
+                }}
               />
             ))}
           </div>
@@ -745,7 +849,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
           {/* Prev chapter */}
           {prevChapter ? (
             <button
-              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: (prevChapter.id && (prevChapter.id.length === 24 || prevChapter.id.startsWith("at:") || (/^[A-Za-z0-9_-]{3,20}$/.test(prevChapter.id) && !/^\d+$/.test(prevChapter.id))) ? prevChapter.id : String(prevChapter.number)) })}
+              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: buildNavChapterId(prevChapter) })}
               className="mr-bottom-chapter-btn"
               title="Previous chapter"
               aria-label="Previous chapter"
@@ -782,7 +886,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
           {/* Next chapter */}
           {nextChapter ? (
             <button
-              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: (nextChapter.id && (nextChapter.id.length === 24 || nextChapter.id.startsWith("at:") || (/^[A-Za-z0-9_-]{3,20}$/.test(nextChapter.id) && !/^\d+$/.test(nextChapter.id))) ? nextChapter.id : String(nextChapter.number)) })}
+              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: buildNavChapterId(nextChapter) })}
               className="mr-bottom-chapter-btn"
               title="Next chapter"
               aria-label="Next chapter"

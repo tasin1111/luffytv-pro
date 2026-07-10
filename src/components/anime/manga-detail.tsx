@@ -105,6 +105,12 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   const [showAllAltTitles, setShowAllAltTitles] = useState(false);
   const [selectedScanlator, setSelectedScanlator] = useState<string>("all");
 
+  // ── Chapter list pagination ──
+  // Replaces the old hard cap of 100. Shows 50 groups at a time with a
+  // "Load more" button. Resets to page 1 whenever filters/search/sort change.
+  const CHAPTERS_PER_PAGE = 50;
+  const [chapterPage, setChapterPage] = useState(1);
+
   // ── Our own view + rating stats (layered on atsu.moe's base) ──
   const [ourViews, setOurViews] = useState(0);
   const [ourRating, setOurRating] = useState(0);
@@ -113,10 +119,12 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   const [ratingInput, setRatingInput] = useState<number>(0);
   const [submittingRating, setSubmittingRating] = useState(false);
 
-  // ── Increment our view counter + fetch our ratings on mount ──
-  // Fires once per manga detail page open. The POST /api/manga/view
-  // increments our own view count (atsu.moe's base views are kept
-  // separately and combined for display).
+  // ── Increment our view counter + fetch our ratings ──
+  // Fires on mount AND when `user.username` changes (so a late-arriving
+  // session still picks up the user's existing rating without a remount).
+  // The view-counter POST also re-fires on login, but /api/manga/view is
+  // idempotent enough (just increments) that the small over-count is
+  // acceptable in exchange for correct rating display.
   useEffect(() => {
     if (!mangaId) return;
 
@@ -144,8 +152,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
         }
       })
       .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mangaId]);
+  }, [mangaId, user?.username]);
 
   // ── Submit a rating ──
   const submitRating = async (rating: number) => {
@@ -254,9 +261,11 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
       setLoading(false);
 
       // CLIENT-SIDE cross-provider merge (runs AFTER page renders):
-      // - If atsumaru manga (at:): search mangaball, merge non-English chapters
-      // - If mangaball manga (mb:): search atsumaru, merge English chapters
-      // Result: ALL English scans from atsumaru + ALL non-English from mangaball
+      // - If atsumaru manga (at:): search mangaball, merge its chapters (all languages)
+      // - If mangaball manga (mb:): search atsumaru, prepend its English chapters
+      // - If comix manga (cx:): search atsumaru, merge atsumaru + mangaball chapters
+      // Result for at:/mb:: ALL English scans from atsumaru + ALL mangaball chapters
+      // Result for cx:: comix chapters + atsumaru English + mangaball multi-lang
       if (data?.chapters?.length) {
         const titleForSearch = fbTitle || data.englishTitle || data.title || "";
         if (titleForSearch && titleForSearch !== "Unknown Title") {
@@ -306,7 +315,9 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                   }
                 }
               } else if (mangaId.startsWith("at:")) {
-                // Atsumaru manga → search mangaball for non-English chapters
+                // Atsumaru manga → search mangaball for ALL chapters (English + non-English)
+                // Note: mangaball's English chapters are also appended (not just
+                // non-English) so users get a wider selection of English scans.
                 const searchRes = await fetch(
                   `/api/manga/search?q=${encodeURIComponent(titleForSearch)}`
                 );
@@ -329,6 +340,55 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                         } : prev);
                       }
                     }
+                  }
+                }
+              } else if (mangaId.startsWith("cx:")) {
+                // Comix manga → search BOTH atsumaru (English) + mangaball (multi-lang)
+                // and append their chapters. Comix is English-only, so this gives
+                // users access to other languages via the other providers.
+                const searchRes = await fetch(
+                  `/api/manga/search?q=${encodeURIComponent(titleForSearch)}`
+                );
+                if (searchRes.ok) {
+                  const searchData = await searchRes.json();
+                  const results = searchData.results || [];
+                  const atMatch = results.find((r: any) => r.id?.startsWith("at:"));
+                  const mbMatch = results.find((r: any) => r.id?.startsWith("mb:"));
+
+                  const merges: any[] = [];
+                  // Atsumaru English chapters
+                  if (atMatch) {
+                    try {
+                      const atsuRes = await fetch(`/api/manga/detail?id=${encodeURIComponent(atMatch.id)}`);
+                      if (atsuRes.ok) {
+                        const atsuData = await atsuRes.json();
+                        const atsuMangaId = atMatch.id.replace(/^at:/, "");
+                        for (const ch of (atsuData.chapters || [])) {
+                          merges.push({
+                            ...ch,
+                            id: `at:${atsuMangaId}:${ch.number}:${ch.id}`,
+                            lang: "en",
+                          });
+                        }
+                      }
+                    } catch { /* ignore */ }
+                  }
+                  // Mangaball multi-language chapters
+                  if (mbMatch) {
+                    try {
+                      const mbRes = await fetch(`/api/manga/detail?id=${encodeURIComponent(mbMatch.id)}`);
+                      if (mbRes.ok) {
+                        const mbData = await mbRes.json();
+                        merges.push(...(mbData.chapters || []));
+                      }
+                    } catch { /* ignore */ }
+                  }
+                  if (merges.length > 0) {
+                    setManga(prev => prev ? {
+                      ...prev,
+                      chapters: [...(prev.chapters || []), ...merges],
+                      totalChapters: (prev.chapters?.length || 0) + merges.length,
+                    } : prev);
                   }
                 }
               }
@@ -512,6 +572,11 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
       return "just now";
     } catch { return ""; }
   };
+
+  // Reset chapter pagination to page 1 whenever filters/search/sort change.
+  useEffect(() => {
+    setChapterPage(1);
+  }, [chapterSearch, sortOrder, selectedLang, selectedScanlator]);
 
   // Scanlation-group filter — applied on top of existing chapterGroups.
   // Does NOT modify any existing useMemo / filter logic.
@@ -1185,9 +1250,9 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                   </button>
                 </div>
 
-                {/* Chapter list — grouped by number */}
+                {/* Chapter list — grouped by number, paginated */}
                 <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                  {visibleChapterGroups.slice(0, 100).map(group => (
+                  {visibleChapterGroups.slice(0, chapterPage * CHAPTERS_PER_PAGE).map(group => (
                     <div key={group.number}>
                       {/* Chapter number header — neutral white since the
                           group may contain scans in multiple languages */}
@@ -1275,10 +1340,18 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                   ))}
                 </div>
 
-                {visibleChapterGroups.length > 100 && (
-                  <p style={{ color: COLOR_MUTED, fontSize: "12px", textAlign: "center", marginTop: "16px" }}>
-                    Showing first 100 chapters. Use search to find specific chapters.
-                  </p>
+                {visibleChapterGroups.length > chapterPage * CHAPTERS_PER_PAGE && (
+                  <button
+                    onClick={() => setChapterPage(p => p + 1)}
+                    style={{
+                      ...controlStyle,
+                      margin: "16px auto 0",
+                      display: "block",
+                      padding: "8px 24px",
+                    }}
+                  >
+                    Load more ({visibleChapterGroups.length - chapterPage * CHAPTERS_PER_PAGE} more)
+                  </button>
                 )}
                 {visibleChapterGroups.length === 0 && (
                   <p style={{ color: COLOR_MUTED, fontSize: "13px", textAlign: "center", padding: "24px 0" }}>
