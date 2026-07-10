@@ -3,6 +3,7 @@ import { resolveAniDbEmbeds } from "@/lib/anidb-direct";
 import { resolveAniNekoServers } from "@/lib/anineko-direct";
 import { resolveAnimexMimiBoth } from "@/lib/animex-fast";
 import { resolveAniDapId, getAniDapSources } from "@/lib/anidap-api";
+import { resolveAniKageBoth } from "@/lib/anikage-fast";
 import { wrapM3u8Url } from "@/lib/proxy";
 
 export const runtime = "nodejs";
@@ -42,7 +43,7 @@ export async function GET(
     // (the old code had a sequential AniDap fetch AFTER Promise.all which
     // blocked the entire response by 2-3 seconds)
     const anidapId = await resolveAniDapId(id).catch(() => null);
-    const [animexMimi, anidbResult, aninekoServers, anidapSub] = await Promise.all([
+    const [animexMimi, anidbResult, aninekoServers, anidapSub, anikageResult] = await Promise.all([
       resolveAnimexMimiBoth(id, epNum),
       resolveAniDbEmbeds(id, epNum, title),
       resolveAniNekoServers(id, epNum, title),
@@ -50,12 +51,14 @@ export async function GET(
       anidapId
         ? getAniDapSources(anidapId, epNum, "sub", "beep").catch(() => null)
         : Promise.resolve(null),
+      // AniKage — provides sources + intro/outro for NEW and OLD anime
+      resolveAniKageBoth(id, epNum, title).catch(() => ({ sub: null, dub: null, intro: null, outro: null })),
     ]);
 
     const servers: Array<{
       id: string;
       name: string;
-      source: "animex" | "anidb" | "anineko" | "anidap";
+      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage";
       provider: string;
       type: "sub" | "dub";
       quality: string;
@@ -167,7 +170,46 @@ export async function GET(
       });
     }
 
-    // ── PRIORITY 9+: AniDap beep (direct m3u8) ──
+    // ── PRIORITY 8: AniKage (sub) — embed m3u8 + intro/outro ──
+    // AniKage provides skip times for BOTH new and old anime!
+    if (anikageResult.sub?.m3u8Url) {
+      servers.push({
+        id: "anikage:sub",
+        name: "AniKage",
+        source: "anikage",
+        provider: anikageResult.sub.provider || "miko",
+        type: "sub",
+        quality: "1080p",
+        streamUrl: anikageResult.sub.m3u8Url,
+        isM3U8: true,
+        isMP4: false,
+        isEmbed: false,
+        hardsub: false,
+        priority: 8,
+        intro: anikageResult.sub.intro,
+        outro: anikageResult.sub.outro,
+      });
+    }
+    if (anikageResult.dub?.m3u8Url) {
+      servers.push({
+        id: "anikage:dub",
+        name: "AniKage (Dub)",
+        source: "anikage",
+        provider: anikageResult.dub.provider || "miko",
+        type: "dub",
+        quality: "1080p",
+        streamUrl: anikageResult.dub.m3u8Url,
+        isM3U8: true,
+        isMP4: false,
+        isEmbed: false,
+        hardsub: false,
+        priority: 9,
+        intro: anikageResult.dub.intro,
+        outro: anikageResult.dub.outro,
+      });
+    }
+
+    // ── PRIORITY 10+: AniDap beep (direct m3u8) ──
     // Already fetched in parallel above — just extract the m3u8 URL
     if (anidapSub?.sources?.length) {
       const src = anidapSub.sources.find((s: any) =>
@@ -187,7 +229,7 @@ export async function GET(
           isMP4: false,
           isEmbed: false,
           hardsub: true,
-          priority: 9,
+          priority: 10,
           subtitleTracks: (anidapSub.tracks || []).map((t: any) => ({
             url: t.url, lang: t.lang, label: t.label,
           })),
@@ -198,7 +240,7 @@ export async function GET(
     }
 
     console.log(
-      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anineko:${aninekoServers.length > 0 ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
+      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anineko:${aninekoServers.length > 0 ? "✓" : "✗"} anikage:${anikageResult.sub || anikageResult.dub ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
     );
 
     return NextResponse.json({ servers });
