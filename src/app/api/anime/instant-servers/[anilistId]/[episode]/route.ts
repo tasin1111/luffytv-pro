@@ -170,43 +170,60 @@ export async function GET(
       });
     }
 
-    // ── PRIORITY 8: AniKage (sub) — embed m3u8 + intro/outro ──
-    // AniKage provides skip times for BOTH new and old anime!
-    if (anikageResult.sub?.m3u8Url) {
-      servers.push({
-        id: "anikage:sub",
-        name: "AniKage",
-        source: "anikage",
-        provider: anikageResult.sub.provider || "miko",
-        type: "sub",
-        quality: "1080p",
-        streamUrl: anikageResult.sub.m3u8Url,
-        isM3U8: true,
-        isMP4: false,
-        isEmbed: false,
-        hardsub: false,
-        priority: 8,
-        intro: anikageResult.sub.intro,
-        outro: anikageResult.sub.outro,
-      });
+    // ── PRIORITY 8+: AniKage — ALL providers scraped + intro/outro ──
+    // AniKage provides skip times for BOTH new AND old anime.
+    // The intro/outro is from AniKage's own database (same across providers).
+    // We add ALL working AniKage providers as separate servers.
+    let anikagePriority = 8;
+    if (anikageResult.sub?.servers) {
+      for (const srv of anikageResult.sub.servers) {
+        servers.push({
+          id: `anikage:${srv.provider}:sub`,
+          name: srv.name,
+          source: "anikage",
+          provider: srv.provider,
+          type: "sub",
+          quality: srv.quality,
+          streamUrl: srv.m3u8Url,
+          isM3U8: true,
+          isMP4: false,
+          isEmbed: false,
+          hardsub: false,
+          priority: anikagePriority++,
+          intro: anikageResult.intro,
+          outro: anikageResult.outro,
+        });
+      }
     }
-    if (anikageResult.dub?.m3u8Url) {
-      servers.push({
-        id: "anikage:dub",
-        name: "AniKage (Dub)",
-        source: "anikage",
-        provider: anikageResult.dub.provider || "miko",
-        type: "dub",
-        quality: "1080p",
-        streamUrl: anikageResult.dub.m3u8Url,
-        isM3U8: true,
-        isMP4: false,
-        isEmbed: false,
-        hardsub: false,
-        priority: 9,
-        intro: anikageResult.dub.intro,
-        outro: anikageResult.dub.outro,
-      });
+    if (anikageResult.dub?.servers) {
+      for (const srv of anikageResult.dub.servers) {
+        servers.push({
+          id: `anikage:${srv.provider}:dub`,
+          name: `${srv.name} (Dub)`,
+          source: "anikage",
+          provider: srv.provider,
+          type: "dub",
+          quality: srv.quality,
+          streamUrl: srv.m3u8Url,
+          isM3U8: true,
+          isMP4: false,
+          isEmbed: false,
+          hardsub: false,
+          priority: anikagePriority++,
+          intro: anikageResult.intro,
+          outro: anikageResult.outro,
+        });
+      }
+    }
+
+    // ── AniKage intro/outro is PERMANENT — apply to ALL servers ──
+    // The skip times from AniKage work for every provider (mimi, anidb, etc.)
+    // because they're timestamps, not stream-dependent.
+    if (anikageResult.intro || anikageResult.outro) {
+      for (const s of servers) {
+        if (!s.intro && anikageResult.intro) s.intro = anikageResult.intro;
+        if (!s.outro && anikageResult.outro) s.outro = anikageResult.outro;
+      }
     }
 
     // ── PRIORITY 10+: AniDap beep (direct m3u8) ──

@@ -430,10 +430,12 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const [animeGenres, setAnimeGenres] = useState<string[]>([]);
   const [animeScore, setAnimeScore] = useState<number | null>(null);
   const [animeNextAiring, setAnimeNextAiring] = useState<{ episode: number; airingAt: number } | null>(null);
-  // AniSkip intro/outro times — PERSISTENT across provider switches.
-  // Fetched once per episode from api.aniskip.com (community database).
-  // Merged with any provider-supplied intro/outro (provider takes priority
-  // if available, AniSkip is the fallback).
+  // Skip times — PERSISTENT across provider switches.
+  // PRIMARY: AniKage (provides skip times for ALL anime, new and old)
+  // BACKUP: AniSkip (community database, only covers old/popular anime)
+  // The instant-servers API already returns AniKage intro/outro on every
+  // server entry, but we also fetch from AniSkip as a backup for anime
+  // that AniKage doesn't have.
   const [aniskipData, setAniskipData] = useState<{ intro: { start: number; end: number } | null; outro: { start: number; end: number } | null }>({ intro: null, outro: null });
 
   // ── Providers Map ──
@@ -1230,12 +1232,11 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     const isEmbed = (server as any).isEmbed === true;
     const isDASH = (server as any).isDASH === true;
 
-    // AniDap streams come with their own WebVTT subtitle tracks (for softsub
-    // providers like vee/yuki/miku/neko) and intro/outro chapters. Pass them
-    // through to the HLS player.
+    // Skip times priority:
+    // 1. Server intro/outro (from AniKage — already on every instant server)
+    // 2. AniSkip (backup for anime AniKage doesn't cover)
+    // Both are PERSISTENT across provider switches.
     const subtitleTracks = (server as ServerEntry).subtitleTracks || [];
-    // Provider intro/outro takes priority; AniSkip is the fallback.
-    // AniSkip data is PERSISTENT — it stays the same when switching providers.
     const intro = (server as ServerEntry).intro ?? aniskipData.intro;
     const outro = (server as ServerEntry).outro ?? aniskipData.outro;
 
