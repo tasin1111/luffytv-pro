@@ -51,6 +51,8 @@ function isCacheFresh(key: string): boolean {
 // ── Types ──
 export interface AniDbEmbedResult {
   embedUrl: string;
+  /** Direct HLS m3u8 URL extracted from the embed page's JW Player config. */
+  m3u8Url?: string;
   anidbId: number;
   episodeId: number;
   type: "sub" | "dub";
@@ -234,7 +236,53 @@ async function getEmbedUrl(
   }
 }
 
-// ── Main: resolve embed URL for AniList ID + episode ──
+// ── Step 4: Extract m3u8 URL from the embed page ──
+// The embed page (https://anidb.app/embed/{token}) contains a JW Player
+// setup script with: sources: [{ file: 'https://hls.anidb.app/.../master.m3u8', type: 'hls' }]
+// We scrape this to get the direct m3u8 URL for hls.js playback (no iframe needed).
+async function extractM3u8FromEmbed(embedUrl: string): Promise<string | null> {
+  try {
+    // Fetch the embed page via Worker proxy (anidb.app is CF-protected)
+    const pageUrl = encodeURIComponent(embedUrl);
+    const ref = encodeURIComponent(`${ANIDB_BASE}/`);
+    const proxyUrl = `${WORKER_BASE}/proxy?url=${pageUrl}&ref=${ref}`;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(proxyUrl, {
+      headers: { "User-Agent": HEADERS["User-Agent"] },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      console.error(`[anidb-direct] embed page HTTP ${res.status}`);
+      return null;
+    }
+
+    const html = await res.text();
+
+    // Extract m3u8 URL from JW Player sources: [{ file: '...' }]
+    const match = html.match(/file:\s*['"]([^'"]+\.m3u8[^'"]*)['"]/);
+    if (match) {
+      return match[1];
+    }
+
+    // Fallback: look for any hls.anidb.app URL
+    const hlsMatch = html.match(/(https:\/\/hls\.anidb\.app\/[^\s'"]+)/);
+    if (hlsMatch) {
+      return hlsMatch[1];
+    }
+
+    console.error(`[anidb-direct] no m3u8 found in embed page`);
+    return null;
+  } catch (err) {
+    console.error(`[anidb-direct] extractM3u8FromEmbed error:`, err);
+    return null;
+  }
+}
+
+// ── Main: resolve embed URL + m3u8 for AniList ID + episode ──
 export async function resolveAniDbEmbed(
   anilistId: number,
   episodeNum: number,
@@ -258,11 +306,14 @@ export async function resolveAniDbEmbed(
       if (!episodeId) return null;
     }
 
-    // Step 3: Get embed URL
+    // Step 3: Get embed URL + extract m3u8 IN PARALLEL
     const embedUrl = await getEmbedUrl(episodeId, type);
     if (!embedUrl) return null;
 
-    return { embedUrl, anidbId, episodeId, type };
+    // Step 4: Extract m3u8 from embed page (so we can play with hls.js directly)
+    const m3u8Url = await extractM3u8FromEmbed(embedUrl);
+
+    return { embedUrl, m3u8Url, anidbId, episodeId, type };
   } catch (err) {
     console.error(`[anidb-direct] resolveAniDbEmbed error:`, err);
     return null;

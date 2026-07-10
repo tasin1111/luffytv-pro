@@ -964,10 +964,18 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           const newServers = data.servers.filter((s: ServerEntry) => !existingIds.has(s.id));
           return [...prev, ...newServers];
         });
-        // Auto-select AniDB sub as the DEFAULT server (priority 0)
-        // Only auto-select if no server is selected yet
+        // Auto-select AnimeX Mimi sub as the DEFAULT server (priority 0 — fastest)
+        // Falls back to AniDB, then first instant server.
+        // Only auto-selects if no server is selected yet.
         setSelectedServer(prev => {
           if (prev) return prev; // don't override if already selected
+          // Priority 0: AnimeX Mimi (fastest — direct m3u8 from vivibebe.site)
+          const mimiSub = data.servers.find((s: ServerEntry) => s.id === "animex:mimi:sub");
+          if (mimiSub) {
+            setStreamLoading(false);
+            return mimiSub.id;
+          }
+          // Priority 1: AniDB (direct m3u8 from hls.anidb.app)
           const anidbSub = data.servers.find((s: ServerEntry) => s.id === "anidb:sub");
           if (anidbSub) {
             setStreamLoading(false);

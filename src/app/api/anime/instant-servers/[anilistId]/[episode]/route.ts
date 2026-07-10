@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveAniDbEmbeds } from "@/lib/anidb-direct";
 import { resolveAniKotoEmbeds } from "@/lib/anikoto-direct";
 import { resolveAniNekoServers } from "@/lib/anineko-direct";
+import { resolveAnimexMimiBoth, resolveAnimexProvider } from "@/lib/animex-fast";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,14 +11,18 @@ export const maxDuration = 15;
 /**
  * GET /api/anime/instant-servers/[anilistId]/[episode]?title={title}
  *
- * Returns INSTANT servers from AniDB, AniKoto, and AniNeko — the 3
- * reliable providers that don't dead-link. These are resolved in parallel
- * and returned as pre-verified embed URLs for immediate iframe playback.
+ * Returns INSTANT servers with DIRECT m3u8 URLs (no embeds/iframes).
+ * These are scraped m3u8 streams played with hls.js through our worker proxy.
  *
- * AniDB is the DEFAULT (priority 0) — it's the fastest and most reliable.
- * AniKoto and AniNeko are fallbacks.
+ * PRIORITY ORDER (fastest first):
+ *   0. AnimeX mimi (sub) — FASTEST: GraphQL + REST → direct m3u8 from vivibebe.site
+ *   1. AniDB (sub) — search + episodes + embed page scrape → m3u8 from hls.anidb.app
+ *   2. AnimeX mimi (dub)
+ *   3. AniDB (dub)
+ *   4+. AniKoto, AniNeko (embed fallbacks)
  *
- * All 3 are cached server-side for 1 hour per anime.
+ * All m3u8 URLs are returned as isM3U8=true for hls.js playback.
+ * Embed URLs (AniKoto/AniNeko) are returned as isEmbed=true for iframe playback.
  */
 export async function GET(
   _req: NextRequest,
@@ -35,8 +40,9 @@ export async function GET(
   }
 
   try {
-    // Resolve all 3 providers in parallel
-    const [anidbResult, anikotoResult, aninekoServers] = await Promise.all([
+    // Resolve all providers in parallel
+    const [animexMimi, anidbResult, anikotoResult, aninekoServers] = await Promise.all([
+      resolveAnimexMimiBoth(id, epNum),
       resolveAniDbEmbeds(id, epNum, title),
       resolveAniKotoEmbeds(id, epNum, title),
       resolveAniNekoServers(id, epNum, title),
@@ -45,7 +51,7 @@ export async function GET(
     const servers: Array<{
       id: string;
       name: string;
-      source: "anidb" | "anikoto" | "anineko";
+      source: "animex" | "anidb" | "anikoto" | "anineko";
       provider: string;
       type: "sub" | "dub";
       quality: string;
@@ -55,12 +61,35 @@ export async function GET(
       isEmbed: boolean;
       hardsub: boolean;
       priority: number;
+      subtitleTracks?: Array<{ url: string; lang: string; label: string }>;
+      intro?: { start: number; end: number } | null;
+      outro?: { start: number; end: number } | null;
     }> = [];
 
-    // ── AniDB (PRIORITY 0 — default) ──
-    // AniDB embeds contain a JW Player with direct HLS from hls.anidb.app.
-    // These are the most reliable — no dead links, fast CDN.
-    if (anidbResult.sub?.embedUrl) {
+    // ── PRIORITY 0: AnimeX mimi (sub) — FASTEST, DEFAULT ──
+    // mimi returns m3u8 from vivibebe.site — fast CDN, reliable
+    if (animexMimi.sub?.m3u8Url) {
+      servers.push({
+        id: "animex:mimi:sub",
+        name: "AnimeX Mimi",
+        source: "animex",
+        provider: "mimi",
+        type: "sub",
+        quality: animexMimi.sub.quality || "1080p",
+        streamUrl: animexMimi.sub.m3u8Url,
+        isM3U8: true,
+        isMP4: false,
+        isEmbed: false,
+        hardsub: false,
+        priority: 0,
+        subtitleTracks: animexMimi.sub.tracks,
+        intro: animexMimi.sub.intro || null,
+        outro: animexMimi.sub.outro || null,
+      });
+    }
+
+    // ── PRIORITY 1: AniDB (sub) — direct m3u8 from hls.anidb.app ──
+    if (anidbResult.sub?.m3u8Url) {
       servers.push({
         id: "anidb:sub",
         name: "AniDB",
@@ -68,15 +97,38 @@ export async function GET(
         provider: "anidb",
         type: "sub",
         quality: "1080p",
-        streamUrl: anidbResult.sub.embedUrl,
-        isM3U8: false,
+        streamUrl: anidbResult.sub.m3u8Url,
+        isM3U8: true,
         isMP4: false,
-        isEmbed: true,
+        isEmbed: false,
         hardsub: false,
-        priority: 0,
+        priority: 1,
       });
     }
-    if (anidbResult.dub?.embedUrl) {
+
+    // ── PRIORITY 2: AnimeX mimi (dub) ──
+    if (animexMimi.dub?.m3u8Url) {
+      servers.push({
+        id: "animex:mimi:dub",
+        name: "AnimeX Mimi (Dub)",
+        source: "animex",
+        provider: "mimi",
+        type: "dub",
+        quality: animexMimi.dub.quality || "1080p",
+        streamUrl: animexMimi.dub.m3u8Url,
+        isM3U8: true,
+        isMP4: false,
+        isEmbed: false,
+        hardsub: false,
+        priority: 2,
+        subtitleTracks: animexMimi.dub.tracks,
+        intro: animexMimi.dub.intro || null,
+        outro: animexMimi.dub.outro || null,
+      });
+    }
+
+    // ── PRIORITY 3: AniDB (dub) ──
+    if (anidbResult.dub?.m3u8Url) {
       servers.push({
         id: "anidb:dub",
         name: "AniDB (Dub)",
@@ -84,17 +136,16 @@ export async function GET(
         provider: "anidb",
         type: "dub",
         quality: "1080p",
-        streamUrl: anidbResult.dub.embedUrl,
-        isM3U8: false,
+        streamUrl: anidbResult.dub.m3u8Url,
+        isM3U8: true,
         isMP4: false,
-        isEmbed: true,
+        isEmbed: false,
         hardsub: false,
-        priority: 1,
+        priority: 3,
       });
     }
 
-    // ── AniKoto (PRIORITY 2-3) ──
-    // AniKoto uses megaplay.buzz embeds — reliable, multi-server.
+    // ── PRIORITY 4-5: AniKoto (embed fallback) ──
     if (anikotoResult.sub?.embedUrl) {
       servers.push({
         id: "anikoto:sub",
@@ -108,7 +159,7 @@ export async function GET(
         isMP4: false,
         isEmbed: true,
         hardsub: false,
-        priority: 2,
+        priority: 4,
       });
     }
     if (anikotoResult.dub?.embedUrl) {
@@ -124,14 +175,12 @@ export async function GET(
         isMP4: false,
         isEmbed: true,
         hardsub: false,
-        priority: 3,
+        priority: 5,
       });
     }
 
-    // ── AniNeko (PRIORITY 4+) ──
-    // AniNeko has multiple servers (vivibebe, otakuhg, otakuvid, playmogo).
-    // Add the default server first, then alternatives.
-    for (let i = 0; i < Math.min(aninekoServers.length, 4); i++) {
+    // ── PRIORITY 6+: AniNeko (embed fallbacks) ──
+    for (let i = 0; i < Math.min(aninekoServers.length, 3); i++) {
       const srv = aninekoServers[i];
       servers.push({
         id: `anineko:${i}`,
@@ -145,12 +194,12 @@ export async function GET(
         isMP4: false,
         isEmbed: true,
         hardsub: false,
-        priority: 4 + i,
+        priority: 6 + i,
       });
     }
 
     console.log(
-      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (AniDB:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} AniKoto:${anikotoResult.sub || anikotoResult.dub ? "✓" : "✗"} AniNeko:${aninekoServers.length > 0 ? "✓" : "✗"})`,
+      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anikoto:${anikotoResult.sub || anikotoResult.dub ? "✓" : "✗"} anineko:${aninekoServers.length > 0 ? "✓" : "✗"})`,
     );
 
     return NextResponse.json({ servers });
