@@ -7,10 +7,8 @@ import { useAppStore } from "./store";
 const HLSPlayer = dynamic(() => import("./hls-player"), { ssr: false });
 
 // ============================================================
-// LIVE TV WATCH PAGE — ORIGINAL m3u8 URL from CSV
-// hls.js loads the original URL, xhrSetup proxies everything.
-// The m3u8 is NEVER modified. hls.js resolves URLs correctly
-// against the original dami-tv.pro domain.
+// LIVE TV WATCH PAGE — dami-tv.pro style
+// Black background, orange accent, clean minimal layout
 // ============================================================
 
 interface LiveTVWatchProps {
@@ -30,7 +28,7 @@ interface LiveTVWatchProps {
 }
 
 const CAT_COLORS: Record<string, string> = {
-  Sports: "#f97316",
+  Sports: "#e8471b",
   News: "#3b82f6",
   Entertainment: "#a855f7",
   Kids: "#22c55e",
@@ -50,13 +48,10 @@ export default function LiveTVWatchPage(props: LiveTVWatchProps) {
   const loadingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const categoryColor = CAT_COLORS[props.channelCategory] || CAT_COLORS.General;
-
-  // The ORIGINAL m3u8 URL from CSV — hls.js + xhrSetup handles proxying
   const streamUrl = props.channelStreamUrl || "";
-
-  // Reset when channel changes
   const currentChannelId = props.channelId || "";
   const [prevChannelId, setPrevChannelId] = useState(currentChannelId);
+
   if (prevChannelId !== currentChannelId) {
     setPlayerReady(false);
     setLoadingElapsed(0);
@@ -64,7 +59,6 @@ export default function LiveTVWatchPage(props: LiveTVWatchProps) {
     setPrevChannelId(currentChannelId);
   }
 
-  // Loading progress timer
   useEffect(() => {
     if (playerReady) {
       setLoadingElapsed(0);
@@ -74,12 +68,10 @@ export default function LiveTVWatchPage(props: LiveTVWatchProps) {
       }
       return;
     }
-
     setLoadingElapsed(0);
     loadingTimerRef.current = setInterval(() => {
       setLoadingElapsed(prev => prev + 1);
     }, 1000);
-
     return () => {
       if (loadingTimerRef.current) {
         clearInterval(loadingTimerRef.current);
@@ -88,7 +80,6 @@ export default function LiveTVWatchPage(props: LiveTVWatchProps) {
     };
   }, [playerReady]);
 
-  // Fullscreen toggle
   const toggleFullscreen = async () => {
     if (!playerContainerRef.current) return;
     if (!document.fullscreenElement) {
@@ -106,7 +97,6 @@ export default function LiveTVWatchPage(props: LiveTVWatchProps) {
     return () => document.removeEventListener("fullscreenchange", handler);
   }, []);
 
-  // Refresh
   const refreshPlayer = () => {
     setPlayerReady(false);
     setLoadingElapsed(0);
@@ -114,18 +104,17 @@ export default function LiveTVWatchPage(props: LiveTVWatchProps) {
   };
 
   return (
-    <div className="min-h-screen flex flex-col -mx-4 lg:-mx-8 -mt-[75px] pt-0">
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#fff', display: 'flex', flexDirection: 'column', margin: '0 -40px', padding: 0 }}>
       {/* Player Area */}
       <div
         ref={playerContainerRef}
         className="relative w-full bg-black"
         style={{
-          height: isFullscreen ? "100vh" : "87vh",
-          minHeight: "500px",
+          height: isFullscreen ? "100vh" : "70vh",
+          minHeight: "400px",
           maxHeight: isFullscreen ? "100vh" : "calc(100vh - 20px)",
         }}
       >
-        {/* hls.js loads original m3u8, xhrSetup proxies all requests */}
         {streamUrl && (
           <HLSPlayer
             key={`hls-${playerKey}`}
@@ -138,110 +127,112 @@ export default function LiveTVWatchPage(props: LiveTVWatchProps) {
           />
         )}
 
-        {/* No stream URL */}
         {!streamUrl && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black z-20">
-            <p className="text-sm text-white/50">No stream URL available</p>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', background: '#000', zIndex: 20 }}>
+            <p style={{ fontSize: '14px', color: '#888' }}>No stream URL available</p>
           </div>
         )}
 
         {/* Loading overlay */}
         {!playerReady && streamUrl && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-black z-20 pointer-events-none">
-            <div className="relative">
-              <div className="w-16 h-16 rounded-full border-3 border-white/10 border-t-orange-500 animate-spin" />
-              <svg className="absolute inset-0 w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '16px', background: '#000', zIndex: 20, pointerEvents: 'none' }}>
+            <div style={{ position: 'relative' }}>
+              <div style={{ width: '64px', height: '64px', borderRadius: '50%', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#e8471b', animation: 'damitv-spin 1s linear infinite' }} />
+              <svg style={{ position: 'absolute', inset: 0, width: '64px', height: '64px', transform: 'rotate(-90deg)' }} viewBox="0 0 64 64">
                 <circle
                   cx="32" cy="32" r="28"
                   fill="none"
-                  stroke="#f97316"
+                  stroke="#e8471b"
                   strokeWidth="2"
                   strokeDasharray={`${Math.min(loadingElapsed / 15, 1) * 176} 176`}
                   strokeLinecap="round"
-                  className="transition-all duration-1000"
+                  style={{ transition: 'all 1s' }}
                 />
               </svg>
             </div>
-            <div className="text-center">
-              <p className="text-sm font-bold text-white/60">Loading stream...</p>
-              <p className="text-[11px] text-white/30 mt-1">{props.channelName}</p>
+            <div style={{ textAlign: 'center' }}>
+              <p style={{ fontSize: '14px', fontWeight: 700, color: '#888' }}>Loading stream...</p>
+              <p style={{ fontSize: '11px', color: '#555', marginTop: '4px' }}>{props.channelName}</p>
               {loadingElapsed > 0 && (
-                <p className="text-[10px] text-white/20 mt-1">{loadingElapsed}s</p>
+                <p style={{ fontSize: '10px', color: '#444', marginTop: '4px' }}>{loadingElapsed}s</p>
               )}
-              <p className="text-[10px] text-amber-400/70 mt-3 animate-pulse">Please wait at least 30s — be patient</p>
+              <p style={{ fontSize: '10px', color: '#e8471b', marginTop: '12px', animation: 'damitv-pulse 1.5s ease-in-out infinite' }}>Please wait at least 30s — be patient</p>
             </div>
           </div>
         )}
 
         {/* Player Controls */}
-        <>
-          <button
-            onClick={toggleFullscreen}
-            className="absolute bottom-2 right-2 z-30 p-2 rounded-lg bg-black/60 text-white/60 hover:text-white hover:bg-black/80 transition-all"
-          >
-            {isFullscreen ? (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path d="M9 9L4 4m0 0v4m0-4h4m7 5l5-5m0 0v4m0-4h-4m-7 7l-5 5m0 0v-4m0 4h4m7-5l5 5m0 0v-4m0 4h-4" />
-              </svg>
-            ) : (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-              </svg>
-            )}
-          </button>
+        {/* Back button */}
+        <button
+          onClick={() => { navigate({ page: "live" }); useAppStore.getState().setSectionSubPage("tv-channels"); }}
+          style={{ position: 'absolute', top: '8px', left: '8px', zIndex: 30, display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '6px', background: 'rgba(0,0,0,0.6)', color: '#ccc', border: 'none', cursor: 'pointer', transition: 'all 0.2s', fontSize: '12px', fontWeight: 600 }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.8)'; e.currentTarget.style.color = '#fff'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.6)'; e.currentTarget.style.color = '#ccc'; }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M15 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
 
-          <button
-            onClick={() => { navigate({ page: "live" }); useAppStore.getState().setSectionSubPage("tv-channels"); }}
-            className="absolute top-2 left-2 z-30 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/60 text-white/70 hover:text-white hover:bg-black/80 transition-all"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path d="M15 19l-7-7 7-7" />
-            </svg>
-            <span className="text-[11px] font-bold">Back</span>
-          </button>
+        {/* Channel name — top center */}
+        <div style={{ position: 'absolute', top: '8px', left: '50%', transform: 'translateX(-50%)', zIndex: 30, padding: '6px 12px', borderRadius: '6px', background: 'rgba(0,0,0,0.6)' }}>
+          <p style={{ fontSize: '12px', fontWeight: 700, color: '#ccc', textAlign: 'center', margin: 0 }}>
+            {props.channelName}
+          </p>
+        </div>
 
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-lg bg-black/60 backdrop-blur-sm">
-            <p className="text-[11px] font-bold text-white/70 text-center" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-              {props.channelName}
+        {/* LIVE badge — top right */}
+        {playerReady && (
+          <div style={{ position: 'absolute', top: '8px', right: '50px', zIndex: 30, padding: '4px 8px', borderRadius: '4px', background: 'rgba(0,0,0,0.6)' }}>
+            <p style={{ fontSize: '9px', fontWeight: 800, color: '#e8471b', margin: 0, display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#e8471b', animation: 'damitv-pulse 1.5s ease-in-out infinite' }} />
+              LIVE
             </p>
           </div>
+        )}
 
-          {playerReady && (
-            <div className="absolute top-2 right-12 z-30 px-2 py-1 rounded bg-black/60">
-              <p className="text-[9px] font-bold text-green-400">LIVE</p>
-            </div>
+        {/* Fullscreen button */}
+        <button
+          onClick={toggleFullscreen}
+          style={{ position: 'absolute', bottom: '8px', right: '8px', zIndex: 30, padding: '8px', borderRadius: '6px', background: 'rgba(0,0,0,0.6)', color: '#ccc', border: 'none', cursor: 'pointer', transition: 'all 0.2s' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.8)'; e.currentTarget.style.color = '#fff'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.6)'; e.currentTarget.style.color = '#ccc'; }}
+        >
+          {isFullscreen ? (
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M9 9L4 4m0 0v4m0-4h4m7 5l5-5m0 0v4m0-4h-4m-7 7l-5 5m0 0v-4m0 4h4m7-5l5 5m0 0v-4m0 4h-4" />
+            </svg>
+          ) : (
+            <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+            </svg>
           )}
-        </>
+        </button>
       </div>
 
       {/* Channel Info */}
-      <div className="px-4 lg:px-8 py-4 max-w-[1400px] mx-auto w-full">
-        <div className="flex items-start justify-between gap-4 mb-4">
+      <div style={{ maxWidth: '1280px', margin: '0 auto', width: '100%', padding: '24px 40px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', marginBottom: '16px' }}>
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <h1
-                className="text-xl font-black text-white"
-                style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}
-              >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+              <h1 style={{ fontSize: '24px', fontWeight: 900, color: '#fff', margin: 0 }}>
                 {props.channelName || "Live TV Channel"}
               </h1>
-              <span
-                className="text-[9px] font-bold px-2 py-0.5 rounded"
-                style={{ background: `${categoryColor}20`, color: categoryColor }}
-              >
+              <span style={{ fontSize: '9px', fontWeight: 800, padding: '3px 8px', borderRadius: '4px', background: `${categoryColor}20`, color: categoryColor, textTransform: 'uppercase' }}>
                 {props.channelCategory}
               </span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-600/15 text-red-400 text-[10px] font-bold">
-                <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '3px 8px', borderRadius: '4px', background: 'rgba(232,71,27,0.15)', color: '#e8471b', fontSize: '10px', fontWeight: 800 }}>
+                <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#e8471b', animation: 'damitv-pulse 1.5s ease-in-out infinite' }} />
                 LIVE NOW
               </span>
               {props.channelCountryName && (
-                <span className="text-[11px] text-white/25">{props.channelCountryName}</span>
+                <span style={{ fontSize: '11px', color: '#555' }}>{props.channelCountryName}</span>
               )}
               {playerReady && (
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-green-500/10 text-green-400">
+                <span style={{ fontSize: '10px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', background: 'rgba(34,197,94,0.1)', color: '#22c55e' }}>
                   Playing
                 </span>
               )}
@@ -250,16 +241,29 @@ export default function LiveTVWatchPage(props: LiveTVWatchProps) {
 
           <button
             onClick={refreshPlayer}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-[11px] font-bold text-white/50 hover:text-white/80 hover:bg-white/[0.06] transition-all cursor-pointer"
-            style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)" }}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '6px', fontSize: '12px', fontWeight: 700, color: '#888', background: '#141414', border: '1px solid #222', cursor: 'pointer', transition: 'all 0.2s' }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#e8471b'; e.currentTarget.style.color = '#e8471b'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#222'; e.currentTarget.style.color = '#888'; }}
           >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             Refresh
           </button>
         </div>
       </div>
+
+      {/* Animations */}
+      <style>{`
+        @keyframes damitv-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes damitv-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
+        }
+      `}</style>
     </div>
   );
 }

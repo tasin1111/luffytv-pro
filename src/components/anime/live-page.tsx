@@ -318,87 +318,51 @@ function Stream247Card({ stream, onWatch, isActive }: { stream: Stream247; onWat
   return (
     <button
       onClick={() => onWatch(stream)}
-      className="group relative w-full rounded-2xl overflow-hidden transition-all duration-500 cursor-pointer border border-white/[0.08] hover:border-white/[0.20] hover:shadow-2xl backdrop-blur-sm"
-      style={{ opacity: isActive ? 1 : 0.3, transform: isActive ? 'scale(1)' : 'scale(0.95)' }}
+      className="group relative w-full overflow-hidden cursor-pointer"
+      style={{
+        opacity: isActive ? 1 : 0,
+        transform: isActive ? 'scale(1)' : 'scale(0.95)',
+        transition: 'all 0.6s ease',
+        borderRadius: '14px',
+        border: '1px solid #1a1a1a',
+      }}
     >
-      <div className="relative h-[200px] sm:h-[240px] md:h-[280px]" style={{ background: `linear-gradient(135deg, ${stream.color}35, ${stream.color}12, rgba(8,8,12,0.95))` }}>
-        {/* Background image — full bleed with cover */}
-        {stream.backgroundImage && (
-          <img
-            src={stream.backgroundImage}
-            alt=""
-            loading="lazy"
-            decoding="async"
-            className="absolute inset-0 w-full h-full object-cover opacity-60"
-          />
-        )}
-
-        {/* Large watermark icon — only show if no background image */}
+      <div className="relative h-[280px] sm:h-[320px]" style={{ background: `linear-gradient(135deg, ${stream.color}25, #0a0a0a 80%)` }}>
+        {/* Watermark icon */}
         {!stream.backgroundImage && (
-          <div className="absolute right-12 top-1/2 -translate-y-1/2 opacity-[0.04] text-[180px] select-none pointer-events-none">
+          <div className="absolute right-12 top-1/2 -translate-y-1/2 opacity-[0.06] text-[160px] select-none pointer-events-none">
             {stream.icon}
           </div>
         )}
+        {stream.backgroundImage && (
+          <img src={stream.backgroundImage} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover opacity-50" />
+        )}
 
-        {/* Decorative glow */}
-        <div className="absolute top-0 right-0 w-1/2 h-full opacity-20" style={{ background: `radial-gradient(ellipse at 70% 50%, ${stream.color}30, transparent 70%)` }} />
+        {/* Gradient overlay — dami-tv style: strong left-to-right */}
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, #0a0a0a 0%, rgba(10,10,10,0.85) 25%, rgba(10,10,10,0.4) 50%, rgba(10,10,10,0.2) 70%, rgba(10,10,10,0.4) 90%, #0a0a0a 100%)' }} />
 
-        {/* Gradient overlay from left — stronger to ensure text readability over image */}
-        <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-black/20" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/30" />
-        {/* Color tint overlay */}
-        <div className="absolute inset-0 opacity-30" style={{ background: `linear-gradient(135deg, ${stream.color}40, transparent)` }} />
-
-        {/* Content */}
-        <div className="absolute inset-0 p-6 sm:p-8 md:p-10 flex items-center">
-          <div className="flex-1 min-w-0">
-            {/* LIVE 24/7 badge + Source badge */}
-            <div className="mb-3 flex items-center gap-2">
-              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-red-600/90 text-white text-[10px] font-black uppercase tracking-wider shadow-lg shadow-red-600/20">
-                <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                LIVE 24/7
-              </span>
-              <span
-                className="px-2.5 py-1 rounded-lg text-[9px] font-bold"
-                style={{
-                  background: stream.source === "streamfree" ? "rgba(168,85,247,0.15)" : "rgba(6,182,212,0.15)",
-                  color: stream.source === "streamfree" ? "#a855f7" : "#06b6d4",
-                  border: `1px solid ${stream.source === "streamfree" ? "rgba(168,85,247,0.25)" : "rgba(6,182,212,0.25)"}`,
-                }}
-              >
-                {stream.source === "streamfree" ? "StreamFree" : "EmbleSports"}
-              </span>
-            </div>
-
+        {/* Content — left-aligned like dami-tv hero */}
+        <div className="absolute inset-0 p-8 sm:p-10 flex items-center">
+          <div className="flex-1 min-w-0" style={{ maxWidth: '420px' }}>
+            {/* Badge */}
+            <span style={{ display: 'inline-block', background: '#1a1a1a', border: '1px solid #333', padding: '4px 12px', fontSize: '12px', fontWeight: 600, marginBottom: '16px', borderRadius: '2px', color: '#fff' }}>
+              LIVE 24/7
+            </span>
             {/* Channel name */}
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white mb-2 tracking-tight" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
+            <h2 style={{ fontSize: '32px', fontWeight: 800, marginBottom: '12px', lineHeight: 1.2, color: '#fff' }}>
               {stream.name}
             </h2>
-
             {/* Description */}
-            <p className="text-sm text-white/50 font-medium mb-4 max-w-md">{stream.description}</p>
-
-            {/* Category + Watch button row */}
-            <div className="flex items-center gap-3">
-              <span
-                className="px-3 py-1.5 rounded-lg text-[10px] font-bold"
-                style={{ background: `${stream.color}20`, color: stream.color, border: `1px solid ${stream.color}30` }}
-              >
-                {stream.category}
-              </span>
-              <span
-                className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[11px] font-bold uppercase text-white transition-all group-hover:shadow-lg"
-                style={{
-                  background: `linear-gradient(135deg, ${stream.color}, ${stream.color}cc)`,
-                  boxShadow: `0 0 20px ${stream.color}30`,
-                }}
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
-                Watch Now
-              </span>
-            </div>
+            <p style={{ fontSize: '15px', color: '#bbb', marginBottom: '24px', lineHeight: 1.5 }}>
+              {stream.description}
+            </p>
+            {/* CTA button — dami-tv style */}
+            <button
+              className="group-hover:bg-[#e8471b] group-hover:text-white transition-all"
+              style={{ background: '#fff', color: '#000', padding: '14px 40px', fontSize: '15px', fontWeight: 700, border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              Watch Now
+            </button>
           </div>
         </div>
       </div>
@@ -407,39 +371,33 @@ function Stream247Card({ stream, onWatch, isActive }: { stream: Stream247; onWat
 }
 
 // ═══════════════════════════════════════════════════════════════
-// NEWS TICKER BAR — Scrolling marquee at top
+// NEWS TICKER BAR — dami-tv style: sticky, orange LIVE label, scrolling
 // ═══════════════════════════════════════════════════════════════
 function NewsTicker({ articles }: { articles: NewsArticle[] }) {
   if (articles.length === 0) return null;
-
   const items = articles.slice(0, 20);
   const content = items.map((a, i) => (
     <span key={a.id} className="inline-flex items-center gap-2 whitespace-nowrap">
-      <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider text-white ${sportTagColors[a.sport] || "bg-gray-700"}`}>
+      <span style={{ background: '#e8471b', color: '#fff', fontSize: '9px', fontWeight: 800, padding: '2px 6px', borderRadius: '2px', textTransform: 'uppercase' }}>
         {a.sport || "NEWS"}
       </span>
-      <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-white/80 hover:text-white text-[11px] font-medium transition-colors">
+      <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ color: '#ccc', fontSize: '12px', fontWeight: 600, transition: 'color 0.2s' }}
+         onMouseEnter={(e) => (e.target as HTMLAnchorElement).style.color = '#fff'}
+         onMouseLeave={(e) => (e.target as HTMLAnchorElement).style.color = '#ccc'}>
         {a.headline}
       </a>
-      {i < items.length - 1 && <span className="text-white/20 mx-2">/</span>}
+      {i < items.length - 1 && <span style={{ color: '#333', margin: '0 8px' }}>•</span>}
     </span>
   ));
-
   return (
-    <div className="w-full overflow-hidden relative" style={{ background: "linear-gradient(90deg, rgba(239,68,68,0.08), rgba(0,0,0,0.95), rgba(239,68,68,0.08))" }}>
-      {/* Fade edges */}
-      <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-black/80 to-transparent z-10 pointer-events-none" />
-      <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-black/80 to-transparent z-10 pointer-events-none" />
-      <div className="flex items-center h-9 border-b border-white/[0.06]">
-        <div className="flex-shrink-0 px-3 bg-gradient-to-r from-red-600 to-red-700 h-full flex items-center gap-1.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-          <span className="text-white text-[9px] font-black uppercase tracking-widest">LIVE</span>
-        </div>
-        <div className="overflow-hidden flex-1 relative">
-          <div className="flex animate-marquee whitespace-nowrap">
-            <div className="flex items-center gap-0 px-4">{content}</div>
-            <div className="flex items-center gap-0 px-4">{content}</div>
-          </div>
+    <div style={{ position: 'sticky', top: '60px', zIndex: 900, background: 'linear-gradient(180deg, #0d0d0d 0%, #111 100%)', borderBottom: '1px solid #1a1a1a', overflow: 'hidden', height: '42px', display: 'flex', alignItems: 'center' }}>
+      <div style={{ flexShrink: 0, background: '#e8471b', color: '#fff', fontSize: '10px', fontWeight: 800, letterSpacing: '0.08em', padding: '4px 12px', textTransform: 'uppercase', zIndex: 2, height: '100%', display: 'flex', alignItems: 'center' }}>
+        LIVE
+      </div>
+      <div style={{ overflow: 'hidden', flex: 1, position: 'relative' }}>
+        <div className="damitv-ticker-track" style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap', willChange: 'transform', animation: 'damitvTickerScroll 60s linear infinite' }}>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px' }}>{content}</div>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '0 16px' }}>{content}</div>
         </div>
       </div>
     </div>
@@ -447,384 +405,271 @@ function NewsTicker({ articles }: { articles: NewsArticle[] }) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// HORIZONTAL ROW MATCH CARD (compact variant)
-// Full-width horizontal row, ~85px tall
-// Left: sport icon circle | Middle: match info | Right: score/watch
+// MATCH CARD — dami-tv style: 280px landscape poster card
 // ═══════════════════════════════════════════════════════════════
-function MatchCard({ match, onWatch, onWatchChannel, variant }: { match: LiveMatch; onWatch: (m: LiveMatch) => void; onWatchChannel: (channelName: string, channelId?: string, embedUrl?: string) => void; variant: "poster" | "compact" }) {
+function MatchCard({ match, onWatch, variant }: { match: LiveMatch; onWatch: (m: LiveMatch) => void; onWatchChannel: (channelName: string, channelId?: string, embedUrl?: string) => void; variant: "poster" | "compact" }) {
   const sportColor = getSportColor(match.sport);
-  const hasScore = match.homeScore !== undefined && match.awayScore !== undefined;
-  const sourceBadge = match.apiSource ? SOURCE_BADGES[match.apiSource] : null;
-  // TV channel broadcast info from DamiTV
-  // Filter out entries that are match descriptions (contain "vs", ":", or match title) — only show actual TV channel names
-  const tvChannels = (() => {
-    if (match.damitvIds && match.damitvIds.length > 0) {
-      // Filter to only show entries that look like TV channels, not match descriptions
-      const channels = match.damitvIds.filter(ch => {
-        const n = ch.name.toLowerCase();
-        // Skip if it looks like a match title (contains "vs" or matches the match title)
-        if (n.includes(" vs ") || n.includes(" vs. ")) return false;
-        if (match.title && n === match.title.toLowerCase()) return false;
-        // Keep if it contains common TV channel indicators
-        return true;
-      });
-      // If all were filtered out but we have multiple IDs, they might all be channel-specific streams
-      // Show them anyway if there's more than 1 (means same event on different channels)
-      if (channels.length === 0 && match.damitvIds.length > 1) {
-        return match.damitvIds.slice(0, 4);
-      }
-      return channels.slice(0, 4);
-    }
-    if (match.channelName) return [{ id: "", name: match.channelName, embed: "" }];
-    return [];
-  })();
+  const poster = match.poster || match.homeBadge || "";
+  const title = match.title || `${match.homeTeam || ""} vs ${match.awayTeam || ""}`.trim() || "Unknown Event";
 
   if (variant === "compact") {
+    // Compact row variant for "Upcoming Matches" list
     return (
       <button
         onClick={() => onWatch(match)}
-        className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-white/[0.06] transition-all duration-300 hover:border-white/[0.15] cursor-pointer backdrop-blur-md hover:shadow-lg hover:shadow-black/20 hover:translate-x-1"
         style={{
-          background: `linear-gradient(135deg, ${sportColor}15, ${sportColor}08, rgba(255,255,255,0.02))`,
+          display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px',
+          background: '#141414', border: '1px solid #1e1e1e', borderRadius: '8px',
+          cursor: 'pointer', transition: 'all 0.2s', textAlign: 'left', width: '100%',
         }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.background = '#181818'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#1e1e1e'; e.currentTarget.style.background = '#141414'; }}
       >
-        {/* Left: Sport icon circle with gradient */}
-        <div
-          className="flex-shrink-0 w-9 h-9 rounded-full flex items-center justify-center text-sm"
-          style={{
-            background: `linear-gradient(135deg, ${sportColor}30, ${sportColor}15)`,
-            border: `1px solid ${sportColor}25`,
-          }}
-        >
-          {match.homeBadge ? (
-            <img src={match.homeBadge} alt="" loading="lazy" decoding="async" className="w-6 h-6 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).parentElement!.querySelector('.fallback-icon')?.classList.remove('hidden'); }} />
-          ) : null}
-          <span className={match.homeBadge ? "hidden fallback-icon" : ""}>{getSportIcon(match.sport)}</span>
-        </div>
-
-        {/* Middle: Match info */}
-        <div className="flex-1 min-w-0 text-left">
-          <div className="flex items-center gap-2">
-            <p className="text-[11px] font-bold text-white truncate">{match.title}</p>
-          </div>
-          <div className="flex items-center gap-2 mt-0.5">
-            {match.isLive ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-600/20 text-red-400 text-[8px] font-black uppercase tracking-wider">
-                <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
-                LIVE
-              </span>
-            ) : (
-              <span className="text-[9px] text-white/30 font-medium">{formatTimeOnly(match.date)}</span>
-            )}
-            {match.sources && match.sources.length > 0 ? (
-              match.sources.slice(0, 4).map((src, idx) => {
-                const badge = SOURCE_BADGES[src.source] || SOURCE_BADGES[src.source.replace(/^streamed-/, "streamedpk")];
-                if (!badge) return null;
-                return (
-                  <span
-                    key={src.source + idx}
-                    className="px-1.5 py-0.5 rounded text-[7px] font-bold"
-                    style={{ background: badge.bg, color: badge.color }}
-                  >
-                    {badge.label}
-                  </span>
-                );
-              })
-            ) : sourceBadge ? (
-              <span
-                className="px-1.5 py-0.5 rounded text-[7px] font-bold"
-                style={{ background: sourceBadge.bg, color: sourceBadge.color }}
-              >
-                {sourceBadge.label}
-              </span>
-            ) : null}
-            {match.league && (
-              <span className="text-[8px] text-white/25 font-medium truncate max-w-[120px]">{match.league}</span>
-            )}
-            {match.currentMinute && match.isLive && (
-              <span className="text-[8px] text-amber-400/80 font-bold">{safeStr(match.currentMinute)}&apos;</span>
-            )}
-          </div>
-          {/* TV Channel broadcast badges — clickable to open channel stream */}
-          {tvChannels.length > 0 && (
-            <div className="flex items-center gap-1 mt-1 flex-wrap">
-              <span className="text-[7px] text-white/15">📺</span>
-              {tvChannels.map((ch, i) => (
-                <button
-                  key={i}
-                  onClick={(e) => { e.stopPropagation(); onWatchChannel(ch.name, ch.id, ch.embed); }}
-                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[7px] font-bold bg-cyan-500/10 text-cyan-400/70 border border-cyan-500/15 truncate max-w-[90px] hover:bg-cyan-500/25 hover:text-cyan-300 hover:border-cyan-500/30 transition-all cursor-pointer"
-                >
-                  <svg className="w-2 h-2 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                  {ch.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Right: Score or Watch button */}
-        <div className="flex-shrink-0 flex items-center">
-          {hasScore ? (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/30 border border-white/[0.08]">
-              <span className="text-[12px] font-black text-white">{safeStr(match.homeScore)}</span>
-              <span className="text-[9px] text-white/30 font-bold">-</span>
-              <span className="text-[12px] font-black text-white">{safeStr(match.awayScore)}</span>
-            </div>
-          ) : match.isLive ? (
-            <span
-              className="px-3 py-1 rounded-lg text-[9px] font-bold uppercase text-white transition-all group-hover:opacity-90"
-              style={{
-                background: `linear-gradient(135deg, ${sportColor}40, ${sportColor}20)`,
-                border: `1px solid ${sportColor}30`,
-              }}
-            >
-              Watch
-            </span>
-          ) : (
-            <span className="text-[9px] text-white/20 font-medium">{match.sportName}</span>
-          )}
-        </div>
+        {/* Time/Live badge */}
+        {match.isLive ? (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#dc2626', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', flexShrink: 0 }}>
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#fff' }} />
+            LIVE
+          </span>
+        ) : (
+          <span style={{ background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '3px 9px', borderRadius: '4px', flexShrink: 0 }}>
+            {formatTimeOnly(match.date)}
+          </span>
+        )}
+        {/* Sport tag */}
+        <span style={{ fontSize: '11px', fontWeight: 800, color: sportColor, flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          {(match.sportName || match.sport || '').replace(/-/g, ' ').toUpperCase().slice(0, 12)}
+        </span>
+        {/* Title */}
+        <span style={{ fontSize: '13px', fontWeight: 600, color: '#ccc', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {title}
+        </span>
+        {/* League */}
+        {match.league && (
+          <span style={{ fontSize: '10px', color: '#555', flexShrink: 0 }}>
+            {match.league}
+          </span>
+        )}
       </button>
     );
   }
 
-  // ═══════════════════════════════════════════════════════════════
-  // LANDSCAPE POSTER CARD (poster variant)
-  // ~220px wide, ~140px tall, landscape orientation
-  // ═══════════════════════════════════════════════════════════════
+  // Poster variant — dami-tv card style (280px wide, landscape image)
   return (
     <button
       onClick={() => onWatch(match)}
-      className="group relative flex-shrink-0 w-[200px] sm:w-[220px] rounded-xl overflow-hidden transition-all duration-500 hover:scale-[1.05] hover:shadow-2xl cursor-pointer border border-white/[0.06] hover:border-white/[0.15]"
+      style={{
+        flex: '0 0 auto', width: '280px', display: 'block',
+        cursor: 'pointer', padding: 0, border: 'none', background: 'transparent', textAlign: 'left',
+      }}
     >
-      <div className="relative h-[130px] sm:h-[140px]" style={{ background: `linear-gradient(135deg, ${sportColor}30, #0d0d12)` }}>
-        {/* Poster as background — full opacity, gradient handles readability */}
-        {match.poster ? (
-          <img
-            src={match.poster}
-            alt={match.title}
-            loading="lazy"
-            decoding="async"
-            className="absolute inset-0 w-full h-full object-cover"
-            onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-          />
+      {/* Image container */}
+      <div style={{ position: 'relative', width: '280px', height: '158px', background: '#151515', borderRadius: '10px', overflow: 'hidden' }}>
+        {poster ? (
+          <img src={poster} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
         ) : (
-          /* Fallback: Sport-themed gradient with icon when no poster */
-          <div className="absolute inset-0 flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${sportColor}25, ${sportColor}08)` }}>
-            <span className="text-4xl opacity-20">{getSportIcon(match.sport)}</span>
+          <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '48px', background: `linear-gradient(135deg, ${sportColor}30, #151515)` }}>
+            {getSportIcon(match.sport)}
           </div>
         )}
+        {/* Gradient overlay */}
+        <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.7) 100%)' }} />
 
-        {/* Gradient overlay — lighter to show image better */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        {/* LIVE badge — top left */}
+        {match.isLive && (
+          <span style={{ position: 'absolute', top: '8px', left: '8px', display: 'inline-flex', alignItems: 'center', gap: '4px', background: '#dc2626', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '3px 10px', borderRadius: '4px' }}>
+            <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: '#fff' }} />
+            LIVE
+          </span>
+        )}
 
-        {/* Top-left: LIVE badge */}
-        <div className="absolute top-2 left-2">
-          {match.isLive ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-600 text-white text-[8px] font-black uppercase tracking-wider shadow-lg">
-              <span className="w-1 h-1 rounded-full bg-white animate-pulse" />
-              LIVE
-            </span>
-          ) : (
-            <span className="px-2 py-0.5 rounded-md bg-black/70 text-white text-[8px] font-bold">
-              {formatTimeOnly(match.date)}
-            </span>
-          )}
-        </div>
+        {/* Time badge — bottom right (for upcoming) */}
+        {!match.isLive && match.date > 0 && (
+          <span style={{ position: 'absolute', bottom: '8px', right: '8px', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '10px', fontWeight: 700, padding: '3px 9px', borderRadius: '4px' }}>
+            {formatTimeOnly(match.date)}
+          </span>
+        )}
 
-        {/* Top-right: Source badges + League badge */}
-        <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
-          {match.sources && match.sources.length > 0 ? (
-            <div className="flex flex-wrap justify-end gap-0.5">
-              {match.sources.slice(0, 4).map((src, idx) => {
-                const badge = SOURCE_BADGES[src.source] || SOURCE_BADGES[src.source.replace(/^streamed-/, "streamedpk")];
-                if (!badge) return null;
-                return (
-                  <span
-                    key={src.source + idx}
-                    className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[7px] font-bold backdrop-blur-sm"
-                    style={{ background: badge.bg, color: badge.color }}
-                  >
-                    {badge.label}
-                  </span>
-                );
-              })}
-            </div>
-          ) : sourceBadge ? (
-            <span
-              className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[7px] font-bold backdrop-blur-sm"
-              style={{ background: sourceBadge.bg, color: sourceBadge.color }}
-            >
-              {sourceBadge.label}
-            </span>
-          ) : null}
-          {match.league && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/50 backdrop-blur-sm text-white text-[7px] font-bold uppercase max-w-[100px] truncate">
-              {match.leagueLogo && <img src={match.leagueLogo} alt="" loading="lazy" decoding="async" className="w-2.5 h-2.5 object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />}
-              {match.league}
-            </span>
-          )}
-        </div>
+        {/* League — top right */}
+        {match.league && (
+          <span style={{ position: 'absolute', top: '8px', right: '8px', background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: '10px', fontWeight: 800, padding: '3px 8px', borderRadius: '4px', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {match.league}
+          </span>
+        )}
+      </div>
 
-        {/* Bottom: Team names and score */}
-        <div className="absolute bottom-0 left-0 right-0 p-2.5 pt-6 bg-gradient-to-t from-black/90 to-transparent">
-          {hasScore ? (
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <span className="text-[10px] font-bold text-white/80 truncate max-w-[70px]">{safeStr(match.homeTeam)}</span>
-              <span className="text-[12px] font-black text-white">{safeStr(match.homeScore)}</span>
-              <span className="text-[8px] text-white/30">-</span>
-              <span className="text-[12px] font-black text-white">{safeStr(match.awayScore)}</span>
-              <span className="text-[10px] font-bold text-white/80 truncate max-w-[70px]">{safeStr(match.awayTeam)}</span>
-            </div>
-          ) : (
-            <p className="text-[10px] font-bold text-white truncate">{match.title}</p>
-          )}
-          {match.currentMinute && match.isLive && (
-            <p className="text-[7px] text-amber-400 font-bold text-center">{safeStr(match.currentMinute)}&apos;</p>
-          )}
-          {!hasScore && (
-            <p className="text-[8px] text-white/40 mt-0.5">{match.sportName}</p>
-          )}
-          {/* TV Channel broadcast badges on poster card — clickable */}
-          {tvChannels.length > 0 && (
-            <div className="flex items-center gap-1 mt-1 flex-wrap justify-center">
-              {tvChannels.map((ch, i) => (
-                <button
-                  key={i}
-                  onClick={(e) => { e.stopPropagation(); onWatchChannel(ch.name, ch.id, ch.embed); }}
-                  className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[6px] font-bold bg-cyan-500/15 text-cyan-300/80 border border-cyan-500/20 truncate max-w-[80px] hover:bg-cyan-500/30 hover:text-cyan-200 hover:border-cyan-500/35 transition-all cursor-pointer"
-                >
-                  <svg className="w-2 h-2 flex-shrink-0 opacity-50" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                  {ch.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Info below image */}
+      <div style={{ padding: '8px 4px 0' }}>
+        <p style={{ fontSize: '13px', fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
+          {title}
+        </p>
+        {match.sportName && (
+          <p style={{ fontSize: '11px', fontWeight: 800, color: sportColor, textTransform: 'uppercase', letterSpacing: '0.04em', margin: '2px 0 0' }}>
+            {match.sportName}
+          </p>
+        )}
       </div>
     </button>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-// NEWS CARD — with in-app detail view
+// NEWS CARD — dami-tv style
 // ═══════════════════════════════════════════════════════════════
 function NewsCard({ article, onClick }: { article: NewsArticle; onClick: (a: NewsArticle) => void }) {
   return (
     <button
       onClick={() => onClick(article)}
-      className="group block w-full text-left rounded-xl overflow-hidden bg-white/[0.02] border border-white/[0.06] hover:border-white/[0.15] transition-all duration-500 hover:scale-[1.02] hover:shadow-xl hover:shadow-black/20 backdrop-blur-sm"
-      style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01))" }}
+      style={{
+        display: 'grid', gridTemplateColumns: '140px 1fr', gap: '16px',
+        background: '#141414', border: '1px solid #1e1e1e', borderRadius: '10px',
+        overflow: 'hidden', cursor: 'pointer', transition: 'all 0.2s', padding: 0, textAlign: 'left',
+      }}
+      onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.background = '#181818'; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#1e1e1e'; e.currentTarget.style.background = '#141414'; }}
     >
       {article.imageUrl && (
-        <div className="h-36 overflow-hidden">
-          <img src={article.imageUrl} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-        </div>
+        <img src={article.imageUrl} alt="" loading="lazy" style={{ width: '140px', height: '100%', minHeight: '90px', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
       )}
-      <div className="p-3">
-        <div className="flex items-center gap-2 mb-2">
-          <span className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-wider text-white ${sportTagColors[article.sport] || "bg-gray-700"}`}>
+      <div style={{ padding: '12px 16px 12px 0', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+          <span style={{ fontSize: '9px', fontWeight: 800, color: '#e8471b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             {article.sport || "NEWS"}
           </span>
-          <span className="text-[8px] text-white/25">{timeAgo(article.publishedAt)}</span>
+          <span style={{ fontSize: '10px', color: '#555' }}>{timeAgo(article.publishedAt)}</span>
         </div>
-        <p className="text-[11px] font-bold text-white/80 group-hover:text-white line-clamp-2 mb-1">{article.headline}</p>
-        {article.description && (
-          <p className="text-[9px] text-white/35 line-clamp-2">{article.description}</p>
-        )}
+        <p style={{ fontSize: '13px', fontWeight: 700, color: '#fff', lineHeight: 1.3, margin: 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+          {article.headline}
+        </p>
       </div>
     </button>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-// TV CHANNEL CARD
+// TV CHANNEL CARD — dami-tv style
 // ═══════════════════════════════════════════════════════════════
 function TVChannelCard({ channel, onWatch }: { channel: TVChannel; onWatch: (ch: TVChannel) => void }) {
   const sportColor = getSportColor(channel.sport);
-  const sportIcon = getSportIcon(channel.sport);
-  const sourceTag = channel.apiSource === "streamfree" ? "StreamFree" :
-                    channel.apiSource === "damitv" ? "DamiTV" : channel.apiSource;
-
   return (
     <button
       onClick={() => onWatch(channel)}
-      className="group relative flex-shrink-0 w-[150px] sm:w-[170px] rounded-xl overflow-hidden transition-all duration-500 hover:scale-[1.05] hover:shadow-2xl cursor-pointer border border-white/[0.06] hover:border-white/[0.15] backdrop-blur-sm"
+      style={{
+        flex: '0 0 auto', width: '150px', cursor: 'pointer', padding: 0, border: 'none', background: 'transparent', textAlign: 'left',
+      }}
     >
-      <div className="relative h-[100px] sm:h-[110px] flex flex-col items-center justify-center p-3" style={{ background: `linear-gradient(135deg, ${sportColor}30, ${sportColor}10, rgba(255,255,255,0.02))` }}>
-        {/* Channel icon */}
-        <div
-          className="w-10 h-10 rounded-full flex items-center justify-center text-lg mb-2"
-          style={{
-            background: `linear-gradient(135deg, ${sportColor}40, ${sportColor}20)`,
-            border: `1.5px solid ${sportColor}50`,
-          }}
-        >
-          {channel.poster ? (
-            <img src={channel.poster} alt="" loading="lazy" decoding="async" className="w-7 h-7 rounded-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-          ) : (
-            <span>{sportIcon}</span>
-          )}
-        </div>
-
-        {/* Channel name */}
-        <p className="text-[10px] font-bold text-white text-center truncate w-full">{channel.channelName || channel.title}</p>
-
-        {/* Source badge + LIVE */}
-        <div className="flex items-center gap-1.5 mt-1.5">
-          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-red-600/20 text-red-400 text-[7px] font-black uppercase tracking-wider">
-            <span className="w-1 h-1 rounded-full bg-red-500 animate-pulse" />
-            LIVE
-          </span>
-          <span className="text-[7px] font-bold text-white/25 px-1 py-0.5 rounded bg-white/[0.04]">{sourceTag}</span>
-        </div>
+      <div style={{ position: 'relative', width: '150px', height: '90px', background: `linear-gradient(135deg, ${sportColor}25, #141414)`, borderRadius: '10px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {channel.poster ? (
+          <img src={channel.poster} alt="" loading="lazy" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        ) : (
+          <span style={{ fontSize: '32px' }}>{getSportIcon(channel.sport)}</span>
+        )}
+        <span style={{ position: 'absolute', top: '6px', left: '6px', display: 'inline-flex', alignItems: 'center', gap: '3px', background: '#dc2626', color: '#fff', fontSize: '8px', fontWeight: 700, padding: '2px 6px', borderRadius: '3px' }}>
+          <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#fff' }} />
+          LIVE
+        </span>
       </div>
+      <p style={{ fontSize: '11px', fontWeight: 600, color: '#ccc', padding: '6px 4px 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', margin: 0 }}>
+        {channel.channelName || channel.title}
+      </p>
     </button>
   );
 }
 
 // ═══════════════════════════════════════════════════════════════
-// MATCH SECTION (grouped matches — vertical list layout)
+// SECTION HEADER — dami-tv style: orange label + divider + h2
 // ═══════════════════════════════════════════════════════════════
-function MatchSection({ title, icon, matches, onWatch, onWatchChannel, liveCount }: {
-  title: string;
-  icon: string;
-  matches: LiveMatch[];
-  onWatch: (m: LiveMatch) => void;
-  onWatchChannel: (channelName: string, channelId?: string, embedUrl?: string) => void;
-  liveCount?: number;
-}) {
-  const [showAll, setShowAll] = useState(false);
-  const INITIAL_SHOW = 5;
-  const displayedMatches = showAll ? matches : matches.slice(0, INITIAL_SHOW);
-  const hasMore = matches.length > INITIAL_SHOW;
-
+function SectionHeader({ label, title, onPrev, onNext, viewAll }: { label?: string; title: string; onPrev?: () => void; onNext?: () => void; viewAll?: () => void }) {
   return (
-    <div>
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-sm font-bold text-white flex items-center gap-2" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-          <span className="text-base">{icon}</span> {title}
-          {liveCount !== undefined && liveCount > 0 && (
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400">Live ({liveCount})</span>
-          )}
-        </h2>
-        {hasMore && (
-          <button
-            onClick={() => setShowAll(!showAll)}
-            className="text-[10px] font-bold text-white/30 hover:text-white/60 transition-all"
-            style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}
-          >
-            {showAll ? "Show less" : `+${matches.length - INITIAL_SHOW} more`}
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        {label && <span style={{ fontSize: '14px', fontWeight: 600, color: '#e8471b' }}>{label}</span>}
+        {label && <div style={{ width: '1px', height: '20px', background: '#333' }} />}
+        <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', margin: 0 }}>{title}</h2>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {viewAll && (
+          <button onClick={viewAll} style={{ fontSize: '12px', fontWeight: 600, color: '#888', background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px' }}
+            onMouseEnter={(e) => (e.currentTarget as HTMLButtonElement).style.color = '#e8471b'}
+            onMouseLeave={(e) => (e.currentTarget as HTMLButtonElement).style.color = '#888'}>
+            View All →
+          </button>
+        )}
+        {onPrev && (
+          <button onClick={onPrev} style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#e8471b'; e.currentTarget.style.color = '#e8471b'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#fff'; }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
+          </button>
+        )}
+        {onNext && (
+          <button onClick={onNext} style={{ width: '32px', height: '32px', borderRadius: '6px', background: '#1a1a1a', border: '1px solid #333', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.2s' }}
+            onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#e8471b'; e.currentTarget.style.color = '#e8471b'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#fff'; }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
           </button>
         )}
       </div>
-      <div className="flex flex-col gap-2">
-        {displayedMatches.map(match => (
-          <MatchCard key={match.id} match={match} onWatch={onWatch} onWatchChannel={onWatchChannel} variant="compact" />
-        ))}
-      </div>
     </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// CARD ROW — horizontal scrollable row of cards with scroll buttons
+// ═══════════════════════════════════════════════════════════════
+function CardRow({ children, onPrev, onNext }: { children: React.ReactNode; onPrev: () => void; onNext: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const scroll = (dir: "left" | "right") => {
+    if (!ref.current) return;
+    ref.current.scrollBy({ left: dir === "left" ? -400 : 400, behavior: "smooth" });
+  };
+  return (
+    <div style={{ position: 'relative' }}>
+      <div ref={ref} style={{ display: 'flex', gap: '16px', overflowX: 'auto', scrollBehavior: 'smooth', paddingBottom: '4px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        className="damitv-card-row">
+        {children}
+      </div>
+      <button onClick={() => scroll("left")} style={{ position: 'absolute', left: '-20px', top: '50%', transform: 'translateY(-50%)', width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(10,10,10,0.9)', border: '1px solid #333', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, transition: 'all 0.2s' }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#e8471b'; e.currentTarget.style.color = '#e8471b'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#fff'; }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
+      </button>
+      <button onClick={() => scroll("right")} style={{ position: 'absolute', right: '-20px', top: '50%', transform: 'translateY(-50%)', width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(10,10,10,0.9)', border: '1px solid #333', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, transition: 'all 0.2s' }}
+        onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#e8471b'; e.currentTarget.style.color = '#e8471b'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#fff'; }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
+      </button>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SPORT TAG — dami-tv category pill
+// ═══════════════════════════════════════════════════════════════
+function SportTag({ label, icon, active, onClick, count }: { label: string; icon?: string; active?: boolean; onClick?: () => void; count?: number }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: '0 0 auto', display: 'flex', alignItems: 'center', gap: '6px',
+        background: active ? '#e8471b' : '#1a1a1a',
+        color: active ? '#fff' : '#888',
+        border: `1px solid ${active ? '#e8471b' : '#333'}`,
+        padding: '7px 14px', borderRadius: '6px',
+        fontSize: '12px', fontWeight: 700, cursor: 'pointer', transition: 'all 0.2s',
+        textTransform: 'uppercase', letterSpacing: '0.04em',
+      }}
+      onMouseEnter={(e) => { if (!active) { e.currentTarget.style.borderColor = '#555'; e.currentTarget.style.color = '#fff'; } }}
+      onMouseLeave={(e) => { if (!active) { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#888'; } }}
+    >
+      {icon && <span>{icon}</span>}
+      {label}
+      {count !== undefined && count > 0 && (
+        <span style={{ display: 'inline-block', background: 'rgba(255,255,255,0.15)', borderRadius: '10px', padding: '1px 6px', fontSize: '10px', fontWeight: 800 }}>
+          {count}
+        </span>
+      )}
+    </button>
   );
 }
 
@@ -1211,6 +1056,9 @@ export default function LivePage() {
   // ── 24/7 Slider state ──
   const [slider247Index, setSlider247Index] = useState(0);
 
+  // ── Hero carousel state (popular live matches) ──
+  const [heroIndex, setHeroIndex] = useState(0);
+
   // Dynamic 24/7 streams: Build from available TV channels (StreamFree + EmbleSports)
   // Falls back to static FALLBACK_STREAMS_247 if no channels are loaded yet
   const STREAMS_247 = useMemo(() => {
@@ -1290,6 +1138,22 @@ export default function LivePage() {
     return () => clearInterval(timer);
   }, [STREAMS_247.length]);
 
+  // Auto-rotate hero carousel (popular live matches)
+  useEffect(() => {
+    const heroCount = Math.min(popularLive.length, 8);
+    if (heroCount <= 1) return;
+    const timer = setInterval(() => {
+      setHeroIndex(prev => (prev + 1) % heroCount);
+    }, 6000);
+    return () => clearInterval(timer);
+  }, [popularLive.length]);
+
+  // Snapshot of sectionSubPage as a plain string for use in tab-button comparisons.
+  // The early returns below narrow `sectionSubPage`'s literal-union type, which
+  // would otherwise make later `=== "tv-channels"` / `=== "schedule"` / `=== "news"`
+  // comparisons fail TypeScript's strict narrowing checks.
+  const currentSubPage: string = sectionSubPage;
+
   // ═══════════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════════
@@ -1310,434 +1174,333 @@ export default function LivePage() {
   }
 
   return (
-    <div className="min-h-screen pb-8 -mx-4 lg:-mx-8 relative" style={{ background: "linear-gradient(180deg, rgba(7,7,12,1) 0%, rgba(12,12,20,1) 30%, rgba(7,7,12,1) 100%)" }}>
+    <div style={{ minHeight: '100vh', background: '#0a0a0a', color: '#fff', fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif", position: 'relative', paddingBottom: '40px' }}>
+      {/* Style tag with ticker animation */}
+      <style>{`
+        @keyframes damitvTickerScroll {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        @keyframes damitvSpin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .damitv-card-row::-webkit-scrollbar { display: none; }
+        .damitv-card-row { -ms-overflow-style: none; scrollbar-width: none; }
+        .damitv-spin { animation: damitvSpin 0.8s linear infinite; }
+      `}</style>
 
-      {/* ══════════════════════════════════════════
-          A. NEWS TICKER BAR (top of page)
-          ══════════════════════════════════════════ */}
+      {/* News Ticker */}
       <NewsTicker articles={newsArticles} />
 
-      {/* ══════════════════════════════════════════
-          B. STICKY TOP NAVIGATION BAR
-          ══════════════════════════════════════════ */}
-      <div className="sticky top-[65px] z-40 bg-[#0d0d12]/95 backdrop-blur-md border-b border-white/[0.06] px-4 lg:px-8">
-        <div className="max-w-[1400px] mx-auto flex items-center gap-3 h-12">
-          {/* Home Button */}
+      {/* Sticky Top Navigation Bar */}
+      <div style={{ position: 'sticky', top: '60px', zIndex: 40, background: '#0a0a0a', borderBottom: '1px solid #1a1a1a' }}>
+        <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '0 40px', display: 'flex', alignItems: 'center', gap: '12px', height: '56px' }}>
+          {/* Home button */}
           <button
-            onClick={() => { setSelectedSport("all"); setLiveOnly(false); }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold text-white/60 hover:text-white hover:bg-white/[0.06] transition-all flex-shrink-0"
-            style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}
+            onClick={() => { setSelectedSport("all"); setLiveOnly(false); setSectionSubPage("sports"); }}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: '6px 10px', fontSize: '13px', fontWeight: 700 }}
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-              <polyline points="9 22 9 12 15 12 15 22" />
-            </svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
             Home
           </button>
 
-          {/* Tab Buttons: LIVE SPORTS | LIVE TV | SCHEDULE | NEWS */}
-          <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Tab buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
             <button
               onClick={() => setSectionSubPage("sports")}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
-                sectionSubPage === "sports" || !sectionSubPage || sectionSubPage === "home"
-                  ? "bg-[#ffffff]/20 text-[#ffffff] border border-[#ffffff]/30"
-                  : "text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
-              }`}
-              style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}
-            >
-              ⚽ Live Sports
-            </button>
+              style={{
+                padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', borderRadius: '4px',
+                background: (currentSubPage === "sports" || !currentSubPage || currentSubPage === "home") ? '#e8471b' : 'transparent',
+                color: (currentSubPage === "sports" || !currentSubPage || currentSubPage === "home") ? '#fff' : '#888',
+                border: 'none', textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}
+            >⚽ Live Sports</button>
             <button
               onClick={() => setSectionSubPage("tv-channels")}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
-                sectionSubPage === "tv-channels"
-                  ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                  : "text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
-              }`}
-              style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}
-            >
-              📺 Live TV
-            </button>
+              style={{
+                padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', borderRadius: '4px',
+                background: currentSubPage === "tv-channels" ? '#e8471b' : 'transparent',
+                color: currentSubPage === "tv-channels" ? '#fff' : '#888',
+                border: 'none', textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}
+            >📺 Live TV</button>
             <button
               onClick={() => setSectionSubPage("schedule")}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
-                sectionSubPage === "schedule"
-                  ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                  : "text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
-              }`}
-              style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}
-            >
-              📅 Schedule
-            </button>
+              style={{
+                padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', borderRadius: '4px',
+                background: currentSubPage === "schedule" ? '#e8471b' : 'transparent',
+                color: currentSubPage === "schedule" ? '#fff' : '#888',
+                border: 'none', textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}
+            >📅 Schedule</button>
             <button
               onClick={() => setSectionSubPage("news")}
-              className={`px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
-                sectionSubPage === "news"
-                  ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
-                  : "text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
-              }`}
-              style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}
-            >
-              📰 News
-            </button>
+              style={{
+                padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', borderRadius: '4px',
+                background: currentSubPage === "news" ? '#e8471b' : 'transparent',
+                color: currentSubPage === "news" ? '#fff' : '#888',
+                border: 'none', textTransform: 'uppercase', letterSpacing: '0.04em',
+              }}
+            >📰 News</button>
           </div>
 
           {/* Divider */}
-          <div className="w-px h-6 bg-white/[0.06] flex-shrink-0" />
+          <div style={{ width: '1px', height: '24px', background: '#333', flexShrink: 0 }} />
 
-          {/* Live Only Toggle */}
+          {/* Live Only toggle */}
           <button
             onClick={() => setLiveOnly(!liveOnly)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all flex-shrink-0 ${
-              liveOnly
-                ? "bg-red-500/20 text-red-400 border border-red-500/30"
-                : "text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
-            }`}
-            style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', fontSize: '12px', fontWeight: 700,
+              cursor: 'pointer', borderRadius: '4px', border: 'none', textTransform: 'uppercase', letterSpacing: '0.04em',
+              background: liveOnly ? 'rgba(220,38,38,0.15)' : 'transparent',
+              color: liveOnly ? '#dc2626' : '#888',
+              flexShrink: 0,
+            }}
           >
-            <span className={`w-2 h-2 rounded-full ${liveOnly ? "bg-red-500 animate-pulse" : "bg-white/20"}`} />
+            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: liveOnly ? '#dc2626' : '#444' }} />
             Live only
           </button>
 
           {/* Divider */}
-          <div className="w-px h-6 bg-white/[0.06] flex-shrink-0" />
+          <div style={{ width: '1px', height: '24px', background: '#333', flexShrink: 0 }} />
 
-          {/* Sport Category Buttons */}
-          <div className="flex items-center gap-1 overflow-x-auto flex-1 scrollbar-hide">
-            {topNavSports.map(cat => {
-              const isActive = selectedSport === cat.id;
-              return (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedSport(cat.id)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-bold whitespace-nowrap transition-all flex-shrink-0 ${
-                    isActive
-                      ? "text-white"
-                      : "text-white/40 hover:text-white/70 hover:bg-white/[0.04]"
-                  }`}
-                  style={{
-                    ...(isActive ? {
-                      background: `linear-gradient(135deg, ${cat.color}25, ${cat.color}10)`,
-                      border: `1px solid ${cat.color}40`,
-                    } : {}),
-                    fontFamily: "var(--font-space-mono), 'Space Mono', monospace",
-                  }}
-                >
-                  <span className="text-sm">{cat.icon}</span>
-                  {cat.label}
-                  {cat.liveCount > 0 && (
-                    <span className="text-[8px] px-1 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-bold">Live ({cat.liveCount})</span>
-                  )}
-                </button>
-              );
-            })}
-
-            {/* More Dropdown */}
-            {moreNavSports.length > 0 && (
-              <div className="relative flex-shrink-0">
-                <button
-                  onClick={() => setShowMoreDropdown(!showMoreDropdown)}
-                  className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[10px] font-bold text-white/40 hover:text-white/70 hover:bg-white/[0.04] transition-all"
-                >
-                  More
-                  <svg className={`w-3 h-3 transition-transform ${showMoreDropdown ? "rotate-180" : ""}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M6 9l6 6 6-6" /></svg>
-                </button>
-                {showMoreDropdown && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-[#1a1a24] border border-white/[0.08] rounded-xl shadow-2xl py-2 z-50">
-                    {moreNavSports.map(cat => (
-                      <button
-                        key={cat.id}
-                        onClick={() => { setSelectedSport(cat.id); setShowMoreDropdown(false); }}
-                        className={`w-full flex items-center gap-2 px-3 py-2 text-[11px] hover:bg-white/[0.04] transition-all ${
-                          selectedSport === cat.id ? "text-white" : "text-white/50"
-                        }`}
-                      >
-                        <span>{cat.icon}</span>
-                        {cat.label}
-                        {cat.liveCount > 0 && (
-                          <span className="ml-auto text-[8px] px-1.5 py-0.5 rounded-full bg-blue-500/20 text-blue-400">{cat.liveCount}</span>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+          {/* Sport category pills - horizontal scroll */}
+          <div className="damitv-card-row" style={{ display: 'flex', alignItems: 'center', gap: '6px', overflowX: 'auto', flex: 1 }}>
+            {displayCategories.map(cat => (
+              <SportTag
+                key={cat.id}
+                label={cat.label}
+                icon={cat.icon}
+                active={selectedSport === cat.id}
+                onClick={() => setSelectedSport(selectedSport === cat.id ? "all" : cat.id)}
+                count={cat.liveCount}
+              />
+            ))}
           </div>
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════
-          CONTENT AREA (single scroll, no tabs)
-          ══════════════════════════════════════════ */}
-      <div className="px-4 lg:px-8 max-w-[1400px] mx-auto pt-4 space-y-8">
-
-        {/* Loading */}
+      {/* Main content */}
+      <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '24px 40px 0' }}>
+        {/* Loading state */}
         {loading && matches.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="w-12 h-12 rounded-full border-2 border-[#ffffff]/30 border-t-[#ffffff] animate-spin" />
-            <p className="text-sm text-white/30">Loading live sports...</p>
-            <p className="text-[10px] text-white/15">Fetching from multiple sources</p>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', gap: '12px' }}>
+            <div className="damitv-spin" style={{ width: '40px', height: '40px', borderRadius: '50%', border: '3px solid #222', borderTopColor: '#e8471b' }} />
+            <p style={{ fontSize: '13px', color: '#888' }}>Loading live sports...</p>
+            <p style={{ fontSize: '11px', color: '#555' }}>Fetching from multiple sources</p>
           </div>
         )}
 
-        {/* Error */}
+        {/* Error state */}
         {error && (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <div className="text-5xl">⚠️</div>
-            <p className="text-sm text-white/40">{error}</p>
-            <button onClick={fetchData} className="px-4 py-2 rounded-lg bg-white/[0.06] text-white/50 text-[11px] font-bold hover:bg-white/[0.08]">Retry</button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', gap: '12px' }}>
+            <div style={{ fontSize: '48px' }}>⚠️</div>
+            <p style={{ fontSize: '13px', color: '#888' }}>{error}</p>
+            <button onClick={fetchData} style={{ padding: '8px 16px', borderRadius: '4px', background: '#e8471b', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}>Retry</button>
           </div>
         )}
 
         {!loading && (
           <>
-            {/* ══════════════════════════════════════════
-                24/7 STREAMS — Full-Width Hero Slider (TOP OF PAGE)
-                ══════════════════════════════════════════ */}
-            {STREAMS_247.length > 0 && (
-              <div className="relative">
-                {/* Slider */}
-                <div className="relative overflow-hidden rounded-2xl">
-                  {STREAMS_247.map((stream, i) => (
-                    <div key={stream.id} className={`${i === slider247Index ? 'block' : 'hidden'}`}>
-                      <Stream247Card stream={stream} onWatch={handleWatch247} isActive={true} />
+            {/* Hero Carousel - popular live matches (400px height) */}
+            {popularLive.length > 0 && (() => {
+              const heroSlides = popularLive.slice(0, 8);
+              return (
+                <div style={{ position: 'relative', height: '400px', borderRadius: '10px', overflow: 'hidden', marginBottom: '40px', background: '#000' }}>
+                  {heroSlides.map((match, i) => (
+                    <div key={match.id} style={{ position: 'absolute', inset: 0, opacity: i === heroIndex ? 1 : 0, transition: 'opacity 0.6s ease', pointerEvents: i === heroIndex ? 'auto' : 'none' }}>
+                      {match.poster ? (
+                        <img src={match.poster} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      ) : (
+                        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: `linear-gradient(135deg, ${getSportColor(match.sport)}40, #000)` }}>
+                          <span style={{ fontSize: '120px', opacity: 0.3 }}>{getSportIcon(match.sport)}</span>
+                        </div>
+                      )}
+                      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.2) 70%, transparent 100%)' }} />
+                      {/* Left-aligned content */}
+                      <div style={{ position: 'absolute', inset: 0, padding: '40px', display: 'flex', alignItems: 'center' }}>
+                        <div style={{ maxWidth: '500px' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: '#dc2626', color: '#fff', fontSize: '9px', fontWeight: 700, padding: '4px 10px', borderRadius: '3px', marginBottom: '14px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#fff' }} />
+                            LIVE NOW
+                          </span>
+                          <h2 style={{ fontSize: '32px', fontWeight: 800, color: '#fff', margin: '0 0 12px', lineHeight: 1.2 }}>
+                            {match.title}
+                          </h2>
+                          <p style={{ fontSize: '14px', color: '#e8471b', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 24px' }}>
+                            {match.league || match.sportName}
+                          </p>
+                          <button
+                            onClick={() => handleWatchMatch(match)}
+                            style={{ background: '#e8471b', color: '#fff', border: 'none', padding: '12px 32px', fontSize: '14px', fontWeight: 700, borderRadius: '4px', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em' }}
+                          >
+                            ▶ Watch Now
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   ))}
+                  {/* Prev/Next arrows */}
+                  {heroSlides.length > 1 && (
+                    <>
+                      <button
+                        onClick={() => setHeroIndex(prev => (prev - 1 + heroSlides.length) % heroSlides.length)}
+                        style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: '1px solid #333', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
+                      </button>
+                      <button
+                        onClick={() => setHeroIndex(prev => (prev + 1) % heroSlides.length)}
+                        style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: '1px solid #333', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 5 }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
+                      </button>
+                      {/* Dots */}
+                      <div style={{ position: 'absolute', bottom: '16px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '8px', zIndex: 5 }}>
+                        {heroSlides.map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setHeroIndex(i)}
+                            style={{ width: i === heroIndex ? '24px' : '8px', height: '8px', borderRadius: '4px', background: i === heroIndex ? '#e8471b' : 'rgba(255,255,255,0.3)', border: 'none', cursor: 'pointer', transition: 'all 0.3s', padding: 0 }}
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
+              );
+            })()}
 
-                {/* Navigation arrows — only show if more than 1 stream */}
-                {STREAMS_247.length > 1 && (
-                  <>
-                    <button
-                      onClick={() => setSlider247Index(prev => (prev - 1 + STREAMS_247.length) % STREAMS_247.length)}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/80 transition-all flex items-center justify-center border border-white/10"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
-                    </button>
-                    <button
-                      onClick={() => setSlider247Index(prev => (prev + 1) % STREAMS_247.length)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm text-white/70 hover:text-white hover:bg-black/80 transition-all flex items-center justify-center border border-white/10"
-                    >
-                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
-                    </button>
+            {/* Sport category tags row (horizontal pills) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '32px', overflowX: 'auto' }} className="damitv-card-row">
+              {displayCategories.filter(c => c.id !== "all").map(cat => (
+                <SportTag
+                  key={cat.id}
+                  label={cat.label}
+                  icon={cat.icon}
+                  active={selectedSport === cat.id}
+                  onClick={() => setSelectedSport(selectedSport === cat.id ? "all" : cat.id)}
+                  count={cat.liveCount}
+                />
+              ))}
+            </div>
 
-                    {/* Dot indicators */}
-                    <div className="flex items-center justify-center gap-2 mt-3">
-                      {STREAMS_247.map((_, i) => (
-                        <button
-                          key={i}
-                          onClick={() => setSlider247Index(i)}
-                          className={`h-1.5 rounded-full transition-all duration-300 ${
-                            i === slider247Index ? 'w-6 bg-[#ffffff]' : 'w-1.5 bg-white/20 hover:bg-white/40'
-                          }`
-                          }
-                        />
-                      ))}
+            {/* Trending Today section */}
+            {popularLive.length > 0 && (
+              <div style={{ marginBottom: '40px' }}>
+                <SectionHeader label="Trending" title="Trending Today" />
+                <CardRow onPrev={() => {}} onNext={() => {}}>
+                  {popularLive.map(match => (
+                    <MatchCard key={match.id} match={match} onWatch={handleWatchMatch} onWatchChannel={handleWatchTVFromMatch} variant="poster" />
+                  ))}
+                </CardRow>
+              </div>
+            )}
+
+            {/* Live Now section */}
+            {liveMatchesNoPopular.length > 0 && (
+              <div style={{ marginBottom: '40px' }}>
+                <SectionHeader label="Live" title="Live Now" />
+                <CardRow onPrev={() => {}} onNext={() => {}}>
+                  {liveMatchesNoPopular.map(match => (
+                    <MatchCard key={match.id} match={match} onWatch={handleWatchMatch} onWatchChannel={handleWatchTVFromMatch} variant="poster" />
+                  ))}
+                </CardRow>
+              </div>
+            )}
+
+            {/* Upcoming Matches section */}
+            {todayUpcoming.length > 0 && (
+              <div style={{ marginBottom: '40px' }}>
+                <SectionHeader label="Schedule" title="Upcoming Matches" viewAll={() => setSectionSubPage("schedule")} />
+                <CardRow onPrev={() => {}} onNext={() => {}}>
+                  {todayUpcoming.map(match => (
+                    <MatchCard key={match.id} match={match} onWatch={handleWatchMatch} onWatchChannel={handleWatchTVFromMatch} variant="poster" />
+                  ))}
+                </CardRow>
+              </div>
+            )}
+
+            {/* 24/7 Streams section */}
+            {STREAMS_247.length > 0 && (
+              <div style={{ marginBottom: '40px' }}>
+                <SectionHeader label="24/7" title="24/7 Streams" viewAll={() => setSectionSubPage("tv-channels")} />
+                <div style={{ position: 'relative', height: '280px', borderRadius: '10px', overflow: 'hidden', marginBottom: '12px', background: '#000' }}>
+                  {STREAMS_247.map((stream, i) => (
+                    <div key={stream.id} style={{ position: 'absolute', inset: 0, opacity: i === slider247Index ? 1 : 0, transition: 'opacity 0.6s ease', pointerEvents: i === slider247Index ? 'auto' : 'none' }}>
+                      <Stream247Card stream={stream} onWatch={handleWatch247} isActive={i === slider247Index} />
                     </div>
-                  </>
+                  ))}
+                  {STREAMS_247.length > 1 && (
+                    <>
+                      <button
+                        onClick={() => setSlider247Index(prev => (prev - 1 + STREAMS_247.length) % STREAMS_247.length)}
+                        style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: '1px solid #333', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
+                      </button>
+                      <button
+                        onClick={() => setSlider247Index(prev => (prev + 1) % STREAMS_247.length)}
+                        style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(0,0,0,0.6)', border: '1px solid #333', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
+                      </button>
+                    </>
+                  )}
+                </div>
+                {STREAMS_247.length > 1 && (
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                    {STREAMS_247.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setSlider247Index(i)}
+                        style={{ width: i === slider247Index ? '24px' : '8px', height: '8px', borderRadius: '4px', background: i === slider247Index ? '#e8471b' : 'rgba(255,255,255,0.3)', border: 'none', cursor: 'pointer', transition: 'all 0.3s', padding: 0 }}
+                      />
+                    ))}
+                  </div>
                 )}
               </div>
             )}
 
-            {/* ══════════════════════════════════════════
-                POPULAR LIVE — Merged (DamiTV + WatchFooty)
-                ══════════════════════════════════════════ */}
-            {popularLive.length > 0 && (
-              <div ref={popularRef}>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold text-white flex items-center gap-2" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-                    <span className="text-base">🔥</span> Popular Live
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400">Live ({popularLive.length})</span>
-                  </h2>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => scrollContainer(popularRef, "left")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
-                    </button>
-                    <button onClick={() => scrollContainer(popularRef, "right")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
-                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
-                    </button>
-                  </div>
+            {/* News section */}
+            <div style={{ marginBottom: '40px' }}>
+              <SectionHeader label="News" title="Latest Sports News" viewAll={() => setSectionSubPage("news")} />
+              {newsLoading && newsArticles.length === 0 ? (
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '40px' }}>
+                  <div className="damitv-spin" style={{ width: '32px', height: '32px', borderRadius: '50%', border: '3px solid #222', borderTopColor: '#e8471b' }} />
                 </div>
-                <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-2">
-                  {popularLive.map(match => (
-                    <MatchCard key={match.id} match={match} onWatch={handleWatchMatch} onWatchChannel={handleWatchTVFromMatch} variant="poster" />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════
-                C. SPORTS CATEGORY CARDS (Horizontal Scroll)
-                ══════════════════════════════════════════ */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-bold text-white/60 uppercase tracking-wider flex items-center gap-2" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-                  <span className="text-base">🏟️</span> Sports
-                </h2>
-                <div className="flex items-center gap-1">
-                  <button onClick={() => scrollContainer(sportCardsRef, "left")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M15 19l-7-7 7-7" /></svg>
-                  </button>
-                  <button onClick={() => scrollContainer(sportCardsRef, "right")} className="p-1 rounded-lg bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all">
-                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M9 5l7 7-7 7" /></svg>
-                  </button>
-                </div>
-              </div>
-              <div ref={sportCardsRef} className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-                {displayCategories.filter(c => c.id !== "all").map(cat => (
-                  <button
-                    key={cat.id}
-                    onClick={() => setSelectedSport(selectedSport === cat.id ? "all" : cat.id)}
-                    className={`group flex flex-col items-center gap-2 px-5 py-4 rounded-xl min-w-[100px] flex-shrink-0 transition-all duration-200 ${
-                      selectedSport === cat.id
-                        ? "border-[1.5px]"
-                        : "bg-[#222] border border-white/[0.06] hover:border-white/[0.12] hover:bg-white/[0.04]"
-                    }`}
-                    style={{
-                      ...(selectedSport === cat.id ? {
-                        background: `linear-gradient(135deg, ${cat.color}20, ${cat.color}08)`,
-                        borderColor: `${cat.color}50`,
-                      } : {}),
-                    }}
-                  >
-                    <span className="text-2xl">{cat.icon}</span>
-                    <span className="text-[10px] font-bold text-white/70 group-hover:text-white whitespace-nowrap" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>{cat.label}</span>
-                    {cat.liveCount > 0 && (
-                      <span className="text-[8px] font-bold px-1.5 py-0.5 rounded-full bg-red-500/15 text-red-400">Live ({cat.liveCount})</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* ══════════════════════════════════════════
-                D.5. TV CHANNELS (Sky F1, Willow, 24/7, etc.)
-                ══════════════════════════════════════════ */}
-            {tvChannels.length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-bold text-white flex items-center gap-2" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-                    <span className="text-base">📺</span> Live TV Channels
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-500/15 text-red-400">{tvChannels.length} channels</span>
-                  </h2>
-                </div>
-                <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-                  {tvChannels.map(channel => (
-                    <TVChannelCard key={channel.id} channel={channel} onWatch={handleWatchChannel} />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════
-                E. MATCHES BY SPORT SECTIONS (Vertical List)
-                ══════════════════════════════════════════ */}
-            {/* Live Now */}
-            {liveMatchesNoPopular.length > 0 && (
-              <MatchSection
-                title="Live Now"
-                icon="🔴"
-                matches={liveMatchesNoPopular}
-                onWatch={handleWatchMatch}
-                onWatchChannel={handleWatchTVFromMatch}
-                liveCount={liveMatchesNoPopular.length}
-              />
-            )}
-
-            {/* Starting Soon */}
-            {startingSoon.length > 0 && (
-              <MatchSection
-                title="Starting Soon"
-                icon="⏰"
-                matches={startingSoon}
-                onWatch={handleWatchMatch}
-                onWatchChannel={handleWatchTVFromMatch}
-              />
-            )}
-
-            {/* Today */}
-            {todayUpcoming.length > 0 && (
-              <MatchSection
-                title="Today"
-                icon="📅"
-                matches={todayUpcoming}
-                onWatch={handleWatchMatch}
-                onWatchChannel={handleWatchTVFromMatch}
-              />
-            )}
-
-            {/* Upcoming */}
-            {laterMatches.length > 0 && (
-              <MatchSection
-                title="Upcoming"
-                icon="📆"
-                matches={laterMatches}
-                onWatch={handleWatchMatch}
-                onWatchChannel={handleWatchTVFromMatch}
-              />
-            )}
-
-            {/* No matches */}
-            {filteredMatches.length === 0 && !loading && (
-              <div className="flex flex-col items-center justify-center py-20 gap-4">
-                <div className="text-5xl">🏟️</div>
-                <p className="text-sm text-white/40">No matches found</p>
-                <p className="text-[10px] text-white/20">Try a different sport or check back later</p>
-                <button onClick={() => { setSelectedSport("all"); setLiveOnly(false); }} className="px-4 py-2 rounded-full bg-white/[0.06] text-white/50 text-[11px] font-bold hover:bg-white/[0.08]">Show All</button>
-              </div>
-            )}
-
-            {/* ══════════════════════════════════════════
-                F. NEWS SECTION
-                ══════════════════════════════════════════ */}
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-sm font-bold text-white flex items-center gap-2" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
-                  <span className="text-base">📰</span> Latest Sports News
-                </h2>
-              </div>
-
-              {newsLoading && newsArticles.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <div className="w-10 h-10 rounded-full border-2 border-[#ffffff]/30 border-t-[#ffffff] animate-spin" />
-                  <p className="text-sm text-white/30">Loading news...</p>
-                </div>
-              )}
-
-              {newsArticles.length > 0 && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {newsArticles.map(article => (
+              ) : newsArticles.length > 0 ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '16px' }}>
+                  {newsArticles.slice(0, 8).map(article => (
                     <NewsCard key={article.id} article={article} onClick={setSelectedNewsArticle} />
                   ))}
                 </div>
-              )}
-
-              {!newsLoading && newsArticles.length === 0 && (
-                <div className="flex flex-col items-center justify-center py-12 gap-4">
-                  <div className="text-4xl">📰</div>
-                  <p className="text-sm text-white/40">No news available</p>
-                </div>
-              )}
-
-              {newsHasMore && newsArticles.length > 0 && (
-                <div className="flex justify-center mt-6">
-                  <button
-                    onClick={() => fetchNews(newsOffset, true)}
-                    disabled={newsLoading}
-                    className="px-6 py-2.5 rounded-xl bg-white/[0.04] text-white/40 text-[11px] font-bold hover:bg-white/[0.06] hover:text-white/60 transition-all disabled:opacity-50"
-                  >
-                    {newsLoading ? "Loading..." : "Load More"}
-                  </button>
-                </div>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#555', fontSize: '13px' }}>No news available</div>
               )}
             </div>
 
+            {/* No matches */}
+            {filteredMatches.length === 0 && !loading && !error && (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 0', gap: '12px' }}>
+                <div style={{ fontSize: '48px' }}>🏟️</div>
+                <p style={{ fontSize: '14px', color: '#888' }}>No matches found</p>
+                <p style={{ fontSize: '11px', color: '#555' }}>Try a different sport or check back later</p>
+                <button
+                  onClick={() => { setSelectedSport("all"); setLiveOnly(false); }}
+                  style={{ padding: '8px 16px', borderRadius: '4px', background: '#e8471b', color: '#fff', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 700 }}
+                >
+                  Show All
+                </button>
+              </div>
+            )}
+
             {/* Last updated */}
             {lastUpdated && (
-              <div className="text-center">
-                <span className="text-[9px] text-white/15">Last updated {lastUpdated.toLocaleTimeString()} • Auto-refreshes every 60s</span>
+              <div style={{ textAlign: 'center', padding: '20px 0', fontSize: '11px', color: '#444' }}>
+                Last updated {lastUpdated.toLocaleTimeString()} • Auto-refreshes every 60s
               </div>
             )}
           </>
@@ -1746,110 +1509,98 @@ export default function LivePage() {
 
       {/* News Article Detail Modal */}
       {selectedNewsArticle && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setSelectedNewsArticle(null)}>
+        <div
+          onClick={() => setSelectedNewsArticle(null)}
+          style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}
+        >
           <div
-            className="bg-[#12121a] border border-white/[0.08] rounded-2xl max-w-2xl w-full max-h-[85vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
+            style={{ background: '#141414', border: '1px solid #222', borderRadius: '12px', maxWidth: '640px', width: '100%', maxHeight: '85vh', overflowY: 'auto' }}
           >
-            {/* Close button */}
-            <div className="sticky top-0 z-10 flex items-center justify-between p-4 bg-[#12121a]/95 backdrop-blur-sm border-b border-white/[0.06]">
-              <div className="flex items-center gap-2">
-                <span
-                  className="px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wider text-white"
-                  style={{ background: `${getSportColor(selectedNewsArticle.sport)}30`, color: getSportColor(selectedNewsArticle.sport) }}
-                >
+            {/* Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderBottom: '1px solid #222', position: 'sticky', top: 0, background: '#141414', zIndex: 2 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '10px', fontWeight: 800, color: '#e8471b', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                   {selectedNewsArticle.sport || "NEWS"}
                 </span>
                 {selectedNewsArticle.author && (
-                  <span className="text-[10px] text-white/30">by {selectedNewsArticle.author}</span>
+                  <span style={{ fontSize: '11px', color: '#555' }}>by {selectedNewsArticle.author}</span>
                 )}
               </div>
               <button
                 onClick={() => setSelectedNewsArticle(null)}
-                className="p-1.5 rounded-lg bg-white/[0.06] text-white/40 hover:text-white hover:bg-white/[0.10] transition-all"
+                style={{ width: '28px', height: '28px', borderRadius: '4px', background: '#222', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
             </div>
-
-            {/* Article image */}
+            {/* Image */}
             {selectedNewsArticle.imageUrl && (
-              <div className="relative h-48 sm:h-64 overflow-hidden">
+              <div style={{ position: 'relative', height: '220px', overflow: 'hidden' }}>
                 <img
                   src={selectedNewsArticle.imageUrl}
                   alt=""
-                  loading="lazy"
-                  decoding="async"
-                  className="w-full h-full object-cover"
-                  onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#12121a] via-transparent to-transparent" />
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 50%, #141414 100%)' }} />
               </div>
             )}
-
-            {/* Article content */}
-            <div className="p-5">
-              <h2 className="text-lg font-bold text-white mb-2 leading-snug" style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}>
+            {/* Content */}
+            <div style={{ padding: '20px' }}>
+              <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#fff', margin: '0 0 8px', lineHeight: 1.3 }}>
                 {selectedNewsArticle.headline}
               </h2>
-
-              <div className="flex items-center gap-2 mb-4">
-                <span className="text-[10px] text-white/25">{timeAgo(selectedNewsArticle.publishedAt)}</span>
-                {selectedNewsArticle.editedAt && (
-                  <span className="text-[10px] text-white/15">(edited)</span>
-                )}
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', fontSize: '11px', color: '#555' }}>
+                <span>{timeAgo(selectedNewsArticle.publishedAt)}</span>
+                {selectedNewsArticle.editedAt && <span>(edited)</span>}
               </div>
-
               {newsArticleLoading ? (
-                <div className="flex items-center gap-2 py-6">
-                  <div className="w-5 h-5 rounded-full border-2 border-orange-500/30 border-t-orange-500 animate-spin" />
-                  <span className="text-xs text-white/30">Loading article...</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '20px 0' }}>
+                  <div className="damitv-spin" style={{ width: '16px', height: '16px', borderRadius: '50%', border: '2px solid #333', borderTopColor: '#e8471b' }} />
+                  <span style={{ fontSize: '12px', color: '#888' }}>Loading article...</span>
                 </div>
               ) : selectedNewsArticle.content ? (
-                <div className="text-sm text-white/60 leading-relaxed whitespace-pre-wrap">
+                <div style={{ fontSize: '14px', color: '#bbb', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                   {selectedNewsArticle.content}
                 </div>
               ) : selectedNewsArticle.description ? (
-                <p className="text-sm text-white/60 leading-relaxed">{selectedNewsArticle.description}</p>
+                <p style={{ fontSize: '14px', color: '#bbb', lineHeight: 1.6, margin: 0 }}>
+                  {selectedNewsArticle.description}
+                </p>
               ) : (
-                <p className="text-sm text-white/30">No content available.</p>
+                <p style={{ fontSize: '14px', color: '#555' }}>No content available.</p>
               )}
-
               {/* Read more link */}
-              <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center gap-3 flex-wrap">
+              <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #222', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
                 <a
                   href={selectedNewsArticle.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-orange-500/15 text-orange-400 hover:bg-orange-500/25 transition-all"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '4px', fontSize: '12px', fontWeight: 700, background: 'rgba(232,71,27,0.15)', color: '#e8471b', textDecoration: 'none' }}
                 >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />
-                  </svg>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" /></svg>
                   Read Full Article
                 </a>
                 <button
                   onClick={() => setSelectedNewsArticle(null)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold bg-white/[0.04] text-white/30 hover:text-white/60 hover:bg-white/[0.06] transition-all"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '4px', fontSize: '12px', fontWeight: 700, background: '#222', color: '#888', border: 'none', cursor: 'pointer' }}
                 >
                   Close
                 </button>
               </div>
-
-              {/* Entity mentions */}
+              {/* Mentions */}
               {selectedNewsArticle.mentions && selectedNewsArticle.mentions.length > 0 && (
-                <div className="mt-3 pt-3 border-t border-white/[0.06]">
-                  <p className="text-[10px] text-white/20 font-bold uppercase tracking-wider mb-2">Mentions</p>
-                  <div className="flex flex-wrap gap-1.5">
+                <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid #222' }}>
+                  <p style={{ fontSize: '10px', fontWeight: 700, color: '#444', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px' }}>Mentions</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                     {selectedNewsArticle.mentions.map((mention, i) => (
                       <a
                         key={i}
                         href={mention.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="px-2 py-0.5 rounded text-[10px] font-medium bg-white/[0.04] text-white/40 hover:text-white/70 hover:bg-white/[0.06] transition-all"
+                        style={{ padding: '3px 8px', borderRadius: '3px', fontSize: '11px', fontWeight: 500, background: '#1a1a1a', color: '#888', textDecoration: 'none' }}
                       >
                         {mention.name}
                       </a>
@@ -1864,35 +1615,8 @@ export default function LivePage() {
 
       {/* Click-outside handler for More dropdown */}
       {showMoreDropdown && (
-        <div className="fixed inset-0 z-30" onClick={() => setShowMoreDropdown(false)} />
+        <div onClick={() => setShowMoreDropdown(false)} style={{ position: 'fixed', inset: 0, zIndex: 30 }} />
       )}
-
-      {/* Marquee animation styles */}
-      <style jsx global>{`
-        @keyframes marquee {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-marquee {
-          animation: marquee 60s linear infinite;
-        }
-        .animate-marquee:hover {
-          animation-play-state: paused;
-        }
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-        }
-        .scrollbar-hide {
-          -ms-overflow-style: none;
-          scrollbar-width: none;
-        }
-        .line-clamp-2 {
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
-        }
-      `}</style>
     </div>
   );
 }
