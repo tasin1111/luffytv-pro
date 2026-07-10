@@ -1187,9 +1187,10 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                 <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                   {visibleChapterGroups.slice(0, 100).map(group => (
                     <div key={group.number}>
-                      {/* Chapter number header */}
+                      {/* Chapter number header — neutral white since the
+                          group may contain scans in multiple languages */}
                       <div style={{
-                        color: COLOR_ACCENT,             // blue chapter number
+                        color: COLOR_HEADING,
                         fontSize: "12px",
                         fontWeight: 700,
                         letterSpacing: "0.05em",
@@ -1229,23 +1230,32 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                             e.currentTarget.style.borderColor = "transparent";
                           }}
                         >
-                          {/* Left: title + scanlation label */}
-                          <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, flex: 1 }}>
-                            <span style={{
-                              color: COLOR_ACCENT,           // blue chapter name
-                              fontSize: "16px",
-                              fontWeight: 500,
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}>
-                              {scan.title || `Chapter ${scan.number}`}
-                            </span>
-                            <span style={{ color: COLOR_ACCENT, fontSize: "12px", fontWeight: 600, opacity: 0.8 }}>
-                              {chapterLabel(scan)}
-                              {scan.scanGroup && ` · ${scan.scanGroup}`}
-                            </span>
-                          </div>
+                          {/* Left: title + scanlation label
+                              Color depends on the chapter's LANGUAGE:
+                              English = blue, Spanish = red, Indonesian = green,
+                              Italian = green, Portuguese = amber, French = indigo, etc.
+                              Falls back to white if language is unknown. */}
+                          {(() => {
+                            const langColor = LANG_COLORS[scan.lang || "en"] || LANG_COLORS[normalizeLang(scan.lang || "en")] || COLOR_HEADING;
+                            return (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "2px", minWidth: 0, flex: 1 }}>
+                                <span style={{
+                                  color: langColor,              // language-colored chapter name
+                                  fontSize: "16px",
+                                  fontWeight: 500,
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "nowrap",
+                                }}>
+                                  {scan.title || `Chapter ${scan.number}`}
+                                </span>
+                                <span style={{ color: langColor, fontSize: "12px", fontWeight: 600, opacity: 0.75 }}>
+                                  {chapterLabel(scan)}
+                                  {scan.scanGroup && ` · ${scan.scanGroup}`}
+                                </span>
+                              </div>
+                            );
+                          })()}
                           {/* Right: page count + relative date */}
                           <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
                             {scan.pages ? (
