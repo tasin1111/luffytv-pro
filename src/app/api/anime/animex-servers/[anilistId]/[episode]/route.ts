@@ -131,15 +131,12 @@ export async function GET(
           const ref = ANIMEX_REFERERS[job.provider] || "https://animex.one/";
           const isM3U8 = p.url.includes(".m3u8") || p.type?.includes("mpegurl");
 
-          // Apply CDN swap (these mirrors serve the same files without CF protection)
-          let streamUrl = p.url;
-          streamUrl = streamUrl.replace("https://playeng.animeapps.top/r2/", "https://bd.24stream.xyz/media/");
-          streamUrl = streamUrl.replace("https://vibeplayer.site/public/stream/", "https://hawk.24stream.xyz/media/");
-          streamUrl = streamUrl.replace("https://hls.anidb.app/stream/", "https://wave.24stream.xyz/stream/");
-          streamUrl = streamUrl.replace("https://tools.fast4speed.rsvp", "https://mp4.24stream.xyz/storage");
-
-          const isSwapped = /^https?:\/\/[^/]*\.24stream\.xyz\//.test(streamUrl);
-          const proxyUrl = isSwapped ? streamUrl : buildProxyUrl(streamUrl, ref, !isM3U8);
+          // Use the ORIGINAL stream URL through our Cloudflare Worker proxy.
+          // The CDN swaps (vibeplayer→hawk.24stream, hls.anidb→wave.24stream, etc.)
+          // were REMOVED because they broke streams — the swapped URLs have different
+          // path structures and don't work. The proxy handles Referer/CORS correctly.
+          const streamUrl = p.url;
+          const proxyUrl = buildProxyUrl(streamUrl, ref, !isM3U8);
 
           // ── VERIFICATION REMOVED ──
           // The HEAD verification was killing valid servers because:

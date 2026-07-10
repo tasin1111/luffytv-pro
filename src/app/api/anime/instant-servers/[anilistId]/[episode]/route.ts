@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { resolveAniDbEmbeds } from "@/lib/anidb-direct";
 import { resolveAniKotoEmbeds } from "@/lib/anikoto-direct";
 import { resolveAniNekoServers } from "@/lib/anineko-direct";
-import { resolveAnimexMimiBoth, resolveAnimexProvider } from "@/lib/animex-fast";
+import { resolveAnimexMimiBoth } from "@/lib/animex-fast";
+import { resolveAniDapId, getAniDapSources } from "@/lib/anidap-api";
+import { wrapM3u8Url } from "@/lib/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,18 +13,18 @@ export const maxDuration = 15;
 /**
  * GET /api/anime/instant-servers/[anilistId]/[episode]?title={title}
  *
- * Returns INSTANT servers with DIRECT m3u8 URLs (no embeds/iframes).
- * These are scraped m3u8 streams played with hls.js through our worker proxy.
+ * Returns INSTANT servers with DIRECT m3u8 URLs (no embeds/iframes for top priority).
  *
- * PRIORITY ORDER (fastest first):
+ * PRIORITY ORDER (user-specified):
  *   0. AnimeX mimi (sub) — FASTEST: GraphQL + REST → direct m3u8 from vivibebe.site
- *   1. AniDB (sub) — search + episodes + embed page scrape → m3u8 from hls.anidb.app
+ *   1. AniDB (sub) — scraped m3u8 from hls.anidb.app
  *   2. AnimeX mimi (dub)
  *   3. AniDB (dub)
- *   4+. AniKoto, AniNeko (embed fallbacks)
- *
- * All m3u8 URLs are returned as isM3U8=true for hls.js playback.
- * Embed URLs (AniKoto/AniNeko) are returned as isEmbed=true for iframe playback.
+ *   4. AniKoto (sub) — embed fallback (megaplay.buzz player is JS-obfuscated)
+ *   5. AniKoto (dub)
+ *   6. AniNeko (sub) — embed fallbacks (vivibebe, otakuhg, etc.)
+ *   7. AniDap beep (sub) — direct m3u8 from playeng.animeapps.top
+ *   8. AniDap beep (dub)
  */
 export async function GET(
   _req: NextRequest,
@@ -41,17 +43,18 @@ export async function GET(
 
   try {
     // Resolve all providers in parallel
-    const [animexMimi, anidbResult, anikotoResult, aninekoServers] = await Promise.all([
+    const [animexMimi, anidbResult, anikotoResult, aninekoServers, anidapId] = await Promise.all([
       resolveAnimexMimiBoth(id, epNum),
       resolveAniDbEmbeds(id, epNum, title),
       resolveAniKotoEmbeds(id, epNum, title),
       resolveAniNekoServers(id, epNum, title),
+      resolveAniDapId(id),
     ]);
 
     const servers: Array<{
       id: string;
       name: string;
-      source: "animex" | "anidb" | "anikoto" | "anineko";
+      source: "animex" | "anidb" | "anikoto" | "anineko" | "anidap";
       provider: string;
       type: "sub" | "dub";
       quality: string;
@@ -67,7 +70,6 @@ export async function GET(
     }> = [];
 
     // ── PRIORITY 0: AnimeX mimi (sub) — FASTEST, DEFAULT ──
-    // mimi returns m3u8 from vivibebe.site — fast CDN, reliable
     if (animexMimi.sub?.m3u8Url) {
       servers.push({
         id: "animex:mimi:sub",
@@ -146,6 +148,8 @@ export async function GET(
     }
 
     // ── PRIORITY 4-5: AniKoto (embed fallback) ──
+    // megaplay.buzz player is JS-obfuscated — can't scrape m3u8 server-side.
+    // The embed URL works in an iframe (megaplay.buzz player handles playback).
     if (anikotoResult.sub?.embedUrl) {
       servers.push({
         id: "anikoto:sub",
@@ -179,7 +183,7 @@ export async function GET(
       });
     }
 
-    // ── PRIORITY 6+: AniNeko (embed fallbacks) ──
+    // ── PRIORITY 6: AniNeko (embed fallbacks) ──
     for (let i = 0; i < Math.min(aninekoServers.length, 3); i++) {
       const srv = aninekoServers[i];
       servers.push({
@@ -198,8 +202,43 @@ export async function GET(
       });
     }
 
+    // ── PRIORITY 9+: AniDap beep (direct m3u8) ──
+    // Fetch sources for beep provider (unique CDN: playeng.animeapps.top)
+    if (anidapId) {
+      try {
+        const anidapSub = await getAniDapSources(anidapId, epNum, "sub", "beep");
+        if (anidapSub?.sources?.length) {
+          const src = anidapSub.sources.find((s: any) =>
+            s.url?.includes(".m3u8") || s.type?.includes("mpegurl")
+          );
+          if (src?.url) {
+            const proxiedUrl = wrapM3u8Url(src.url);
+            servers.push({
+              id: "anidap:beep:sub",
+              name: "AniDap Beep",
+              source: "anidap",
+              provider: "beep",
+              type: "sub",
+              quality: src.quality || "1080p",
+              streamUrl: proxiedUrl,
+              isM3U8: true,
+              isMP4: false,
+              isEmbed: false,
+              hardsub: true, // beep is hardsub
+              priority: 9,
+              subtitleTracks: (anidapSub.tracks || []).map((t: any) => ({
+                url: t.url, lang: t.lang, label: t.label,
+              })),
+              intro: anidapSub.intro || null,
+              outro: anidapSub.outro || null,
+            });
+          }
+        }
+      } catch { /* AniDap is best-effort */ }
+    }
+
     console.log(
-      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anikoto:${anikotoResult.sub || anikotoResult.dub ? "✓" : "✗"} anineko:${aninekoServers.length > 0 ? "✓" : "✗"})`,
+      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anikoto:${anikotoResult.sub || anikotoResult.dub ? "✓" : "✗"} anineko:${aninekoServers.length > 0 ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
     );
 
     return NextResponse.json({ servers });
