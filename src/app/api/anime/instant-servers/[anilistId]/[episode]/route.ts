@@ -42,13 +42,19 @@ export async function GET(
   }
 
   try {
-    // Resolve all providers in parallel
-    const [animexMimi, anidbResult, anikotoResult, aninekoServers, anidapId] = await Promise.all([
+    // Resolve all providers in parallel — INCLUDING AniDap sources
+    // (the old code had a sequential AniDap fetch AFTER Promise.all which
+    // blocked the entire response by 2-3 seconds)
+    const anidapId = await resolveAniDapId(id).catch(() => null);
+    const [animexMimi, anidbResult, anikotoResult, aninekoServers, anidapSub] = await Promise.all([
       resolveAnimexMimiBoth(id, epNum),
       resolveAniDbEmbeds(id, epNum, title),
       resolveAniKotoEmbeds(id, epNum, title),
       resolveAniNekoServers(id, epNum, title),
-      resolveAniDapId(id),
+      // Fetch AniDap beep sources IN PARALLEL (not sequentially after)
+      anidapId
+        ? getAniDapSources(anidapId, epNum, "sub", "beep").catch(() => null)
+        : Promise.resolve(null),
     ]);
 
     const servers: Array<{
@@ -203,38 +209,33 @@ export async function GET(
     }
 
     // ── PRIORITY 9+: AniDap beep (direct m3u8) ──
-    // Fetch sources for beep provider (unique CDN: playeng.animeapps.top)
-    if (anidapId) {
-      try {
-        const anidapSub = await getAniDapSources(anidapId, epNum, "sub", "beep");
-        if (anidapSub?.sources?.length) {
-          const src = anidapSub.sources.find((s: any) =>
-            s.url?.includes(".m3u8") || s.type?.includes("mpegurl")
-          );
-          if (src?.url) {
-            const proxiedUrl = wrapM3u8Url(src.url);
-            servers.push({
-              id: "anidap:beep:sub",
-              name: "AniDap Beep",
-              source: "anidap",
-              provider: "beep",
-              type: "sub",
-              quality: src.quality || "1080p",
-              streamUrl: proxiedUrl,
-              isM3U8: true,
-              isMP4: false,
-              isEmbed: false,
-              hardsub: true, // beep is hardsub
-              priority: 9,
-              subtitleTracks: (anidapSub.tracks || []).map((t: any) => ({
-                url: t.url, lang: t.lang, label: t.label,
-              })),
-              intro: anidapSub.intro || null,
-              outro: anidapSub.outro || null,
-            });
-          }
-        }
-      } catch { /* AniDap is best-effort */ }
+    // Already fetched in parallel above — just extract the m3u8 URL
+    if (anidapSub?.sources?.length) {
+      const src = anidapSub.sources.find((s: any) =>
+        s.url?.includes(".m3u8") || s.type?.includes("mpegurl")
+      );
+      if (src?.url) {
+        const proxiedUrl = wrapM3u8Url(src.url);
+        servers.push({
+          id: "anidap:beep:sub",
+          name: "AniDap Beep",
+          source: "anidap",
+          provider: "beep",
+          type: "sub",
+          quality: src.quality || "1080p",
+          streamUrl: proxiedUrl,
+          isM3U8: true,
+          isMP4: false,
+          isEmbed: false,
+          hardsub: true,
+          priority: 9,
+          subtitleTracks: (anidapSub.tracks || []).map((t: any) => ({
+            url: t.url, lang: t.lang, label: t.label,
+          })),
+          intro: anidapSub.intro || null,
+          outro: anidapSub.outro || null,
+        });
+      }
     }
 
     console.log(

@@ -114,12 +114,17 @@ export default function HLSPlayerNew({
         maxMaxBufferLength: 180,
         maxBufferSize: 90 * 1000 * 1000,
         maxBufferHole: 0.5,
-        startLevel: 0,
-        abrEwmaDefaultEstimate: 500000,
-        abrBandWidthFactor: 0.3,
-        abrBandWidthUpFactor: 0.1,
-        maxStarvationDelay: 20,
-        abrEwmaDefaultEstimateMax: 1000000,
+        // Start at the HIGHEST quality level (1080p), not lowest (360p).
+        // -1 = auto-select based on bandwidth, but we set a high default estimate
+        // so it picks the best quality immediately on fast connections.
+        startLevel: -1,
+        // Assume 10Mbps bandwidth by default — this makes hls.js start at 1080p
+        // instead of 360p. The ABR controller will adjust down if needed.
+        abrEwmaDefaultEstimate: 10000000,
+        abrBandWidthFactor: 0.95,
+        abrBandWidthUpFactor: 0.7,
+        maxStarvationDelay: 4,
+        abrEwmaDefaultEstimateMax: 20000000,
         manifestLoadingTimeOut: 20000,
         manifestLoadingMaxRetry: 4,
         levelLoadingTimeOut: 20000,
