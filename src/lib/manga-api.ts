@@ -767,6 +767,37 @@ export async function getChapterImages(
     return getComixChapterPages(rawId, chapterId);
   }
 
+  // ── MANGABALL TRANSLATION ID DETECTION (HIGHEST PRIORITY) ──
+  // Mangaball translation IDs are 24-char hex strings (e.g. "68dcc9e44a0c2ac64b0a5ce0").
+  // These MUST be routed through the mangaball direct scraper REGARDLESS of
+  // which provider the mangaId belongs to.
+  //
+  // WHY: When a user is on an atsumaru manga page (at:3xHoW) and the
+  // client-side cross-provider merge adds mangaball's non-English chapters
+  // (Spanish, Indonesian, Portuguese, etc.), those chapters have mangaball
+  // translation IDs. If we route them through the atsumaru path (because
+  // mangaId=at:3xHoW), the atsumaru path doesn't recognize the 24-hex ID,
+  // falls through to the scrape-api, which ignores the bogus chapter number
+  // and returns ENGLISH atsumaru pages. So the user clicks a Spanish chapter
+  // and sees English images.
+  //
+  // FIX: Detect 24-hex mangaball translation IDs FIRST and route them
+  // through the mangaball direct scraper, no matter what provider the
+  // mangaId says.
+  if (/^[0-9a-f]{24}$/i.test(chapterId)) {
+    // This is a mangaball translation ID — scrape mangaball.net directly
+    // for the correct language's images. Do NOT fall back to the scrape-api
+    // (it would return English pages for non-English chapters).
+    const directPages = await getMangaballChapterPagesDirect(chapterId);
+    if (directPages.length > 0) {
+      return directPages;
+    }
+    // Direct scraper failed. Return empty — better than showing English.
+    console.error("[manga-api] getMangaballChapterPagesDirect failed for translation ID:",
+      chapterId, "(mangaId:", mangaId, ") — NOT falling back to scrape-api");
+    return [];
+  }
+
   // Atsumaru — go DIRECT to atsu.moe's static page URL pattern.
   // We build the page URLs ourselves from the chapter ID + page count,
   // skipping the manga-scrape-api's pages endpoint entirely.
@@ -784,7 +815,7 @@ export async function getChapterImages(
   //   3. "176"             — chapter number only (legacy fallback)
   if (provider === "atsumaru") {
     // Format 1 or 2: starts with "at:" or looks like a short atsu ID
-    // (alnum, 4-12 chars, not all digits)
+    // (alnum, 3-20 chars, not all digits, NOT a 24-hex mangaball ID)
     const looksLikeAtsuId = !chapterId.startsWith("at:") &&
       /^[A-Za-z0-9_-]{3,20}$/.test(chapterId) &&
       !/^\d+$/.test(chapterId);
@@ -840,34 +871,8 @@ export async function getChapterImages(
     }
   }
 
-  // For mangaball, chapterId might be a translation ID (24 hex chars)
-  // or a chapter number. For translation IDs, ALWAYS use the direct
-  // mangaball.net scraper — it's the ONLY way to get the correct
-  // language-specific images.
-  //
-  // CRITICAL: Do NOT fall back to the scrape-api for non-English
-  // translation IDs. The scrape-api always returns ENGLISH pages
-  // regardless of which translation ID you pass — so a Spanish chapter
-  // would show English pages. If the direct scraper fails, return empty
-  // (the reader will show "No pages available" which is better than
-  // showing the wrong language).
-  const isTranslationId = provider === "mangaball" && /^[0-9a-f]{24}$/i.test(chapterId);
-
-  if (isTranslationId) {
-    // Try direct mangaball.net scraper — returns the correct language's images
-    const directPages = await getMangaballChapterPagesDirect(chapterId);
-    if (directPages.length > 0) {
-      return directPages;
-    }
-    // Direct scraper failed. DO NOT fall back to scrape-api — it would
-    // return English pages for this non-English chapter. Return empty.
-    console.error("[manga-api] getMangaballChapterPagesDirect failed for translation ID:", chapterId,
-      "— NOT falling back to scrape-api (would return English pages)");
-    return [];
-  }
-
-  // Use chapter number (only works for English chapters on mangaball,
-  // or as a last-resort fallback)
+  // Mangaball chapter number (not a translation ID, not a cross-provider
+  // merge ID) — this only works for English chapters on mangaball.
   const chapterNumber = encodeURIComponent(String(chapterId));
   const data = await scrapeFetch<ScrapePagesResponse>(
     `/api/scrape/pages?id=${encodeURIComponent(rawId)}&chapterNumber=${chapterNumber}&provider=${provider}`,
