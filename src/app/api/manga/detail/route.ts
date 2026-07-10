@@ -1,19 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getMangaDetail, searchManga, getMangaDetail as getDetail } from "@/lib/manga-api";
+import {
+  getMangaDetail,
+  searchManga,
+  searchMangaMangaball,
+  getMangaDetail as getDetail,
+} from "@/lib/manga-api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30; // allow time for cross-provider parallel fetches
 
 /**
  * GET /api/manga/detail?id={mangaId}&title={fallbackTitle}
  *
- * Cross-provider chapter merge:
- * - English: atsumaru + mangaball (show ALL English scans from both)
- * - Other languages: mangaball only
+ * Cross-provider chapter merge (ALL done server-side in parallel):
  *
- * When a mangaball manga detail is loaded, we ALSO search atsumaru
- * for the same title and merge its English chapters. Both providers'
- * English scans are shown — atsumaru first, then mangaball.
+ *   at: manga  →  atsumaru chapters (English)  +  mangaball chapters (ALL languages)
+ *   mb: manga  →  mangaball chapters (ALL languages)  +  atsumaru chapters (English)
+ *   cx: manga  →  comix chapters (English)  +  atsumaru (English)  +  mangaball (ALL languages)
+ *
+ * The mangaball direct scraper (getMangaballChaptersDirect) fetches ALL
+ * language translations from mangaball.net's own API — this is what
+ * provides multi-language support (en, es-419, fr, id, it, pt-br, vi,
+ * de, ka, he, ms, etc.).
+ *
+ * All cross-provider fetches run in parallel where possible.
  */
 export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id");
@@ -21,11 +32,17 @@ export async function GET(request: NextRequest) {
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   try {
+    // ── Step 1: Fetch primary detail ──
     const detail = await getMangaDetail(id);
 
-    // Cross-provider metadata fallback: if detail has no genres/description,
-    // search atsumaru by title and merge metadata
-    if (detail && fallbackTitle && !detail.genres?.length && !detail.description) {
+    if (!detail) {
+      return NextResponse.json({ error: "Manga not found" }, { status: 404 });
+    }
+
+    // ── Step 2: Cross-provider metadata fallback ──
+    // If detail has no genres/description, search atsumaru by title
+    // and merge metadata. Runs for all providers.
+    if (fallbackTitle && !detail.genres?.length && !detail.description) {
       try {
         const atsuResults = await searchManga(fallbackTitle, 3);
         const match = atsuResults.find(r =>
@@ -36,7 +53,6 @@ export async function GET(request: NextRequest) {
         if (match) {
           const atsuDetail = await getDetail(match.id);
           if (atsuDetail) {
-            // Merge metadata but keep mangaball chapters
             if (!detail.description && atsuDetail.description) {
               detail.description = atsuDetail.description;
             }
@@ -57,43 +73,116 @@ export async function GET(request: NextRequest) {
             }
           }
         }
-      } catch { /* ignore */ }
+      } catch (err) {
+        console.error("[manga/detail] metadata fallback error:", err);
+      }
     }
 
-    // Cross-provider chapter merge: if this is a mangaball manga,
-    // also fetch atsumaru English chapters for the same title.
-    // Show ALL English scans from BOTH providers.
-    if (detail && fallbackTitle && id.startsWith("mb:") && detail.chapters?.length) {
+    // ── Step 3: Cross-provider CHAPTER merge ──
+    // Search BOTH providers in parallel for the title, then merge chapters
+    // from the "other" provider(s) into the primary detail.
+    //
+    // at: → fetch mangaball chapters (ALL languages — this is the
+    //       multi-language source)
+    // mb: → fetch atsumaru English chapters
+    // cx: → fetch BOTH atsumaru (English) + mangaball (ALL languages)
+    const titleForSearch = fallbackTitle || detail.englishTitle || detail.title || "";
+
+    if (titleForSearch && titleForSearch !== "Unknown Title" && detail.chapters?.length) {
       try {
-        // Search atsumaru for the title
-        const atsuResults = await searchManga(fallbackTitle, 5);
-        // Find best title match
-        const match = atsuResults.find(r => {
-          const rTitle = (r.englishTitle || r.title || "").toLowerCase();
-          const sTitle = fallbackTitle.toLowerCase();
-          return rTitle.includes(sTitle) || sTitle.includes(rTitle) ||
-                 rTitle.slice(0, 20) === sTitle.slice(0, 20);
-        }) || atsuResults[0];
+        // ── Parallel search: search BOTH providers at once ──
+        const [atsuResults, mbResults] = await Promise.all([
+          // Only search atsumaru if we're NOT already an at: manga
+          id.startsWith("at:") ? Promise.resolve([]) : searchManga(titleForSearch, 5),
+          // Only search mangaball if we're NOT already a mb: manga
+          id.startsWith("mb:") ? Promise.resolve([]) : searchMangaMangaball(titleForSearch),
+        ]);
 
-        if (match) {
-          // match.id may have 'at:' prefix from searchManga() — strip it
-          const atsuMangaId = match.id.replace(/^at:/, "");
-          const atsuDetail = await getDetail(`at:${atsuMangaId}`);
-          if (atsuDetail && atsuDetail.chapters?.length) {
-            // Add atsumaru English chapters
-            // ID format: "at:{atsumaruMangaId}:{chapterNumber}"
-            const atsuEnChapters = atsuDetail.chapters.map(ch => ({
-              ...ch,
-              id: `at:${atsuMangaId}:${ch.number}`,
-              lang: "en",
-              scanGroup: "Atsumaru",
-            }));
+        // ── Parallel detail fetch: fetch matching manga from the OTHER provider(s) ──
+        const mergePromises: Promise<{ type: "at" | "mb"; chapters: any[]; detail?: any }>[] = [];
 
-            // Merge: atsumaru English first, then ALL mangaball chapters (English + non-English)
-            detail.chapters = [...atsuEnChapters, ...detail.chapters];
-            detail.totalChapters = detail.chapters.length;
+        // If we're mb: or cx:, find the atsumaru match and fetch its detail
+        if (!id.startsWith("at:") && atsuResults.length > 0) {
+          const atMatch = atsuResults.find(r => {
+            const rTitle = (r.englishTitle || r.title || "").toLowerCase();
+            const sTitle = titleForSearch.toLowerCase();
+            return rTitle.includes(sTitle) || sTitle.includes(rTitle) ||
+                   rTitle.slice(0, 20) === sTitle.slice(0, 20);
+          }) || atsuResults[0];
 
-            // Merge metadata if still missing
+          if (atMatch) {
+            const atsuMangaId = atMatch.id.replace(/^at:/, "");
+            mergePromises.push(
+              getDetail(`at:${atsuMangaId}`).then(d => ({
+                type: "at" as const,
+                chapters: d?.chapters?.map((ch: any) => ({
+                  ...ch,
+                  id: `at:${atsuMangaId}:${ch.number}:${ch.id}`,
+                  lang: "en",
+                })) || [],
+                detail: d,
+              })).catch(() => ({ type: "at" as const, chapters: [] }))
+            );
+          }
+        }
+
+        // If we're at: or cx:, find the mangaball match and fetch its detail
+        // THIS is the key multi-language fetch — getMangaballChaptersDirect
+        // is called inside getMangaDetail for mb: IDs and returns ALL
+        // language translations.
+        if (!id.startsWith("mb:") && mbResults.length > 0) {
+          const mbMatch = mbResults[0]; // mangaball results are already prefixed with mb:
+          if (mbMatch) {
+            mergePromises.push(
+              getDetail(mbMatch.id).then(d => ({
+                type: "mb" as const,
+                chapters: d?.chapters || [],
+                detail: d,
+              })).catch(err => {
+                console.error("[manga/detail] mangaball fetch failed (multi-language):", err?.message || err);
+                return { type: "mb" as const, chapters: [] };
+              })
+            );
+          }
+        }
+
+        // ── Wait for all parallel fetches to complete ──
+        const merges = await Promise.all(mergePromises);
+
+        // ── Merge chapters: atsumaru English first, then mangaball ALL languages ──
+        const atsuChapters = merges.find(m => m.type === "at")?.chapters || [];
+        const mbChapters = merges.find(m => m.type === "mb")?.chapters || [];
+        const mbDetail = merges.find(m => m.type === "mb")?.detail;
+        const atsuDetail = merges.find(m => m.type === "at")?.detail;
+
+        if (atsuChapters.length > 0 || mbChapters.length > 0) {
+          // Dedupe by chapter number + language to avoid exact duplicates
+          const seen = new Set<string>();
+          const allChapters = [...atsuChapters, ...mbChapters].filter(ch => {
+            const key = `${Math.round(ch.number * 100) / 100}:${ch.lang || "en"}:${ch.scanGroup || ""}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          }).sort((a, b) => a.number - b.number);
+
+          detail.chapters = allChapters;
+          detail.totalChapters = allChapters.length;
+
+          // Merge metadata from the other provider if still missing
+          if (mbDetail) {
+            if (!detail.description && mbDetail.description) {
+              detail.description = mbDetail.description;
+            }
+            if (!detail.genres?.length && mbDetail.genres?.length) {
+              detail.genres = mbDetail.genres;
+              detail.tags = mbDetail.tags;
+            }
+            if (!detail.poster && mbDetail.poster) {
+              detail.poster = mbDetail.poster;
+              detail.cover = mbDetail.cover;
+            }
+          }
+          if (atsuDetail) {
             if (!detail.description && atsuDetail.description) {
               detail.description = atsuDetail.description;
             }
@@ -101,18 +190,21 @@ export async function GET(request: NextRequest) {
               detail.genres = atsuDetail.genres;
               detail.tags = atsuDetail.tags;
             }
-            if (!detail.poster && atsuDetail.poster) {
-              detail.poster = atsuDetail.poster;
-              detail.cover = atsuDetail.cover;
+            if (!detail.anilistId && atsuDetail.anilistId) {
+              detail.anilistId = atsuDetail.anilistId;
             }
           }
+
+          console.log(`[manga/detail] cross-provider merge for ${id}: atsumaru=${atsuChapters.length} ch, mangaball=${mbChapters.length} ch, total=${allChapters.length} ch`);
         }
-      } catch { /* ignore atsumaru merge errors */ }
+      } catch (err) {
+        console.error("[manga/detail] cross-provider chapter merge error:", err);
+      }
     }
 
-    if (detail) return NextResponse.json(detail);
-    return NextResponse.json({ error: "Manga not found" }, { status: 404 });
-  } catch {
+    return NextResponse.json(detail);
+  } catch (err) {
+    console.error("[manga/detail] fatal error:", err);
     return NextResponse.json({ error: "Failed to fetch manga details" }, { status: 500 });
   }
 }

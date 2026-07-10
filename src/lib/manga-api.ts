@@ -275,21 +275,52 @@ const MANGABALL_HEADERS: Record<string, string> = {
   "Accept-Language": "en-US,en;q=0.5",
 };
 
-/** Get a CSRF token + session cookie from mangaball.net */
+/** Get a CSRF token + session cookie from mangaball.net.
+ * This is the first step of the multi-language chapter scraper —
+ * without a valid session, the chapter-listing POST returns 403.
+ *
+ * Uses getSetCookie() (Node 18+) for reliable cookie extraction.
+ * Falls back to headers.get('set-cookie') for older runtimes.
+ */
 async function getMangaballSession(): Promise<{ csrf: string; cookie: string } | null> {
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
     const res = await fetch(`${MANGABALL_BASE}/`, {
       headers: MANGABALL_HEADERS,
+      signal: controller.signal,
     });
-    // Extract CSRF token from HTML
+    clearTimeout(timeout);
+
     const html = await res.text();
     const csrfMatch = html.match(/csrf-token" content="([^"]+)"/);
-    if (!csrfMatch) return null;
-    // Extract cookies from response headers
-    const cookies = res.headers.get("set-cookie") || "";
-    const sessionCookie = cookies.split(";")[0]; // Get PHPSESSID=xxx
+    if (!csrfMatch) {
+      console.error("[manga-api] getMangaballSession: CSRF token not found in HTML");
+      return null;
+    }
+
+    // Extract cookies — use getSetCookie() for reliability (Node 18+)
+    let sessionCookie = "";
+    const setCookies = (res.headers as any).getSetCookie
+      ? (res.headers as any).getSetCookie()
+      : null;
+    if (setCookies && setCookies.length > 0) {
+      // Each entry is like "PHPSESSID=xxx; path=/; HttpOnly"
+      sessionCookie = setCookies.map((c: string) => c.split(";")[0]).join("; ");
+    } else {
+      // Fallback for older Node
+      const cookies = res.headers.get("set-cookie") || "";
+      sessionCookie = cookies.split(",")[0].split(";")[0].trim();
+    }
+
+    if (!sessionCookie) {
+      console.error("[manga-api] getMangaballSession: no session cookie in response");
+      return null;
+    }
+
     return { csrf: csrfMatch[1], cookie: sessionCookie };
-  } catch {
+  } catch (err) {
+    console.error("[manga-api] getMangaballSession error:", err);
     return null;
   }
 }
@@ -344,8 +375,13 @@ export async function getMangaballChapterPagesDirect(translationId: string): Pro
 export async function getMangaballChaptersDirect(mangaId: string): Promise<AtsuMangaChapter[]> {
   try {
     const session = await getMangaballSession();
-    if (!session) return [];
+    if (!session) {
+      console.error("[manga-api] getMangaballChaptersDirect: no session, cannot fetch chapters for", mangaId);
+      return [];
+    }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     const res = await fetch(`${MANGABALL_BASE}/api/v1/chapter/chapter-listing-by-title-id/`, {
       method: "POST",
       headers: {
@@ -355,24 +391,39 @@ export async function getMangaballChaptersDirect(mangaId: string): Promise<AtsuM
         "Content-Type": "application/x-www-form-urlencoded",
         Cookie: session.cookie,
         Referer: `${MANGABALL_BASE}/`,
+        Origin: MANGABALL_BASE,
+        Accept: "application/json, text/plain, */*",
       },
       body: `title_id=${encodeURIComponent(mangaId)}&userSettingsEnabled=false`,
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
 
-    if (!res.ok) return [];
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error(`[manga-api] getMangaballChaptersDirect: HTTP ${res.status} for mangaId=${mangaId}`, body.slice(0, 200));
+      return [];
+    }
+
     const data = await res.json();
-    if (data?.code !== 200 || !data?.ALL_CHAPTERS) return [];
+    if (data?.code !== 200 || !data?.ALL_CHAPTERS) {
+      console.error(`[manga-api] getMangaballChaptersDirect: unexpected response code=${data?.code} for mangaId=${mangaId}`);
+      return [];
+    }
 
     // Flatten: each chapter has multiple translations (one per language)
     const chapters: AtsuMangaChapter[] = [];
+    const langCount: Record<string, number> = {};
     for (const ch of data.ALL_CHAPTERS) {
       const number = parseFloat(ch.number_float) || 0;
       for (const tr of ch.translations || []) {
+        const lang = tr.language || "en";
+        langCount[lang] = (langCount[lang] || 0) + 1;
         chapters.push({
           id: tr.id,  // Translation ID — used for fetching pages
           title: tr.name || `Chapter ${number}`,
           number,
-          lang: tr.language,
+          lang,
           pages: tr.pages || 0,
           pageCount: tr.pages || 0,
           date: tr.date,
@@ -380,6 +431,8 @@ export async function getMangaballChaptersDirect(mangaId: string): Promise<AtsuM
         });
       }
     }
+
+    console.log(`[manga-api] getMangaballChaptersDirect: ${chapters.length} chapters in ${Object.keys(langCount).length} languages for mangaId=${mangaId}:`, langCount);
 
     // Sort by number, then by language
     chapters.sort((a, b) => {

@@ -266,9 +266,16 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
       // - If comix manga (cx:): search atsumaru, merge atsumaru + mangaball chapters
       // Result for at:/mb:: ALL English scans from atsumaru + ALL mangaball chapters
       // Result for cx:: comix chapters + atsumaru English + mangaball multi-lang
+      // CLIENT-SIDE cross-provider merge (FALLBACK only):
+      // The server-side detail route now does the cross-provider merge
+      // in parallel (atsumaru + mangaball). This client-side merge only
+      // runs as a fallback if the server merge didn't produce multi-language
+      // chapters (e.g., if the server-side mangaball fetch timed out).
       if (data?.chapters?.length) {
+        // Check if the server already merged multi-language chapters
+        const serverLangs = new Set(data.chapters.map((ch: any) => ch.lang || "en").filter(Boolean));
         const titleForSearch = fbTitle || data.englishTitle || data.title || "";
-        if (titleForSearch && titleForSearch !== "Unknown Title") {
+        if (titleForSearch && titleForSearch !== "Unknown Title" && serverLangs.size <= 1) {
           (async () => {
             try {
               if (mangaId.startsWith("mb:")) {
