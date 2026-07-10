@@ -88,6 +88,7 @@ interface MangaDetailProps {
 
 export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   const navigate = useAppStore(s => s.navigate);
+  const user = useAppStore(s => s.user);
   const [manga, setManga] = useState<MangaDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState<string>("");
@@ -101,6 +102,99 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   const [showAllTags, setShowAllTags] = useState(false);
   const [showAllAltTitles, setShowAllAltTitles] = useState(false);
   const [selectedScanlator, setSelectedScanlator] = useState<string>("all");
+
+  // ── Our own view + rating stats (layered on atsu.moe's base) ──
+  const [ourViews, setOurViews] = useState(0);
+  const [ourRating, setOurRating] = useState(0);
+  const [ourRatingCount, setOurRatingCount] = useState(0);
+  const [userRating, setUserRating] = useState<number | null>(null);
+  const [ratingInput, setRatingInput] = useState<number>(0);
+  const [submittingRating, setSubmittingRating] = useState(false);
+
+  // ── Increment our view counter + fetch our ratings on mount ──
+  // Fires once per manga detail page open. The POST /api/manga/view
+  // increments our own view count (atsu.moe's base views are kept
+  // separately and combined for display).
+  useEffect(() => {
+    if (!mangaId) return;
+
+    // Increment view count (fire-and-forget)
+    fetch(`/api/manga/view?mangaId=${encodeURIComponent(mangaId)}`, { method: "POST" })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.ourViews != null) setOurViews(data.ourViews);
+      })
+      .catch(() => {});
+
+    // Fetch our own ratings (and the user's rating if logged in)
+    const username = user?.username || "";
+    const ratingsUrl = `/api/manga/ratings?mangaId=${encodeURIComponent(mangaId)}${username ? `&username=${encodeURIComponent(username)}` : ""}`;
+    fetch(ratingsUrl)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data) return;
+        setOurViews(data.ourViews || 0);
+        setOurRating(data.ourRating || 0);
+        setOurRatingCount(data.ourRatingCount || 0);
+        if (data.userRating != null) {
+          setUserRating(data.userRating);
+          setRatingInput(data.userRating);
+        }
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mangaId]);
+
+  // ── Submit a rating ──
+  const submitRating = async (rating: number) => {
+    if (!user || submittingRating) return;
+    setSubmittingRating(true);
+    try {
+      const res = await fetch("/api/manga/rate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mangaId,
+          username: user.username,
+          rating,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUserRating(data.rating);
+        setOurRating(data.ourRating);
+        setOurRatingCount(data.ourRatingCount);
+        setRatingInput(data.rating);
+      }
+    } catch { /* ignore */ }
+    setSubmittingRating(false);
+  };
+
+  // ── Combined stats (atsu.moe base + our own) ──
+  // Parse atsu.moe's view count (e.g. "7.8M" → 7800000)
+  const atsuViewsNumeric = useMemo(() => {
+    if (!manga?.views) return 0;
+    const s = String(manga.views).replace(/[^0-9.]/g, "");
+    const n = parseFloat(s) || 0;
+    if (String(manga.views).includes("M")) return Math.round(n * 1_000_000);
+    if (String(manga.views).includes("K")) return Math.round(n * 1_000);
+    return n;
+  }, [manga?.views]);
+
+  const combinedViews = atsuViewsNumeric + ourViews;
+
+  // Weighted rating: if we have our own ratings, blend them with atsu.moe's.
+  // atsu.moe's rating gets weight proportional to its view count (capped),
+  // our ratings get weight proportional to our rating count.
+  const combinedRating = useMemo(() => {
+    const atsuRating = manga?.rating || 0;
+    const atsuWeight = Math.min(atsuViewsNumeric / 1000, 50); // cap atsu weight
+    const ourWeight = ourRatingCount * 5; // each of our ratings worth 5x
+    const totalWeight = atsuWeight + ourWeight;
+    if (totalWeight === 0) return atsuRating;
+    if (ourRatingCount === 0) return atsuRating;
+    return (atsuRating * atsuWeight + ourRating * ourWeight) / totalWeight;
+  }, [manga?.rating, atsuViewsNumeric, ourRating, ourRatingCount]);
 
   // ── Load manga detail ──
   useEffect(() => {
@@ -434,6 +528,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   const COLOR_SLATE3 = "#313234";
   const COLOR_SLATE2 = "#282828";
   const COLOR_MUTED = "#888888";
+  const COLOR_BORDER = "#3a3a3a";
   const FONT_STACK = "Geist, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
 
   const genrePillStyle = {
@@ -626,22 +721,27 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                 </svg>
                 <span style={{ color: COLOR_HEADING, fontWeight: 600, fontSize: "14px" }}>
-                  {manga.rating.toFixed(1)}/10
+                  {combinedRating > 0 ? combinedRating.toFixed(1) : "—"}/10
                 </span>
                 <span style={{ color: COLOR_MUTED, fontSize: "12px" }}>average</span>
               </div>
             ) : null}
 
-            {/* Views */}
-            {manga.views != null && (
+            {/* Views — combined (atsu.moe base + our own) */}
+            {combinedViews > 0 && (
               <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLOR_TEXT} strokeWidth={2}>
                   <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                   <circle cx="12" cy="12" r="3" />
                 </svg>
                 <span style={{ color: COLOR_HEADING, fontSize: "14px" }}>
-                  {formatViews(manga.views)} views
+                  {formatViews(combinedViews)} views
                 </span>
+                {ourViews > 0 && (
+                  <span style={{ color: COLOR_MUTED, fontSize: "10px" }}>
+                    (+{ourViews})
+                  </span>
+                )}
               </div>
             )}
 
@@ -772,7 +872,10 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
               </div>
             )}
 
-            {/* Stats line — rating • views • chapters */}
+            {/* Stats line — combined rating • combined views • chapters
+                Our own view/rating stats are layered on atsu.moe's base:
+                  combinedViews  = atsuViews + ourViews
+                  combinedRating = weighted blend of atsuRating + ourRating */}
             <div style={{
               display: "flex",
               alignItems: "center",
@@ -780,27 +883,39 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
               flexWrap: "wrap",
               color: COLOR_TEXT,
               fontSize: "14px",
-              marginBottom: "24px",
+              marginBottom: "16px",
             }}>
-              {manga.rating ? (
+              {combinedRating > 0 ? (
                 <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                   <svg width="14" height="14" viewBox="0 0 20 20" fill={COLOR_ACCENT}>
                     <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                   </svg>
-                  <span style={{ color: COLOR_HEADING, fontWeight: 600 }}>{manga.rating.toFixed(1)}/10</span>
-                  <span style={{ color: COLOR_MUTED }}>average rating</span>
+                  <span style={{ color: COLOR_HEADING, fontWeight: 600 }}>{combinedRating.toFixed(1)}/10</span>
+                  <span style={{ color: COLOR_MUTED }}>
+                    average rating
+                    {ourRatingCount > 0 && (
+                      <span style={{ color: COLOR_MUTED, fontSize: "11px" }}>
+                        {" "}({ourRatingCount} {ourRatingCount === 1 ? "rating" : "ratings"})
+                      </span>
+                    )}
+                  </span>
                 </span>
               ) : null}
-              {manga.views != null && (
+              {combinedViews > 0 && (
                 <>
-                  {manga.rating && <span style={{ color: COLOR_MUTED }}>•</span>}
+                  {combinedRating > 0 && <span style={{ color: COLOR_MUTED }}>•</span>}
                   <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={COLOR_TEXT} strokeWidth={2}>
                       <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                       <circle cx="12" cy="12" r="3" />
                     </svg>
-                    <span style={{ color: COLOR_HEADING, fontWeight: 600 }}>{formatViews(manga.views)}</span>
+                    <span style={{ color: COLOR_HEADING, fontWeight: 600 }}>{formatViews(combinedViews)}</span>
                     <span style={{ color: COLOR_MUTED }}>views</span>
+                    {ourViews > 0 && (
+                      <span style={{ color: COLOR_MUTED, fontSize: "11px" }}>
+                        {" "}(+{ourViews} from us)
+                      </span>
+                    )}
                   </span>
                 </>
               )}
@@ -814,6 +929,103 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                 </>
               )}
             </div>
+
+            {/* Rating widget — let logged-in users rate this manga (0-10)
+                Uses our own MangaRating table. Each user can rate once.
+                The rating is blended with atsu.moe's base rating for display. */}
+            {user ? (
+              <div style={{
+                marginBottom: "28px",
+                padding: "16px",
+                background: "#282828",
+                borderRadius: "8px",
+                border: `1px solid ${COLOR_BORDER}`,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "13px", fontWeight: 600, color: COLOR_HEADING }}>
+                    {userRating != null ? "Your rating:" : "Rate this manga:"}
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <input
+                      type="range"
+                      min={0}
+                      max={10}
+                      step={0.5}
+                      value={ratingInput}
+                      onChange={(e) => setRatingInput(parseFloat(e.target.value))}
+                      style={{
+                        width: "200px",
+                        accentColor: COLOR_ACCENT,
+                        cursor: "pointer",
+                      }}
+                    />
+                    <span style={{
+                      fontSize: "18px",
+                      fontWeight: 700,
+                      color: COLOR_ACCENT,
+                      minWidth: "48px",
+                      textAlign: "center",
+                    }}>
+                      {ratingInput.toFixed(1)}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => submitRating(ratingInput)}
+                    disabled={submittingRating || (userRating === ratingInput && userRating != null)}
+                    style={{
+                      padding: "6px 16px",
+                      background: submittingRating ? "#555" : COLOR_ACCENT,
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      cursor: submittingRating ? "not-allowed" : "pointer",
+                      opacity: submittingRating ? 0.6 : 1,
+                    }}
+                  >
+                    {submittingRating ? "Saving..." : userRating != null ? "Update" : "Submit"}
+                  </button>
+                  {userRating != null && (
+                    <span style={{ fontSize: "11px", color: COLOR_MUTED }}>
+                      You rated this {userRating.toFixed(1)}/10
+                    </span>
+                  )}
+                </div>
+                {ourRatingCount > 0 && (
+                  <p style={{ fontSize: "11px", color: COLOR_MUTED, margin: "8px 0 0" }}>
+                    {ourRatingCount} {ourRatingCount === 1 ? "user has" : "users have"} rated this manga — our average: {ourRating.toFixed(1)}/10
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div style={{
+                marginBottom: "28px",
+                padding: "12px 16px",
+                background: "#282828",
+                borderRadius: "8px",
+                border: `1px solid ${COLOR_BORDER}`,
+                fontSize: "12px",
+                color: COLOR_MUTED,
+              }}>
+                <button
+                  onClick={() => navigate({ page: "signin" } as any)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: COLOR_ACCENT,
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: 0,
+                    textDecoration: "underline",
+                  }}
+                >
+                  Sign in
+                </button>
+                {" "}to rate this manga
+              </div>
+            )}
 
             {/* Meta grid — TYPE / STATUS / YEAR / AUTHORS / ARTIST / OTHER NAMES */}
             <div style={{

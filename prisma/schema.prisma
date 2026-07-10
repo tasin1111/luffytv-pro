@@ -61,3 +61,32 @@ model CommentLike {
 
   @@unique([commentId, username])
 }
+
+// ── Manga view tracking (our own view counter, layered on atsu.moe's base) ──
+// Each manga has ONE row. Views increment every time a user opens the detail page.
+// The displayed view count = atsu.moe's base views + our own views.
+model MangaView {
+  id        String   @id @default(cuid())
+  mangaId   String   @unique          // e.g. "at:3xHoW" (prefixed like the rest of the app)
+  views     Int      @default(0)      // our own view count (starts at 0)
+  updatedAt DateTime @updatedAt
+
+  ratings   MangaRating[]
+}
+
+// ── Manga ratings (our own user ratings, layered on atsu.moe's base) ──
+// Each user can rate each manga once (upsert on [mangaId, username]).
+// The displayed rating = weighted combination of atsu.moe's base rating
+// and our users' ratings.
+model MangaRating {
+  id        String   @id @default(cuid())
+  mangaId   String                     // e.g. "at:3xHoW"
+  username  String                     // user identifier (from auth-local or session)
+  rating    Float                       // 0.0 – 10.0
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  manga     MangaView @relation(fields: [mangaId], references: [mangaId], onDelete: Cascade)
+
+  @@unique([mangaId, username])
+}
