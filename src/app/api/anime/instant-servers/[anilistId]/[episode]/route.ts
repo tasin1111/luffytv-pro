@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveAniDbEmbeds } from "@/lib/anidb-direct";
-import { resolveAniKotoEmbeds } from "@/lib/anikoto-direct";
 import { resolveAniNekoServers } from "@/lib/anineko-direct";
 import { resolveAnimexMimiBoth } from "@/lib/animex-fast";
 import { resolveAniDapId, getAniDapSources } from "@/lib/anidap-api";
@@ -20,11 +19,8 @@ export const maxDuration = 15;
  *   1. AniDB (sub) — scraped m3u8 from hls.anidb.app
  *   2. AnimeX mimi (dub)
  *   3. AniDB (dub)
- *   4. AniKoto (sub) — embed fallback (megaplay.buzz player is JS-obfuscated)
- *   5. AniKoto (dub)
- *   6. AniNeko (sub) — embed fallbacks (vivibebe, otakuhg, etc.)
- *   7. AniDap beep (sub) — direct m3u8 from playeng.animeapps.top
- *   8. AniDap beep (dub)
+ *   4. AniNeko (sub) — embed fallbacks (vivibebe, otakuhg, etc.)
+ *   5. AniDap beep (sub) — direct m3u8 from playeng.animeapps.top
  */
 export async function GET(
   _req: NextRequest,
@@ -46,10 +42,9 @@ export async function GET(
     // (the old code had a sequential AniDap fetch AFTER Promise.all which
     // blocked the entire response by 2-3 seconds)
     const anidapId = await resolveAniDapId(id).catch(() => null);
-    const [animexMimi, anidbResult, anikotoResult, aninekoServers, anidapSub] = await Promise.all([
+    const [animexMimi, anidbResult, aninekoServers, anidapSub] = await Promise.all([
       resolveAnimexMimiBoth(id, epNum),
       resolveAniDbEmbeds(id, epNum, title),
-      resolveAniKotoEmbeds(id, epNum, title),
       resolveAniNekoServers(id, epNum, title),
       // Fetch AniDap beep sources IN PARALLEL (not sequentially after)
       anidapId
@@ -60,7 +55,7 @@ export async function GET(
     const servers: Array<{
       id: string;
       name: string;
-      source: "animex" | "anidb" | "anikoto" | "anineko" | "anidap";
+      source: "animex" | "anidb" | "anineko" | "anidap";
       provider: string;
       type: "sub" | "dub";
       quality: string;
@@ -153,43 +148,7 @@ export async function GET(
       });
     }
 
-    // ── PRIORITY 4-5: AniKoto (embed fallback) ──
-    // megaplay.buzz player is JS-obfuscated — can't scrape m3u8 server-side.
-    // The embed URL works in an iframe (megaplay.buzz player handles playback).
-    if (anikotoResult.sub?.embedUrl) {
-      servers.push({
-        id: "anikoto:sub",
-        name: "AniKoto",
-        source: "anikoto",
-        provider: "anikoto",
-        type: "sub",
-        quality: "1080p",
-        streamUrl: anikotoResult.sub.embedUrl,
-        isM3U8: false,
-        isMP4: false,
-        isEmbed: true,
-        hardsub: false,
-        priority: 4,
-      });
-    }
-    if (anikotoResult.dub?.embedUrl) {
-      servers.push({
-        id: "anikoto:dub",
-        name: "AniKoto (Dub)",
-        source: "anikoto",
-        provider: "anikoto",
-        type: "dub",
-        quality: "1080p",
-        streamUrl: anikotoResult.dub.embedUrl,
-        isM3U8: false,
-        isMP4: false,
-        isEmbed: true,
-        hardsub: false,
-        priority: 5,
-      });
-    }
-
-    // ── PRIORITY 6: AniNeko (embed fallbacks) ──
+    // ── PRIORITY 4: AniNeko (embed fallbacks) ──
     for (let i = 0; i < Math.min(aninekoServers.length, 3); i++) {
       const srv = aninekoServers[i];
       servers.push({
@@ -239,7 +198,7 @@ export async function GET(
     }
 
     console.log(
-      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anikoto:${anikotoResult.sub || anikotoResult.dub ? "✓" : "✗"} anineko:${aninekoServers.length > 0 ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
+      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anineko:${aninekoServers.length > 0 ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
     );
 
     return NextResponse.json({ servers });

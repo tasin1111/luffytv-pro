@@ -430,6 +430,11 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const [animeGenres, setAnimeGenres] = useState<string[]>([]);
   const [animeScore, setAnimeScore] = useState<number | null>(null);
   const [animeNextAiring, setAnimeNextAiring] = useState<{ episode: number; airingAt: number } | null>(null);
+  // AniSkip intro/outro times — PERSISTENT across provider switches.
+  // Fetched once per episode from api.aniskip.com (community database).
+  // Merged with any provider-supplied intro/outro (provider takes priority
+  // if available, AniSkip is the fallback).
+  const [aniskipData, setAniskipData] = useState<{ intro: { start: number; end: number } | null; outro: { start: number; end: number } | null }>({ intro: null, outro: null });
 
   // ── Providers Map ──
   const [providersMap, setProvidersMap] = useState<Record<string, ProviderEpisodes>>({});
@@ -830,24 +835,36 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         }
       } catch { /* AniList failed */ }
 
-      // ── STEP 1.5: Fetch episode descriptions in BACKGROUND (doesn't block) ──
-      // This fetches from MAL/Jikan (slow, batches of 10). We don't await it —
-      // episodes are already shown. When it completes, we merge descriptions/airDates.
+      // ── STEP 1.5: Fetch episode descriptions from api.ani.zip (TVDB) ──
+      // api.ani.zip has episode-specific descriptions, titles, and thumbnails
+      // from TVDB — much richer than AniList's streamingEpisodes.
+      // Also used to filter out UNRELEASED episodes (airDate in the future).
       if (!cancelled && episodesLoaded) {
-        fetch(`/api/anime/episode-info/${anilistId}`)
+        fetch(`https://api.ani.zip/mappings?anilist_id=${anilistId}`)
           .then(r => r.ok ? r.json() : null)
           .then(data => {
             if (cancelled || !data?.episodes) return;
-            setEpisodeList(prev => prev.map(ep => {
-              const info = data.episodes[ep.number];
-              if (!info) return ep;
-              return {
-                ...ep,
-                description: info.description || ep.description,
-                airDate: info.airDate || ep.airDate,
-                title: info.title || ep.title,
-              };
-            }));
+            const now = Date.now();
+            setEpisodeList(prev => {
+              const updated = prev.map(ep => {
+                const info = data.episodes[String(ep.number)] || data.episodes[ep.number];
+                if (!info) return ep;
+                return {
+                  ...ep,
+                  description: info.overview || ep.description,
+                  airDate: info.airDate || info.airdate || ep.airDate,
+                  title: info.title?.en || info.title?.["x-jat"] || ep.title,
+                  thumbnail: info.image || ep.thumbnail,
+                };
+              });
+              // Filter out unreleased episodes (airDate in the future)
+              return updated.filter(ep => {
+                if (!ep.airDate) return true; // keep if no air date
+                const airTime = new Date(ep.airDate).getTime();
+                if (isNaN(airTime)) return true; // keep if can't parse
+                return airTime <= now; // keep only if already aired
+              });
+            });
           })
           .catch(() => {});
       }
@@ -1165,6 +1182,31 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     return () => { cancelled = true; clearTimeout(safetyTimeout); };
   }, [anilistId, episodeNum]);
 
+  // ── Fetch AniSkip intro/outro times (PERSISTENT across provider switches) ──
+  // This runs once per episode — the skip times come from the AniSkip community
+  // database, NOT from the stream provider. So they work no matter which server
+  // the user selects. Provider-supplied intro/outro (if any) takes priority.
+  useEffect(() => {
+    if (!anilistId || !episodeNum) return;
+    let cancelled = false;
+    setAniskipData({ intro: null, outro: null }); // reset on episode change
+
+    fetch(`https://api.aniskip.com/v2/skip-times/${anilistId}/${episodeNum}?types[]=op&types[]=ed&episodeLength=24`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data?.found || !Array.isArray(data.results)) return;
+        const intro = data.results.find((r: any) => r.skipType === "op" || r.skipType === "mixed-op");
+        const outro = data.results.find((r: any) => r.skipType === "ed" || r.skipType === "mixed-ed");
+        setAniskipData({
+          intro: intro ? { start: intro.interval.startTime, end: intro.interval.endTime } : null,
+          outro: outro ? { start: outro.interval.startTime, end: outro.interval.endTime } : null,
+        });
+      })
+      .catch(() => {});
+
+    return () => { cancelled = true; };
+  }, [anilistId, episodeNum]);
+
   // ── Play stream from selected server (INSTANT — no second API call) ──
   // The streamUrl is already verified and included in the server list.
   // Switching servers is instant — just set the stream data.
@@ -1192,8 +1234,10 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     // providers like vee/yuki/miku/neko) and intro/outro chapters. Pass them
     // through to the HLS player.
     const subtitleTracks = (server as ServerEntry).subtitleTracks || [];
-    const intro = (server as ServerEntry).intro ?? null;
-    const outro = (server as ServerEntry).outro ?? null;
+    // Provider intro/outro takes priority; AniSkip is the fallback.
+    // AniSkip data is PERSISTENT — it stays the same when switching providers.
+    const intro = (server as ServerEntry).intro ?? aniskipData.intro;
+    const outro = (server as ServerEntry).outro ?? aniskipData.outro;
 
     const newStreamData: StreamData = {
       video_link: streamUrl,
@@ -1235,7 +1279,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         duration: 0,
       });
     }
-  }, [selectedServer, serverList]);
+  }, [selectedServer, serverList, aniskipData]);
 
   // ── Track playback progress for Continue Watching ──
   // Listens to the video element's timeupdate event and saves progress
