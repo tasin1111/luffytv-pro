@@ -6,6 +6,7 @@ import type { AnimeItem } from "./store";
 import type { MiruroAnimeResult } from "@/lib/miruro-api";
 import type { AniListMedia } from "@/lib/anilist-api";
 import AnimeComments from "./anime-comments";
+import MusicTab from "./music-tab";
 
 // ============================================================
 // Types
@@ -62,7 +63,7 @@ interface CharacterData {
 }
 
 // ── Tab type ──
-type DetailTab = "episodes" | "characters" | "related" | "morelikethis";
+type DetailTab = "episodes" | "characters" | "music" | "related" | "morelikethis";
 
 // ── Status label helper ──
 const statusLabel = (s: string) => {
@@ -557,6 +558,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
   const tabs: Array<{ id: DetailTab; label: string }> = [
     { id: "episodes", label: "Episodes" },
     { id: "characters", label: "Characters" },
+    { id: "music", label: "Music" },
     { id: "related", label: "Related" },
     { id: "morelikethis", label: "More like this" },
   ];
@@ -936,6 +938,18 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                         })}
                       </div>
                     ) : <div className="text-center py-12 text-white/40 text-sm">No characters available</div>}
+                  </div>
+                )}
+
+                {/* ─── MUSIC TAB — OP/ED themes from animethemes.moe ─── */}
+                {activeTab === "music" && (
+                  <div className="w-full">
+                    <MusicTab
+                      anilistId={anilistId}
+                      currentTitle={displayTitle}
+                      romajiTitle={anilistTitleRomaji}
+                      seasons={franchiseSeasons}
+                    />
                   </div>
                 )}
 
