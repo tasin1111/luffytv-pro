@@ -44,10 +44,7 @@
  * stream proxy. On Vercel, curl IS available (verified).
  */
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
+import { wrapM3u8Url } from "./proxy";
 
 const KYREN_API = "https://kyren.moe/api";
 
@@ -94,8 +91,6 @@ async function workerFetchJson<T = any>(url: string, timeoutMs = 10000): Promise
  * aniwatchtv handles Referer + CORS + m3u8 segment rewriting.
  */
 function wrapKyrenStream(url: string): string {
-  // Use the shared proxy helper which routes through aniwatchtv
-  const { wrapM3u8Url } = require("./proxy");
   return wrapM3u8Url(url);
 }
 

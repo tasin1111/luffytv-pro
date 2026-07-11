@@ -198,9 +198,10 @@ export async function fetchAniPmSources(
         // Embed URLs are full URLs (ok.ru, mp4upload, etc.) — used directly
         streamUrl = s.url;
       } else {
-        // HLS/file URLs are relative (/api/anime/src/hls?t=...) — prepend ani.pm and wrap through worker
-        const fullUrl = s.url.startsWith("http") ? s.url : `${ANI_PM}${s.url}`;
-        streamUrl = workerWrap(fullUrl);
+        // HLS/file URLs are relative (/api/anime/src/hls?t=...) — prepend ani.pm
+        // ani.pm has its OWN proxy that handles Referer + CORS — do NOT double-wrap
+        // with our Worker proxy (that breaks the streams).
+        streamUrl = s.url.startsWith("http") ? s.url : `${ANI_PM}${s.url}`;
       }
 
       // Determine hardsub
