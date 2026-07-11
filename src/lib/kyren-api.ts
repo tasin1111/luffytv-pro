@@ -87,11 +87,12 @@ async function workerFetchJson<T = any>(url: string, timeoutMs = 10000): Promise
 }
 
 /**
- * Wrap a Kyren stream URL through aniwatchtv proxy (NOT the worker).
- * aniwatchtv handles Referer + CORS + m3u8 segment rewriting.
+ * Wrap a Kyren stream URL through /api/stream (Vercel server proxy).
+ * api.kyren.moe is Cloudflare-protected — Worker proxy gets 403, but
+ * Vercel's server can fetch it with the correct Referer: https://kyren.moe/
  */
 function wrapKyrenStream(url: string): string {
-  return wrapM3u8Url(url);
+  return `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent("https://kyren.moe/")}`;
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
