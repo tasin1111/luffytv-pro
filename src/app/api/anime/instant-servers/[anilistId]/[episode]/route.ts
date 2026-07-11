@@ -226,22 +226,46 @@ export async function GET(
       }
     }
 
-    // ── AniKage: intro/outro ONLY (no playable servers) ──
-    // AniKage's source URLs are ENCRYPTED tokens that need client-side
-    // JavaScript decryption (prox.anicore.tv/m3u8/{token} returns 403
-    // without the decryption). The embeds (ninstream.com) also return 403
-    // from server-side. So we can't add AniKage as playable servers.
-    //
-    // BUT — AniKage provides intro/outro skip times for ALL anime (new and old).
-    // We apply these PERMANENTLY to every other server in the list.
-    // The skip times are timestamps, not stream-dependent — they work
-    // no matter which provider the user selects.
+    // ── PRIORITY 14+: AniKage — embed servers + intro/outro ──
+    // AniKage's source URLs are encrypted tokens (prox.anicore.tv) that
+    // need client-side JS decryption. BUT the embed URLs (ninstream.com m3u8
+    // + playeng.animeapps.top) work! We add them as playable servers.
+    // ninstream.com m3u8 needs Referer: https://senshi.live/ (handled by proxy).
+    let anikagePriority = 14;
+    const anikageServers = [...(anikageResult.sub?.servers || []), ...(anikageResult.dub?.servers || [])];
+    for (const srv of anikageServers) {
+      // Wrap ninstream.com m3u8 URLs through our proxy with the correct referer
+      const isNinstream = srv.m3u8Url.includes("ninstream.com");
+      const proxiedUrl = isNinstream
+        ? wrapM3u8UrlWithReferer(srv.m3u8Url, "https://senshi.live/")
+        : wrapM3u8Url(srv.m3u8Url);
+      servers.push({
+        id: `anikage:${srv.provider}:${anikagePriority}`,
+        name: srv.name,
+        source: "anikage",
+        provider: srv.provider,
+        type: srv.type,
+        quality: srv.quality,
+        streamUrl: proxiedUrl,
+        isM3U8: true,
+        isMP4: false,
+        isEmbed: false,
+        hardsub: false,
+        priority: anikagePriority++,
+        intro: anikageResult.intro,
+        outro: anikageResult.outro,
+      });
+    }
+
+    // ── AniKage intro/outro is PERMANENT — apply to ALL servers ──
+    // The skip times from AniKage work for every provider (mimi, anidb, etc.)
+    // because they're timestamps, not stream-dependent.
     if (anikageResult.intro || anikageResult.outro) {
       for (const s of servers) {
         if (!s.intro && anikageResult.intro) s.intro = anikageResult.intro;
         if (!s.outro && anikageResult.outro) s.outro = anikageResult.outro;
       }
-      console.log(`[instant-servers] AniKage skip times applied: intro=${JSON.stringify(anikageResult.intro)} outro=${JSON.stringify(anikageResult.outro)}`);
+      console.log(`[instant-servers] AniKage skip times applied to ALL servers: intro=${JSON.stringify(anikageResult.intro)} outro=${JSON.stringify(anikageResult.outro)}`);
     }
 
     // ── PRIORITY 10+: AniDap beep (direct m3u8) ──

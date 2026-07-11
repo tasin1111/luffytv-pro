@@ -1184,30 +1184,53 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     return () => { cancelled = true; clearTimeout(safetyTimeout); };
   }, [anilistId, episodeNum]);
 
-  // ── Fetch AniSkip intro/outro times (PERSISTENT across provider switches) ──
-  // This runs once per episode — the skip times come from the AniSkip community
-  // database, NOT from the stream provider. So they work no matter which server
-  // the user selects. Provider-supplied intro/outro (if any) takes priority.
+  // ── Fetch skip times (PERSISTENT across provider switches) ──
+  // PRIMARY: AniKage (works for ALL anime, new and old)
+  // BACKUP: AniSkip (community database, only covers old/popular anime)
+  //
+  // These are fetched ONCE per episode and stored in state. They persist
+  // when switching providers — the skip button stays no matter which server
+  // the user selects. This works because skip times are timestamps, not
+  // stream-dependent.
   useEffect(() => {
     if (!anilistId || !episodeNum) return;
     let cancelled = false;
     setAniskipData({ intro: null, outro: null }); // reset on episode change
 
+    // Fetch AniSkip (backup — covers old/popular anime)
     fetch(`https://api.aniskip.com/v2/skip-times/${anilistId}/${episodeNum}?types[]=op&types[]=ed&episodeLength=0`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (cancelled || !data?.found || !Array.isArray(data.results)) return;
         const intro = data.results.find((r: any) => r.skipType === "op" || r.skipType === "mixed-op");
         const outro = data.results.find((r: any) => r.skipType === "ed" || r.skipType === "mixed-ed");
-        setAniskipData({
-          intro: intro ? { start: intro.interval.startTime, end: intro.interval.endTime } : null,
-          outro: outro ? { start: outro.interval.startTime, end: outro.interval.endTime } : null,
-        });
+        setAniskipData(prev => ({
+          intro: prev.intro || (intro ? { start: intro.interval.startTime, end: intro.interval.endTime } : null),
+          outro: prev.outro || (outro ? { start: outro.interval.startTime, end: outro.interval.endTime } : null),
+        }));
+      })
+      .catch(() => {});
+
+    // ALSO fetch AniKage skip times (PRIMARY — works for ALL anime)
+    // This ensures skip times are permanent even for servers from the main
+    // servers route (not just instant-servers).
+    fetch(`/api/anime/instant-servers/${anilistId}/${episodeNum}${animeTitle ? `?title=${encodeURIComponent(animeTitle)}` : ""}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data?.servers?.length) return;
+        // Find the first server with intro/outro (from AniKage)
+        const serverWithSkip = data.servers.find((s: any) => s.intro || s.outro);
+        if (serverWithSkip) {
+          setAniskipData(prev => ({
+            intro: prev.intro || serverWithSkip.intro || null,
+            outro: prev.outro || serverWithSkip.outro || null,
+          }));
+        }
       })
       .catch(() => {});
 
     return () => { cancelled = true; };
-  }, [anilistId, episodeNum]);
+  }, [anilistId, episodeNum, animeTitle]);
 
   // ── Play stream from selected server (INSTANT — no second API call) ──
   // The streamUrl is already verified and included in the server list.
