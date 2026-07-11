@@ -553,7 +553,40 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     setTranslation(t);
     setFailedProviders(new Set());
     setStreamError(null);
-  }, [translation]);
+
+    // Auto-select the best server for the new translation mode.
+    // This way the user doesn't have to manually pick a server when switching.
+    setSelectedServer(prev => {
+      if (!serverList || serverList.length === 0) return prev;
+
+      let best: ServerEntry | undefined;
+
+      if (t === "hindi") {
+        // Hindi: find anixtv server
+        best = serverList.find(s => s.source === "anixtv");
+      } else if (t === "dub") {
+        // Dub: find dub server (not anixtv)
+        best = serverList.find(s => s.type === "dub" && s.source !== "anixtv")
+            || serverList.find(s => s.type === "dub");
+      } else if (t === "hardsub") {
+        // Hardsub: find hardsub sub server
+        best = serverList.find(s => s.type === "sub" && s.hardsub === true)
+            || serverList.find(s => s.type === "sub");
+      } else {
+        // Sub (default): find softsub server, prefer mimi
+        best = serverList.find(s => s.id === "animex:mimi:sub")
+            || serverList.find(s => s.type === "sub" && s.hardsub !== true)
+            || serverList.find(s => s.type === "sub");
+      }
+
+      if (best) {
+        setStreamError(null);
+        return best.id;
+      }
+      // No server found for this mode — keep current
+      return prev;
+    });
+  }, [translation, serverList]);
 
   const handleVideoEnded = useCallback(() => {
     if (autoNext) {

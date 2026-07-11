@@ -12,7 +12,7 @@ import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 15;
+export const maxDuration = 25; // increased from 15 — AniDB + AllManga need Worker proxy calls
 
 /**
  * GET /api/anime/instant-servers/[anilistId]/[episode]?title={title}
@@ -44,25 +44,30 @@ export async function GET(
 
   try {
     // Resolve all providers in parallel — INCLUDING AniDap sources
-    // (the old code had a sequential AniDap fetch AFTER Promise.all which
-    // blocked the entire response by 2-3 seconds)
+    // Each provider gets a 10s timeout — if it doesn't resolve in time,
+    // we skip it and return whatever we have. This prevents a single slow
+    // provider from blocking the entire response.
+    function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+      return Promise.race([
+        promise,
+        new Promise<T>(r => setTimeout(() => r(fallback), ms)),
+      ]);
+    }
+
     const anidapId = await resolveAniDapId(id).catch(() => null);
-    const [animexMimi, anidbResult, aninekoM3u8s, anidapSub, anikageResult, senshiResult, allmangaResult] = await Promise.all([
-      resolveAnimexMimiBoth(id, epNum),
-      resolveAniDbEmbeds(id, epNum, title),
-      // AniNeko — now extracts DIRECT m3u8 from vivibebe.site embeds
-      resolveAniNekoM3u8(id, epNum, title).catch(() => []),
-      anidapId
-        ? getAniDapSources(anidapId, epNum, "sub", "beep").catch(() => null)
-        : Promise.resolve(null),
-      resolveAniKageBoth(id, epNum, title).catch(() => ({ sub: null, dub: null, intro: null, outro: null })),
-      resolveSenshi(id, epNum, title).catch(() => null),
-      // AllManga — OUR OWN scraper (no third-party API)
-      resolveAllManga(id, epNum, "sub").catch(() => null),
-      // AniZone — high-quality HLS with soft subtitles (10+ languages)
-      resolveAniZone(id, epNum, title).catch(() => null),
-      // AniWaves — big library, multiple servers (Vidplay, MyCloud, etc.)
-      resolveAniWaves(id, epNum, title).catch(() => null),
+    const [animexMimi, anidbResult, aninekoM3u8s, anidapSub, anikageResult, senshiResult, allmangaResult, anizoneResult, aniwavesResult] = await Promise.all([
+      withTimeout(resolveAnimexMimiBoth(id, epNum), 8000, { sub: null, dub: null }),
+      withTimeout(resolveAniDbEmbeds(id, epNum, title), 10000, { sub: null, dub: null }),
+      withTimeout(resolveAniNekoM3u8(id, epNum, title).catch(() => []), 8000, []),
+      withTimeout(
+        anidapId ? getAniDapSources(anidapId, epNum, "sub", "beep").catch(() => null) : Promise.resolve(null),
+        8000, null,
+      ),
+      withTimeout(resolveAniKageBoth(id, epNum, title).catch(() => ({ sub: null, dub: null, intro: null, outro: null })), 8000, { sub: null, dub: null, intro: null, outro: null }),
+      withTimeout(resolveSenshi(id, epNum, title).catch(() => null), 8000, null),
+      withTimeout(resolveAllManga(id, epNum, "sub").catch(() => null), 10000, null),
+      withTimeout(resolveAniZone(id, epNum, title).catch(() => null), 8000, null),
+      withTimeout(resolveAniWaves(id, epNum, title).catch(() => null), 8000, null),
     ]);
 
     const servers: Array<{
