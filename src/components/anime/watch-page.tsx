@@ -398,7 +398,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   interface ServerEntry {
     id: string;
     name: string;
-    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream" | "anikuro" | "anipm" | "animetsu" | "animeheaven" | "aniwaves" | "anidb" | "anikoto" | "anineko" | "anikage";
+    source: "miruro" | "animex" | "anivault" | "anivexa" | "senshi" | "anidap" | "anilight" | "kyren" | "anikage" | "mioanime" | "anixtv" | "anistream" | "anikuro" | "anipm" | "animetsu" | "animeheaven" | "aniwaves" | "anidb" | "anikoto" | "anineko" | "allmanga";
     provider: string;
     type: "sub" | "dub";
     quality?: string;

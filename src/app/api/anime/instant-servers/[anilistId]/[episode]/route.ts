@@ -4,7 +4,9 @@ import { resolveAniNekoServers } from "@/lib/anineko-direct";
 import { resolveAnimexMimiBoth } from "@/lib/animex-fast";
 import { resolveAniDapId, getAniDapSources } from "@/lib/anidap-api";
 import { resolveAniKageBoth } from "@/lib/anikage-fast";
-import { wrapM3u8Url } from "@/lib/proxy";
+import { resolveSenshi } from "@/lib/senshi-direct";
+import { anivexaWatch } from "@/lib/anivexa-api";
+import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,22 +45,24 @@ export async function GET(
     // (the old code had a sequential AniDap fetch AFTER Promise.all which
     // blocked the entire response by 2-3 seconds)
     const anidapId = await resolveAniDapId(id).catch(() => null);
-    const [animexMimi, anidbResult, aninekoServers, anidapSub, anikageResult] = await Promise.all([
+    const [animexMimi, anidbResult, aninekoServers, anidapSub, anikageResult, senshiResult, allmangaResult] = await Promise.all([
       resolveAnimexMimiBoth(id, epNum),
       resolveAniDbEmbeds(id, epNum, title),
       resolveAniNekoServers(id, epNum, title),
-      // Fetch AniDap beep sources IN PARALLEL (not sequentially after)
       anidapId
         ? getAniDapSources(anidapId, epNum, "sub", "beep").catch(() => null)
         : Promise.resolve(null),
-      // AniKage — provides sources + intro/outro for NEW and OLD anime
       resolveAniKageBoth(id, epNum, title).catch(() => ({ sub: null, dub: null, intro: null, outro: null })),
+      // Senshi.live — m3u8 from ninstream.com + intro/outro
+      resolveSenshi(id, epNum, title).catch(() => null),
+      // AllManga.to — via anivexa API (clock.json → m3u8)
+      anivexaWatch(id, epNum, "sub", "allmanga").catch(() => null),
     ]);
 
     const servers: Array<{
       id: string;
       name: string;
-      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage";
+      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga";
       provider: string;
       type: "sub" | "dub";
       quality: string;
@@ -170,6 +174,77 @@ export async function GET(
       });
     }
 
+    // ── PRIORITY 7: Senshi (sub) — m3u8 from ninstream.com ──
+    // Senshi provides HLS streams + intro/outro for new and old anime.
+    // ninstream.com needs Referer: https://senshi.live/ (handled by proxy).
+    if (senshiResult?.m3u8Url) {
+      servers.push({
+        id: "senshi:sub",
+        name: "Senshi",
+        source: "senshi",
+        provider: "senshi",
+        type: "sub",
+        quality: "1080p",
+        streamUrl: wrapM3u8UrlWithReferer(senshiResult.m3u8Url, "https://senshi.live/"),
+        isM3U8: true,
+        isMP4: false,
+        isEmbed: false,
+        hardsub: senshiResult.status === "HardSub",
+        priority: 7,
+        intro: senshiResult.intro,
+        outro: senshiResult.outro,
+      });
+    }
+
+    // ── PRIORITY 7.5: AllManga (sub) — resolve clock.json to get m3u8 ──
+    // AllManga returns clock.json URLs that need to be resolved to get the
+    // actual m3u8/mp4 stream URL. We fetch the first clock.json URL.
+    if (allmangaResult?.streams?.length) {
+      // Find clock.json URLs (these resolve to direct streams)
+      const clockUrls = allmangaResult.streams.filter((s: any) =>
+        s.url?.includes("clock.json")
+      );
+      if (clockUrls.length > 0) {
+        try {
+          // Fetch the first clock.json URL to resolve the actual stream
+          const clockRes = await fetch(clockUrls[0].url, {
+            headers: {
+              "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+              Referer: "https://allmanga.to/",
+            },
+            signal: AbortSignal.timeout(6000),
+          });
+          if (clockRes.ok) {
+            const clockData = await clockRes.json();
+            const links = clockData.links || [];
+            // Find the best m3u8/mp4 link
+            const bestLink = links.find((l: any) =>
+              l.link?.includes(".m3u8") || l.link?.includes("mpegurl")
+            ) || links.find((l: any) =>
+              l.link?.includes(".mp4") && !l.link?.includes("embed")
+            ) || links[0];
+            if (bestLink?.link) {
+              const isM3U8 = bestLink.link.includes(".m3u8") || bestLink.link.includes("mpegurl");
+              servers.push({
+                id: "allmanga:sub",
+                name: "AllManga",
+                source: "allmanga",
+                provider: "allmanga",
+                type: "sub",
+                quality: bestLink.name || "1080p",
+                streamUrl: isM3U8 ? wrapM3u8Url(bestLink.link) : bestLink.link,
+                isM3U8,
+                isMP4: !isM3U8,
+                isEmbed: false,
+                hardsub: false,
+                priority: 8,
+              });
+            }
+          }
+        } catch { /* clock.json resolve failed — skip AllManga */ }
+      }
+    }
+
     // ── AniKage: intro/outro ONLY (no playable servers) ──
     // AniKage's source URLs are ENCRYPTED tokens that need client-side
     // JavaScript decryption (prox.anicore.tv/m3u8/{token} returns 403
@@ -219,7 +294,7 @@ export async function GET(
     }
 
     console.log(
-      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anineko:${aninekoServers.length > 0 ? "✓" : "✗"} anikage:${anikageResult.sub || anikageResult.dub ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
+      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} senshi:${senshiResult ? "✓" : "✗"} allmanga:${allmangaResult?.streams?.length ? "✓" : "✗"} anineko:${aninekoServers.length > 0 ? "✓" : "✗"} anikage:${anikageResult.intro || anikageResult.outro ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
     );
 
     return NextResponse.json({ servers });
