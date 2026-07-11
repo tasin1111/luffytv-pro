@@ -7,6 +7,7 @@ import { resolveAniKageBoth } from "@/lib/anikage-fast";
 import { resolveSenshi } from "@/lib/senshi-direct";
 import { resolveAllManga } from "@/lib/allmanga-direct";
 import { resolveAniZone } from "@/lib/anizone-direct";
+import { resolveAniWaves } from "@/lib/aniwaves-direct";
 import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
@@ -60,12 +61,14 @@ export async function GET(
       resolveAllManga(id, epNum, "sub").catch(() => null),
       // AniZone — high-quality HLS with soft subtitles (10+ languages)
       resolveAniZone(id, epNum, title).catch(() => null),
+      // AniWaves — big library, multiple servers (Vidplay, MyCloud, etc.)
+      resolveAniWaves(id, epNum, title).catch(() => null),
     ]);
 
     const servers: Array<{
       id: string;
       name: string;
-      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone";
+      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone" | "aniwaves";
       provider: string;
       type: "sub" | "dub";
       quality: string;
@@ -251,6 +254,32 @@ export async function GET(
         priority: 13,
         subtitleTracks: anizoneResult.subtitleTracks,
       });
+    }
+
+    // ── PRIORITY 13.5: AniWaves — big library, multiple servers ──
+    // AniWaves returns embed URLs (play.echovideo.ru, etc.) — use as iframe embeds.
+    // Also returns intro/outro skip data from their database.
+    if (aniwavesResult?.servers?.length) {
+      let awPriority = 13.5;
+      for (const srv of aniwavesResult.servers) {
+        servers.push({
+          id: `aniwaves:${srv.serverId}:${srv.type}`,
+          name: `AniWaves ${srv.name}`,
+          source: "aniwaves",
+          provider: srv.serverId,
+          type: srv.type,
+          quality: "1080p",
+          streamUrl: srv.streamUrl,
+          isM3U8: false,
+          isMP4: false,
+          isEmbed: true, // AniWaves returns embed URLs — use iframe
+          hardsub: false,
+          priority: awPriority,
+          intro: srv.intro,
+          outro: srv.outro,
+        });
+        awPriority += 0.5;
+      }
     }
 
     // ── PRIORITY 14+: AniKage — embed servers + intro/outro ──

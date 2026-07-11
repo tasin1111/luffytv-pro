@@ -41,6 +41,8 @@ const ALLOWED_HOSTS = [
   "ninstream.com",
   // AniZone CDN — suzaku.xin-cdn.xyz (needs Referer: https://anizone.to/)
   "xin-cdn.xyz", "suzaku.xin-cdn.xyz",
+  // AniWaves embed CDNs
+  "echovideo.ru", "play.echovideo.ru",
 ];
 
 function isHostAllowed(url: string): boolean {
