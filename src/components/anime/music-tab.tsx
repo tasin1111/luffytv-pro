@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
-  searchAnimeByTitle,
-  getThemesBySlug,
+  searchAndFetchThemes,
   pickBestVideo,
   pickCoverImage,
   type AnimeThemesResult,
@@ -95,23 +94,17 @@ export default function MusicTab({ anilistId, currentTitle, romajiTitle, seasons
 
     setSeasonMusic(list);
 
-    // Fetch themes for each season in parallel (best-effort — failures don't block others)
+    // Fetch themes for each season in parallel using the FAST combined
+    // search+fetch function (1 API round-trip per season instead of 2).
     let cancelled = false;
     list.forEach(async (sm, idx) => {
       // Prefer romaji for the current anime (matches animethemes slugs better),
       // english for the rest (often what users search).
       const queryTitle = sm.isCurrent ? (romajiTitle || currentTitle) : sm.title;
-      const match = await searchAnimeByTitle(queryTitle);
-      if (cancelled || !match) {
-        setSeasonMusic(prev => prev.map((x, i) => i === idx
-          ? { ...x, loading: false, error: match ? undefined : "No themes found" }
-          : x));
-        return;
-      }
-      const result = await getThemesBySlug(match.slug);
+      const result = await searchAndFetchThemes(queryTitle);
       if (cancelled) return;
       setSeasonMusic(prev => prev.map((x, i) => i === idx
-        ? { ...x, loading: false, slug: match.slug, result }
+        ? { ...x, loading: false, slug: result?.slug, result, error: result ? undefined : "No themes found" }
         : x));
     });
 

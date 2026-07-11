@@ -63,7 +63,7 @@ interface CharacterData {
 }
 
 // ── Tab type ──
-type DetailTab = "episodes" | "characters" | "music" | "related" | "morelikethis";
+type DetailTab = "episodes" | "characters" | "seasons" | "music" | "related" | "morelikethis";
 
 // ── Status label helper ──
 const statusLabel = (s: string) => {
@@ -558,6 +558,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
   const tabs: Array<{ id: DetailTab; label: string }> = [
     { id: "episodes", label: "Episodes" },
     { id: "characters", label: "Characters" },
+    { id: "seasons", label: "Seasons" },
     { id: "music", label: "Music" },
     { id: "related", label: "Related" },
     { id: "morelikethis", label: "More like this" },
@@ -938,6 +939,61 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
                         })}
                       </div>
                     ) : <div className="text-center py-12 text-white/40 text-sm">No characters available</div>}
+                  </div>
+                )}
+
+                {/* ─── SEASONS TAB — franchise seasons (sequels/prequels) ─── */}
+                {activeTab === "seasons" && (
+                  <div className="w-full">
+                    {franchiseSeasons.length > 0 ? (
+                      <div className="flex flex-col gap-4">
+                        <p className="text-xs text-white/50">
+                          {franchiseSeasons.length} {franchiseSeasons.length === 1 ? "season" : "seasons"} in this franchise. Click any season to view its details.
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                          {franchiseSeasons.map((r: any, idx: number) => {
+                            const rTitle = r.title?.english || r.title?.romaji || r.title?.native || "Unknown";
+                            const rImg = r.coverImage?.extraLarge || r.coverImage?.large || r.coverImage?.medium || "";
+                            return (
+                              <button
+                                key={`${r.id}-${idx}`}
+                                onClick={() => navigate({ page: "anime", id: String(r.id) })}
+                                className="group flex flex-col gap-2 text-left"
+                              >
+                                <div className="aspect-[2/3] rounded-lg overflow-hidden bg-white/10 relative">
+                                  {rImg ? (
+                                    <img src={rImg} alt={rTitle} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-white/15 font-bold text-xl">{rTitle.charAt(0)}</div>
+                                  )}
+                                  {/* Season number badge */}
+                                  <span className="absolute top-1.5 left-1.5 px-2 py-0.5 text-[9px] font-extrabold rounded bg-black/80 text-white">
+                                    {idx + 1}
+                                  </span>
+                                  {/* Episodes badge */}
+                                  {r.episodes && (
+                                    <span className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 text-[8px] font-bold rounded bg-black/80 text-white/80">
+                                      {r.episodes} eps
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex flex-col gap-0.5">
+                                  <p className="text-[11px] font-semibold text-white line-clamp-2 group-hover:text-violet-300 transition-colors leading-tight">{rTitle}</p>
+                                  {r.format && (
+                                    <span className="text-[9px] text-white/40 uppercase tracking-wider">{r.format.replace(/_/g, " ")}</span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-center py-12">
+                        <p className="text-white/40 text-sm">No seasons found</p>
+                        <p className="text-white/30 text-xs mt-1">This anime may be a standalone series or seasons data hasn't loaded yet.</p>
+                      </div>
+                    )}
                   </div>
                 )}
 

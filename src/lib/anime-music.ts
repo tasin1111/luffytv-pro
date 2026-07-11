@@ -118,6 +118,46 @@ export async function getThemesByTitle(title: string): Promise<AnimeThemesResult
   return getThemesBySlug(match.slug);
 }
 
+// ── FAST: Search + fetch themes in ONE API call ──
+// The animethemes.moe /search endpoint supports include[anime]=... which
+// returns full theme data (songs, videos, images) directly in the search
+// response. This cuts the load time in half (1 round-trip instead of 2).
+// Returns the best match with all its themes.
+export async function searchAndFetchThemes(title: string): Promise<AnimeThemesResult | null> {
+  const q = title.trim();
+  if (!q) return null;
+
+  // include[anime]=animethemes.song.artists,animethemes.animethemeentries.videos,images
+  // — this makes the search response include full theme data
+  const url = `${AT_BASE}/search?q=${encodeURIComponent(q)}&fields[search]=anime&include[anime]=animethemes.song.artists,animethemes.animethemeentries.videos,images`;
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(8000),
+      headers: { "Accept": "application/json" },
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const list: any[] = data?.search?.anime || [];
+    if (list.length === 0) return null;
+
+    // Best-effort match: exact case-insensitive name, then starts-with, then first
+    const lower = q.toLowerCase();
+    const exact = list.find(a => (a.name || "").toLowerCase() === lower);
+    const startsWith = list.find(a => (a.name || "").toLowerCase().startsWith(lower));
+    const pick = exact || startsWith || list[0];
+
+    // The search response includes animethemes if the include param worked
+    if (pick.animethemes && pick.animethemes.length > 0) {
+      return pick as AnimeThemesResult;
+    }
+
+    // Fallback: if the include didn't work (some API versions), fetch by slug
+    return getThemesBySlug(pick.slug);
+  } catch {
+    return null;
+  }
+}
+
 // ── Pick the best video for a theme (prefer NC + highest resolution) ──
 export function pickBestVideo(theme: AnimeTheme): AnimeThemeVideo | null {
   const all: AnimeThemeVideo[] = (theme.animethemeentries || []).flatMap(e => e.videos || []);

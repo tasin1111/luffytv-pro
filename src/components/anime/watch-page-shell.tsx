@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 
 // ============================================================
 // WatchPageShell — Miruro-inspired watch layout
@@ -616,6 +616,8 @@ export function WatchPageShell({
 //   - Next-episode countdown footer bar
 // ============================================================
 
+type EpisodeViewMode = "card" | "block" | "list";
+
 function MiruroEpisodeSidebar({
   episodeList, filteredEps, epSearch, setEpSearch, switchEpisode,
   episodeNum, nextEp, animeImage, visibleEpCount, setVisibleEpCount,
@@ -627,11 +629,23 @@ function MiruroEpisodeSidebar({
   const totalPages = Math.ceil(totalEps / EPS_PER_PAGE);
 
   const [spoilerOn, setSpoilerOn] = useState(true); // spoiler blur on by default
+  // View mode: "card" (picture + text), "block" (number grid), "list" (compact rows)
+  const [viewMode, setViewMode] = useState<EpisodeViewMode>("card");
+  // Search toggle — hidden by default, user clicks the magnifier to reveal
+  const [showSearch, setShowSearch] = useState(false);
   // Range window starts at the page containing the current episode
   // (e.g. open One Piece EP 540 → show 501-600)
   const [page, setPage] = useState(() => Math.max(0, Math.floor((episodeNum - 1) / EPS_PER_PAGE)));
   const [showPageMenu, setShowPageMenu] = useState(false);
   const listRef = useRef<HTMLDivElement | null>(null);
+
+  // When search is opened, focus the input
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (showSearch && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [showSearch]);
 
   // Derived-state adjustment during render (React's documented pattern):
   // when the episode changes, jump the range window to its page.
@@ -666,9 +680,9 @@ function MiruroEpisodeSidebar({
 
   return (
     <div className="flex flex-col w-full h-full bg-white/[0.02] rounded-xl border border-white/[0.06] overflow-hidden">
-      {/* ─── Header: Up Next + Spoiler toggle ─── */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]">
-        <div className="flex flex-col gap-0.5 min-w-0">
+      {/* ─── Header: Up Next + view toggle + search + spoiler toggle ─── */}
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-white/[0.06] gap-2">
+        <div className="flex flex-col gap-0.5 min-w-0 flex-1">
           <div className="text-sm font-bold line-clamp-1">
             {nextEp ? `Up Next` : `Now Playing`}
           </div>
@@ -676,67 +690,124 @@ function MiruroEpisodeSidebar({
             {filteredEps?.find((ep: any) => ep.number === (nextEp || episodeNum))?.title || `Episode ${nextEp || episodeNum}`}
           </div>
         </div>
-        {/* Spoiler eye toggle */}
-        <button
-          onClick={() => setSpoilerOn(!spoilerOn)}
-          className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${spoilerOn ? 'bg-white/10' : 'bg-white/5 opacity-50'}`}
-          title={spoilerOn ? 'Spoilers hidden — click to show' : 'Spoilers visible — click to hide'}
-        >
-          {spoilerOn ? (
-            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" /></svg>
-          ) : (
-            <svg className="w-4 h-4 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2z" /></svg>
-          )}
-        </button>
-      </div>
 
-      {/* ─── Pagination + Search row ─── */}
-      <div className="flex items-center px-3 py-2.5 gap-2 border-b border-white/[0.06]">
-        {/* Range dropdown (1-100) — only if >100 episodes */}
-        {totalPages > 1 && (
-          <div className="relative shrink-0">
+        {/* Action buttons cluster — search toggle + view modes + spoiler */}
+        <div className="flex items-center gap-1 shrink-0">
+          {/* Search toggle button */}
+          <button
+            onClick={() => setShowSearch(!showSearch)}
+            className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${showSearch ? 'bg-white/15 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
+            title="Search episodes"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+          </button>
+
+          {/* View mode toggle — 3 icons (card / block / list) */}
+          <div className="flex items-center gap-0.5 bg-white/5 rounded-md p-0.5">
+            {/* Card view — grid of picture cards */}
             <button
-              onClick={() => setShowPageMenu(!showPageMenu)}
-              className="flex items-center gap-1 bg-white/[0.06] hover:bg-white/[0.1] h-8 px-3 rounded-lg text-xs font-bold text-white/80 transition-all"
+              onClick={() => setViewMode("card")}
+              className={`w-6 h-6 rounded flex items-center justify-center transition-all ${viewMode === 'card' ? 'bg-white/15 text-white' : 'text-white/50 hover:text-white'}`}
+              title="Card view (picture + title)"
             >
-              {pageLabel}
-              <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z" /></svg>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
             </button>
-            {showPageMenu && (
-              <div className="absolute top-full left-0 mt-1 bg-black/80 backdrop-blur-xl border border-white/15 rounded-lg overflow-hidden min-w-[100px] py-1 shadow-2xl z-30 max-h-[300px] overflow-y-auto">
-                {Array.from({ length: totalPages }, (_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => { setPage(i); setShowPageMenu(false); listRef.current?.scrollTo({ top: 0 }); }}
-                    className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 transition-colors ${page === i ? 'font-bold' : 'text-white/60'}`}
-                    style={page === i ? { color: ACCENT } : undefined}
-                  >
-                    {i * EPS_PER_PAGE + 1} - {Math.min((i + 1) * EPS_PER_PAGE, totalEps)}
-                  </button>
-                ))}
-              </div>
-            )}
+            {/* Block view — compact number grid */}
+            <button
+              onClick={() => setViewMode("block")}
+              className={`w-6 h-6 rounded flex items-center justify-center transition-all ${viewMode === 'block' ? 'bg-white/15 text-white' : 'text-white/50 hover:text-white'}`}
+              title="Block view (numbers only)"
+            >
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="3" y="3" width="5" height="5" rx="1"/><rect x="10" y="3" width="5" height="5" rx="1"/><rect x="17" y="3" width="5" height="5" rx="1"/><rect x="3" y="10" width="5" height="5" rx="1"/><rect x="10" y="10" width="5" height="5" rx="1"/><rect x="17" y="10" width="5" height="5" rx="1"/><rect x="3" y="17" width="5" height="5" rx="1"/><rect x="10" y="17" width="5" height="5" rx="1"/><rect x="17" y="17" width="5" height="5" rx="1"/></svg>
+            </button>
+            {/* List view — compact horizontal rows */}
+            <button
+              onClick={() => setViewMode("list")}
+              className={`w-6 h-6 rounded flex items-center justify-center transition-all ${viewMode === 'list' ? 'bg-white/15 text-white' : 'text-white/50 hover:text-white'}`}
+              title="List view (compact rows)"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.2} viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </button>
           </div>
-        )}
 
-        {/* Filter episodes search */}
-        <div className="flex grow items-center bg-white/[0.04] hover:bg-white/[0.06] focus-within:bg-white/[0.06] h-8 rounded-lg overflow-hidden px-2.5">
-          <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="text-white/30 shrink-0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-          <input
-            type="text"
-            value={epSearch}
-            onChange={(e: any) => { setEpSearch(e.target.value); setVisibleEpCount(50); }}
-            placeholder="Filter episodes..."
-            className="w-full px-2 bg-transparent text-xs text-white placeholder-white/30 focus:outline-none"
-          />
+          {/* Spoiler eye toggle */}
+          <button
+            onClick={() => setSpoilerOn(!spoilerOn)}
+            className={`shrink-0 w-7 h-7 rounded-md flex items-center justify-center transition-all hover:scale-110 active:scale-95 ${spoilerOn ? 'bg-white/10 text-white' : 'bg-white/5 text-white/60 hover:bg-white/10'}`}
+            title={spoilerOn ? 'Spoilers hidden — click to show' : 'Spoilers visible — click to hide'}
+          >
+            {spoilerOn ? (
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" /></svg>
+            ) : (
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46C3.08 8.3 1.78 10.02 1 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2z" /></svg>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* ─── Episode list — scrollable bordered cards ─── */}
+      {/* ─── Pagination + Search row — pagination always shows, search is toggleable ─── */}
+      {(totalPages > 1 || showSearch) && (
+        <div className="flex items-center px-3 py-2 gap-2 border-b border-white/[0.06]">
+          {/* Range dropdown (1-100) — only if >100 episodes */}
+          {totalPages > 1 && (
+            <div className="relative shrink-0">
+              <button
+                onClick={() => setShowPageMenu(!showPageMenu)}
+                className="flex items-center gap-1 bg-white/[0.06] hover:bg-white/[0.1] h-8 px-3 rounded-lg text-xs font-bold text-white/80 transition-all"
+              >
+                {pageLabel}
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z" /></svg>
+              </button>
+              {showPageMenu && (
+                <div className="absolute top-full left-0 mt-1 bg-black/80 backdrop-blur-xl border border-white/15 rounded-lg overflow-hidden min-w-[100px] py-1 shadow-2xl z-30 max-h-[300px] overflow-y-auto">
+                  {Array.from({ length: totalPages }, (_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => { setPage(i); setShowPageMenu(false); listRef.current?.scrollTo({ top: 0 }); }}
+                      className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 transition-colors ${page === i ? 'font-bold' : 'text-white/60'}`}
+                      style={page === i ? { color: ACCENT } : undefined}
+                    >
+                      {i * EPS_PER_PAGE + 1} - {Math.min((i + 1) * EPS_PER_PAGE, totalEps)}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Filter episodes search — only visible when showSearch is true */}
+          {showSearch && (
+            <div className="flex grow items-center bg-white/[0.04] hover:bg-white/[0.06] focus-within:bg-white/[0.06] h-8 rounded-lg overflow-hidden px-2.5">
+              <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="text-white/30 shrink-0"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={epSearch}
+                onChange={(e: any) => { setEpSearch(e.target.value); setVisibleEpCount(50); }}
+                placeholder="Filter episodes..."
+                className="w-full px-2 bg-transparent text-xs text-white placeholder-white/30 focus:outline-none"
+              />
+              {epSearch && (
+                <button
+                  onClick={() => { setEpSearch(""); setShowSearch(false); }}
+                  className="shrink-0 ml-1 text-white/40 hover:text-white"
+                  title="Clear and close search"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── Episode list — scrollable, renders based on viewMode ─── */}
       <div className="flex flex-col overflow-hidden flex-1 min-h-0">
         <div
           ref={listRef}
-          className="flex flex-col overflow-y-auto overscroll-y-contain flex-1 min-h-0 p-2 gap-2"
+          className={`overflow-y-auto overscroll-y-contain flex-1 min-h-0 p-2 ${
+            viewMode === "block" ? "grid grid-cols-4 gap-1.5" : "flex flex-col gap-2"
+          }`}
           onScroll={(e: any) => {
             const el = e.target;
             if (el.scrollTop + el.clientHeight >= el.scrollHeight - 200) {
@@ -745,21 +816,43 @@ function MiruroEpisodeSidebar({
           }}
         >
           {pagedEps?.length > 0 ? (
-            pagedEps.slice(0, visibleEpCount).map((ep: any) => (
-              <EpisodeCard
-                key={ep.number}
-                ep={ep}
-                isActive={ep.number === episodeNum}
-                spoilerOn={spoilerOn}
-                animeImage={animeImage}
-                softsubAvailable={softsubAvailable}
-                hardsubAvailable={hardsubAvailable}
-                dubAvailable={dubAvailable}
-                onClick={() => switchEpisode(ep.number)}
-              />
-            ))
+            pagedEps.slice(0, visibleEpCount).map((ep: any) => {
+              if (viewMode === "block") {
+                return (
+                  <EpisodeBlock
+                    key={ep.number}
+                    ep={ep}
+                    isActive={ep.number === episodeNum}
+                    onClick={() => switchEpisode(ep.number)}
+                  />
+                );
+              }
+              if (viewMode === "list") {
+                return (
+                  <EpisodeListRow
+                    key={ep.number}
+                    ep={ep}
+                    isActive={ep.number === episodeNum}
+                    onClick={() => switchEpisode(ep.number)}
+                  />
+                );
+              }
+              return (
+                <EpisodeCard
+                  key={ep.number}
+                  ep={ep}
+                  isActive={ep.number === episodeNum}
+                  spoilerOn={spoilerOn}
+                  animeImage={animeImage}
+                  softsubAvailable={softsubAvailable}
+                  hardsubAvailable={hardsubAvailable}
+                  dubAvailable={dubAvailable}
+                  onClick={() => switchEpisode(ep.number)}
+                />
+              );
+            })
           ) : (
-            <div className="text-center py-12">
+            <div className={`text-center py-12 ${viewMode === "block" ? "col-span-4" : ""}`}>
               <p className="text-white/30 text-xs">{episodeList?.length === 0 ? "Loading episodes..." : "No episodes found"}</p>
             </div>
           )}
@@ -886,6 +979,78 @@ function EpisodeCard({ ep, isActive, spoilerOn, animeImage, softsubAvailable, ha
           </div>
         </div>
       </div>
+    </button>
+  );
+}
+
+// ─── Block view — compact number tiles in a grid (no thumbnail, no title) ───
+// Useful for long anime (One Piece, Naruto) where you just want to jump to EP 540.
+function EpisodeBlock({ ep, isActive, onClick }: any) {
+  const isFiller = !!ep.filler;
+  return (
+    <button
+      onClick={onClick}
+      className={`relative aspect-square rounded-lg flex flex-col items-center justify-center transition-all text-center group ${
+        isActive
+          ? "bg-[#9333EA] text-white"
+          : isFiller
+          ? "bg-[#FFD700]/[0.08] text-[#FFD700] hover:bg-[#FFD700]/15 border border-[#FFD700]/30"
+          : "bg-white/[0.04] text-white/80 hover:bg-white/[0.1] border border-white/[0.06] hover:border-white/15"
+      }`}
+      title={`${ep.number}. ${ep.title || `Episode ${ep.number}`}${isFiller ? " (Filler)" : ""}`}
+    >
+      <span className="text-sm font-extrabold tabular-nums">{ep.number}</span>
+      {isFiller && !isActive && (
+        <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-[#FFD700]" />
+      )}
+      {isActive && (
+        <svg className="absolute top-0.5 right-0.5 w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+      )}
+    </button>
+  );
+}
+
+// ─── List view — compact horizontal rows (episode number + title only, no thumbnail) ───
+function EpisodeListRow({ ep, isActive, onClick }: any) {
+  const isFiller = !!ep.filler;
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2.5 px-2.5 h-9 rounded-md border transition-all text-left shrink-0 ${
+        isActive
+          ? "bg-[#9333EA]/15 border-[#9333EA]/50"
+          : isFiller
+          ? "bg-[#FFD700]/[0.04] border-[#FFD700]/20 hover:bg-[#FFD700]/[0.08] hover:border-[#FFD700]/40"
+          : "bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.06] hover:border-white/15"
+      }`}
+      title={`${ep.number}. ${ep.title || `Episode ${ep.number}`}${isFiller ? " (Filler)" : ""}`}
+    >
+      {/* Episode number — fixed width so titles align */}
+      <span
+        className={`text-[11px] font-extrabold tabular-nums shrink-0 w-7 text-center px-1 py-0.5 rounded ${
+          isActive
+            ? "bg-[#9333EA] text-white"
+            : isFiller
+            ? "bg-[#FFD700]/15 text-[#FFD700]"
+            : "bg-white/[0.06] text-white/70"
+        }`}
+      >
+        {ep.number}
+      </span>
+      {/* Title — truncate */}
+      <span
+        className={`text-[12px] font-medium truncate flex-1 min-w-0 ${
+          isActive ? "text-[#A78BFA]" : isFiller ? "text-[#FFD700]/80" : "text-white/80"
+        }`}
+      >
+        {ep.title || `Episode ${ep.number}`}
+      </span>
+      {isFiller && (
+        <span className="text-[8px] font-bold text-white/30 shrink-0 uppercase tracking-wider">Filler</span>
+      )}
+      {isActive && (
+        <svg className="w-3 h-3 text-[#A78BFA] shrink-0" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+      )}
     </button>
   );
 }
