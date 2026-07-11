@@ -225,7 +225,8 @@ async function getSourcesFromAllProviders(
         outro = { start: data.outro.start, end: data.outro.end };
       }
 
-      // Extract ALL sources (prox.anikage.cc tokens — these are the REAL streams)
+      // Extract ONLY sources (prox.anikage.cc tokens — the REAL m3u8 streams)
+      // NO embeds — user only wants m3u8 sources, wrapped through our proxy.
       // Each source is a different quality/variant (hardsub, softsub, etc.)
       const sources = (data.sources || []).filter((s: any) => s.url && s.isM3U8);
       for (const src of sources) {
@@ -241,23 +242,6 @@ async function getSourcesFromAllProviders(
           m3u8Url: streamUrl,
           type,
           quality: qualityLabel,
-        });
-      }
-
-      // ALSO extract working embed URLs (some providers have unique embeds)
-      const embeds = (data.embeds || []).filter(
-        (e: any) => e.status === "ok" && e.url,
-      );
-      for (const embed of embeds) {
-        if (servers.some((s) => s.m3u8Url === embed.url)) continue;
-        const serverName = embed.server || provider;
-        const serverNameCap = serverName.charAt(0).toUpperCase() + serverName.slice(1);
-        servers.push({
-          name: `AniKage ${serverNameCap}`,
-          provider,
-          m3u8Url: embed.url,
-          type,
-          quality: "1080p",
         });
       }
     }

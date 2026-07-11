@@ -4,7 +4,7 @@ import { resolveAniNekoServers } from "@/lib/anineko-direct";
 import { resolveAnimexMimiBoth } from "@/lib/animex-fast";
 import { resolveAniDapId, getAniDapSources } from "@/lib/anidap-api";
 import { resolveAniKageBoth } from "@/lib/anikage-fast";
-import { wrapM3u8Url } from "@/lib/proxy";
+import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -170,13 +170,17 @@ export async function GET(
       });
     }
 
-    // ── PRIORITY 8+: AniKage — ALL providers scraped + intro/outro ──
+    // ── PRIORITY 8+: AniKage — m3u8 sources ONLY (no embeds), wrapped through our proxy ──
     // AniKage provides skip times for BOTH new AND old anime.
     // The intro/outro is from AniKage's own database (same across providers).
-    // We add ALL working AniKage providers as separate servers.
+    // We add ALL working AniKage sources (m3u8 only) wrapped through our proxy.
+    // prox.anikage.cc needs Referer: https://anikage.cc/ to play.
     let anikagePriority = 8;
     if (anikageResult.sub?.servers) {
       for (const srv of anikageResult.sub.servers) {
+        // Wrap the prox.anikage.cc m3u8 URL through our Cloudflare Worker proxy
+        // with the correct Referer so it plays in the browser.
+        const proxiedUrl = wrapM3u8UrlWithReferer(srv.m3u8Url, "https://anikage.cc/");
         servers.push({
           id: `anikage:${srv.provider}:sub`,
           name: srv.name,
@@ -184,7 +188,7 @@ export async function GET(
           provider: srv.provider,
           type: "sub",
           quality: srv.quality,
-          streamUrl: srv.m3u8Url,
+          streamUrl: proxiedUrl,
           isM3U8: true,
           isMP4: false,
           isEmbed: false,
@@ -197,6 +201,7 @@ export async function GET(
     }
     if (anikageResult.dub?.servers) {
       for (const srv of anikageResult.dub.servers) {
+        const proxiedUrl = wrapM3u8UrlWithReferer(srv.m3u8Url, "https://anikage.cc/");
         servers.push({
           id: `anikage:${srv.provider}:dub`,
           name: `${srv.name} (Dub)`,
@@ -204,7 +209,7 @@ export async function GET(
           provider: srv.provider,
           type: "dub",
           quality: srv.quality,
-          streamUrl: srv.m3u8Url,
+          streamUrl: proxiedUrl,
           isM3U8: true,
           isMP4: false,
           isEmbed: false,
