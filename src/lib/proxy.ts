@@ -59,6 +59,12 @@ const CDN_REFERERS: Record<string, string> = {
   // Kyren
   "api.kyren.moe":         "https://kyren.moe/",
   "kyren.moe":             "https://kyren.moe/",
+  // AniDB
+  "anidb.app":             "https://anidb.app/",
+  // AniKage
+  "anikage.cc":            "https://anikage.cc/",
+  // Ani.pm
+  "ani.pm":                "https://ani.pm/",
   // AnimeHeaven CDNs
   "py.animeheaven.me":     "https://animeheaven.me/",
   "ct.animeheaven.me":     "https://animeheaven.me/",

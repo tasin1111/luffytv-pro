@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getEpisodeSources } from "@/lib/anime-api";
 import { miruroWatch, MIRURO_PROVIDERS, getProviderDisplayName } from "@/lib/miruro-api";
 import { animexWatch, getProviderDisplayName as getAnimexDisplayName } from "@/lib/animex-api";
+import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest) {
             for (const s of result.sources) {
               const sourceType = s.sourceType || (s.url.includes("/embed") || s.url.includes("/e/") ? "external" : "internal");
               allSources.push({
-                url: s.url.includes("/api/stream") ? s.url : `/api/stream?url=${encodeURIComponent(s.url)}${result.headers?.Referer ? `&referer=${encodeURIComponent(result.headers.Referer)}` : ""}`,
+                url: s.url.includes("luffytv-proxy") || s.url.startsWith("/p/") ? s.url : wrapM3u8UrlWithReferer(s.url, result.headers?.Referer),
                 quality: s.quality || (s.isM3U8 ? "Auto" : undefined),
                 isM3U8: s.isM3U8,
                 sourceName: `${getProviderDisplayName(p)} ${s.quality || "Default"}`,

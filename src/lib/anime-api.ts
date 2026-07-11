@@ -2,6 +2,8 @@
 // Clean rewrite - Vercel compatible (no Node.js crypto for client-side)
 // Server-side API routes handle the decryption
 
+import { wrapM3u8Url } from "./proxy";
+
 const API_URL = "https://api.allanime.day/api";
 const CDN_BASE = "https://allanimenews.com";
 
@@ -264,7 +266,7 @@ function processSources(allSources: Array<{ sourceUrl: string; sourceName: strin
 
     let streamUrl = url;
     if (type === "hls" || type === "mp4") {
-      streamUrl = `/api/stream?url=${encodeURIComponent(url)}`;
+      streamUrl = wrapM3u8Url(url);
     }
 
     sources.push({ url: streamUrl, rawUrl: url, sourceName, type, provider });

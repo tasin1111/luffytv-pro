@@ -44,7 +44,7 @@
  * stream proxy. On Vercel, curl IS available (verified).
  */
 
-import { wrapM3u8Url } from "./proxy";
+import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "./proxy";
 
 const KYREN_API = "https://kyren.moe/api";
 
@@ -63,15 +63,14 @@ const HEADERS: Record<string, string> = {
 };
 
 /**
- * Fetch a URL using /api/stream (Vercel server proxy) — unified proxy system.
- * We use /api/stream for BOTH API calls and video streams so Kyren only
- * uses ONE proxy system (no Worker + /api/stream mix).
- * api.kyren.moe is Cloudflare-protected — Worker proxy gets 403 (CF-to-CF),
- * but Vercel's server can fetch it with the correct Referer: https://kyren.moe/
+ * Fetch a URL using our Cloudflare Worker proxy (legacy /proxy?url= endpoint).
+ * Used for API JSON calls. Stream URLs use wrapKyrenStream() (token endpoint).
  */
-async function serverFetchJson<T = any>(url: string, timeoutMs = 10000): Promise<T | null> {
+const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
+
+async function workerFetchJson<T = any>(url: string, timeoutMs = 15000): Promise<T | null> {
   try {
-    const wrapped = `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent("https://kyren.moe/")}`;
+    const wrapped = `${WORKER_BASE}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent("https://kyren.moe/")}`;
     const res = await Promise.race([
       fetch(wrapped, { headers: { "Accept": "application/json" }, cache: "no-store" }),
       new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
@@ -81,18 +80,17 @@ async function serverFetchJson<T = any>(url: string, timeoutMs = 10000): Promise
     if (!text || text.startsWith("<!DOCTYPE") || text.startsWith("<html")) return null;
     return JSON.parse(text) as T;
   } catch (e: any) {
-    console.error(`[Kyren] serverFetchJson failed for ${url.slice(0, 80)}:`, e?.message || e);
+    console.error(`[Kyren] workerFetchJson failed for ${url.slice(0, 80)}:`, e?.message || e);
     return null;
   }
 }
 
 /**
- * Wrap a Kyren stream URL through /api/stream (Vercel server proxy).
- * api.kyren.moe is Cloudflare-protected — Worker proxy gets 403, but
- * Vercel's server can fetch it with the correct Referer: https://kyren.moe/
+ * Wrap a Kyren stream URL through the Worker proxy (token endpoint /p/{token}).
+ * The worker rewrites m3u8 segment URLs automatically.
  */
 function wrapKyrenStream(url: string): string {
-  return `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent("https://kyren.moe/")}`;
+  return wrapM3u8UrlWithReferer(url, "https://kyren.moe/");
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -225,7 +223,7 @@ export async function resolveKyrenAnime(
     }
 
     // Step 2: Search Kyren by title (using curl to bypass CF challenge)
-    const data = await serverFetchJson<KyrenSearchResponse>(
+    const data = await workerFetchJson<KyrenSearchResponse>(
       `${KYREN_API}/anime/search?q=${encodeURIComponent(title)}`,
       timeoutMs
     );
@@ -274,7 +272,7 @@ export async function getKyrenStream(
   const url = `${KYREN_API}/stream/${anilistId}/${epNum}?${params.toString()}`;
 
   try {
-    const data = await serverFetchJson<KyrenStreamResponse>(url, timeoutMs);
+    const data = await workerFetchJson<KyrenStreamResponse>(url, timeoutMs);
     if (!data?.ok || !data?.sources?.length) return null;
     return data;
   } catch {
@@ -343,7 +341,7 @@ export async function fetchAllKyrenSources(
       return {
         server: job.server,
         type: job.type,
-        streamUrl: wrapKyrenStream(hls.url),  // wrap through /api/stream (CF-protected)
+        streamUrl: wrapKyrenStream(hls.url),  // wrap through Worker proxy (CF-protected)
         quality: hls.quality || "auto",
         isM3U8: true,
         isMP4: false,

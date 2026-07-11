@@ -188,12 +188,11 @@ export async function GET(
       });
     }
 
-    // ── PRIORITY 7: Senshi (sub) — m3u8 from ninstream.com via /api/stream ──
-    // ninstream.com m3u8 works from Vercel server but NOT from Worker proxy
-    // (Cloudflare-to-Cloudflare block). We route through /api/stream (Vercel
-    // server-side proxy) which sends the correct Referer: https://senshi.live/.
+    // ── PRIORITY 7: Senshi (sub) — m3u8 from ninstream.com via Worker proxy ──
+    // ninstream.com needs Referer: https://senshi.live/ — the Worker proxy
+    // handles this via the CDN_REFERERS map (ninstream.com → https://senshi.live/).
     if (senshiResult?.m3u8Url) {
-      const streamUrl = `/api/stream?url=${encodeURIComponent(senshiResult.m3u8Url)}&referer=${encodeURIComponent("https://senshi.live/")}`;
+      const streamUrl = wrapM3u8UrlWithReferer(senshiResult.m3u8Url, "https://senshi.live/");
       servers.push({
         id: "senshi:sub",
         name: "Senshi",
@@ -241,9 +240,9 @@ export async function GET(
 
     // ── PRIORITY 13: AniZone — high-quality HLS with soft subtitles ──
     // AniZone provides HLS from suzaku.xin-cdn.xyz with 10+ subtitle languages (ASS format).
-    // Route through /api/stream with Referer: https://anizone.to/.
+    // Route through Worker proxy with Referer: https://anizone.to/.
     if (anizoneResult?.m3u8Url) {
-      const streamUrl = `/api/stream?url=${encodeURIComponent(anizoneResult.m3u8Url)}&referer=${encodeURIComponent("https://anizone.to/")}`;
+      const streamUrl = wrapM3u8UrlWithReferer(anizoneResult.m3u8Url, "https://anizone.to/");
       servers.push({
         id: "anizone:sub",
         name: "AniZone",
@@ -290,15 +289,14 @@ export async function GET(
     // AniKage's source URLs are encrypted tokens (prox.anicore.tv) that
     // need client-side JS decryption. BUT the embed URLs (ninstream.com m3u8
     // + playeng.animeapps.top) work! We add them as playable servers.
-    // ninstream.com m3u8 needs Referer: https://senshi.live/ (handled by proxy).
+    // ninstream.com m3u8 needs Referer: https://senshi.live/ (handled by Worker proxy).
     let anikagePriority = 14;
     const anikageServers = [...(anikageResult.sub?.servers || []), ...(anikageResult.dub?.servers || [])];
     for (const srv of anikageServers) {
-      // ninstream.com m3u8 gets 403 from Worker proxy (CF-to-CF block).
-      // Route through /api/stream (Vercel server proxy) with the correct referer.
+      // ninstream.com m3u8 — use Worker proxy with the correct referer.
       const isNinstream = srv.m3u8Url.includes("ninstream.com");
       const streamUrl = isNinstream
-        ? `/api/stream?url=${encodeURIComponent(srv.m3u8Url)}&referer=${encodeURIComponent("https://senshi.live/")}`
+        ? wrapM3u8UrlWithReferer(srv.m3u8Url, "https://senshi.live/")
         : wrapM3u8Url(srv.m3u8Url);
       servers.push({
         id: `anikage:${srv.provider}:${anikagePriority}`,

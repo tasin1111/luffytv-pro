@@ -3,7 +3,7 @@
  * ------------------
  * ani.pm is an anime streaming site with a public API at /api/anime/.
  * It's Cloudflare-protected — all API calls + HLS streams go through
- * /api/stream (Vercel server proxy) with Referer: https://ani.pm/
+ * our Cloudflare Worker proxy with Referer: https://ani.pm/
  *
  * API flow:
  *   1. Search: GET /api/anime/search?q={query}
@@ -13,24 +13,19 @@
  *      kind: "hls" | "file" | "embed"
  *      subtitle: "none" | "hard" | "soft"
  *      url: relative path like "/api/anime/src/hls?t={token}" or full embed URL
- *   3. Stream: HLS URLs from step 2 are wrapped through /api/stream which
- *      rewrites m3u8 segment URLs to go through /api/stream too.
+ *   3. Stream: HLS URLs from step 2 are wrapped through the Worker proxy
+ *      (workerWrap) which rewrites m3u8 segment URLs automatically.
  *
  * Providers (categorized):
  *   HLS: Nova, Halo, Vega (file), Lyra, Cobalt, Orion, Onyx
  *   Embed: ok.ru, mp4upload, bibiemb, otakuhg, otakuvid, playmogo, vivibebe, myvidplay, vidnest
  *
  * The HLS URLs are relative (/api/anime/src/hls?t={token}) and get wrapped
- * through /api/stream?url=...&referer=https://ani.pm/ — /api/stream rewrites
- * m3u8 segment URLs to go through /api/stream too.
+ * through the Worker's /proxy?url=...&ref=https://ani.pm/ endpoint.
  */
 
 const ANI_PM = "https://ani.pm";
-
-// Unified proxy: use /api/stream (Vercel server proxy) for ALL Ani.pm requests.
-// This way Ani.pm uses ONE proxy system (same as Kyren, AniKage, AniDB),
-// not two (Worker + /api/stream). ani.pm is in /api/stream's ALLOWED_HOSTS
-// with Referer: https://ani.pm/
+const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
 
@@ -70,15 +65,15 @@ export interface AniPmVerifiedResult {
   tracks: Array<{ url: string; lang: string; label: string }>;
 }
 
-// ─── /api/stream proxy helper ───────────────────────────────────────────────
-function streamWrap(url: string): string {
-  return `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent("https://ani.pm/")}`;
+// ─── Worker proxy helper ────────────────────────────────────────────────────
+function workerWrap(url: string): string {
+  return `${WORKER_BASE}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent("https://ani.pm/")}`;
 }
 
-// ─── Fetch JSON through /api/stream ─────────────────────────────────────────
-async function serverFetchJson<T = any>(url: string, timeoutMs = 15000): Promise<T | null> {
+// ─── Fetch JSON through worker ──────────────────────────────────────────────
+async function workerFetchJson<T = any>(url: string, timeoutMs = 15000): Promise<T | null> {
   try {
-    const wrapped = streamWrap(url);
+    const wrapped = workerWrap(url);
     const res = await Promise.race([
       fetch(wrapped, { headers: HEADERS, cache: "no-store" }),
       new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
@@ -107,7 +102,7 @@ export interface AniPmSearchResult {
 
 export async function searchAniPm(query: string, timeoutMs = 8000): Promise<AniPmSearchResult[]> {
   const url = `${ANI_PM}/api/anime/search?q=${encodeURIComponent(query)}`;
-  const data = await serverFetchJson<{ items: AniPmSearchResult[] }>(url, timeoutMs);
+  const data = await workerFetchJson<{ items: AniPmSearchResult[] }>(url, timeoutMs);
   return data?.items || [];
 }
 
@@ -165,7 +160,7 @@ export async function getAniPmSources(
   if (!resolved) return null;
 
   const url = `${ANI_PM}/api/anime/src/servers?title=${encodeURIComponent(resolved.title)}&ep=${epNum}&anilistId=${anilistId}`;
-  const data = await serverFetchJson<AniPmSourcesResponse>(url, timeoutMs);
+  const data = await workerFetchJson<AniPmSourcesResponse>(url, timeoutMs);
   if (!data) return null;
   return data;
 }
@@ -204,20 +199,20 @@ export async function fetchAniPmSources(
         streamUrl = s.url;
       } else {
         // HLS/file URLs are relative (/api/anime/src/hls?t=...) — prepend ani.pm
-        // and wrap through /api/stream (unified proxy). ani.pm is CF-protected,
-        // so we need /api/stream to add the correct Referer: https://ani.pm/
+        // and wrap through the Worker proxy. The worker rewrites m3u8 segments
+        // automatically and sends the correct Referer: https://ani.pm/
         const fullUrl = s.url.startsWith("http") ? s.url : `${ANI_PM}${s.url}`;
-        streamUrl = streamWrap(fullUrl);
+        streamUrl = workerWrap(fullUrl);
       }
 
       // Determine hardsub
       const hardsub = s.subtitle === "hard";
 
-      // Parse subtitle tracks — wrap through /api/stream (same proxy)
+      // Parse subtitle tracks — wrap through the Worker proxy (same proxy)
       const tracks = (s.tracks || []).filter(t => t?.url).map(t => {
         const fullTrackUrl = t.url.startsWith("http") ? t.url : `${ANI_PM}${t.url}`;
         return {
-          url: streamWrap(fullTrackUrl),
+          url: workerWrap(fullTrackUrl),
           lang: "en",
           label: t.label || "English",
         };

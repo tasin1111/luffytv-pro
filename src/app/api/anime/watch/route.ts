@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createHash, createDecipheriv } from "crypto";
 import { miruroInfo } from "@/lib/miruro-api";
 import { searchAnime } from "@/lib/anime-api";
+import { wrapM3u8Url } from "@/lib/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -439,18 +440,18 @@ async function getEpisodeSourcesServer(
                 parseInt(link.resolutionStr) > parseInt(best.resolutionStr) ? link : best, json.links[0])?.link
                 || json?.link || json?.url || json?.stream;
               if (resolvedUrl) {
-                streamUrl = `/api/stream?url=${encodeURIComponent(resolvedUrl)}`;
+                streamUrl = wrapM3u8Url(resolvedUrl);
                 type = "hls";
               }
             } else if (ct.includes("mpegurl") || resolveRes.url?.includes?.(".m3u8")) {
-              streamUrl = `/api/stream?url=${encodeURIComponent(resolveRes.url)}`;
+              streamUrl = wrapM3u8Url(resolveRes.url);
               type = "hls";
             }
           }
         } catch { /* use original URL */ }
       }
       if (streamUrl === url) {
-        streamUrl = `/api/stream?url=${encodeURIComponent(url)}`;
+        streamUrl = wrapM3u8Url(url);
       }
     }
 
