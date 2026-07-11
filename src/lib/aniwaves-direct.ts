@@ -1,17 +1,16 @@
 /**
  * AniWaves Direct — scraper for aniwaves.ru
  *
- * AniWaves has a big library with multiple servers (Vidplay, MyCloud, etc.)
- * and NO login required to watch.
+ * AniWaves has a large library and multiple servers per episode.
  *
  * Pipeline:
- *   1. Search: GET /ajax/anime/search?keyword={title} → parse slug from HTML
- *   2. Episode list: GET /ajax/episode/list/{animeId} → get episode data-ids
- *   3. Server list: GET /ajax/server/list?servers={animeId}&eps={epNum} → get server link-ids
- *   4. Sources: GET /ajax/sources?id={linkId} → get stream URL + skip data
+ *   1. Search: GET /filter — scrape anime slugs from HTML
+ *   2. Watch page: GET /watch/{slug} — extract data-id (anime ID)
+ *   3. Server list: GET /ajax/server/list?servers={animeId}&eps={epNum} — get data-link-id + server info
+ *   4. Sources: GET /ajax/sources?id={linkId} — get embed URL + skip_data (intro/outro)
  *
- * All endpoints return JSON with HTML in the "result" field.
- * No login required — all public AJAX endpoints.
+ * The embed URL is iframeable (echovideo.ru, gn1r5n.org, myvidplay.com).
+ * The JS player handles PoW/captcha client-side in the browser.
  */
 
 const ANIWAVES_BASE = "https://aniwaves.ru";
@@ -19,14 +18,14 @@ const ANIWAVES_BASE = "https://aniwaves.ru";
 const HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  Accept: "application/json, text/plain, */*",
+  Accept: "text/html,application/json,*/*",
   "Accept-Language": "en-US,en;q=0.5",
-  "X-Requested-With": "XMLHttpRequest",
   Referer: "https://aniwaves.ru/",
+  "X-Requested-With": "XMLHttpRequest",
 };
 
 // ── Caches ──
-const slugCache = new Map<number, { slug: string; animeId: string } | null>();
+const animeIdCache = new Map<string, string | null>(); // slug → animeId
 const CACHE_TTL = 60 * 60 * 1000;
 const cacheTimestamps = new Map<string, number>();
 
@@ -39,112 +38,114 @@ function isCacheFresh(key: string): boolean {
 // ── Types ──
 export interface AniWavesServer {
   name: string;
-  serverId: string;
-  streamUrl: string;
+  embedUrl: string;
   type: "sub" | "dub";
-  intro: { start: number; end: number } | null;
-  outro: { start: number; end: number } | null;
+  svId: number;
 }
 
 export interface AniWavesResult {
   servers: AniWavesServer[];
-  slug: string;
   animeId: string;
+  intro: { start: number; end: number } | null;
+  outro: { start: number; end: number } | null;
 }
 
-// ── Step 1: Search → slug + anime ID ──
-async function resolveSlug(anilistId: number, title: string): Promise<{ slug: string; animeId: string } | null> {
-  const cacheKey = `aniwaves:${anilistId}`;
-  if (slugCache.has(anilistId) && isCacheFresh(cacheKey)) {
-    return slugCache.get(anilistId)!;
-  }
-
+// ── Step 1: Resolve title → anime slug → anime ID ──
+async function resolveAnimeId(title: string): Promise<{ slug: string; animeId: string } | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
+    // Search via the filter page
     const res = await fetch(
-      `${ANIWAVES_BASE}/ajax/anime/search?keyword=${encodeURIComponent(title)}`,
-      { headers: HEADERS, signal: controller.signal },
+      `${ANIWAVES_BASE}/filter?search=${encodeURIComponent(title)}`,
+      { headers: { ...HEADERS, Accept: "text/html" }, signal: controller.signal },
     );
     clearTimeout(timeout);
 
     if (!res.ok) return null;
 
-    const data = await res.json();
-    const html: string = data?.result?.html || "";
+    const html = await res.text();
 
-    // Extract slug from href="/watch/{slug}"
-    const match = html.match(/href="\/watch\/([^"]+)"/);
-    if (!match) {
-      slugCache.set(anilistId, null);
-      cacheTimestamps.set(cacheKey, Date.now());
-      return null;
+    // Extract slugs from watch links
+    const slugPattern = /href="\/watch\/([^"]+)"/g;
+    const matches = [...html.matchAll(slugPattern)];
+    const slugs = [...new Set(matches.map((m) => m[1]))];
+
+    if (slugs.length === 0) return null;
+
+    // Find best match by title
+    const titleLower = title.toLowerCase().replace(/[^a-z0-9]/g, "");
+    let bestSlug: string | null = null;
+    for (const slug of slugs) {
+      const slugClean = slug.split("-").slice(0, -1).join("").toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (slugClean.includes(titleLower.slice(0, 15)) || titleLower.includes(slugClean.slice(0, 15))) {
+        bestSlug = slug;
+        break;
+      }
     }
+    if (!bestSlug) bestSlug = slugs[0];
 
-    const slug = match[1];
-    const animeId = slug.match(/(\d+)$/)?.[1] || "";
+    // Fetch the watch page to get data-id (anime ID)
+    const watchRes = await fetch(`${ANIWAVES_BASE}/watch/${bestSlug}`, {
+      headers: { ...HEADERS, Accept: "text/html" },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!watchRes.ok) return null;
+    const watchHtml = await watchRes.text();
 
-    console.log(`[aniwaves-direct] AniList ${anilistId} → slug "${slug}" (id: ${animeId})`);
-    const result = { slug, animeId };
-    slugCache.set(anilistId, result);
-    cacheTimestamps.set(cacheKey, Date.now());
-    return result;
+    const idMatch = watchHtml.match(/data-id="(\d+)"/);
+    if (!idMatch) return null;
+
+    console.log(`[aniwaves-direct] title="${title}" → slug="${bestSlug}" → animeId=${idMatch[1]}`);
+    return { slug: bestSlug, animeId: idMatch[1] };
   } catch (err) {
-    console.error(`[aniwaves-direct] resolveSlug error:`, err);
-    slugCache.set(anilistId, null);
-    cacheTimestamps.set(cacheKey, Date.now());
+    console.error(`[aniwaves-direct] resolveAnimeId error:`, err);
     return null;
   }
 }
 
-// ── Step 2: Get server list for an episode ──
+// ── Step 2: Get server list + link IDs ──
 async function getServerList(
   animeId: string,
   epNum: number,
-  slug: string,
-): Promise<Array<{ serverId: string; linkId: string; name: string; type: string }>> {
+): Promise<Array<{ svId: number; linkId: string; type: string }>> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 8000);
     const res = await fetch(
       `${ANIWAVES_BASE}/ajax/server/list?servers=${animeId}&eps=${epNum}`,
-      {
-        headers: { ...HEADERS, Referer: `${ANIWAVES_BASE}/watch/${slug}` },
-        signal: controller.signal,
-      },
+      { headers: HEADERS, signal: controller.signal },
     );
     clearTimeout(timeout);
 
     if (!res.ok) return [];
-
     const data = await res.json();
-    const html: string = data?.result || "";
+    const html = data.result || "";
 
-    // Parse server entries: data-sv-id="4" data-link-id="..." ...>ServerName
-    const serverPattern = /data-sv-id="(\d+)"[^>]*data-link-id="([^"]+)"[^>]*>([^<]+)/g;
-    const matches = [...html.matchAll(serverPattern)];
+    // Extract server items: data-sv-id + data-link-id + data-type
+    const serverPattern = /data-sv-id="(\d+)"[^>]*data-link-id="([^"]+)"[^>]*/g;
+    const typePattern = /data-type="(sub|dub|softsub)"/g;
 
-    // Also find the type (sub/dub) for each server
-    const typePattern = /data-type="(sub|dub)"/g;
-    const types: string[] = [];
-    let typeMatch;
-    while ((typeMatch = typePattern.exec(html)) !== null) {
-      types.push(typeMatch[1]);
-    }
+    // Find all server entries
+    const servers: Array<{ svId: number; linkId: string; type: string }> = [];
+    const serverMatches = [...html.matchAll(serverPattern)];
+    const typeMatches = [...html.matchAll(typePattern)];
 
-    const servers: Array<{ serverId: string; linkId: string; name: string; type: string }> = [];
+    // Track the current type (sub/dub sections)
     let currentType = "sub";
+    const htmlLines = html.split("data-type=");
+    let typeIdx = 0;
 
-    for (let i = 0; i < matches.length; i++) {
-      const [, serverId, linkId, name] = matches[i];
-      // Try to match type — if we've passed a type boundary, switch
-      // This is a simplification — the HTML has type sections
-      servers.push({
-        serverId,
-        linkId,
-        name: name.trim(),
-        type: i < (types.length > 1 ? Math.floor(matches.length / types.length) : matches.length) ? "sub" : "dub",
-      });
+    for (const match of serverMatches) {
+      const svId = parseInt(match[1], 10);
+      const linkId = match[2];
+      // Determine type by looking at nearby data-type
+      const matchPos = html.indexOf(match[0]);
+      const beforeMatch = html.substring(0, matchPos);
+      const lastType = beforeMatch.match(/data-type="(sub|dub|softsub)"/g);
+      const type = lastType ? lastType[lastType.length - 1].match(/"(sub|dub|softsub)"/)?.[1] || "sub" : "sub";
+
+      servers.push({ svId, linkId, type: type === "softsub" ? "sub" : type });
     }
 
     return servers;
@@ -154,87 +155,94 @@ async function getServerList(
   }
 }
 
-// ── Step 3: Get stream URL from a server ──
-async function getStreamUrl(
+// ── Step 3: Get embed URL + skip data for each server ──
+async function getSources(
   linkId: string,
-  slug: string,
-): Promise<{ url: string; intro: any; outro: any } | null> {
+  animeId: string,
+  epNum: number,
+): Promise<{ url: string; skipData: any } | null> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6000);
     const res = await fetch(
-      `${ANIWAVES_BASE}/ajax/sources?id=${encodeURIComponent(linkId)}`,
-      {
-        headers: { ...HEADERS, Referer: `${ANIWAVES_BASE}/watch/${slug}` },
-        signal: controller.signal,
-      },
+      `${ANIWAVES_BASE}/ajax/sources?id=${linkId}&asi=0&autoPlay=0`,
+      { headers: { ...HEADERS, Referer: `${ANIWAVES_BASE}/watch/${animeId}` }, signal: controller.signal },
     );
     clearTimeout(timeout);
 
     if (!res.ok) return null;
-
     const data = await res.json();
-    if (data?.status !== 200) return null;
+    const result = data.result || {};
+    if (!result.url) return null;
 
-    const result = data?.result;
-    if (!result || typeof result === "string") return null;
-
-    const url = result.url || "";
-    if (!url) return null;
-
-    // Parse skip data
-    const skipData = result.skip_data || {};
-    const intro = skipData.intro && skipData.intro[0] > 0
-      ? { start: skipData.intro[0], end: skipData.intro[1] }
-      : null;
-    const outro = skipData.outro && skipData.outro[0] > 0
-      ? { start: skipData.outro[0], end: skipData.outro[1] }
-      : null;
-
-    return { url, intro, outro };
+    return { url: result.url, skipData: result.skip_data || null };
   } catch {
     return null;
   }
 }
 
-// ── Main: resolve all servers for AniList ID + episode ──
+// ── Main: resolve all servers + skip times ──
 export async function resolveAniWaves(
   anilistId: number,
   epNum: number,
   title: string,
 ): Promise<AniWavesResult | null> {
   try {
-    const resolved = await resolveSlug(anilistId, title);
+    const resolved = await resolveAnimeId(title);
     if (!resolved) return null;
 
-    const { slug, animeId } = resolved;
+    const { animeId } = resolved;
 
     // Get server list
-    const servers = await getServerList(animeId, epNum, slug);
-    if (servers.length === 0) return null;
+    const serverEntries = await getServerList(animeId, epNum);
+    if (serverEntries.length === 0) return null;
 
-    // Get stream URLs for ALL servers in parallel (limit to first 5)
-    const results = await Promise.all(
-      servers.slice(0, 5).map(async (srv) => {
-        const stream = await getStreamUrl(srv.linkId, slug);
-        if (!stream) return null;
+    // Fetch sources for each server in parallel (limit to 6)
+    const sourceResults = await Promise.all(
+      serverEntries.slice(0, 6).map(async (entry) => {
+        const sources = await getSources(entry.linkId, animeId, epNum);
+        if (!sources) return null;
+
+        const SERVER_NAMES: Record<number, string> = {
+          1: "AniWaves SV1",
+          2: "AniWaves SV2",
+          4: "AniWaves SV4",
+        };
+
         return {
-          name: srv.name,
-          serverId: srv.serverId,
-          streamUrl: stream.url,
-          type: srv.type as "sub" | "dub",
-          intro: stream.intro,
-          outro: stream.outro,
+          name: SERVER_NAMES[entry.svId] || `AniWaves SV${entry.svId}`,
+          embedUrl: sources.url,
+          type: entry.type as "sub" | "dub",
+          svId: entry.svId,
+          skipData: sources.skipData,
         };
       }),
     );
 
-    const validServers = results.filter((r): r is AniWavesServer => r !== null);
-    if (validServers.length === 0) return null;
+    const servers = sourceResults.filter((s): s is NonNullable<typeof s> => s !== null);
+    if (servers.length === 0) return null;
 
-    console.log(`[aniwaves-direct] AniList ${anilistId} ep ${epNum}: ${validServers.length} servers`);
+    // Get skip times from the first server that has them
+    let intro: { start: number; end: number } | null = null;
+    let outro: { start: number; end: number } | null = null;
+    for (const s of servers) {
+      if (s.skipData?.intro?.[1] > 0) {
+        intro = { start: s.skipData.intro[0], end: s.skipData.intro[1] };
+      }
+      if (s.skipData?.outro?.[1] > 0) {
+        outro = { start: s.skipData.outro[0], end: s.skipData.outro[1] };
+      }
+      if (intro && outro) break;
+    }
 
-    return { servers: validServers, slug, animeId };
+    console.log(`[aniwaves-direct] AniList ${anilistId} ep ${epNum}: ${servers.length} servers, intro=${intro}, outro=${outro}`);
+
+    return {
+      servers: servers.map(s => ({ name: s.name, embedUrl: s.embedUrl, type: s.type, svId: s.svId })),
+      animeId,
+      intro,
+      outro,
+    };
   } catch (err) {
     console.error(`[aniwaves-direct] resolveAniWaves error:`, err);
     return null;

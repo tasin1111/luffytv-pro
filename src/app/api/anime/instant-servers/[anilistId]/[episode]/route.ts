@@ -257,28 +257,27 @@ export async function GET(
     }
 
     // ── PRIORITY 13.5: AniWaves — big library, multiple servers ──
-    // AniWaves returns embed URLs (play.echovideo.ru, etc.) — use as iframe embeds.
+    // AniWaves returns embed URLs (echovideo.ru, gn1r5n.org, myvidplay.com) — use as iframe embeds.
     // Also returns intro/outro skip data from their database.
     if (aniwavesResult?.servers?.length) {
-      let awPriority = 13.5;
+      let awPriority = 14;
       for (const srv of aniwavesResult.servers) {
         servers.push({
-          id: `aniwaves:${srv.serverId}:${srv.type}`,
-          name: `AniWaves ${srv.name}`,
+          id: `aniwaves:${srv.svId}:${srv.type}`,
+          name: srv.name,
           source: "aniwaves",
-          provider: srv.serverId,
+          provider: String(srv.svId),
           type: srv.type,
           quality: "1080p",
-          streamUrl: srv.streamUrl,
+          streamUrl: srv.embedUrl,
           isM3U8: false,
           isMP4: false,
           isEmbed: true, // AniWaves returns embed URLs — use iframe
           hardsub: false,
-          priority: awPriority,
-          intro: srv.intro,
-          outro: srv.outro,
+          priority: awPriority++,
+          intro: aniwavesResult.intro,
+          outro: aniwavesResult.outro,
         });
-        awPriority += 0.5;
       }
     }
 
