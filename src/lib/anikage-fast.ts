@@ -14,9 +14,10 @@
  */
 
 const ANIKAGE_BASE = "https://anikage.cc";
-const WORKER_BASE =
-  process.env.NEXT_PUBLIC_PROXY_BASE ||
-  "https://luffytv-proxy.ggy892767.workers.dev";
+
+// Unified proxy: use /api/stream (Vercel server proxy) for ALL AniKage requests.
+// This way AniKage uses ONE proxy system, not two (Worker + /api/stream).
+// anikage.cc is added to /api/stream's ALLOWED_HOSTS with Referer: https://anikage.cc/
 
 const HEADERS: Record<string, string> = {
   "User-Agent":
@@ -77,10 +78,9 @@ async function resolveAniKageId(
   }
 
   try {
-    // Scrape the AniKage homepage through the Worker proxy
-    const homeUrl = encodeURIComponent(`${ANIKAGE_BASE}/`);
-    const ref = encodeURIComponent(`${ANIKAGE_BASE}/`);
-    const proxyUrl = `${WORKER_BASE}/proxy?url=${homeUrl}&ref=${ref}`;
+    // Scrape the AniKage homepage through /api/stream (unified proxy)
+    const homeUrl = `${ANIKAGE_BASE}/`;
+    const proxyUrl = `/api/stream?url=${encodeURIComponent(homeUrl)}&referer=${encodeURIComponent(`${ANIKAGE_BASE}/`)}`;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -116,8 +116,8 @@ async function resolveAniKageId(
 
     const checkPromises = ids.slice(0, 5).map(async (id) => {
       try {
-        const infoUrl = encodeURIComponent(`${ANIKAGE_BASE}/anime/info/${id}`);
-        const infoProxy = `${WORKER_BASE}/proxy?url=${infoUrl}&ref=${ref}`;
+        const infoUrl = `${ANIKAGE_BASE}/anime/info/${id}`;
+        const infoProxy = `/api/stream?url=${encodeURIComponent(infoUrl)}&referer=${encodeURIComponent(`${ANIKAGE_BASE}/`)}`;
         const infoRes = await fetch(infoProxy, {
           headers: { "User-Agent": HEADERS["User-Agent"] },
           signal: AbortSignal.timeout(3000),
@@ -173,11 +173,8 @@ async function getSkipTimes(
   type: "sub" | "dub",
 ): Promise<AniKageSkipResult & { servers: AniKageServer[] }> {
   try {
-    const apiUrl = encodeURIComponent(
-      `${ANIKAGE_BASE}/api/media/anime/${anikageId}/episodes/${epNum}/sources?provider=${SKIP_PROVIDER}&lang=${type}`,
-    );
-    const ref = encodeURIComponent(`${ANIKAGE_BASE}/`);
-    const proxyUrl = `${WORKER_BASE}/proxy?url=${apiUrl}&ref=${ref}`;
+    const apiUrl = `${ANIKAGE_BASE}/api/media/anime/${anikageId}/episodes/${epNum}/sources?provider=${SKIP_PROVIDER}&lang=${type}`;
+    const proxyUrl = `/api/stream?url=${encodeURIComponent(apiUrl)}&referer=${encodeURIComponent(`${ANIKAGE_BASE}/`)}`;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);

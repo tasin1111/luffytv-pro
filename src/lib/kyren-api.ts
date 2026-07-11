@@ -63,15 +63,15 @@ const HEADERS: Record<string, string> = {
 };
 
 /**
- * Fetch a URL using our Cloudflare Worker proxy (bypasses Cloudflare's
- * TLS fingerprint challenge that blocks Node's fetch / undici).
- * The worker runs on Cloudflare's network and can access kyren.moe.
+ * Fetch a URL using /api/stream (Vercel server proxy) — unified proxy system.
+ * We use /api/stream for BOTH API calls and video streams so Kyren only
+ * uses ONE proxy system (no Worker + /api/stream mix).
+ * api.kyren.moe is Cloudflare-protected — Worker proxy gets 403 (CF-to-CF),
+ * but Vercel's server can fetch it with the correct Referer: https://kyren.moe/
  */
-const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
-
-async function workerFetchJson<T = any>(url: string, timeoutMs = 10000): Promise<T | null> {
+async function serverFetchJson<T = any>(url: string, timeoutMs = 10000): Promise<T | null> {
   try {
-    const wrapped = `${WORKER_BASE}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent("https://kyren.moe/")}`;
+    const wrapped = `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent("https://kyren.moe/")}`;
     const res = await Promise.race([
       fetch(wrapped, { headers: { "Accept": "application/json" }, cache: "no-store" }),
       new Promise<Response | null>(r => setTimeout(() => r(null), timeoutMs)),
@@ -81,7 +81,7 @@ async function workerFetchJson<T = any>(url: string, timeoutMs = 10000): Promise
     if (!text || text.startsWith("<!DOCTYPE") || text.startsWith("<html")) return null;
     return JSON.parse(text) as T;
   } catch (e: any) {
-    console.error(`[Kyren] workerFetchJson failed for ${url.slice(0, 80)}:`, e?.message || e);
+    console.error(`[Kyren] serverFetchJson failed for ${url.slice(0, 80)}:`, e?.message || e);
     return null;
   }
 }
@@ -225,7 +225,7 @@ export async function resolveKyrenAnime(
     }
 
     // Step 2: Search Kyren by title (using curl to bypass CF challenge)
-    const data = await workerFetchJson<KyrenSearchResponse>(
+    const data = await serverFetchJson<KyrenSearchResponse>(
       `${KYREN_API}/anime/search?q=${encodeURIComponent(title)}`,
       timeoutMs
     );
@@ -274,7 +274,7 @@ export async function getKyrenStream(
   const url = `${KYREN_API}/stream/${anilistId}/${epNum}?${params.toString()}`;
 
   try {
-    const data = await workerFetchJson<KyrenStreamResponse>(url, timeoutMs);
+    const data = await serverFetchJson<KyrenStreamResponse>(url, timeoutMs);
     if (!data?.ok || !data?.sources?.length) return null;
     return data;
   } catch {
@@ -343,7 +343,7 @@ export async function fetchAllKyrenSources(
       return {
         server: job.server,
         type: job.type,
-        streamUrl: wrapKyrenStream(hls.url),  // wrap through worker (CF-protected)
+        streamUrl: wrapKyrenStream(hls.url),  // wrap through /api/stream (CF-protected)
         quality: hls.quality || "auto",
         isM3U8: true,
         isMP4: false,
