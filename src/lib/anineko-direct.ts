@@ -52,6 +52,12 @@ export interface AniNekoResult {
   servers: AniNekoServer[];
 }
 
+export interface AniNekoM3u8Result {
+  m3u8Url: string;
+  serverName: string;
+  subtitleUrl?: string;
+}
+
 // ── Step 1: Resolve AniList ID → AniNeko slug ──
 async function resolveSlug(
   anilistId: number,
@@ -224,6 +230,80 @@ export async function resolveAniNekoServers(
     return servers;
   } catch (err) {
     console.error(`[anineko-direct] resolveAniNekoServers error:`, err);
+    return [];
+  }
+}
+
+// ── Extract direct m3u8 from vivibebe.site embed pages ──
+// vivibebe.site/{id} embed pages contain: src = ".../public/stream/{id}/master.m3u8"
+async function extractM3u8FromEmbed(embedUrl: string): Promise<string | null> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 6000);
+    const res = await fetch(embedUrl, {
+      headers: { ...HEADERS, Referer: "https://anineko.to/" },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!res.ok) return null;
+    const html = await res.text();
+
+    // Look for m3u8 URL in the embed page
+    // Pattern: src = "https://vivibebe.site/public/stream/{id}/master.m3u8"
+    const m3u8Match = html.match(/https?:\/\/[^"'\s]+\/public\/stream\/[^"'\s]+\/master\.m3u8/);
+    if (m3u8Match) return m3u8Match[0];
+
+    // Fallback: any m3u8 URL in the page
+    const anyM3u8 = html.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/);
+    if (anyM3u8) return anyM3u8[0];
+
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ── Main: resolve DIRECT m3u8 URLs from AniNeko (no embeds) ──
+// Scrapes the episode page, finds all data-video URLs, then extracts m3u8
+// from each vivibebe.site embed page. Returns direct m3u8 URLs.
+export async function resolveAniNekoM3u8(
+  anilistId: number,
+  episodeNum: number,
+  title: string,
+): Promise<AniNekoM3u8Result[]> {
+  try {
+    const slug = await resolveSlug(anilistId, title);
+    if (!slug) return [];
+
+    const servers = await getServers(slug, episodeNum);
+    if (servers.length === 0) return [];
+
+    // Extract m3u8 from each embed URL in parallel
+    const results = await Promise.all(
+      servers.slice(0, 5).map(async (srv) => {
+        // For vivibebe.site URLs, extract the m3u8 from the embed page
+        if (srv.url.includes("vivibebe.site")) {
+          const m3u8Url = await extractM3u8FromEmbed(srv.url);
+          if (m3u8Url) {
+            // Check for subtitle URL in the data-video attribute
+            const subMatch = srv.url.match(/[?&]sub=(https?:\/\/[^&]+)/);
+            return {
+              m3u8Url,
+              serverName: srv.name,
+              subtitleUrl: subMatch?.[1],
+            };
+          }
+        }
+        // For other embed URLs (otakuhg, otakuvid, playmogo), return as embed
+        // (these don't have extractable m3u8 — they're iframe-only)
+        return null;
+      }),
+    );
+
+    return results.filter((r): r is AniNekoM3u8Result => r !== null);
+  } catch (err) {
+    console.error(`[anineko-direct] resolveAniNekoM3u8 error:`, err);
     return [];
   }
 }
