@@ -4,7 +4,7 @@ import { resolveAniNekoServers } from "@/lib/anineko-direct";
 import { resolveAnimexMimiBoth } from "@/lib/animex-fast";
 import { resolveAniDapId, getAniDapSources } from "@/lib/anidap-api";
 import { resolveAniKageBoth } from "@/lib/anikage-fast";
-import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
+import { wrapM3u8Url } from "@/lib/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -170,65 +170,22 @@ export async function GET(
       });
     }
 
-    // ── PRIORITY 8+: AniKage — m3u8 sources ONLY (no embeds), wrapped through our proxy ──
-    // AniKage provides skip times for BOTH new AND old anime.
-    // The intro/outro is from AniKage's own database (same across providers).
-    // We add ALL working AniKage sources (m3u8 only) wrapped through our proxy.
-    // prox.anikage.cc needs Referer: https://anikage.cc/ to play.
-    let anikagePriority = 8;
-    if (anikageResult.sub?.servers) {
-      for (const srv of anikageResult.sub.servers) {
-        // Wrap the prox.anikage.cc m3u8 URL through our Cloudflare Worker proxy
-        // with the correct Referer so it plays in the browser.
-        const proxiedUrl = wrapM3u8UrlWithReferer(srv.m3u8Url, "https://anikage.cc/");
-        servers.push({
-          id: `anikage:${srv.provider}:sub`,
-          name: srv.name,
-          source: "anikage",
-          provider: srv.provider,
-          type: "sub",
-          quality: srv.quality,
-          streamUrl: proxiedUrl,
-          isM3U8: true,
-          isMP4: false,
-          isEmbed: false,
-          hardsub: false,
-          priority: anikagePriority++,
-          intro: anikageResult.intro,
-          outro: anikageResult.outro,
-        });
-      }
-    }
-    if (anikageResult.dub?.servers) {
-      for (const srv of anikageResult.dub.servers) {
-        const proxiedUrl = wrapM3u8UrlWithReferer(srv.m3u8Url, "https://anikage.cc/");
-        servers.push({
-          id: `anikage:${srv.provider}:dub`,
-          name: `${srv.name} (Dub)`,
-          source: "anikage",
-          provider: srv.provider,
-          type: "dub",
-          quality: srv.quality,
-          streamUrl: proxiedUrl,
-          isM3U8: true,
-          isMP4: false,
-          isEmbed: false,
-          hardsub: false,
-          priority: anikagePriority++,
-          intro: anikageResult.intro,
-          outro: anikageResult.outro,
-        });
-      }
-    }
-
-    // ── AniKage intro/outro is PERMANENT — apply to ALL servers ──
-    // The skip times from AniKage work for every provider (mimi, anidb, etc.)
-    // because they're timestamps, not stream-dependent.
+    // ── AniKage: intro/outro ONLY (no playable servers) ──
+    // AniKage's source URLs are ENCRYPTED tokens that need client-side
+    // JavaScript decryption (prox.anicore.tv/m3u8/{token} returns 403
+    // without the decryption). The embeds (ninstream.com) also return 403
+    // from server-side. So we can't add AniKage as playable servers.
+    //
+    // BUT — AniKage provides intro/outro skip times for ALL anime (new and old).
+    // We apply these PERMANENTLY to every other server in the list.
+    // The skip times are timestamps, not stream-dependent — they work
+    // no matter which provider the user selects.
     if (anikageResult.intro || anikageResult.outro) {
       for (const s of servers) {
         if (!s.intro && anikageResult.intro) s.intro = anikageResult.intro;
         if (!s.outro && anikageResult.outro) s.outro = anikageResult.outro;
       }
+      console.log(`[instant-servers] AniKage skip times applied: intro=${JSON.stringify(anikageResult.intro)} outro=${JSON.stringify(anikageResult.outro)}`);
     }
 
     // ── PRIORITY 10+: AniDap beep (direct m3u8) ──
