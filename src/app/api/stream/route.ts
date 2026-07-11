@@ -44,6 +44,8 @@ const ALLOWED_HOSTS = [
   "kyren.moe", "api.kyren.moe",
   // AniKage API + CDN
   "anikage.cc", "api.anikage.cc",
+  // Ani.pm API + HLS proxy
+  "ani.pm",
   // AniWaves embed CDNs
   "echovideo.ru", "play.echovideo.ru",
 ];
@@ -77,6 +79,7 @@ function getRefererForUrl(url: string): string {
     if (hostname.includes("kyren")) return "https://kyren.moe/";
     if (hostname.includes("ninstream")) return "https://senshi.live/";
     if (hostname.includes("anikage")) return "https://anikage.cc/";
+    if (hostname.includes("ani.pm")) return "https://ani.pm/";
     if (hostname.includes("xin-cdn")) return "https://anizone.to/";
     if (hostname.includes("echovideo") || hostname.includes("gn1r5n")) return "https://aniwaves.ru/";
     return new URL(url).origin + "/";
