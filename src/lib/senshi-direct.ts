@@ -16,9 +16,6 @@
  */
 
 const SENSHI_BASE = "https://senshi.live";
-const WORKER_BASE =
-  process.env.NEXT_PUBLIC_PROXY_BASE ||
-  "https://luffytv-proxy.ggy892767.workers.dev";
 
 const HEADERS: Record<string, string> = {
   "User-Agent":
@@ -26,17 +23,20 @@ const HEADERS: Record<string, string> = {
   Accept: "application/json, text/plain, */*",
   "Accept-Language": "en-US,en;q=0.5",
   Referer: "https://senshi.live/",
+  Origin: "https://senshi.live",
+  "Sec-Fetch-Dest": "empty",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Site": "same-origin",
 };
 
-/** Fetch a URL through the Worker proxy (bypasses Cloudflare). */
-async function workerFetch(url: string, options?: RequestInit, timeoutMs = 8000): Promise<Response> {
-  const proxyUrl = `${WORKER_BASE}/proxy?url=${encodeURIComponent(url)}&ref=${encodeURIComponent("https://senshi.live/")}`;
+/** Direct fetch with timeout — Senshi API works directly from server-side. */
+async function directFetch(url: string, options?: RequestInit, timeoutMs = 8000): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(proxyUrl, {
+    return await fetch(url, {
       ...options,
-      headers: { "User-Agent": HEADERS["User-Agent"] },
+      headers: { ...HEADERS, ...(options?.headers as Record<string, string>) },
       signal: controller.signal,
     });
   } finally {
@@ -77,7 +77,7 @@ async function resolveSenshiId(
 
   try {
     // Search Senshi by title via POST /anime/filter (through Worker proxy)
-    const res = await workerFetch(`${SENSHI_BASE}/anime/filter`, {
+    const res = await directFetch(`${SENSHI_BASE}/anime/filter`, {
       method: "POST",
       headers: {
         ...HEADERS,
@@ -149,7 +149,7 @@ async function getEpisodeInfo(
   epNum: number,
 ): Promise<{ intro: any; outro: any } | null> {
   try {
-    const res = await workerFetch(`${SENSHI_BASE}/episodes/${senshiId}`, undefined, 6000);
+    const res = await directFetch(`${SENSHI_BASE}/episodes/${senshiId}`, undefined, 6000);
 
     if (!res.ok) return null;
 
@@ -178,7 +178,7 @@ async function getEpisodeEmbeds(
   epNum: number,
 ): Promise<{ url: string; status: string } | null> {
   try {
-    const res = await workerFetch(`${SENSHI_BASE}/episode-embeds/${senshiId}/${epNum}`);
+    const res = await directFetch(`${SENSHI_BASE}/episode-embeds/${senshiId}/${epNum}`);
 
     if (!res.ok) return null;
 

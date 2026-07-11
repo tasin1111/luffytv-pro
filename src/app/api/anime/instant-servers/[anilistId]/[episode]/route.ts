@@ -177,10 +177,12 @@ export async function GET(
       });
     }
 
-    // ── PRIORITY 7: Senshi (sub) — m3u8 from ninstream.com ──
-    // Senshi provides HLS streams + intro/outro for new and old anime.
-    // ninstream.com needs Referer: https://senshi.live/ (handled by proxy).
+    // ── PRIORITY 7: Senshi (sub) — m3u8 from ninstream.com via /api/stream ──
+    // ninstream.com m3u8 works from Vercel server but NOT from Worker proxy
+    // (Cloudflare-to-Cloudflare block). We route through /api/stream (Vercel
+    // server-side proxy) which sends the correct Referer: https://senshi.live/.
     if (senshiResult?.m3u8Url) {
+      const streamUrl = `/api/stream?url=${encodeURIComponent(senshiResult.m3u8Url)}&referer=${encodeURIComponent("https://senshi.live/")}`;
       servers.push({
         id: "senshi:sub",
         name: "Senshi",
@@ -188,7 +190,7 @@ export async function GET(
         provider: "senshi",
         type: "sub",
         quality: "1080p",
-        streamUrl: wrapM3u8UrlWithReferer(senshiResult.m3u8Url, "https://senshi.live/"),
+        streamUrl,
         isM3U8: true,
         isMP4: false,
         isEmbed: false,
@@ -234,10 +236,11 @@ export async function GET(
     let anikagePriority = 14;
     const anikageServers = [...(anikageResult.sub?.servers || []), ...(anikageResult.dub?.servers || [])];
     for (const srv of anikageServers) {
-      // Wrap ninstream.com m3u8 URLs through our proxy with the correct referer
+      // ninstream.com m3u8 gets 403 from Worker proxy (CF-to-CF block).
+      // Route through /api/stream (Vercel server proxy) with the correct referer.
       const isNinstream = srv.m3u8Url.includes("ninstream.com");
-      const proxiedUrl = isNinstream
-        ? wrapM3u8UrlWithReferer(srv.m3u8Url, "https://senshi.live/")
+      const streamUrl = isNinstream
+        ? `/api/stream?url=${encodeURIComponent(srv.m3u8Url)}&referer=${encodeURIComponent("https://senshi.live/")}`
         : wrapM3u8Url(srv.m3u8Url);
       servers.push({
         id: `anikage:${srv.provider}:${anikagePriority}`,
@@ -246,7 +249,7 @@ export async function GET(
         provider: srv.provider,
         type: srv.type,
         quality: srv.quality,
-        streamUrl: proxiedUrl,
+        streamUrl,
         isM3U8: true,
         isMP4: false,
         isEmbed: false,

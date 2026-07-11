@@ -37,6 +37,8 @@ const ALLOWED_HOSTS = [
   "s2.cinewave2.site", "sxic.oceancrestdigital.shop", "neko.yokai.cfd",
   "s2.vidhosters.com", "tools.fast4speed.rsvp", "www.animegg.org",
   "animeverse.to", "kem.clvd.xyz", "anidb.app", "allanime.uns.bio",
+  // Senshi + AniKage CDN — ninstream.com (needs Referer: https://senshi.live/)
+  "ninstream.com",
 ];
 
 function isHostAllowed(url: string): boolean {
