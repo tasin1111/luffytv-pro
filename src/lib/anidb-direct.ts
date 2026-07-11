@@ -52,7 +52,7 @@ function isCacheFresh(key: string): boolean {
 export interface AniDbEmbedResult {
   embedUrl: string;
   /** Direct HLS m3u8 URL extracted from the embed page's JW Player config. */
-  m3u8Url?: string;
+  m3u8Url?: string | null;
   anidbId: number;
   episodeId: number;
   type: "sub" | "dub";

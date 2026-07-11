@@ -114,6 +114,8 @@ export async function GET(
     }
 
     // ── PRIORITY 1: AniDB (sub) — direct m3u8 from hls.anidb.app ──
+    // If m3u8 extraction succeeded, use it (wrapped through Worker proxy).
+    // If not, fall back to the embed URL as an iframe embed.
     if (anidbResult.sub?.m3u8Url) {
       servers.push({
         id: "anidb:sub",
@@ -122,10 +124,25 @@ export async function GET(
         provider: "anidb",
         type: "sub",
         quality: "1080p",
-        streamUrl: anidbResult.sub.m3u8Url,
+        streamUrl: wrapM3u8Url(anidbResult.sub.m3u8Url),
         isM3U8: true,
         isMP4: false,
         isEmbed: false,
+        hardsub: false,
+        priority: 1,
+      });
+    } else if (anidbResult.sub?.embedUrl) {
+      servers.push({
+        id: "anidb:sub",
+        name: "AniDB",
+        source: "anidb",
+        provider: "anidb",
+        type: "sub",
+        quality: "1080p",
+        streamUrl: anidbResult.sub.embedUrl,
+        isM3U8: false,
+        isMP4: false,
+        isEmbed: true,
         hardsub: false,
         priority: 1,
       });
@@ -153,6 +170,7 @@ export async function GET(
     }
 
     // ── PRIORITY 3: AniDB (dub) ──
+    // Same fallback logic as AniDB sub: prefer m3u8, fall back to embed.
     if (anidbResult.dub?.m3u8Url) {
       servers.push({
         id: "anidb:dub",
@@ -161,10 +179,25 @@ export async function GET(
         provider: "anidb",
         type: "dub",
         quality: "1080p",
-        streamUrl: anidbResult.dub.m3u8Url,
+        streamUrl: wrapM3u8Url(anidbResult.dub.m3u8Url),
         isM3U8: true,
         isMP4: false,
         isEmbed: false,
+        hardsub: false,
+        priority: 3,
+      });
+    } else if (anidbResult.dub?.embedUrl) {
+      servers.push({
+        id: "anidb:dub",
+        name: "AniDB (Dub)",
+        source: "anidb",
+        provider: "anidb",
+        type: "dub",
+        quality: "1080p",
+        streamUrl: anidbResult.dub.embedUrl,
+        isM3U8: false,
+        isMP4: false,
+        isEmbed: true,
         hardsub: false,
         priority: 3,
       });
