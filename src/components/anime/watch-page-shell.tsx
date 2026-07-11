@@ -355,8 +355,12 @@ export function WatchPageShell({
           </div>
         </div>{/* end left column — player + AP only */}
 
-        {/* ══ RIGHT — Episode Sidebar (matches player+AP height via items-stretch) ══ */}
-        <aside className="w-full lg:w-[360px] xl:w-[400px] shrink-0 flex flex-col min-w-0">
+        {/* ══ RIGHT — Episode Sidebar (constrained to player+AP height, scrolls internally) ══ */}
+        {/* h-0 + min-h-full trick: aside doesn't contribute its content height to the row, */}
+        {/* but stretches to fill the row height (which is set by the left column = player + toggles). */}
+        {/* overflow-hidden clips the sidebar; the episode list inside scrolls via overflow-y-auto. */}
+        {/* On mobile (max-lg), give it a fixed height since the row stacks vertically. */}
+        <aside className="w-full lg:w-[360px] xl:w-[400px] shrink-0 flex flex-col min-w-0 max-lg:h-[70vh] lg:h-0 lg:min-h-full overflow-hidden">
           <MiruroEpisodeSidebar
             episodeList={episodeList}
             filteredEps={filteredEps}
