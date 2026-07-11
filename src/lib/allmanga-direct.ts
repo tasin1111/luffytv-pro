@@ -338,12 +338,15 @@ export async function resolveAllManga(
 
       if (extractedUrl) {
         const type = embedMediaType(extractedUrl) || "direct";
-        sources.push({
-          name: name || "AllManga",
-          url: extractedUrl,
-          type,
-          quality: src.priority >= 500 ? "1080p" : src.priority >= 300 ? "720p" : "auto",
-        });
+        // ONLY keep MP4 sources — HLS and other types don't work reliably
+        if (type === "mp4") {
+          sources.push({
+            name: name || "AllManga",
+            url: extractedUrl,
+            type,
+            quality: src.priority >= 500 ? "1080p" : src.priority >= 300 ? "720p" : "auto",
+          });
+        }
       }
     }
 

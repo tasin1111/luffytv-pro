@@ -77,7 +77,7 @@ async function resolveAniDbId(
     const proxyUrl = `${WORKER_BASE}/proxy?url=${searchUrl}&ref=${ref}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
     const res = await fetch(proxyUrl, {
       headers: { "User-Agent": HEADERS["User-Agent"] },
       signal: controller.signal,
@@ -168,7 +168,7 @@ async function getEpisodes(anidbId: number): Promise<Map<number, number>> {
     const proxyUrl = `${WORKER_BASE}/proxy?url=${apiUrl}&ref=${ref}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
     const res = await fetch(proxyUrl, {
       headers: { "User-Agent": HEADERS["User-Agent"] },
       signal: controller.signal,
@@ -209,7 +209,7 @@ async function getEmbedUrl(
     const proxyUrl = `${WORKER_BASE}/proxy?url=${apiUrl}&ref=${ref}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
     const res = await fetch(proxyUrl, {
       headers: { "User-Agent": HEADERS["User-Agent"] },
       signal: controller.signal,
@@ -248,7 +248,7 @@ async function extractM3u8FromEmbed(embedUrl: string): Promise<string | null> {
     const proxyUrl = `${WORKER_BASE}/proxy?url=${pageUrl}&ref=${ref}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
     const res = await fetch(proxyUrl, {
       headers: { "User-Agent": HEADERS["User-Agent"] },
       signal: controller.signal,

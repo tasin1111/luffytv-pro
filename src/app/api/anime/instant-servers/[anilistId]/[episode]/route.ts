@@ -57,7 +57,7 @@ export async function GET(
     const anidapId = await resolveAniDapId(id).catch(() => null);
     const [animexMimi, anidbResult, aninekoM3u8s, anidapSub, anikageResult, senshiResult, allmangaResult, anizoneResult, aniwavesResult] = await Promise.all([
       withTimeout(resolveAnimexMimiBoth(id, epNum), 8000, { sub: null, dub: null }),
-      withTimeout(resolveAniDbEmbeds(id, epNum, title), 10000, { sub: null, dub: null }),
+      withTimeout(resolveAniDbEmbeds(id, epNum, title), 15000, { sub: null, dub: null }),
       withTimeout(resolveAniNekoM3u8(id, epNum, title).catch(() => []), 8000, []),
       withTimeout(
         anidapId ? getAniDapSources(anidapId, epNum, "sub", "beep").catch(() => null) : Promise.resolve(null),
