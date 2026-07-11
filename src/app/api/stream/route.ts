@@ -39,6 +39,8 @@ const ALLOWED_HOSTS = [
   "animeverse.to", "kem.clvd.xyz", "anidb.app", "allanime.uns.bio",
   // Senshi + AniKage CDN — ninstream.com (needs Referer: https://senshi.live/)
   "ninstream.com",
+  // AniZone CDN — suzaku.xin-cdn.xyz (needs Referer: https://anizone.to/)
+  "xin-cdn.xyz", "suzaku.xin-cdn.xyz",
 ];
 
 function isHostAllowed(url: string): boolean {

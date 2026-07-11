@@ -6,6 +6,7 @@ import { resolveAniDapId, getAniDapSources } from "@/lib/anidap-api";
 import { resolveAniKageBoth } from "@/lib/anikage-fast";
 import { resolveSenshi } from "@/lib/senshi-direct";
 import { resolveAllManga } from "@/lib/allmanga-direct";
+import { resolveAniZone } from "@/lib/anizone-direct";
 import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
@@ -57,12 +58,14 @@ export async function GET(
       resolveSenshi(id, epNum, title).catch(() => null),
       // AllManga — OUR OWN scraper (no third-party API)
       resolveAllManga(id, epNum, "sub").catch(() => null),
+      // AniZone — high-quality HLS with soft subtitles (10+ languages)
+      resolveAniZone(id, epNum, title).catch(() => null),
     ]);
 
     const servers: Array<{
       id: string;
       name: string;
-      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "allmanga-direct";
+      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone";
       provider: string;
       type: "sub" | "dub";
       quality: string;
@@ -226,6 +229,28 @@ export async function GET(
           outro: allmangaResult.outro,
         });
       }
+    }
+
+    // ── PRIORITY 13: AniZone — high-quality HLS with soft subtitles ──
+    // AniZone provides HLS from suzaku.xin-cdn.xyz with 10+ subtitle languages (ASS format).
+    // Route through /api/stream with Referer: https://anizone.to/.
+    if (anizoneResult?.m3u8Url) {
+      const streamUrl = `/api/stream?url=${encodeURIComponent(anizoneResult.m3u8Url)}&referer=${encodeURIComponent("https://anizone.to/")}`;
+      servers.push({
+        id: "anizone:sub",
+        name: "AniZone",
+        source: "anizone",
+        provider: "anizone",
+        type: "sub",
+        quality: "1080p",
+        streamUrl,
+        isM3U8: true,
+        isMP4: false,
+        isEmbed: false,
+        hardsub: false,
+        priority: 13,
+        subtitleTracks: anizoneResult.subtitleTracks,
+      });
     }
 
     // ── PRIORITY 14+: AniKage — embed servers + intro/outro ──

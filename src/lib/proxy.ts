@@ -55,6 +55,7 @@ const CDN_REFERERS: Record<string, string> = {
   "prox.anikage.cc":       "https://anikage.cc/",
   // Senshi — ninstream.com needs Referer: https://senshi.live/
   "ninstream.com":         "https://senshi.live/",
+  "xin-cdn.xyz":           "https://anizone.to/",
   // Kyren
   "api.kyren.moe":         "https://kyren.moe/",
   "kyren.moe":             "https://kyren.moe/",
