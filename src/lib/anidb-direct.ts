@@ -20,9 +20,10 @@
  */
 
 const ANIDB_BASE = "https://anidb.app";
-const WORKER_BASE =
-  process.env.NEXT_PUBLIC_PROXY_BASE ||
-  "https://luffytv-proxy.ggy892767.workers.dev";
+
+// Unified proxy: use /api/stream (Vercel server proxy) for ALL AniDB requests.
+// This way AniDB uses ONE proxy system (same as Kyren + AniKage), not two.
+// anidb.app is in /api/stream's ALLOWED_HOSTS with Referer: https://anidb.app/
 
 const HEADERS: Record<string, string> = {
   "User-Agent":
@@ -69,15 +70,12 @@ async function resolveAniDbId(
   }
 
   try {
-    // Search AniDB via Worker proxy (search endpoint is CF-protected)
-    const searchUrl = encodeURIComponent(
-      `${ANIDB_BASE}/search/suggestions?q=${encodeURIComponent(title)}`,
-    );
-    const ref = encodeURIComponent(`${ANIDB_BASE}/`);
-    const proxyUrl = `${WORKER_BASE}/proxy?url=${searchUrl}&ref=${ref}`;
+    // Search AniDB via /api/stream (unified proxy — search endpoint is CF-protected)
+    const searchUrl = `${ANIDB_BASE}/search/suggestions?q=${encodeURIComponent(title)}`;
+    const proxyUrl = `/api/stream?url=${encodeURIComponent(searchUrl)}&referer=${encodeURIComponent(`${ANIDB_BASE}/`)}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const timeout = setTimeout(() => controller.abort(), 20000);
     const res = await fetch(proxyUrl, {
       headers: { "User-Agent": HEADERS["User-Agent"] },
       signal: controller.signal,
@@ -163,12 +161,11 @@ async function getEpisodes(anidbId: number): Promise<Map<number, number>> {
   }
 
   try {
-    const apiUrl = encodeURIComponent(`${ANIDB_BASE}/api/frontend/anime/${anidbId}/episodes`);
-    const ref = encodeURIComponent(`${ANIDB_BASE}/`);
-    const proxyUrl = `${WORKER_BASE}/proxy?url=${apiUrl}&ref=${ref}`;
+    const apiUrl = `${ANIDB_BASE}/api/frontend/anime/${anidbId}/episodes`;
+    const proxyUrl = `/api/stream?url=${encodeURIComponent(apiUrl)}&referer=${encodeURIComponent(`${ANIDB_BASE}/`)}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const timeout = setTimeout(() => controller.abort(), 20000);
     const res = await fetch(proxyUrl, {
       headers: { "User-Agent": HEADERS["User-Agent"] },
       signal: controller.signal,
@@ -204,12 +201,11 @@ async function getEmbedUrl(
   type: "sub" | "dub",
 ): Promise<string | null> {
   try {
-    const apiUrl = encodeURIComponent(`${ANIDB_BASE}/api/frontend/episode/${episodeId}/languages`);
-    const ref = encodeURIComponent(`${ANIDB_BASE}/`);
-    const proxyUrl = `${WORKER_BASE}/proxy?url=${apiUrl}&ref=${ref}`;
+    const apiUrl = `${ANIDB_BASE}/api/frontend/episode/${episodeId}/languages`;
+    const proxyUrl = `/api/stream?url=${encodeURIComponent(apiUrl)}&referer=${encodeURIComponent(`${ANIDB_BASE}/`)}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const timeout = setTimeout(() => controller.abort(), 20000);
     const res = await fetch(proxyUrl, {
       headers: { "User-Agent": HEADERS["User-Agent"] },
       signal: controller.signal,
@@ -242,13 +238,11 @@ async function getEmbedUrl(
 // We scrape this to get the direct m3u8 URL for hls.js playback (no iframe needed).
 async function extractM3u8FromEmbed(embedUrl: string): Promise<string | null> {
   try {
-    // Fetch the embed page via Worker proxy (anidb.app is CF-protected)
-    const pageUrl = encodeURIComponent(embedUrl);
-    const ref = encodeURIComponent(`${ANIDB_BASE}/`);
-    const proxyUrl = `${WORKER_BASE}/proxy?url=${pageUrl}&ref=${ref}`;
+    // Fetch the embed page via /api/stream (anidb.app is CF-protected)
+    const proxyUrl = `/api/stream?url=${encodeURIComponent(embedUrl)}&referer=${encodeURIComponent(`${ANIDB_BASE}/`)}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const timeout = setTimeout(() => controller.abort(), 20000);
     const res = await fetch(proxyUrl, {
       headers: { "User-Agent": HEADERS["User-Agent"] },
       signal: controller.signal,

@@ -12,7 +12,7 @@ import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 25; // increased from 15 — AniDB + AllManga need Worker proxy calls
+export const maxDuration = 60; // Vercel Pro max — give all providers enough time to load
 
 /**
  * GET /api/anime/instant-servers/[anilistId]/[episode]?title={title}
@@ -56,18 +56,18 @@ export async function GET(
 
     const anidapId = await resolveAniDapId(id).catch(() => null);
     const [animexMimi, anidbResult, aninekoM3u8s, anidapSub, anikageResult, senshiResult, allmangaResult, anizoneResult, aniwavesResult] = await Promise.all([
-      withTimeout(resolveAnimexMimiBoth(id, epNum), 8000, { sub: null, dub: null }),
-      withTimeout(resolveAniDbEmbeds(id, epNum, title), 15000, { sub: null, dub: null }),
-      withTimeout(resolveAniNekoM3u8(id, epNum, title).catch(() => []), 8000, []),
+      withTimeout(resolveAnimexMimiBoth(id, epNum), 25000, { sub: null, dub: null }),
+      withTimeout(resolveAniDbEmbeds(id, epNum, title), 30000, { sub: null, dub: null }),
+      withTimeout(resolveAniNekoM3u8(id, epNum, title).catch(() => []), 25000, []),
       withTimeout(
         anidapId ? getAniDapSources(anidapId, epNum, "sub", "beep").catch(() => null) : Promise.resolve(null),
-        8000, null,
+        25000, null,
       ),
-      withTimeout(resolveAniKageBoth(id, epNum, title).catch(() => ({ sub: null, dub: null, intro: null, outro: null })), 8000, { sub: null, dub: null, intro: null, outro: null }),
-      withTimeout(resolveSenshi(id, epNum, title).catch(() => null), 8000, null),
-      withTimeout(resolveAllManga(id, epNum, "sub").catch(() => null), 10000, null),
-      withTimeout(resolveAniZone(id, epNum, title).catch(() => null), 8000, null),
-      withTimeout(resolveAniWaves(id, epNum, title).catch(() => null), 8000, null),
+      withTimeout(resolveAniKageBoth(id, epNum, title).catch(() => ({ sub: null, dub: null, intro: null, outro: null })), 25000, { sub: null, dub: null, intro: null, outro: null }),
+      withTimeout(resolveSenshi(id, epNum, title).catch(() => null), 25000, null),
+      withTimeout(resolveAllManga(id, epNum, "sub").catch(() => null), 30000, null),
+      withTimeout(resolveAniZone(id, epNum, title).catch(() => null), 25000, null),
+      withTimeout(resolveAniWaves(id, epNum, title).catch(() => null), 25000, null),
     ]);
 
     const servers: Array<{

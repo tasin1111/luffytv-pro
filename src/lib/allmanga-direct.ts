@@ -88,7 +88,7 @@ async function aesDecrypt(hex: string): Promise<string> {
 // ── Embed extractors ──
 async function extractMp4(id: string): Promise<string | null> {
   try {
-    const r = await fetch(`https://www.mp4upload.com/embed-${id}.html`, { headers: { "User-Agent": UA, Referer: "https://allanime.to/" } });
+    const r = await fetch(`https://www.mp4upload.com/embed-${id}.html`, { headers: { "User-Agent": UA, Referer: "https://allanime.to/" }, signal: AbortSignal.timeout(15000) });
     if (!r.ok) return null;
     const h = await r.text();
     const m = h.match(/player\.src\s*\(\s*\{[^}]*\bsrc\s*:\s*"([^"]+)"/) || h.match(/"file"\s*:\s*"(https?:[^"]+\.mp4[^"]*)"/) || h.match(/\bsrc\s*:\s*"(https?:[^"]+\.mp4[^"]*)"/);
@@ -99,7 +99,7 @@ async function extractMp4(id: string): Promise<string | null> {
 async function extractUns(id: string): Promise<string | null> {
   try {
     const base = "https://allanime.uns.bio";
-    const r = await fetch(`${base}/api/v1/video?id=${id}&w=1280&h=720&r=`, { headers: { "User-Agent": UA, Referer: `${base}/#${id}`, Origin: base } });
+    const r = await fetch(`${base}/api/v1/video?id=${id}&w=1280&h=720&r=`, { headers: { "User-Agent": UA, Referer: `${base}/#${id}`, Origin: base }, signal: AbortSignal.timeout(15000) });
     if (!r.ok) return null;
     const hex = (await r.text()).trim();
     if (!hex || !/^[0-9a-f]+$/i.test(hex)) return null;
@@ -110,7 +110,7 @@ async function extractUns(id: string): Promise<string | null> {
 
 async function extractOk(id: string): Promise<string | null> {
   try {
-    const r = await fetch(`https://ok.ru/videoembed/${id}`, { headers: { "User-Agent": UA, Referer: "https://ok.ru/" } });
+    const r = await fetch(`https://ok.ru/videoembed/${id}`, { headers: { "User-Agent": UA, Referer: "https://ok.ru/" }, signal: AbortSignal.timeout(15000) });
     if (!r.ok) return null;
     const h = await r.text();
     const m = h.match(/ondemandHls\\&quot;:\\&quot;(https?:\/\/.*?)\\&quot;/);
@@ -121,12 +121,12 @@ async function extractOk(id: string): Promise<string | null> {
 async function extractStreamSB(id: string): Promise<string | null> {
   try {
     const baseHeaders: Record<string, string> = { "User-Agent": UA, "Referer": "https://allmanga.to/", "watchsb": "streamsb", "Accept": "application/json, text/plain, */*", "Accept-Language": "en-US,en;q=0.9" };
-    const r1 = await fetch(`https://streamsb.net/api/v1/video?id=${id}`, { headers: baseHeaders });
+    const r1 = await fetch(`https://streamsb.net/api/v1/video?id=${id}`, { headers: baseHeaders, signal: AbortSignal.timeout(15000) });
     const sid = (r1.headers.get("set-cookie") || "").match(/sid=([^;]+)/)?.[1] ?? "";
     const html1 = await r1.text();
     const m = html1.match(/window\.location\.replace\('([^']+)'\)/);
     if (!m) return null;
-    const r2 = await fetch(m[1], { headers: { ...baseHeaders, "Cookie": `sid=${sid}`, "Referer": `https://streamsb.net/e/${id}.html` } });
+    const r2 = await fetch(m[1], { headers: { ...baseHeaders, "Cookie": `sid=${sid}`, "Referer": `https://streamsb.net/e/${id}.html` }, signal: AbortSignal.timeout(15000) });
     if (!r2.ok) return null;
     const ct = r2.headers.get("content-type") ?? "";
     if (!ct.includes("json")) return null;
@@ -137,7 +137,7 @@ async function extractStreamSB(id: string): Promise<string | null> {
 
 async function extractStreamlare(id: string): Promise<string | null> {
   try {
-    const r = await fetch("https://streamlare.com/api/video/stream/get", { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": UA, "Referer": "https://streamlare.com/", "Origin": "https://streamlare.com", "Accept": "application/json, */*" }, body: JSON.stringify({ id }) });
+    const r = await fetch("https://streamlare.com/api/video/stream/get", { method: "POST", headers: { "Content-Type": "application/json", "User-Agent": UA, "Referer": "https://streamlare.com/", "Origin": "https://streamlare.com", "Accept": "application/json, */*" }, body: JSON.stringify({ id }), signal: AbortSignal.timeout(15000) });
     if (!r.ok) return null;
     const data = await r.json();
     return data?.data?.file ?? null;
@@ -153,7 +153,10 @@ function embedMediaType(url: string | null): string | null {
 
 // ── API fetch helpers ──
 async function apiFetch(url: string): Promise<any> {
-  const res = await fetch(url, { headers: { "User-Agent": UA, "Referer": REFERER, "Origin": REFERER } });
+  const res = await fetch(url, {
+    headers: { "User-Agent": UA, "Referer": REFERER, "Origin": REFERER },
+    signal: AbortSignal.timeout(20000),
+  });
   if (!res.ok) throw new Error(`API ${res.status}`);
   const json = await res.json();
   if (json?.data?.tobeparsed) {
@@ -170,7 +173,7 @@ function buildApiUrl(variables: any, hash: string): string {
 }
 
 async function apiPost(query: string, variables: any): Promise<any> {
-  const res = await fetch(`${API}/api`, { method: "POST", headers: { "User-Agent": UA, "Referer": REFERER, "Origin": REFERER, "Content-Type": "application/json" }, body: JSON.stringify({ variables, query }) });
+  const res = await fetch(`${API}/api`, { method: "POST", headers: { "User-Agent": UA, "Referer": REFERER, "Origin": REFERER, "Content-Type": "application/json" }, body: JSON.stringify({ variables, query }), signal: AbortSignal.timeout(20000) });
   if (!res.ok) throw new Error(`API POST ${res.status}`);
   const json = await res.json();
   if (json?.data?.tobeparsed) {
@@ -198,7 +201,7 @@ async function getEpisodeSources(showId: string, epNum: number, audio = "sub"): 
 async function fetchAniListMedia(anilistId: number): Promise<any | null> {
   try {
     const q = "query ($id: Int) { Media (id: $id, type: ANIME) { seasonYear startDate { year } title { romaji english native } } }";
-    const res = await fetch("https://graphql.anilist.co", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json", "User-Agent": UA, "Origin": "https://anilist.co" }, body: JSON.stringify({ query: q, variables: { id: anilistId } }) });
+    const res = await fetch("https://graphql.anilist.co", { method: "POST", headers: { "Content-Type": "application/json", "Accept": "application/json", "User-Agent": UA, "Origin": "https://anilist.co" }, body: JSON.stringify({ query: q, variables: { id: anilistId } }), signal: AbortSignal.timeout(15000) });
     if (!res.ok) return null;
     const json = await res.json();
     return json.data?.Media ?? null;
@@ -207,7 +210,7 @@ async function fetchAniListMedia(anilistId: number): Promise<any | null> {
 
 async function fetchAniZip(anilistId: number): Promise<any> {
   try {
-    const res = await fetch(`${ANIZIP}?anilist_id=${anilistId}`);
+    const res = await fetch(`${ANIZIP}?anilist_id=${anilistId}`, { signal: AbortSignal.timeout(15000) });
     if (!res.ok) return {};
     return res.json();
   } catch { return {}; }
