@@ -53,8 +53,13 @@ const ANIMEX_SOFTSUB = new Set(["beep", "yuki"]);
 // These match what animex.one currently reports (verified 2026-06).
 // Actual sub: beep, yuki, miku, neko, mochi, uwu (6 providers — meets "minimum 6" requirement)
 // Actual dub: yuki, miku, mochi, uwu (4 providers)
-const FALLBACK_SUB_PROVIDERS = ["beep", "yuki", "miku", "neko", "mochi", "uwu"];
-const FALLBACK_DUB_PROVIDERS = ["yuki", "miku", "mochi", "uwu"];
+// Only include providers that return UNIQUE streams (tested):
+// mimi=vivibebe.site, beep=playeng.animeapps.top, yuki=cdn.mewstream.buzz,
+// uwu=vault-XX.uwucdn.top, kiwi=hls.anidb.app
+// Removed duplicates: miku, koto, kami, huzz, vee, neko, lolly (all return same URL as mimi)
+// Removed broken: mochi (returns error)
+const FALLBACK_SUB_PROVIDERS = ["mimi", "beep", "yuki", "uwu", "kiwi"];
+const FALLBACK_DUB_PROVIDERS = ["mimi", "yuki", "uwu"];
 
 /**
  * Build a proxy URL using our Cloudflare Worker.
@@ -178,8 +183,21 @@ export async function GET(
       }
     }
 
-    // ── FILTER OUT servers with no streamUrl or empty streamUrl ──────────────
-    const filteredServers = servers.filter(s => s.streamUrl && s.streamUrl.length > 10);
+    // ── FILTER + DEDUPE servers ─────────────────────────────────────────────
+    // Many AnimeX providers return the SAME stream URL (e.g. mimi, miku, koto,
+    // kami, huzz, vee, neko, lolly all return the same vivibebe.site URL).
+    // Dedupe by stream URL so only unique streams are shown.
+    const seenUrls = new Set<string>();
+    const filteredServers = servers.filter(s => {
+      if (!s.streamUrl || s.streamUrl.length < 10) return false;
+      // Extract the base URL for dedup (strip proxy wrapper to compare real URLs)
+      const baseUrl = s.streamUrl.includes("/p/")
+        ? s.streamUrl // already proxied — compare full token
+        : s.streamUrl.split("?")[0]; // strip query params
+      if (seenUrls.has(baseUrl)) return false;
+      seenUrls.add(baseUrl);
+      return true;
+    });
 
     console.log(`[Animex-Servers] ${filteredServers.length}/${jobs.length} servers for anilistId=${id} ep${epNum} (sub:${subProviders.length} dub:${dubProviders.length})`);
 
