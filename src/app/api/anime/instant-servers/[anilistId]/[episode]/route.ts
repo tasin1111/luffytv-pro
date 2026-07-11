@@ -8,6 +8,8 @@ import { resolveSenshi } from "@/lib/senshi-direct";
 import { resolveAllManga } from "@/lib/allmanga-direct";
 import { resolveAniZone } from "@/lib/anizone-direct";
 import { resolveAniWaves } from "@/lib/aniwaves-direct";
+import { resolveAniKotoEmbeds } from "@/lib/anikoto-direct";
+import { fetchAniLightSources } from "@/lib/anilight-api";
 import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
@@ -24,8 +26,11 @@ export const maxDuration = 60; // Vercel Pro max — give all providers enough t
  *   1. AniDB (sub) — scraped m3u8 from hls.anidb.app
  *   2. AnimeX mimi (dub)
  *   3. AniDB (dub)
- *   4. AniNeko (sub) — embed fallbacks (vivibebe, otakuhg, etc.)
- *   5. AniDap beep (sub) — direct m3u8 from playeng.animeapps.top
+ *   4. AniKoto (sub) — embed from anikototv.to
+ *   5. AniLight (sub) — HLS from nanobyte CDN
+ *   6. AniKoto (dub)
+ *   7. AniLight (dub)
+ *   8. AniNeko, AniDap, Senshi, AllManga, AniZone, AniWaves, AniKage (lower priority)
  */
 export async function GET(
   _req: NextRequest,
@@ -55,7 +60,7 @@ export async function GET(
     }
 
     const anidapId = await resolveAniDapId(id).catch(() => null);
-    const [animexMimi, anidbResult, aninekoM3u8s, anidapSub, anikageResult, senshiResult, allmangaResult, anizoneResult, aniwavesResult] = await Promise.all([
+    const [animexMimi, anidbResult, aninekoM3u8s, anidapSub, anikageResult, senshiResult, allmangaResult, anizoneResult, aniwavesResult, anikotoResult, anilightResult] = await Promise.all([
       withTimeout(resolveAnimexMimiBoth(id, epNum), 25000, { sub: null, dub: null }),
       withTimeout(resolveAniDbEmbeds(id, epNum, title), 30000, { sub: null, dub: null }),
       withTimeout(resolveAniNekoM3u8(id, epNum, title).catch(() => []), 25000, []),
@@ -68,12 +73,14 @@ export async function GET(
       withTimeout(resolveAllManga(id, epNum, "sub").catch(() => null), 30000, null),
       withTimeout(resolveAniZone(id, epNum, title).catch(() => null), 25000, null),
       withTimeout(resolveAniWaves(id, epNum, title).catch(() => null), 25000, null),
+      withTimeout(resolveAniKotoEmbeds(id, epNum, title).catch(() => ({ sub: null, dub: null })), 25000, { sub: null, dub: null }),
+      withTimeout(fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 25000 }).catch(() => []), 25000, []),
     ]);
 
     const servers: Array<{
       id: string;
       name: string;
-      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone" | "aniwaves";
+      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone" | "aniwaves" | "anikoto" | "anilight";
       provider: string;
       type: "sub" | "dub";
       quality: string;
@@ -166,7 +173,83 @@ export async function GET(
       });
     }
 
-    // ── PRIORITY 4: AniNeko — DIRECT m3u8 from vivibebe.site ──
+    // ── PRIORITY 4: AniKoto (sub) — embed from anikototv.to ──
+    if (anikotoResult.sub?.embedUrl) {
+      servers.push({
+        id: "anikoto:sub",
+        name: "AniKoto",
+        source: "anikoto",
+        provider: "anikoto",
+        type: "sub",
+        quality: "1080p",
+        streamUrl: anikotoResult.sub.embedUrl,
+        isM3U8: false,
+        isMP4: false,
+        isEmbed: true,
+        hardsub: false,
+        priority: 4,
+      });
+    }
+
+    // ── PRIORITY 5: AniLight (sub) — HLS from nanobyte CDN ──
+    const anilightSub = anilightResult.filter(r => r.type === "sub").slice(0, 3);
+    anilightSub.forEach((r, i) => {
+      servers.push({
+        id: `anilight:sub:${i}`,
+        name: `AniLight ${r.quality}`.trim(),
+        source: "anilight",
+        provider: "anilight",
+        type: "sub",
+        quality: r.quality || "1080p",
+        streamUrl: r.streamUrl,
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        isEmbed: false,
+        hardsub: false,
+        priority: 5 + i,
+        subtitleTracks: (r.tracks || []).map(t => ({ url: t.url, lang: t.lang || "en", label: t.label || "English" })),
+      });
+    });
+
+    // ── PRIORITY 6: AniKoto (dub) ──
+    if (anikotoResult.dub?.embedUrl) {
+      servers.push({
+        id: "anikoto:dub",
+        name: "AniKoto (Dub)",
+        source: "anikoto",
+        provider: "anikoto",
+        type: "dub",
+        quality: "1080p",
+        streamUrl: anikotoResult.dub.embedUrl,
+        isM3U8: false,
+        isMP4: false,
+        isEmbed: true,
+        hardsub: false,
+        priority: 6,
+      });
+    }
+
+    // ── PRIORITY 7: AniLight (dub) ──
+    const anilightDub = anilightResult.filter(r => r.type === "dub").slice(0, 3);
+    anilightDub.forEach((r, i) => {
+      servers.push({
+        id: `anilight:dub:${i}`,
+        name: `AniLight ${r.quality} (Dub)`.trim(),
+        source: "anilight",
+        provider: "anilight",
+        type: "dub",
+        quality: r.quality || "1080p",
+        streamUrl: r.streamUrl,
+        isM3U8: r.isM3U8,
+        isMP4: r.isMP4,
+        isEmbed: false,
+        hardsub: false,
+        priority: 7 + i,
+        subtitleTracks: (r.tracks || []).map(t => ({ url: t.url, lang: t.lang || "en", label: t.label || "English" })),
+      });
+    });
+
+    // ── PRIORITY 8: AniNeko — DIRECT m3u8 from vivibebe.site ──
     // AniNeko now extracts m3u8 URLs from vivibebe.site embed pages.
     // Same CDN as AnimeX mimi but different content (anineko has its own library).
     for (let i = 0; i < Math.min(aninekoM3u8s.length, 3); i++) {
@@ -183,12 +266,12 @@ export async function GET(
         isMP4: false,
         isEmbed: false,
         hardsub: false,
-        priority: 4 + i,
+        priority: 8 + i,
         subtitleTracks: srv.subtitleUrl ? [{ url: srv.subtitleUrl, lang: "en", label: "English" }] : undefined,
       });
     }
 
-    // ── PRIORITY 7: Senshi (sub) — m3u8 from ninstream.com via Worker proxy ──
+    // ── PRIORITY 11: Senshi (sub) — m3u8 from ninstream.com via Worker proxy ──
     // ninstream.com needs Referer: https://senshi.live/ — the Worker proxy
     // handles this via the CDN_REFERERS map (ninstream.com → https://senshi.live/).
     if (senshiResult?.m3u8Url) {
@@ -205,7 +288,7 @@ export async function GET(
         isMP4: false,
         isEmbed: false,
         hardsub: senshiResult.status === "HardSub",
-        priority: 7,
+        priority: 11,
         intro: senshiResult.intro,
         outro: senshiResult.outro,
       });
@@ -358,7 +441,7 @@ export async function GET(
     }
 
     console.log(
-      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anineko:${aninekoM3u8s.length > 0 ? "✓" : "✗"} senshi:${senshiResult ? "✓" : "✗"} allmanga:${allmangaResult?.sources?.length ? "✓" : "✗"} anikage:${anikageResult.intro || anikageResult.outro ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
+      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anikoto:${anikotoResult.sub || anikotoResult.dub ? "✓" : "✗"} anilight:${anilightResult.length > 0 ? "✓" : "✗"} anineko:${aninekoM3u8s.length > 0 ? "✓" : "✗"} senshi:${senshiResult ? "✓" : "✗"} allmanga:${allmangaResult?.sources?.length ? "✓" : "✗"} anikage:${anikageResult.intro || anikageResult.outro ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
     );
 
     return NextResponse.json({ servers });
