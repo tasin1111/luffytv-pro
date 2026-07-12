@@ -719,7 +719,22 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
         alignItems: "center",
         justifyContent: "center",
       }}>
-        <style>{`@keyframes atsu-spin { to { transform: rotate(360deg); } }`}</style>
+        <style>{`
+          @keyframes atsu-spin { to { transform: rotate(360deg); } }
+          /* Mobile: single column stack */
+          .detail-layout { display: flex; flex-direction: column; gap: 20px; }
+          .detail-left { width: 100%; }
+          .detail-middle { width: 100%; }
+          .detail-right { width: 100%; }
+
+          /* Desktop (768px+): 3 columns side by side */
+          @media (min-width: 768px) {
+            .detail-layout { flex-direction: row; gap: 32px; align-items: flex-start; }
+            .detail-left { width: 210px; flex-shrink: 0; position: sticky; top: 24px; align-self: flex-start; }
+            .detail-middle { flex: 1; }
+            .detail-right { width: 300px; flex-shrink: 0; position: sticky; top: 24px; }
+          }
+        `}</style>
         <div style={{
           width: "40px",
           height: "40px",
@@ -756,17 +771,19 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
       color: COLOR_TEXT,
       fontFamily: FONT_STACK,
     }}>
-      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "24px" }}>
-        <div style={{ display: "flex", gap: "32px", alignItems: "flex-start" }}>
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "16px" }} className="md:p-6">
+        <div className="detail-layout">
           {/* ═══ LEFT COLUMN — poster + actions + side meta (card info) ═══ */}
           <aside
-            className="md:sticky md:top-6 md:self-start"
-            style={{ display: "flex", flexDirection: "column", gap: "12px", width: "210px", flexShrink: 0 }}
+            className="detail-left"
+            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
           >
-            {/* Poster (2:3 aspect ratio) */}
+            {/* Poster (2:3 aspect ratio) — centered on mobile, left on desktop */}
             {poster && (
               <div style={{
                 width: "100%",
+                maxWidth: "200px",
+                margin: "0 auto",
                 aspectRatio: "2 / 3",
                 borderRadius: "8px",
                 overflow: "hidden",
@@ -939,16 +956,16 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
           </aside>
 
           {/* ═══ MIDDLE COLUMN — title + meta + Luffi chart + chapters ═══ */}
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="detail-middle" style={{ minWidth: 0 }}>
             {/* Title */}
             <h1 style={{
               color: COLOR_HEADING,
-              fontSize: "30px",
+              fontSize: "22px",
               fontWeight: 700,
               lineHeight: 1.2,
               marginTop: 0,
               marginBottom: "16px",
-            }}>
+            }} className="md:text-3xl">
               {displayTitle}
             </h1>
 
@@ -1456,7 +1473,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
 
           {/* ═══ RIGHT COLUMN — Vibe Chart (donut) ═══ */}
           {manga.genres && manga.genres.length > 0 && (
-            <aside style={{ width: "300px", flexShrink: 0, position: "sticky", top: "24px" }}>
+            <aside className="detail-right">
               <div style={{ color: COLOR_MUTED, fontSize: "14px", fontWeight: 600, marginBottom: "10px" }}>
                 Vibe Chart
               </div>
@@ -1530,7 +1547,7 @@ function LuffiChart({ counts, total, userVibe, onVote }: {
     <div style={{ background: "#17181c", borderRadius: "16px", padding: "20px" }}>
       {/* SVG gauge */}
       <div style={{ display: "flex", justifyContent: "center" }}>
-        <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}>
+        <svg width="100%" height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} style={{ maxWidth: svgW, maxHeight: svgH }}>
           {/* Background arc (full semicircle, dim) */}
           <path d={arcPath(0, 100)} fill="none" stroke="#27272a" strokeWidth={strokeW} strokeLinecap="round" />
           {/* Colored segments */}
@@ -1620,7 +1637,7 @@ function VibeDonutChart({ genres }: { genres: string[] }) {
     <div style={{ background: "#17181c", borderRadius: "16px", padding: "22px 26px 26px", boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
       {/* SVG donut */}
       <div style={{ display: "flex", justifyContent: "center" }}>
-        <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}>
+        <svg width="100%" height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} style={{ maxWidth: svgW }}>
           {segments.map((seg, i) => (
             <path key={i} d={seg.path} fill={seg.color} />
           ))}
