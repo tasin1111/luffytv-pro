@@ -615,78 +615,28 @@ export default function HLSPlayerNew({
         </div>
       )}
 
-      {/* ═══ Skip Intro — Full-screen overlay with cool animation ═══ */}
+      {/* ═══ Skip Intro — small pill button (NOT full-screen) ═══ */}
       {showSkipIntro && intro && (
-        <div
-          className="absolute inset-0 z-20 flex items-center justify-center"
-          style={{
-            background: 'linear-gradient(135deg, rgba(0,0,0,0.85) 0%, rgba(20,20,30,0.9) 50%, rgba(0,0,0,0.85) 100%)',
-            backdropFilter: 'blur(8px)',
-            animation: 'skipOverlayIn 0.4s ease-out',
-          }}
+        <button
+          onClick={skipIntro}
+          className="absolute bottom-28 right-6 z-20 flex items-center gap-2 bg-white/15 backdrop-blur-xl border border-white/25 text-white text-xs font-bold px-5 py-2.5 rounded-full hover:bg-white/25 hover:scale-105 active:scale-95 transition-all shadow-2xl"
+          style={{ animation: 'skipButtonIn 0.3s ease-out' }}
         >
-          <div className="text-center space-y-6" style={{ animation: 'skipCardContent 0.5s ease-out 0.1s both' }}>
-            {/* Animated icon */}
-            <div className="relative w-20 h-20 mx-auto" style={{ animation: 'skipIconPulse 2s ease-in-out infinite' }}>
-              <div className="absolute inset-0 rounded-full border-2 border-white/10" />
-              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white/80" style={{ animation: 'spin 1.5s linear infinite' }} />
-              <div className="absolute inset-3 rounded-full bg-white/5 flex items-center justify-center">
-                <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-              </div>
-            </div>
-            {/* Text */}
-            <div className="space-y-1">
-              <p className="text-white text-lg font-bold tracking-wide">Opening</p>
-              <p className="text-white/40 text-xs">Skip the intro and get to the episode</p>
-            </div>
-            {/* Skip button — pill shaped */}
-            <button
-              onClick={skipIntro}
-              className="inline-flex items-center gap-2 bg-white text-black text-sm font-bold px-8 py-3 rounded-full hover:bg-white/90 hover:scale-105 active:scale-95 transition-all shadow-2xl"
-              style={{ animation: 'skipButtonIn 0.4s ease-out 0.2s both' }}
-            >
-              Skip Intro
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
-            </button>
-          </div>
-        </div>
+          Skip Intro
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
+        </button>
       )}
 
-      {/* ═══ Skip Outro — Full-screen overlay with cool animation ═══ */}
+      {/* ═══ Skip Outro — small pill button (NOT full-screen) ═══ */}
       {showSkipOutro && outro && (
-        <div
-          className="absolute inset-0 z-20 flex items-center justify-center"
-          style={{
-            background: 'linear-gradient(135deg, rgba(0,0,0,0.85) 0%, rgba(20,20,30,0.9) 50%, rgba(0,0,0,0.85) 100%)',
-            backdropFilter: 'blur(8px)',
-            animation: 'skipOverlayIn 0.4s ease-out',
-          }}
+        <button
+          onClick={skipOutro}
+          className="absolute bottom-28 right-6 z-20 flex items-center gap-2 bg-white/15 backdrop-blur-xl border border-white/25 text-white text-xs font-bold px-5 py-2.5 rounded-full hover:bg-white/25 hover:scale-105 active:scale-95 transition-all shadow-2xl"
+          style={{ animation: 'skipButtonIn 0.3s ease-out' }}
         >
-          <div className="text-center space-y-6" style={{ animation: 'skipCardContent 0.5s ease-out 0.1s both' }}>
-            {/* Animated icon */}
-            <div className="relative w-20 h-20 mx-auto" style={{ animation: 'skipIconPulse 2s ease-in-out infinite' }}>
-              <div className="absolute inset-0 rounded-full border-2 border-white/10" />
-              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white/80" style={{ animation: 'spin 1.5s linear infinite' }} />
-              <div className="absolute inset-3 rounded-full bg-white/5 flex items-center justify-center">
-                <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-              </div>
-            </div>
-            {/* Text */}
-            <div className="space-y-1">
-              <p className="text-white text-lg font-bold tracking-wide">Ending</p>
-              <p className="text-white/40 text-xs">Skip the outro and jump to next episode</p>
-            </div>
-            {/* Skip button — pill shaped */}
-            <button
-              onClick={skipOutro}
-              className="inline-flex items-center gap-2 bg-white text-black text-sm font-bold px-8 py-3 rounded-full hover:bg-white/90 hover:scale-105 active:scale-95 transition-all shadow-2xl"
-              style={{ animation: 'skipButtonIn 0.4s ease-out 0.2s both' }}
-            >
-              Skip Outro
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
-            </button>
-          </div>
-        </div>
+          Skip Outro
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
+        </button>
       )}
 
       {/* ═══ Screenshot flash overlay ═══ */}
