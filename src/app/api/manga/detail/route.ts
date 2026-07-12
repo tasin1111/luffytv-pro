@@ -178,14 +178,18 @@ export async function GET(request: NextRequest) {
         const atsuDetail = merges.find(m => m.type === "at")?.detail;
 
         if (atsuChapters.length > 0 || mbChapters.length > 0) {
-          // Dedupe by chapter number + language to avoid exact duplicates
+          // Merge: start with the PRIMARY manga's chapters (already in detail.chapters),
+          // then APPEND atsumaru + mangaball merge chapters (deduped).
+          // This preserves the primary's chapters instead of replacing them.
           const seen = new Set<string>();
-          const allChapters = [...atsuChapters, ...mbChapters].filter(ch => {
+          const allChapters = [...detail.chapters, ...atsuChapters, ...mbChapters].filter(ch => {
             const key = `${Math.round(ch.number * 100) / 100}:${ch.lang || "en"}:${ch.scanGroup || ""}`;
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
           }).sort((a, b) => a.number - b.number);
+
+          console.log(`[manga/detail] merge for ${id}: primary=${detail.chapters.length}, atsumaru=${atsuChapters.length}, mangaball=${mbChapters.length}, total=${allChapters.length}`);
 
           detail.chapters = allChapters;
           detail.totalChapters = allChapters.length;
