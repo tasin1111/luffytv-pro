@@ -278,8 +278,8 @@ export function WatchPageShell({
               />
             )}
 
-            {/* Loading overlay */}
-            {streamLoading && (
+            {/* Loading overlay — only when NO stream data yet (HLS player has its own loading) */}
+            {streamLoading && !streamData && (
               <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
                 <div className="text-center space-y-3">
                   <div className="w-10 h-10 border-2 border-white/10 rounded-full animate-spin mx-auto" style={{ borderTopColor: ACCENT }} />
