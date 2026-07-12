@@ -278,13 +278,12 @@ export function WatchPageShell({
               />
             )}
 
-            {/* Loading overlay — only when NO stream data yet (HLS player has its own loading) */}
-            {streamLoading && !streamData && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black z-20">
-                <div className="text-center space-y-3">
-                  <div className="w-10 h-10 border-2 border-white/10 rounded-full animate-spin mx-auto" style={{ borderTopColor: ACCENT }} />
-                  <p className="text-white/50 text-xs font-medium">Loading...</p>
-                </div>
+            {/* Loading — only shows when NO player is mounted yet (streamData is null).
+                Once streamData arrives, the HLS player's own "Buffering..." spinner takes over.
+                This prevents double spinners (blue shell spinner on top of white HLS spinner). */}
+            {!streamData && streamLoading && !streamError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black">
+                <div className="w-12 h-12 border-2 border-white/10 rounded-full animate-spin border-t-white" style={{ animationDuration: '0.8s' }} />
               </div>
             )}
 
