@@ -945,22 +945,39 @@ export async function getChapterImages(
   //   2. "at:{mangaId}:{n}" — cross-provider merge format (client-side merge)
   //   3. "176"             — chapter number only (legacy fallback)
   if (provider === "atsumaru") {
-    // Format 1 or 2: starts with "at:" or looks like a short atsu ID
-    // (alnum, 3-20 chars, not all digits, NOT a 24-hex mangaball ID)
-    const looksLikeAtsuId = !chapterId.startsWith("at:") &&
-      /^[A-Za-z0-9_-]{3,20}$/.test(chapterId) &&
-      !/^\d+$/.test(chapterId);
+    // For atsumaru, use the scrape-api to get pages — it returns the correct
+    // URLs WITH the scanlationMangaId prefix (e.g. static/pages/{scanId}/{chapterId}/{i}.webp).
+    // The direct atsu.moe URL builder is missing the scanlationMangaId, so it 404s.
+    //
+    // Handles two chapterId formats:
+    //   1. "LMHqVf" — short atsu.moe chapter ID (from detail)
+    //   2. "at:{mangaId}:{n}" — cross-provider merge format
+    let atsuMangaId = rawId;
+    let chapterNumber = chapterId;
 
-    if (chapterId.startsWith("at:") || looksLikeAtsuId) {
-      const directPages = await getAtsumaruChapterPagesDirect(mangaId, chapterId);
-      if (directPages.length > 0) return directPages;
-      // Fall through to scrape-api if direct fails
+    if (chapterId.startsWith("at:")) {
+      // Cross-provider merge format: at:{mangaId}:{chapterNumber}
+      const parts = chapterId.split(":");
+      if (parts.length >= 3) {
+        atsuMangaId = parts[1];
+        chapterNumber = parts[2];
+      }
+    } else {
+      // Short atsu chapter ID — we need to find the chapter number.
+      // Look it up from the detail (cached).
+      try {
+        const detail = await getAtsumaruDetailDirect(rawId);
+        if (detail?.chapters) {
+          const ch = detail.chapters.find(c => c.id === chapterId);
+          if (ch) {
+            chapterNumber = String(ch.number);
+          }
+        }
+      } catch { /* fall through */ }
     }
 
-    // Format 3: chapter number — use scrape-api as fallback
-    const chapterNumber = encodeURIComponent(String(chapterId));
     const data = await scrapeFetch<ScrapePagesResponse>(
-      `/api/scrape/pages?id=${encodeURIComponent(rawId)}&chapterNumber=${chapterNumber}&provider=atsumaru`,
+      `/api/scrape/pages?id=${encodeURIComponent(atsuMangaId)}&chapterNumber=${encodeURIComponent(String(chapterNumber))}&provider=atsumaru`,
     );
     if (data?.pages) {
       return data.pages.map(p => ({
@@ -975,18 +992,13 @@ export async function getChapterImages(
 
   // Mangaball — check for cross-provider merge format first
   // Format: "at:{atsuMangaId}:{chapterNumber}:{atsuChapterId}"
-  // Use getAtsumaruChapterPagesDirect (NOT the scrape-api, which returns
-  // the WRONG scanlation's pages).
+  // Use the scrape-api to get pages (the direct URL builder is broken —
+  // missing scanlationMangaId prefix).
   if (chapterId.startsWith("at:")) {
     const parts = chapterId.split(":");
     if (parts.length >= 3) {
-      // Try the direct atsu.moe page URL builder first
-      const directPages = await getAtsumaruChapterPagesDirect(mangaId, chapterId);
-      if (directPages.length > 0) return directPages;
-      // Fallback: extract manga ID + chapter number and use scrape-api
-      // (last resort — may return wrong scanlation but better than nothing)
       const atsuMangaId = parts[1];
-      const chapterNumber = parts[2]; // just the number, not the chapterId
+      const chapterNumber = parts[2];
       const data = await scrapeFetch<ScrapePagesResponse>(
         `/api/scrape/pages?id=${encodeURIComponent(atsuMangaId)}&chapterNumber=${encodeURIComponent(chapterNumber)}&provider=atsumaru`,
       );
