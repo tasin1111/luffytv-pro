@@ -47,34 +47,12 @@ export async function GET(
   }
 
   try {
-    // Resolve all providers in parallel — INCLUDING AniDap sources
-    // Each provider gets a 10s timeout — if it doesn't resolve in time,
-    // we skip it and return whatever we have. This prevents a single slow
-    // provider from blocking the entire response.
     function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
       return Promise.race([
         promise,
         new Promise<T>(r => setTimeout(() => r(fallback), ms)),
       ]);
     }
-
-    const anidapId = await resolveAniDapId(id).catch(() => null);
-    const [animexMimi, anidbResult, aninekoM3u8s, anidapSub, anikageResult, senshiResult, allmangaResult, anizoneResult, aniwavesResult, anilightResult, kyrenResults] = await Promise.all([
-      withTimeout(resolveAnimexMimiBoth(id, epNum), 25000, { sub: null, dub: null }),
-      withTimeout(resolveAniDbEmbeds(id, epNum, title), 30000, { sub: null, dub: null }),
-      withTimeout(resolveAniNekoM3u8(id, epNum, title).catch(() => []), 25000, []),
-      withTimeout(
-        anidapId ? getAniDapSources(anidapId, epNum, "sub", "beep").catch(() => null) : Promise.resolve(null),
-        25000, null,
-      ),
-      withTimeout(resolveAniKageBoth(id, epNum, title).catch(() => ({ sub: null, dub: null, intro: null, outro: null })), 25000, { sub: null, dub: null, intro: null, outro: null }),
-      withTimeout(resolveSenshi(id, epNum, title).catch(() => null), 25000, null),
-      withTimeout(resolveAllManga(id, epNum, "sub").catch(() => null), 30000, null),
-      withTimeout(resolveAniZone(id, epNum, title).catch(() => null), 25000, null),
-      withTimeout(resolveAniWaves(id, epNum, title).catch(() => null), 25000, null),
-      withTimeout(fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 25000 }).catch(() => []), 25000, []),
-      withTimeout(fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 25000 }).catch(() => []), 25000, []),
-    ]);
 
     const servers: Array<{
       id: string;
@@ -94,374 +72,131 @@ export async function GET(
       outro?: { start: number; end: number } | null;
     }> = [];
 
-    // ── PRIORITY 0: AnimeX mimi (sub) — FASTEST, DEFAULT ──
-    if (animexMimi.sub?.m3u8Url) {
-      servers.push({
-        id: "animex:mimi:sub",
-        name: "AnimeX Mimi",
-        source: "animex",
-        provider: "mimi",
-        type: "sub",
-        quality: animexMimi.sub.quality || "1080p",
-        streamUrl: animexMimi.sub.m3u8Url,
-        isM3U8: true,
-        isMP4: false,
-        isEmbed: false,
-        hardsub: false,
-        priority: 0,
-        subtitleTracks: animexMimi.sub.tracks,
-        intro: animexMimi.sub.intro || null,
-        outro: animexMimi.sub.outro || null,
-      });
-    }
+    // SEPARATE SCRAPING: each provider runs independently in its own async block.
+    // Previously ALL providers were in one Promise.all — if AniKage took 25s,
+    // the entire response waited 25s even if AnimeX mimi finished in 2s.
+    // Now: each provider scrapes independently, adds servers to the array,
+    // and we wait for ALL to finish (with their own timeouts).
+    const anidapId = await resolveAniDapId(id).catch(() => null);
+    let anikageIntro: { start: number; end: number } | null = null;
+    let anikageOutro: { start: number; end: number } | null = null;
 
-    // ── PRIORITY 1: AniDB (sub) — direct m3u8 from hls.anidb.app ──
-    // If m3u8 extraction succeeded, use it (wrapped through Worker proxy).
-    // If not, fall back to the embed URL as an iframe embed.
-    if (anidbResult.sub?.m3u8Url) {
-      servers.push({
-        id: "anidb:sub",
-        name: "AniDB",
-        source: "anidb",
-        provider: "anidb",
-        type: "sub",
-        quality: "1080p",
-        streamUrl: wrapM3u8Url(anidbResult.sub.m3u8Url),
-        isM3U8: true,
-        isMP4: false,
-        isEmbed: false,
-        hardsub: false,
-        priority: 1,
-      });
-    } else if (anidbResult.sub?.embedUrl) {
-      servers.push({
-        id: "anidb:sub",
-        name: "AniDB",
-        source: "anidb",
-        provider: "anidb",
-        type: "sub",
-        quality: "1080p",
-        streamUrl: anidbResult.sub.embedUrl,
-        isM3U8: false,
-        isMP4: false,
-        isEmbed: true,
-        hardsub: false,
-        priority: 1,
-      });
-    }
+    const providerPromises: Promise<void>[] = [
+      // AnimeX (priority 0-3)
+      (async () => {
+        try {
+          const m = await withTimeout(resolveAnimexMimiBoth(id, epNum), 25000, { sub: null, dub: null });
+          if (m.sub?.m3u8Url) servers.push({ id: "animex:mimi:sub", name: "AnimeX Mimi", source: "animex", provider: "mimi", type: "sub", quality: m.sub.quality || "1080p", streamUrl: m.sub.m3u8Url, isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 0, subtitleTracks: m.sub.tracks, intro: m.sub.intro || null, outro: m.sub.outro || null });
+          if (m.dub?.m3u8Url) servers.push({ id: "animex:mimi:dub", name: "AnimeX Mimi (Dub)", source: "animex", provider: "mimi", type: "dub", quality: m.dub.quality || "1080p", streamUrl: m.dub.m3u8Url, isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 2, subtitleTracks: m.dub.tracks, intro: m.dub.intro || null, outro: m.dub.outro || null });
+        } catch {}
+      })(),
+      // AniDB (priority 1, 3)
+      (async () => {
+        try {
+          const r = await withTimeout(resolveAniDbEmbeds(id, epNum, title), 30000, { sub: null, dub: null });
+          if (r.sub?.m3u8Url) servers.push({ id: "anidb:sub", name: "AniDB", source: "anidb", provider: "anidb", type: "sub", quality: "1080p", streamUrl: wrapM3u8Url(r.sub.m3u8Url), isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 1 });
+          else if (r.sub?.embedUrl) servers.push({ id: "anidb:sub", name: "AniDB", source: "anidb", provider: "anidb", type: "sub", quality: "1080p", streamUrl: r.sub.embedUrl, isM3U8: false, isMP4: false, isEmbed: true, hardsub: false, priority: 1 });
+          if (r.dub?.m3u8Url) servers.push({ id: "anidb:dub", name: "AniDB (Dub)", source: "anidb", provider: "anidb", type: "dub", quality: "1080p", streamUrl: wrapM3u8Url(r.dub.m3u8Url), isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 3 });
+          else if (r.dub?.embedUrl) servers.push({ id: "anidb:dub", name: "AniDB (Dub)", source: "anidb", provider: "anidb", type: "dub", quality: "1080p", streamUrl: r.dub.embedUrl, isM3U8: false, isMP4: false, isEmbed: true, hardsub: false, priority: 3 });
+        } catch {}
+      })(),
+      // AniNeko (priority 4)
+      (async () => {
+        try {
+          const ns = await withTimeout(resolveAniNekoM3u8(id, epNum, title).catch(() => []), 25000, []);
+          for (let i = 0; i < Math.min(ns.length, 3); i++) {
+            const s = ns[i];
+            servers.push({ id: `anineko:${i}`, name: s.serverName, source: "anineko", provider: "anineko", type: "sub", quality: "1080p", streamUrl: wrapM3u8Url(s.m3u8Url), isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 4 + i, subtitleTracks: s.subtitleUrl ? [{ url: s.subtitleUrl, lang: "en", label: "English" }] : undefined });
+          }
+        } catch {}
+      })(),
+      // AniLight (priority 5-6)
+      (async () => {
+        try {
+          const al = await withTimeout(fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 25000 }).catch(() => []), 25000, []);
+          al.filter((r: any) => r.type === "sub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:sub:${i}`, name: `AniLight ${r.quality}`.trim(), source: "anilight", provider: "anilight", type: "sub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 5 + i, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: t.url, lang: t.lang || "en", label: t.label || "English" })) }));
+          al.filter((r: any) => r.type === "dub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:dub:${i}`, name: `AniLight ${r.quality} (Dub)`.trim(), source: "anilight", provider: "anilight", type: "dub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 6 + i, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: t.url, lang: t.lang || "en", label: t.label || "English" })) }));
+        } catch {}
+      })(),
+      // Kyren (priority 7)
+      (async () => {
+        try {
+          const kr = await withTimeout(fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 25000 }).catch(() => []), 25000, []);
+          if (kr?.length) { let p = 7; for (const r of kr) servers.push({ id: `kyren:${r.server}:${r.type}`, name: `Kyren ${r.server.charAt(0).toUpperCase() + r.server.slice(1)}${r.type === "dub" ? " (Dub)" : ""}`, source: "kyren", provider: r.server, type: r.type, quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: p++, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: t.url, lang: t.lang || "en", label: t.label || "English" })) }); }
+        } catch {}
+      })(),
+      // Senshi (priority 8)
+      (async () => {
+        try {
+          const s = await withTimeout(resolveSenshi(id, epNum, title).catch(() => null), 25000, null);
+          if (s?.m3u8Url) servers.push({ id: "senshi:sub", name: "Senshi", source: "senshi", provider: "senshi", type: "sub", quality: "1080p", streamUrl: wrapM3u8UrlWithReferer(s.m3u8Url, "https://senshi.live/"), isM3U8: true, isMP4: false, isEmbed: false, hardsub: s.status === "HardSub", priority: 8, intro: s.intro, outro: s.outro });
+        } catch {}
+      })(),
+      // AllManga (priority 9)
+      (async () => {
+        try {
+          const am = await withTimeout(resolveAllManga(id, epNum, "sub").catch(() => null), 30000, null);
+          if (am?.sources?.length) { for (let i = 0; i < Math.min(am.sources.length, 5); i++) { const src = am.sources[i]; const isM3U8 = src.type === "hls" || src.url.includes(".m3u8"); const isMP4 = src.type === "mp4" || src.url.includes(".mp4"); servers.push({ id: `allmanga:${i}`, name: `AllManga ${src.name}`.trim(), source: "allmanga", provider: "allmanga", type: "sub", quality: src.quality || "1080p", streamUrl: wrapM3u8Url(src.url), isM3U8, isMP4, isEmbed: false, hardsub: false, priority: 9 + i, intro: am.intro, outro: am.outro }); } }
+        } catch {}
+      })(),
+      // AniZone (priority 13)
+      (async () => {
+        try {
+          const az = await withTimeout(resolveAniZone(id, epNum, title).catch(() => null), 25000, null);
+          if (az?.m3u8Url) servers.push({ id: "anizone:sub", name: "AniZone", source: "anizone", provider: "anizone", type: "sub", quality: "1080p", streamUrl: wrapM3u8UrlWithReferer(az.m3u8Url, "https://anizone.to/"), isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 13, subtitleTracks: az.subtitleTracks });
+        } catch {}
+      })(),
+      // AniWaves (priority 14)
+      (async () => {
+        try {
+          const aw = await withTimeout(resolveAniWaves(id, epNum, title).catch(() => null), 25000, null);
+          if (aw?.servers?.length) { let p = 14; for (const srv of aw.servers) servers.push({ id: `aniwaves:${srv.svId}:${srv.type}`, name: srv.name, source: "aniwaves", provider: String(srv.svId), type: srv.type, quality: "1080p", streamUrl: srv.embedUrl, isM3U8: false, isMP4: false, isEmbed: true, hardsub: false, priority: p++, intro: aw.intro, outro: aw.outro }); }
+        } catch {}
+      })(),
+      // AniKage (skip times only, priority 15) — runs independently, doesn't block
+      (async () => {
+        try {
+          const ak = await withTimeout(resolveAniKageBoth(id, epNum, title).catch(() => ({ sub: null, dub: null, intro: null, outro: null })), 25000, { sub: null, dub: null, intro: null, outro: null });
+          if (ak.intro) anikageIntro = ak.intro;
+          if (ak.outro) anikageOutro = ak.outro;
+          const akServers = [...(ak.sub?.servers || []), ...(ak.dub?.servers || [])];
+          let p = 15;
+          for (const srv of akServers) {
+            const isNin = srv.m3u8Url.includes("ninstream.com");
+            servers.push({ id: `anikage:${srv.provider}:${p}`, name: srv.name, source: "anikage", provider: srv.provider, type: srv.type, quality: srv.quality, streamUrl: isNin ? wrapM3u8UrlWithReferer(srv.m3u8Url, "https://senshi.live/") : wrapM3u8Url(srv.m3u8Url), isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: p++, intro: ak.intro, outro: ak.outro });
+          }
+        } catch {}
+      })(),
+      // AniDap (priority 10)
+      (async () => {
+        try {
+          if (!anidapId) return;
+          const ad = await withTimeout(getAniDapSources(anidapId, epNum, "sub", "beep").catch(() => null), 25000, null);
+          if (ad?.sources?.length) {
+            const src = ad.sources.find((s: any) => s.url?.includes(".m3u8") || s.type?.includes("mpegurl"));
+            if (src?.url) servers.push({ id: "anidap:beep:sub", name: "AniDap Beep", source: "anidap", provider: "beep", type: "sub", quality: src.quality || "1080p", streamUrl: wrapM3u8Url(src.url), isM3U8: true, isMP4: false, isEmbed: false, hardsub: true, priority: 10, subtitleTracks: (ad.tracks || []).map((t: any) => ({ url: t.url, lang: t.lang, label: t.label })), intro: ad.intro || null, outro: ad.outro || null });
+          }
+        } catch {}
+      })(),
+    ];
 
-    // ── PRIORITY 2: AnimeX mimi (dub) ──
-    if (animexMimi.dub?.m3u8Url) {
-      servers.push({
-        id: "animex:mimi:dub",
-        name: "AnimeX Mimi (Dub)",
-        source: "animex",
-        provider: "mimi",
-        type: "dub",
-        quality: animexMimi.dub.quality || "1080p",
-        streamUrl: animexMimi.dub.m3u8Url,
-        isM3U8: true,
-        isMP4: false,
-        isEmbed: false,
-        hardsub: false,
-        priority: 2,
-        subtitleTracks: animexMimi.dub.tracks,
-        intro: animexMimi.dub.intro || null,
-        outro: animexMimi.dub.outro || null,
-      });
-    }
+    // Wait for ALL providers to finish (each has its own timeout)
+    await Promise.allSettled(providerPromises);
 
-    // ── PRIORITY 3: AniDB (dub) ──
-    // Same fallback logic as AniDB sub: prefer m3u8, fall back to embed.
-    if (anidbResult.dub?.m3u8Url) {
-      servers.push({
-        id: "anidb:dub",
-        name: "AniDB (Dub)",
-        source: "anidb",
-        provider: "anidb",
-        type: "dub",
-        quality: "1080p",
-        streamUrl: wrapM3u8Url(anidbResult.dub.m3u8Url),
-        isM3U8: true,
-        isMP4: false,
-        isEmbed: false,
-        hardsub: false,
-        priority: 3,
-      });
-    } else if (anidbResult.dub?.embedUrl) {
-      servers.push({
-        id: "anidb:dub",
-        name: "AniDB (Dub)",
-        source: "anidb",
-        provider: "anidb",
-        type: "dub",
-        quality: "1080p",
-        streamUrl: anidbResult.dub.embedUrl,
-        isM3U8: false,
-        isMP4: false,
-        isEmbed: true,
-        hardsub: false,
-        priority: 3,
-      });
-    }
-
-    // ── PRIORITY 4: AniNeko (sub) — DIRECT m3u8 from vivibebe.site ──
-    // AniNeko extracts m3u8 URLs from vivibebe.site embed pages.
-    // Same CDN as AnimeX mimi but different content (anineko has its own library).
-    for (let i = 0; i < Math.min(aninekoM3u8s.length, 3); i++) {
-      const srv = aninekoM3u8s[i];
-      servers.push({
-        id: `anineko:${i}`,
-        name: srv.serverName,
-        source: "anineko",
-        provider: "anineko",
-        type: "sub",
-        quality: "1080p",
-        streamUrl: wrapM3u8Url(srv.m3u8Url),
-        isM3U8: true,
-        isMP4: false,
-        isEmbed: false,
-        hardsub: false,
-        priority: 4 + i,
-        subtitleTracks: srv.subtitleUrl ? [{ url: srv.subtitleUrl, lang: "en", label: "English" }] : undefined,
-      });
-    }
-
-    // ── PRIORITY 5: AniLight (sub) — HLS from nanobyte CDN ──
-    const anilightSub = anilightResult.filter(r => r.type === "sub").slice(0, 3);
-    anilightSub.forEach((r, i) => {
-      servers.push({
-        id: `anilight:sub:${i}`,
-        name: `AniLight ${r.quality}`.trim(),
-        source: "anilight",
-        provider: "anilight",
-        type: "sub",
-        quality: r.quality || "1080p",
-        streamUrl: r.streamUrl,
-        isM3U8: r.isM3U8,
-        isMP4: r.isMP4,
-        isEmbed: false,
-        hardsub: false,
-        priority: 5 + i,
-        subtitleTracks: (r.tracks || []).map(t => ({ url: t.url, lang: t.lang || "en", label: t.label || "English" })),
-      });
-    });
-
-    // ── PRIORITY 6: AniLight (dub) ──
-    const anilightDub = anilightResult.filter(r => r.type === "dub").slice(0, 3);
-    anilightDub.forEach((r, i) => {
-      servers.push({
-        id: `anilight:dub:${i}`,
-        name: `AniLight ${r.quality} (Dub)`.trim(),
-        source: "anilight",
-        provider: "anilight",
-        type: "dub",
-        quality: r.quality || "1080p",
-        streamUrl: r.streamUrl,
-        isM3U8: r.isM3U8,
-        isMP4: r.isMP4,
-        isEmbed: false,
-        hardsub: false,
-        priority: 6 + i,
-        subtitleTracks: (r.tracks || []).map(t => ({ url: t.url, lang: t.lang || "en", label: t.label || "English" })),
-      });
-    });
-
-    // ── PRIORITY 7: Kyren — HLS streams from kyren.moe (sub + dub, multiple servers) ──
-    // Kyren provides high-quality HLS with soft subtitles from multiple CDNs.
-    // Uses the Worker proxy (wrapKyrenStream inside kyren-api.ts handles this).
-    if (kyrenResults && kyrenResults.length > 0) {
-      let kyrenPriority = 7;
-      for (const r of kyrenResults) {
-        servers.push({
-          id: `kyren:${r.server}:${r.type}`,
-          name: `Kyren ${r.server.charAt(0).toUpperCase() + r.server.slice(1)}${r.type === "dub" ? " (Dub)" : ""}`,
-          source: "kyren",
-          provider: r.server,
-          type: r.type,
-          quality: r.quality || "1080p",
-          streamUrl: r.streamUrl,
-          isM3U8: r.isM3U8,
-          isMP4: r.isMP4,
-          isEmbed: false,
-          hardsub: false,
-          priority: kyrenPriority++,
-          subtitleTracks: (r.tracks || []).map((t: any) => ({ url: t.url, lang: t.lang || "en", label: t.label || "English" })),
-        });
-      }
-    }
-
-    // ── PRIORITY 8: Senshi (sub) — m3u8 from ninstream.com via Worker proxy ──
-    // ninstream.com needs Referer: https://senshi.live/ — the Worker proxy
-    // handles this via the CDN_REFERERS map (ninstream.com → https://senshi.live/).
-    if (senshiResult?.m3u8Url) {
-      const streamUrl = wrapM3u8UrlWithReferer(senshiResult.m3u8Url, "https://senshi.live/");
-      servers.push({
-        id: "senshi:sub",
-        name: "Senshi",
-        source: "senshi",
-        provider: "senshi",
-        type: "sub",
-        quality: "1080p",
-        streamUrl,
-        isM3U8: true,
-        isMP4: false,
-        isEmbed: false,
-        hardsub: senshiResult.status === "HardSub",
-        priority: 7,
-        intro: senshiResult.intro,
-        outro: senshiResult.outro,
-      });
-    }
-
-    // ── PRIORITY 7.5: AllManga (sub) — OUR OWN scraper (no third-party API) ──
-    // Uses the direct AllAnime API at api.allanime.day with GraphQL + AES decryption.
-    // Extracts direct m3u8/mp4 URLs from embed providers (mp4upload, uns.bio, etc.)
-    if (allmangaResult?.sources?.length) {
-      for (let i = 0; i < Math.min(allmangaResult.sources.length, 5); i++) {
-        const src = allmangaResult.sources[i];
-        const isM3U8 = src.type === "hls" || src.url.includes(".m3u8");
-        const isMP4 = src.type === "mp4" || src.url.includes(".mp4");
-        servers.push({
-          id: `allmanga:${i}`,
-          name: `AllManga ${src.name}`.trim(),
-          source: "allmanga",
-          provider: "allmanga",
-          type: "sub",
-          quality: src.quality || "1080p",
-          streamUrl: isM3U8 ? wrapM3u8Url(src.url) : src.url,
-          isM3U8,
-          isMP4,
-          isEmbed: false,
-          hardsub: false,
-          priority: 9 + i,
-          intro: allmangaResult.intro,
-          outro: allmangaResult.outro,
-        });
-      }
-    }
-
-    // ── PRIORITY 13: AniZone — high-quality HLS with soft subtitles ──
-    // AniZone provides HLS from suzaku.xin-cdn.xyz with 10+ subtitle languages (ASS format).
-    // Route through Worker proxy with Referer: https://anizone.to/.
-    if (anizoneResult?.m3u8Url) {
-      const streamUrl = wrapM3u8UrlWithReferer(anizoneResult.m3u8Url, "https://anizone.to/");
-      servers.push({
-        id: "anizone:sub",
-        name: "AniZone",
-        source: "anizone",
-        provider: "anizone",
-        type: "sub",
-        quality: "1080p",
-        streamUrl,
-        isM3U8: true,
-        isMP4: false,
-        isEmbed: false,
-        hardsub: false,
-        priority: 13,
-        subtitleTracks: anizoneResult.subtitleTracks,
-      });
-    }
-
-    // ── PRIORITY 13.5: AniWaves — big library, multiple servers ──
-    // AniWaves returns embed URLs (echovideo.ru, gn1r5n.org, myvidplay.com) — use as iframe embeds.
-    // Also returns intro/outro skip data from their database.
-    if (aniwavesResult?.servers?.length) {
-      let awPriority = 14;
-      for (const srv of aniwavesResult.servers) {
-        servers.push({
-          id: `aniwaves:${srv.svId}:${srv.type}`,
-          name: srv.name,
-          source: "aniwaves",
-          provider: String(srv.svId),
-          type: srv.type,
-          quality: "1080p",
-          streamUrl: srv.embedUrl,
-          isM3U8: false,
-          isMP4: false,
-          isEmbed: true, // AniWaves returns embed URLs — use iframe
-          hardsub: false,
-          priority: awPriority++,
-          intro: aniwavesResult.intro,
-          outro: aniwavesResult.outro,
-        });
-      }
-    }
-
-    // ── PRIORITY 14+: AniKage — embed servers + intro/outro ──
-    // AniKage's source URLs are encrypted tokens (prox.anicore.tv) that
-    // need client-side JS decryption. BUT the embed URLs (ninstream.com m3u8
-    // + playeng.animeapps.top) work! We add them as playable servers.
-    // ninstream.com m3u8 needs Referer: https://senshi.live/ (handled by Worker proxy).
-    let anikagePriority = 14;
-    const anikageServers = [...(anikageResult.sub?.servers || []), ...(anikageResult.dub?.servers || [])];
-    for (const srv of anikageServers) {
-      // ninstream.com m3u8 — use Worker proxy with the correct referer.
-      const isNinstream = srv.m3u8Url.includes("ninstream.com");
-      const streamUrl = isNinstream
-        ? wrapM3u8UrlWithReferer(srv.m3u8Url, "https://senshi.live/")
-        : wrapM3u8Url(srv.m3u8Url);
-      servers.push({
-        id: `anikage:${srv.provider}:${anikagePriority}`,
-        name: srv.name,
-        source: "anikage",
-        provider: srv.provider,
-        type: srv.type,
-        quality: srv.quality,
-        streamUrl,
-        isM3U8: true,
-        isMP4: false,
-        isEmbed: false,
-        hardsub: false,
-        priority: anikagePriority++,
-        intro: anikageResult.intro,
-        outro: anikageResult.outro,
-      });
-    }
-
-    // ── AniKage intro/outro is PERMANENT — apply to ALL servers ──
-    // The skip times from AniKage work for every provider (mimi, anidb, etc.)
-    // because they're timestamps, not stream-dependent.
-    if (anikageResult.intro || anikageResult.outro) {
+    // Apply AniKage skip times to ALL servers
+    if (anikageIntro || anikageOutro) {
       for (const s of servers) {
-        if (!s.intro && anikageResult.intro) s.intro = anikageResult.intro;
-        if (!s.outro && anikageResult.outro) s.outro = anikageResult.outro;
+        if (!s.intro && anikageIntro) s.intro = anikageIntro;
+        if (!s.outro && anikageOutro) s.outro = anikageOutro;
       }
-      console.log(`[instant-servers] AniKage skip times applied to ALL servers: intro=${JSON.stringify(anikageResult.intro)} outro=${JSON.stringify(anikageResult.outro)}`);
+      console.log(`[instant-servers] AniKage skip times applied to ALL servers: intro=${JSON.stringify(anikageIntro)} outro=${JSON.stringify(anikageOutro)}`);
     }
 
-    // ── PRIORITY 10+: AniDap beep (direct m3u8) ──
-    // Already fetched in parallel above — just extract the m3u8 URL
-    if (anidapSub?.sources?.length) {
-      const src = anidapSub.sources.find((s: any) =>
-        s.url?.includes(".m3u8") || s.type?.includes("mpegurl")
-      );
-      if (src?.url) {
-        const proxiedUrl = wrapM3u8Url(src.url);
-        servers.push({
-          id: "anidap:beep:sub",
-          name: "AniDap Beep",
-          source: "anidap",
-          provider: "beep",
-          type: "sub",
-          quality: src.quality || "1080p",
-          streamUrl: proxiedUrl,
-          isM3U8: true,
-          isMP4: false,
-          isEmbed: false,
-          hardsub: true,
-          priority: 10,
-          subtitleTracks: (anidapSub.tracks || []).map((t: any) => ({
-            url: t.url, lang: t.lang, label: t.label,
-          })),
-          intro: anidapSub.intro || null,
-          outro: anidapSub.outro || null,
-        });
-      }
-    }
+    // Sort by priority
+    servers.sort((a, b) => a.priority - b.priority);
 
     console.log(
-      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anineko:${aninekoM3u8s.length > 0 ? "✓" : "✗"} anilight:${anilightResult.length > 0 ? "✓" : "✗"} kyren:${kyrenResults?.length > 0 ? "✓" : "✗"} senshi:${senshiResult ? "✓" : "✗"} allmanga:${allmangaResult?.sources?.length ? "✓" : "✗"} anikage:${anikageResult.intro || anikageResult.outro ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
+      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (animex:${servers.some(s => s.source === "animex") ? "✓" : "✗"} anidb:${servers.some(s => s.source === "anidb") ? "✓" : "✗"} anineko:${servers.some(s => s.source === "anineko") ? "✓" : "✗"} anilight:${servers.some(s => s.source === "anilight") ? "✓" : "✗"} kyren:${servers.some(s => s.source === "kyren") ? "✓" : "✗"} senshi:${servers.some(s => s.source === "senshi") ? "✓" : "✗"} allmanga:${servers.some(s => s.source === "allmanga") ? "✓" : "✗"} anikage:${anikageIntro || anikageOutro ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
     );
 
     return NextResponse.json({ servers });

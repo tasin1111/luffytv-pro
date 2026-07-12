@@ -1231,10 +1231,11 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     setAniskipData({ intro: null, outro: null }); // reset on episode change
 
     // Fetch AniSkip (backup — covers old/popular anime)
-    fetch(`https://api.aniskip.com/v2/skip-times/${anilistId}/${episodeNum}?types[]=op&types[]=ed&episodeLength=0`)
+    // Uses the EXACT URL format from the user: types=op&types=ed&types=mixed-op&types=mixed-ed&types=recap
+    fetch(`https://api.aniskip.com/v2/skip-times/${anilistId}/${episodeNum}?types=op&types=ed&types=mixed-op&types=mixed-ed&types=recap&episodeLength=0`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (cancelled || !data?.found || !Array.isArray(data.results)) return;
+        if (cancelled || !data?.results || !Array.isArray(data.results)) return;
         const intro = data.results.find((r: any) => r.skipType === "op" || r.skipType === "mixed-op");
         const outro = data.results.find((r: any) => r.skipType === "ed" || r.skipType === "mixed-ed");
         setAniskipData(prev => ({
