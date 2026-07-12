@@ -861,6 +861,13 @@ export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail |
     totalChapters: dedupedChapters.length,
     source: provider,
     slug: info.id,
+    _debug: {
+      provider,
+      directChaptersCount: directChapters?.length || 0,
+      scrapeApiChaptersCount: chaptersData?.chapters?.length || 0,
+      finalChaptersCount: chapters.length,
+      dedupedCount: dedupedChapters.length,
+    },
   };
 }
 
