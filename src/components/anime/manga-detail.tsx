@@ -936,6 +936,103 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                 </div>
               </div>
             )}
+            {/* Rating widget — let logged-in users rate this manga (0-10)
+                Uses our own MangaRating table. Each user can rate once.
+                The rating is blended with atsu.moe's base rating for display. */}
+            {user ? (
+              <div style={{
+                marginBottom: "28px",
+                padding: "16px",
+                background: COLOR_SLATE2,
+                borderRadius: "8px",
+                border: `1px solid ${COLOR_BORDER}`,
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "13px", fontWeight: 600, color: COLOR_HEADING }}>
+                    {userRating != null ? "Your rating:" : "Rate this manga:"}
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                    <input
+                      type="range"
+                      min={0}
+                      max={10}
+                      step={0.5}
+                      value={ratingInput}
+                      onChange={(e) => setRatingInput(parseFloat(e.target.value))}
+                      style={{
+                        width: "200px",
+                        accentColor: COLOR_ACCENT,
+                        cursor: "pointer",
+                      }}
+                    />
+                    <span style={{
+                      fontSize: "18px",
+                      fontWeight: 700,
+                      color: COLOR_ACCENT,
+                      minWidth: "48px",
+                      textAlign: "center",
+                    }}>
+                      {ratingInput.toFixed(1)}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => submitRating(ratingInput)}
+                    disabled={submittingRating || (userRating === ratingInput && userRating != null)}
+                    style={{
+                      padding: "6px 16px",
+                      background: submittingRating ? "#555" : COLOR_ACCENT,
+                      color: "#fff",
+                      border: "none",
+                      borderRadius: "6px",
+                      fontSize: "12px",
+                      fontWeight: 700,
+                      cursor: submittingRating ? "not-allowed" : "pointer",
+                      opacity: submittingRating ? 0.6 : 1,
+                    }}
+                  >
+                    {submittingRating ? "Saving..." : userRating != null ? "Update" : "Submit"}
+                  </button>
+                  {userRating != null && (
+                    <span style={{ fontSize: "11px", color: COLOR_MUTED }}>
+                      You rated this {userRating.toFixed(1)}/10
+                    </span>
+                  )}
+                </div>
+                {ourRatingCount > 0 && (
+                  <p style={{ fontSize: "11px", color: COLOR_MUTED, margin: "8px 0 0" }}>
+                    {ourRatingCount} {ourRatingCount === 1 ? "user has" : "users have"} rated this manga — our average: {ourRating.toFixed(1)}/10
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div style={{
+                marginBottom: "28px",
+                padding: "12px 16px",
+                background: COLOR_SLATE2,
+                borderRadius: "8px",
+                border: `1px solid ${COLOR_BORDER}`,
+                fontSize: "12px",
+                color: COLOR_MUTED,
+              }}>
+                <button
+                  onClick={() => navigate({ page: "signin" } as any)}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: COLOR_ACCENT,
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    padding: 0,
+                    textDecoration: "underline",
+                  }}
+                >
+                  Sign in
+                </button>
+                {" "}to rate this manga
+              </div>
+            )}
+
           </aside>
 
           {/* ═══ RIGHT COLUMN — title + meta + synopsis + chapters ═══ */}
@@ -1091,103 +1188,6 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                 </div>
               )}
             </div>
-
-            {/* Rating widget — let logged-in users rate this manga (0-10)
-                Uses our own MangaRating table. Each user can rate once.
-                The rating is blended with atsu.moe's base rating for display. */}
-            {user ? (
-              <div style={{
-                marginBottom: "28px",
-                padding: "16px",
-                background: COLOR_SLATE2,
-                borderRadius: "8px",
-                border: `1px solid ${COLOR_BORDER}`,
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
-                  <span style={{ fontSize: "13px", fontWeight: 600, color: COLOR_HEADING }}>
-                    {userRating != null ? "Your rating:" : "Rate this manga:"}
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                    <input
-                      type="range"
-                      min={0}
-                      max={10}
-                      step={0.5}
-                      value={ratingInput}
-                      onChange={(e) => setRatingInput(parseFloat(e.target.value))}
-                      style={{
-                        width: "200px",
-                        accentColor: COLOR_ACCENT,
-                        cursor: "pointer",
-                      }}
-                    />
-                    <span style={{
-                      fontSize: "18px",
-                      fontWeight: 700,
-                      color: COLOR_ACCENT,
-                      minWidth: "48px",
-                      textAlign: "center",
-                    }}>
-                      {ratingInput.toFixed(1)}
-                    </span>
-                  </div>
-                  <button
-                    onClick={() => submitRating(ratingInput)}
-                    disabled={submittingRating || (userRating === ratingInput && userRating != null)}
-                    style={{
-                      padding: "6px 16px",
-                      background: submittingRating ? "#555" : COLOR_ACCENT,
-                      color: "#fff",
-                      border: "none",
-                      borderRadius: "6px",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      cursor: submittingRating ? "not-allowed" : "pointer",
-                      opacity: submittingRating ? 0.6 : 1,
-                    }}
-                  >
-                    {submittingRating ? "Saving..." : userRating != null ? "Update" : "Submit"}
-                  </button>
-                  {userRating != null && (
-                    <span style={{ fontSize: "11px", color: COLOR_MUTED }}>
-                      You rated this {userRating.toFixed(1)}/10
-                    </span>
-                  )}
-                </div>
-                {ourRatingCount > 0 && (
-                  <p style={{ fontSize: "11px", color: COLOR_MUTED, margin: "8px 0 0" }}>
-                    {ourRatingCount} {ourRatingCount === 1 ? "user has" : "users have"} rated this manga — our average: {ourRating.toFixed(1)}/10
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div style={{
-                marginBottom: "28px",
-                padding: "12px 16px",
-                background: COLOR_SLATE2,
-                borderRadius: "8px",
-                border: `1px solid ${COLOR_BORDER}`,
-                fontSize: "12px",
-                color: COLOR_MUTED,
-              }}>
-                <button
-                  onClick={() => navigate({ page: "signin" } as any)}
-                  style={{
-                    background: "none",
-                    border: "none",
-                    color: COLOR_ACCENT,
-                    fontSize: "12px",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    padding: 0,
-                    textDecoration: "underline",
-                  }}
-                >
-                  Sign in
-                </button>
-                {" "}to rate this manga
-              </div>
-            )}
 
             {/* Meta grid — TYPE / STATUS / YEAR / AUTHORS / ARTIST / OTHER NAMES */}
             <div style={{
@@ -1452,6 +1452,37 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                     No chapters match the current filters.
                   </p>
                 )}
+              {/* Read Latest Chapter button at bottom of chapter list */}
+              {manga.chapters && manga.chapters.length > 0 && (
+                <button
+                  onClick={() => navigateToChapter(
+                    [...manga.chapters!].sort((a, b) => b.number - a.number)[0]
+                  )}
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    marginTop: "12px",
+                    borderRadius: "8px",
+                    background: COLOR_ACCENT,
+                    color: "#ffffff",
+                    fontWeight: 600,
+                    fontSize: "14px",
+                    border: "none",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "8px",
+                    fontFamily: FONT_STACK,
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+                  </svg>
+                  Read Latest Chapter
+                </button>
+              )}
               </section>
             )}
 
