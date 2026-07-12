@@ -524,6 +524,8 @@ export default function HLSPlayerNew({
   };
 
   return (
+    <>
+    <style dangerouslySetInnerHTML={{ __html: SKIP_OVERLAY_STYLES }} />
     <div
       ref={containerRef}
       className="relative w-full bg-black overflow-hidden group select-none"
@@ -613,24 +615,78 @@ export default function HLSPlayerNew({
         </div>
       )}
 
-      {/* ═══ Skip Intro button — glass pill ═══ */}
+      {/* ═══ Skip Intro — Full-screen overlay with cool animation ═══ */}
       {showSkipIntro && intro && (
-        <button
-          onClick={skipIntro}
-          className="absolute bottom-28 right-6 bg-white/10 backdrop-blur-xl border border-white/20 text-white text-xs font-bold px-5 py-2.5 rounded-full hover:bg-white/20 hover:scale-105 active:scale-95 transition-all z-20 shadow-2xl"
+        <div
+          className="absolute inset-0 z-20 flex items-center justify-center"
+          style={{
+            background: 'linear-gradient(135deg, rgba(0,0,0,0.85) 0%, rgba(20,20,30,0.9) 50%, rgba(0,0,0,0.85) 100%)',
+            backdropFilter: 'blur(8px)',
+            animation: 'skipOverlayIn 0.4s ease-out',
+          }}
         >
-          Skip Intro →
-        </button>
+          <div className="text-center space-y-6" style={{ animation: 'skipCardContent 0.5s ease-out 0.1s both' }}>
+            {/* Animated icon */}
+            <div className="relative w-20 h-20 mx-auto" style={{ animation: 'skipIconPulse 2s ease-in-out infinite' }}>
+              <div className="absolute inset-0 rounded-full border-2 border-white/10" />
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white/80" style={{ animation: 'spin 1.5s linear infinite' }} />
+              <div className="absolute inset-3 rounded-full bg-white/5 flex items-center justify-center">
+                <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+              </div>
+            </div>
+            {/* Text */}
+            <div className="space-y-1">
+              <p className="text-white text-lg font-bold tracking-wide">Opening</p>
+              <p className="text-white/40 text-xs">Skip the intro and get to the episode</p>
+            </div>
+            {/* Skip button — pill shaped */}
+            <button
+              onClick={skipIntro}
+              className="inline-flex items-center gap-2 bg-white text-black text-sm font-bold px-8 py-3 rounded-full hover:bg-white/90 hover:scale-105 active:scale-95 transition-all shadow-2xl"
+              style={{ animation: 'skipButtonIn 0.4s ease-out 0.2s both' }}
+            >
+              Skip Intro
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
+            </button>
+          </div>
+        </div>
       )}
 
-      {/* ═══ Skip Outro button — glass pill ═══ */}
+      {/* ═══ Skip Outro — Full-screen overlay with cool animation ═══ */}
       {showSkipOutro && outro && (
-        <button
-          onClick={skipOutro}
-          className="absolute bottom-28 right-6 bg-white/10 backdrop-blur-xl border border-white/20 text-white text-xs font-bold px-5 py-2.5 rounded-full hover:bg-white/20 hover:scale-105 active:scale-95 transition-all z-20 shadow-2xl"
+        <div
+          className="absolute inset-0 z-20 flex items-center justify-center"
+          style={{
+            background: 'linear-gradient(135deg, rgba(0,0,0,0.85) 0%, rgba(20,20,30,0.9) 50%, rgba(0,0,0,0.85) 100%)',
+            backdropFilter: 'blur(8px)',
+            animation: 'skipOverlayIn 0.4s ease-out',
+          }}
         >
-          Skip Outro →
-        </button>
+          <div className="text-center space-y-6" style={{ animation: 'skipCardContent 0.5s ease-out 0.1s both' }}>
+            {/* Animated icon */}
+            <div className="relative w-20 h-20 mx-auto" style={{ animation: 'skipIconPulse 2s ease-in-out infinite' }}>
+              <div className="absolute inset-0 rounded-full border-2 border-white/10" />
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white/80" style={{ animation: 'spin 1.5s linear infinite' }} />
+              <div className="absolute inset-3 rounded-full bg-white/5 flex items-center justify-center">
+                <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+              </div>
+            </div>
+            {/* Text */}
+            <div className="space-y-1">
+              <p className="text-white text-lg font-bold tracking-wide">Ending</p>
+              <p className="text-white/40 text-xs">Skip the outro and jump to next episode</p>
+            </div>
+            {/* Skip button — pill shaped */}
+            <button
+              onClick={skipOutro}
+              className="inline-flex items-center gap-2 bg-white text-black text-sm font-bold px-8 py-3 rounded-full hover:bg-white/90 hover:scale-105 active:scale-95 transition-all shadow-2xl"
+              style={{ animation: 'skipButtonIn 0.4s ease-out 0.2s both' }}
+            >
+              Skip Outro
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ═══ Screenshot flash overlay ═══ */}
@@ -928,6 +984,7 @@ export default function HLSPlayerNew({
         </div>
       </div>
     </div>
+    </>
   );
 }
 
@@ -961,3 +1018,27 @@ function MenuItem({ active, onClick, children }: { active: boolean; onClick: () 
     </button>
   );
 }
+
+// ═══ Skip overlay animations ═══
+// These must be defined as a style tag injected into the DOM
+const SKIP_OVERLAY_STYLES = `
+@keyframes skipOverlayIn {
+  from { opacity: 0; backdrop-filter: blur(0px); }
+  to { opacity: 1; backdrop-filter: blur(8px); }
+}
+@keyframes skipCardContent {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes skipIconPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.08); opacity: 0.9; }
+}
+@keyframes skipButtonIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+`;
