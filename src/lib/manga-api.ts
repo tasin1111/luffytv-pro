@@ -736,9 +736,13 @@ export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail |
     scrapeFetch<ScrapeInfoResponse>(
       `/api/scrape/info?id=${encodeURIComponent(rawId)}&provider=${provider}`,
     ),
-    // For mangaball, still fetch from manga-scrape-api as fallback
+    // For mangaball, fetch chapters from scrape-api as FALLBACK (in case
+    // the direct mangaball.net scraper fails due to CSRF/session issues).
+    // For atsumaru, always fetch from scrape-api.
     provider === "mangaball"
-      ? Promise.resolve(null as ScrapeChaptersResponse | null)
+      ? scrapeFetch<ScrapeChaptersResponse>(
+          `/api/scrape/chapters?id=${encodeURIComponent(rawId)}&provider=${provider}`,
+        ).catch(() => null)
       : scrapeFetch<ScrapeChaptersResponse>(
           `/api/scrape/chapters?id=${encodeURIComponent(rawId)}&provider=${provider}`,
         ),
@@ -754,6 +758,7 @@ export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail |
   if (directChapters && directChapters.length > 0) {
     chapters = directChapters;
   } else {
+    console.log(`[manga-api] mangaball direct failed, using scrape-api chapters (${chaptersData?.chapters?.length || 0} chapters)`);
     chapters = (chaptersData?.chapters || []).map(mapChapter);
   }
 
