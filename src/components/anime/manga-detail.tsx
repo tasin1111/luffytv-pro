@@ -180,30 +180,10 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   };
 
   // ── Combined stats (atsu.moe base + our own) ──
-  // Parse atsu.moe's view count (e.g. "7.8M" → 7800000)
-  const atsuViewsNumeric = useMemo(() => {
-    if (!manga?.views) return 0;
-    const s = String(manga.views).replace(/[^0-9.]/g, "");
-    const n = parseFloat(s) || 0;
-    if (String(manga.views).includes("M")) return Math.round(n * 1_000_000);
-    if (String(manga.views).includes("K")) return Math.round(n * 1_000);
-    return n;
-  }, [manga?.views]);
-
-  const combinedViews = atsuViewsNumeric + ourViews;
-
-  // Weighted rating: if we have our own ratings, blend them with atsu.moe's.
-  // atsu.moe's rating gets weight proportional to its view count (capped),
-  // our ratings get weight proportional to our rating count.
-  const combinedRating = useMemo(() => {
-    const atsuRating = manga?.rating || 0;
-    const atsuWeight = Math.min(atsuViewsNumeric / 1000, 50); // cap atsu weight
-    const ourWeight = ourRatingCount * 5; // each of our ratings worth 5x
-    const totalWeight = atsuWeight + ourWeight;
-    if (totalWeight === 0) return atsuRating;
-    if (ourRatingCount === 0) return atsuRating;
-    return (atsuRating * atsuWeight + ourRating * ourWeight) / totalWeight;
-  }, [manga?.rating, atsuViewsNumeric, ourRating, ourRatingCount]);
+  // Only use OUR OWN views/ratings (not atsu.moe's).
+  // Starts at 0, goes up as people view/rate on our site.
+  const combinedViews = ourViews;
+  const combinedRating = ourRating;
 
   // ── Load manga detail ──
   useEffect(() => {
@@ -796,29 +776,22 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                 </svg>
                 <span style={{ color: COLOR_HEADING, fontWeight: 600, fontSize: "14px" }}>
-                  {combinedRating > 0 ? combinedRating.toFixed(1) : "—"}/10
+                  {combinedRating > 0 ? combinedRating.toFixed(1) : "0.0"}/10
                 </span>
                 <span style={{ color: COLOR_MUTED, fontSize: "12px" }}>average</span>
               </div>
             ) : null}
 
-            {/* Views — combined (atsu.moe base + our own) */}
-            {combinedViews > 0 && (
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLOR_TEXT} strokeWidth={2}>
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
-                <span style={{ color: COLOR_HEADING, fontSize: "14px" }}>
-                  {formatViews(combinedViews)} views
-                </span>
-                {ourViews > 0 && (
-                  <span style={{ color: COLOR_MUTED, fontSize: "10px" }}>
-                    (+{ourViews})
-                  </span>
-                )}
-              </div>
-            )}
+            {/* Views — our own (starts at 0, goes up as people view) */}
+            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={COLOR_TEXT} strokeWidth={2}>
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              <span style={{ color: COLOR_HEADING, fontSize: "14px" }}>
+                {formatViews(combinedViews)} views
+              </span>
+            </div>
 
             {/* Scanlation groups */}
             {manga.scanlators && manga.scanlators.length > 0 && (
@@ -947,10 +920,8 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
               </div>
             )}
 
-            {/* Stats line — combined rating • combined views • chapters
-                Our own view/rating stats are layered on atsu.moe's base:
-                  combinedViews  = atsuViews + ourViews
-                  combinedRating = weighted blend of atsuRating + ourRating */}
+            {/* Stats line — our own rating • our own views • chapters
+                Stats start at 0 and go up as people view/rate on our site. */}
             <div style={{
               display: "flex",
               alignItems: "center",
@@ -960,40 +931,31 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
               fontSize: "14px",
               marginBottom: "16px",
             }}>
-              {combinedRating > 0 ? (
-                <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                  <svg width="14" height="14" viewBox="0 0 20 20" fill={COLOR_ACCENT}>
-                    <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                  </svg>
-                  <span style={{ color: COLOR_HEADING, fontWeight: 600 }}>{combinedRating.toFixed(1)}/10</span>
-                  <span style={{ color: COLOR_MUTED }}>
-                    average rating
-                    {ourRatingCount > 0 && (
-                      <span style={{ color: COLOR_MUTED, fontSize: "11px" }}>
-                        {" "}({ourRatingCount} {ourRatingCount === 1 ? "rating" : "ratings"})
-                      </span>
-                    )}
-                  </span>
+              <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <svg width="14" height="14" viewBox="0 0 20 20" fill={COLOR_ACCENT}>
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                <span style={{ color: COLOR_HEADING, fontWeight: 600 }}>
+                  {combinedRating > 0 ? combinedRating.toFixed(1) : "0.0"}/10
                 </span>
-              ) : null}
-              {combinedViews > 0 && (
-                <>
-                  {combinedRating > 0 && <span style={{ color: COLOR_MUTED }}>•</span>}
-                  <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={COLOR_TEXT} strokeWidth={2}>
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                      <circle cx="12" cy="12" r="3" />
-                    </svg>
-                    <span style={{ color: COLOR_HEADING, fontWeight: 600 }}>{formatViews(combinedViews)}</span>
-                    <span style={{ color: COLOR_MUTED }}>views</span>
-                    {ourViews > 0 && (
-                      <span style={{ color: COLOR_MUTED, fontSize: "11px" }}>
-                        {" "}(+{ourViews} from us)
-                      </span>
-                    )}
-                  </span>
-                </>
-              )}
+                <span style={{ color: COLOR_MUTED }}>
+                  average rating
+                  {ourRatingCount > 0 && (
+                    <span style={{ color: COLOR_MUTED, fontSize: "11px" }}>
+                      {" "}({ourRatingCount} {ourRatingCount === 1 ? "rating" : "ratings"})
+                    </span>
+                  )}
+                </span>
+              </span>
+              <span style={{ color: COLOR_MUTED }}>•</span>
+              <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={COLOR_TEXT} strokeWidth={2}>
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+                <span style={{ color: COLOR_HEADING, fontWeight: 600 }}>{formatViews(combinedViews)}</span>
+                <span style={{ color: COLOR_MUTED }}>views</span>
+              </span>
               {manga.totalChapters != null && (
                 <>
                   <span style={{ color: COLOR_MUTED }}>•</span>
