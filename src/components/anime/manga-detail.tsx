@@ -119,6 +119,15 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   const [ratingInput, setRatingInput] = useState<number>(0);
   const [submittingRating, setSubmittingRating] = useState(false);
 
+  // ── Follow state ──
+  const [followCount, setFollowCount] = useState(0);
+  const [isFollowing, setIsFollowing] = useState(false);
+
+  // ── Vibe review state (MockTailBar) ──
+  const [vibeCounts, setVibeCounts] = useState({ drop: 0, bold: 0, great: 0, recommended: 0 });
+  const [vibeTotal, setVibeTotal] = useState(0);
+  const [userVibe, setUserVibe] = useState<string | null>(null);
+
   // ── Increment our view counter + fetch our ratings ──
   // Fires on mount AND when `user.username` changes (so a late-arriving
   // session still picks up the user's existing rating without a remount).
@@ -152,7 +161,67 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
         }
       })
       .catch(() => {});
+
+    // Fetch follow count + isFollowing
+    const followUrl = `/api/manga/follow?mangaId=${encodeURIComponent(mangaId)}${username ? `&username=${encodeURIComponent(username)}` : ""}`;
+    fetch(followUrl)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data) return;
+        setFollowCount(data.follows || 0);
+        setIsFollowing(data.isFollowing || false);
+      })
+      .catch(() => {});
+
+    // Fetch vibe reviews (MockTailBar)
+    const vibeUrl = `/api/manga/vibe-review?mangaId=${encodeURIComponent(mangaId)}${username ? `&username=${encodeURIComponent(username)}` : ""}`;
+    fetch(vibeUrl)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (!data) return;
+        setVibeCounts(data.counts || { drop: 0, bold: 0, great: 0, recommended: 0 });
+        setVibeTotal(data.total || 0);
+        setUserVibe(data.userVibe || null);
+      })
+      .catch(() => {});
   }, [mangaId, user?.username]);
+
+  // ── Toggle follow ──
+  const toggleFollow = async () => {
+    const username = user?.username;
+    if (!username) { alert("Please sign in to follow manga."); return; }
+    try {
+      const res = await fetch("/api/manga/follow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mangaId, username }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFollowCount(data.follows);
+        setIsFollowing(data.isFollowing);
+      }
+    } catch { /* ignore */ }
+  };
+
+  // ── Submit vibe review ──
+  const submitVibe = async (vibe: string) => {
+    const username = user?.username;
+    if (!username) { alert("Please sign in to review."); return; }
+    try {
+      const res = await fetch("/api/manga/vibe-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mangaId, username, vibe }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setVibeCounts(data.counts);
+        setVibeTotal(data.total);
+        setUserVibe(data.userVibe);
+      }
+    } catch { /* ignore */ }
+  };
 
   // ── Submit a rating ──
   const submitRating = async (rating: number) => {
@@ -965,6 +1034,98 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                   </span>
                 </>
               )}
+            </div>
+
+            {/* ── Follow button + Follow count ── */}
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "16px" }}>
+              <button
+                onClick={toggleFollow}
+                style={{
+                  padding: "8px 20px", borderRadius: "8px", border: "none", cursor: "pointer",
+                  background: isFollowing ? "rgba(255,255,255,0.1)" : "#1e88ff",
+                  color: "#fff", fontSize: "14px", fontWeight: 700,
+                  display: "flex", alignItems: "center", gap: "6px",
+                  transition: "all 0.15s",
+                }}
+              >
+                {isFollowing ? (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" /></svg>
+                    Following
+                  </>
+                ) : (
+                  <>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" /></svg>
+                    Follow
+                  </>
+                )}
+              </button>
+              <span style={{ color: COLOR_MUTED, fontSize: "13px" }}>
+                <span style={{ color: COLOR_HEADING, fontWeight: 600 }}>{followCount}</span> following
+              </span>
+            </div>
+
+            {/* ── VibeBar — genre percentages ── */}
+            {manga.genres && manga.genres!.length > 0 && (
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ color: COLOR_MUTED, fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>
+                  VibeBar — Genre Mix
+                </div>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                  {manga.genres!.slice(0, 8).map((g, i) => {
+                    const pct = Math.round(100 / manga.genres!.length);
+                    const colors = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+                    return (
+                      <div key={g} style={{
+                        display: "flex", alignItems: "center", gap: "4px",
+                        padding: "4px 10px", borderRadius: "6px",
+                        background: `${colors[i % colors.length]}20`,
+                        border: `1px solid ${colors[i % colors.length]}40`,
+                        fontSize: "12px", fontWeight: 600,
+                      }}>
+                        <span style={{ color: colors[i % colors.length] }}>{g}</span>
+                        <span style={{ color: COLOR_MUTED }}>{pct}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* ── MockTailBar — 4-option quick review ── */}
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ color: COLOR_MUTED, fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>
+                MockTailBar — Quick Review {vibeTotal > 0 && `(${vibeTotal} reviews)`}
+              </div>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {([
+                  { id: "drop", label: "Drop", icon: "👎", color: "#ef4444" },
+                  { id: "bold", label: "Bold", icon: "🤔", color: "#f59e0b" },
+                  { id: "great", label: "Great", icon: "👍", color: "#10b981" },
+                  { id: "recommended", label: "Recommended", icon: "⭐", color: "#1e88ff" },
+                ] as const).map(v => {
+                  const count = vibeCounts[v.id as keyof typeof vibeCounts] || 0;
+                  const pct = vibeTotal > 0 ? Math.round((count / vibeTotal) * 100) : 0;
+                  const isSelected = userVibe === v.id;
+                  return (
+                    <button
+                      key={v.id}
+                      onClick={() => submitVibe(v.id)}
+                      style={{
+                        flex: 1, padding: "10px 6px", borderRadius: "8px", cursor: "pointer",
+                        border: isSelected ? `2px solid ${v.color}` : "1px solid rgba(255,255,255,0.1)",
+                        background: isSelected ? `${v.color}15` : "rgba(255,255,255,0.03)",
+                        display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
+                        transition: "all 0.15s",
+                      }}
+                    >
+                      <span style={{ fontSize: "20px" }}>{v.icon}</span>
+                      <span style={{ color: isSelected ? v.color : COLOR_HEADING, fontSize: "12px", fontWeight: 600 }}>{v.label}</span>
+                      <span style={{ color: COLOR_MUTED, fontSize: "10px" }}>{count} ({pct}%)</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Rating widget — let logged-in users rate this manga (0-10)

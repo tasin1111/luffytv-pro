@@ -90,3 +90,57 @@ model MangaRating {
 
   @@unique([mangaId, username])
 }
+
+// ── Manga follows (user bookmarks/follows a manga to track reading) ──
+// Follow = user is reading it. View = user just visited the detail page.
+model MangaFollow {
+  id        String   @id @default(cuid())
+  mangaId   String
+  username  String
+  createdAt DateTime @default(now())
+
+  @@unique([mangaId, username])
+}
+
+// ── Per-chapter comments (individual chapter, not whole manga) ──
+// Users can comment while reading — comments are tied to a specific chapter.
+model MangaChapterComment {
+  id        String   @id @default(cuid())
+  mangaId   String
+  chapterId String                     // chapter identifier (atsu ID, mangaball translation ID, etc.)
+  chapterNum Float                     // chapter number for display
+  username  String
+  text      String                     // comment text (max 1000 chars)
+  likes     Int      @default(0)       // like count (denormalized for fast sorting)
+  createdAt DateTime @default(now())
+
+  likers    MangaChapterCommentLike[]
+
+  @@index([mangaId, chapterId])
+  @@index([mangaId, chapterId, likes(sort: Desc)])
+  @@index([mangaId, chapterId, createdAt(sort: Desc)])
+}
+
+model MangaChapterCommentLike {
+  id        String   @id @default(cuid())
+  commentId String
+  username  String
+  createdAt DateTime @default(now())
+
+  comment   MangaChapterComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, username])
+}
+
+// ── Vibe reviews (4-option quick review: drop/bold/great/recommended) ──
+// Each user can give ONE vibe per manga. "VibeBar" shows the aggregate.
+model MangaVibeReview {
+  id        String   @id @default(cuid())
+  mangaId   String
+  username  String
+  vibe      String   // "drop" | "bold" | "great" | "recommended"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([mangaId, username])
+}

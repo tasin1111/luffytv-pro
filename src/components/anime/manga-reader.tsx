@@ -4,27 +4,28 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useAppStore } from "./store";
 
 /* ═══════════════════════════════════════════════════════════════════════
-   MANGA READER v3 — LuffyTV Full Structural Redesign
-   Inspired by: Atsu.moe (snap scroll, progress bar, immersive),
-   Comix.to (clean layout, page counter), MangaFire (toolbar, sidebar)
+   MANGA READER v4 — LuffyTV Complete Redesign
 
-   ARCHITECTURE:
-   ┌─────────────────────────────────────────────────┐
-   │  TOP TOOLBAR (floating, glassmorphic, auto-hide) │
-   │  [← Back] [Title]  [V|S|D]  [Ch][⚙][⛶]       │
-   │  ═══════════ progress bar ═══════════════════    │
-   ├─────────────────────────────────────────────────┤
-   │                                                   │
-   │           READER AREA (black bg)                  │
-   │     Vertical / Single (snap) / Double             │
-   │                                                   │
-   ├─────────────────────────────────────────────────┤
-   │  BOTTOM NAV (floating, glassmorphic, auto-hide)  │
-   │  [← Prev]  ──●──── 12 / 58  [Next →]           │
-   └─────────────────────────────────────────────────┘
+   Layout:
+   ┌──────────────────────────────────────────────────┐
+   │                                                    │
+   │           MANGA (50% width, centered)              │
+   │                                                    │
+   │                              ┌──────────────────┐ │
+   │                              │ Chapter 1 of 68  │ │ ← top right
+   │                              │ [◀] [▶]          │ │
+   │                              └──────────────────┘ │
+   │                                                    │
+   │                              ┌──────────────────┐ │
+   │                              │ [🏠] [📖] [💬]   │ │ ← bottom right
+   │                              │ [📋] [⛶] [⚙] [?]│ │   floating navbar
+   │                              └──────────────────┘ │
+   └──────────────────────────────────────────────────┘
 
-   + Settings Panel (slide-down from toolbar)
-   + Chapter Sidebar (slide-in from right)
+   Panels (slide-in from right):
+   - Comments panel (per-chapter, best/newest/oldest, like)
+   - Chapter list panel (groups, search, pagination)
+   - Settings panel (direction, margin, scroll, preload, scale, dim)
    ═══════════════════════════════════════════════════════════════════════ */
 
 interface ChapterPage {
@@ -43,29 +44,18 @@ interface MangaReaderProps {
 type ReadingMode = "vertical" | "single" | "double";
 type ImageFit = "width" | "height" | "original";
 type ReadingDirection = "ltr" | "rtl";
+type PanelType = "none" | "comments" | "chapters" | "settings" | "help";
 
 // ═══════════════════════════════════════════════════════════════════════
-//  CHAPTER ID HELPERS
-//  ---------------------------------------------------------------------
-//  A chapter ID can be one of four shapes (depending on provider):
-//    1. Mangaball translation ID — 24-char hex (e.g. "6a27a45c48701b8c5c57de1a")
-//    2. Cross-provider merge ID — starts with "at:" (e.g. "at:3xHoW:1:LMHqVf")
-//    3. Short atsu.moe chapter ID — alnum 3–20 chars, not all digits (e.g. "LMHqVf")
-//    4. Plain chapter number — string (e.g. "68")
-//  These helpers centralize the detection so it isn't duplicated 6 times.
+//  CHAPTER ID HELPERS (kept from v3)
 // ═══════════════════════════════════════════════════════════════════════
 
-/** True if `id` looks like a mangaball translation ID (24-char hex). */
 function isMangaballTranslationId(id: string | undefined | null): id is string {
   return !!id && /^[0-9a-f]{24}$/i.test(id);
 }
-
-/** True if `id` is a cross-provider merge ID (starts with "at:"). */
 function isCrossProviderMergeId(id: string | undefined | null): id is string {
   return !!id && id.startsWith("at:");
 }
-
-/** True if `id` is a short atsu.moe chapter ID (alnum 3–20 chars, not all digits). */
 function isAtsuShortId(id: string | undefined | null): id is string {
   return !!id &&
     !isMangaballTranslationId(id) &&
@@ -73,68 +63,47 @@ function isAtsuShortId(id: string | undefined | null): id is string {
     /^[A-Za-z0-9_-]{3,20}$/.test(id) &&
     !/^\d+$/.test(id);
 }
-
-/**
- * Build the chapterId to pass to `navigate({ page: "manga-read", chapterId })`.
- * Returns the raw `ch.id` when it's a recognizable provider ID, otherwise
- * falls back to the chapter number as a string.
- */
 function buildNavChapterId(ch: { id?: string; number?: number | string }): string {
-  if (ch.id && (
-    isMangaballTranslationId(ch.id) ||
-    isCrossProviderMergeId(ch.id) ||
-    isAtsuShortId(ch.id)
-  )) {
+  if (ch.id && (isMangaballTranslationId(ch.id) || isCrossProviderMergeId(ch.id) || isAtsuShortId(ch.id))) {
     return ch.id;
   }
   return String(ch.number ?? "");
 }
-
-/**
- * True if the given chapter matches the currently-loaded `chapterId`.
- * Handles all four ID shapes including cross-provider merge IDs whose
- * final segment is the real atsu chapter ID.
- */
-function chapterMatches(
-  ch: { id?: string; number?: number | string },
-  chapterId: string,
-): boolean {
+function chapterMatches(ch: any, chapterId: string): boolean {
+  if (!ch) return false;
   if (ch.id === chapterId) return true;
-  if (String(ch.number) === String(chapterId)) return true;
-  // Cross-provider merge IDs: compare the last segment (the real chapter ID)
-  if (isCrossProviderMergeId(ch.id) && isCrossProviderMergeId(chapterId)) {
-    const cParts = ch.id!.split(":");
-    const jParts = chapterId.split(":");
-    if (cParts.length >= 4 && jParts.length >= 4 &&
-        cParts[cParts.length - 1] === jParts[jParts.length - 1]) {
-      return true;
-    }
-  }
+  if (String(ch.number) === chapterId) return true;
+  if (isCrossProviderMergeId(chapterId) && ch.id === chapterId.split(":").pop()) return true;
   return false;
 }
 
 // ═══════════════════════════════════════════════════════════════════════
-//  LOCAL STORAGE KEYS — for persisting reader settings per browser.
+//  LOCALSTORAGE HELPERS
 // ═══════════════════════════════════════════════════════════════════════
+
 const LS_KEY_READING_MODE = "manga-reader-mode";
 const LS_KEY_IMAGE_FIT = "manga-reader-fit";
 const LS_KEY_READING_DIR = "manga-reader-dir";
+const LS_KEY_STRIPE_MARGIN = "manga-reader-margin";
+const LS_KEY_SMOOTH_SCROLL = "manga-reader-smooth";
+const LS_KEY_PRELOAD = "manga-reader-preload";
+const LS_KEY_SCALE = "manga-reader-scale";
+const LS_KEY_DIM = "manga-reader-dim";
 
-/** Safe localStorage read with fallback. */
-function lsGet<T extends string>(key: string, fallback: T): T {
-  try {
-    const v = localStorage.getItem(key);
-    return (v as T) || fallback;
-  } catch { return fallback; }
+function lsGet<T>(key: string, fallback: T): T {
+  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+}
+function lsSet(key: string, value: any) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
 }
 
-/** Safe localStorage write. */
-function lsSet(key: string, value: string): void {
-  try { localStorage.setItem(key, value); } catch { /* ignore quota/SSR */ }
-}
+// ═══════════════════════════════════════════════════════════════════════
+//  MAIN COMPONENT
+// ═══════════════════════════════════════════════════════════════════════
 
 export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   const navigate = useAppStore(s => s.navigate);
+  const user = useAppStore((s: any) => s.user);
 
   // ── Data State ──
   const [pages, setPages] = useState<ChapterPage[]>([]);
@@ -145,32 +114,36 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   const [allChapters, setAllChapters] = useState<any[]>([]);
 
   // ── UI State ──
-  // Reading settings are initialized from localStorage so the user's
-  // last choice persists across chapter navigation and page reloads.
-  const [showControls, setShowControls] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [readingMode, setReadingMode] = useState<ReadingMode>(() => lsGet(LS_KEY_READING_MODE, "vertical"));
   const [imageFit, setImageFit] = useState<ImageFit>(() => lsGet(LS_KEY_IMAGE_FIT, "width"));
-  const [showSettings, setShowSettings] = useState(false);
-  const [showChapterSidebar, setShowChapterSidebar] = useState(false);
-  const [isFullscreen, setIsFullscreen] = useState(false);
   const [readingDir, setReadingDir] = useState<ReadingDirection>(() => lsGet(LS_KEY_READING_DIR, "ltr"));
+  const [activePanel, setActivePanel] = useState<PanelType>("none");
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [hoveredPageIndex, setHoveredPageIndex] = useState<number | null>(null);
 
-  // ── Persist reading settings whenever they change ──
+  // ── Settings State ──
+  const [stripeMargin, setStripeMargin] = useState<boolean>(() => lsGet(LS_KEY_STRIPE_MARGIN, false));
+  const [smoothScroll, setSmoothScroll] = useState<boolean>(() => lsGet(LS_KEY_SMOOTH_SCROLL, true));
+  const [preload, setPreload] = useState<boolean>(() => lsGet(LS_KEY_PRELOAD, true));
+  const [scalePages, setScalePages] = useState<boolean>(() => lsGet(LS_KEY_SCALE, true));
+  const [dimPages, setDimPages] = useState<boolean>(() => lsGet(LS_KEY_DIM, false));
+
+  // ── Persist settings ──
   useEffect(() => { lsSet(LS_KEY_READING_MODE, readingMode); }, [readingMode]);
   useEffect(() => { lsSet(LS_KEY_IMAGE_FIT, imageFit); }, [imageFit]);
   useEffect(() => { lsSet(LS_KEY_READING_DIR, readingDir); }, [readingDir]);
+  useEffect(() => { lsSet(LS_KEY_STRIPE_MARGIN, stripeMargin); }, [stripeMargin]);
+  useEffect(() => { lsSet(LS_KEY_SMOOTH_SCROLL, smoothScroll); }, [smoothScroll]);
+  useEffect(() => { lsSet(LS_KEY_PRELOAD, preload); }, [preload]);
+  useEffect(() => { lsSet(LS_KEY_SCALE, scalePages); }, [scalePages]);
+  useEffect(() => { lsSet(LS_KEY_DIM, dimPages); }, [dimPages]);
 
   // ── Refs ──
   const containerRef = useRef<HTMLDivElement>(null);
-  const snapContainerRef = useRef<HTMLDivElement>(null);
-  const hideTimerRef = useRef<NodeJS.Timeout | null>(null);
   const readerRootRef = useRef<HTMLDivElement>(null);
 
   // ── Load chapter pages ──
-  // Loads pages + manga detail in parallel, then pushes a reading-history
-  // entry to /api/history so the user can resume from the home page.
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -201,12 +174,8 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
           setMangaTitle(detail.englishTitle || detail.title || "");
           const chs = detail.chapters || [];
           setAllChapters(chs);
-          // Match the current chapter using the centralized helper.
           const ch = chs.find((c: any) => chapterMatches(c, chapterId));
           setChapterTitle(ch?.title || `Chapter ${ch?.number || chapterId}`);
-
-          // ── Save to reading history (best-effort, non-blocking) ──
-          // Reuses WatchHistory with episodeNum = chapter number.
           try {
             await fetch("/api/history", {
               method: "POST",
@@ -234,698 +203,840 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   }, [mangaId, chapterId]);
 
   // ── Find prev/next chapters ──
-  // Match the current chapter by ID or by number.
-  // chapterId can be one of:
-  //   - A mangaball translation ID (24 hex chars)
-  //   - A short atsu.moe chapter ID (e.g. "LMHqVf")
-  //   - A cross-provider merge ID "at:{mangaId}:{number}:{chapterId}"
-  //   - A plain chapter number (string)
-  // Also filter by language (stored in sessionStorage by the detail page)
-  // so prev/next navigation stays within the same language.
   const readerLang = useMemo(() => {
-    try {
-      return sessionStorage.getItem(`manga-lang-${mangaId}`) || "all";
-    } catch { return "all"; }
+    try { return sessionStorage.getItem(`manga-lang-${mangaId}`) || "all"; } catch { return "all"; }
   }, [mangaId]);
 
-  // Filter chapters by language for navigation
   const langFilteredChapters = useMemo(() => {
     if (readerLang === "all") return allChapters;
-    // When a specific language is selected, only show chapters in that
-    // language. Chapters without a lang field (atsumaru) are always included.
     return allChapters.filter((c: any) => c.lang === readerLang || !c.lang);
   }, [allChapters, readerLang]);
 
-  // Find the current chapter in the FILTERED list using the centralized helper.
   const currentChapterIdx = langFilteredChapters.findIndex((c: any) => chapterMatches(c, chapterId));
   const prevChapter = currentChapterIdx > 0 ? langFilteredChapters[currentChapterIdx - 1] : null;
-  const nextChapter = currentChapterIdx < langFilteredChapters.length - 1 ? langFilteredChapters[currentChapterIdx + 1] : null;
+  const nextChapter = currentChapterIdx >= 0 && currentChapterIdx < langFilteredChapters.length - 1 ? langFilteredChapters[currentChapterIdx + 1] : null;
+  const currentChapterNum = currentChapterIdx >= 0 ? langFilteredChapters[currentChapterIdx]?.number : 0;
 
-  // ── Auto-hide controls after 3s of inactivity ──
-  const resetHideTimer = useCallback(() => {
-    setShowControls(true);
-    if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    hideTimerRef.current = setTimeout(() => {
-      setShowControls(false);
-    }, 3000);
-  }, []);
+  const switchEpisode = useCallback((epNum: number) => {
+    navigate({ page: "manga-read", id: mangaId, chapterId: String(epNum) } as any);
+  }, [navigate, mangaId]);
 
-  useEffect(() => {
-    const show = () => {
-      setShowControls(true);
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-      hideTimerRef.current = setTimeout(() => {
-        setShowControls(false);
-      }, 3000);
-    };
-    window.addEventListener("mousemove", show);
-    window.addEventListener("touchstart", show);
-    // Start the initial timer
-    hideTimerRef.current = setTimeout(() => {
-      setShowControls(false);
-    }, 5000);
-    return () => {
-      window.removeEventListener("mousemove", show);
-      window.removeEventListener("touchstart", show);
-      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
-    };
-  }, []);
+  const goToChapter = useCallback((ch: any) => {
+    navigate({ page: "manga-read", id: mangaId, chapterId: buildNavChapterId(ch) } as any);
+    setActivePanel("none");
+  }, [navigate, mangaId]);
 
-  // ── Toggle controls on click/tap in reader area ──
-  const handleReaderClick = useCallback(() => {
-    setShowControls(prev => {
-      if (!prev) {
-        resetHideTimer();
-        return true;
-      }
-      return prev;
-    });
-    resetHideTimer();
-  }, [resetHideTimer]);
+  // ── Progress ──
+  const progress = pages.length > 0 ? ((currentPage + 1) / pages.length) * 100 : 0;
 
-  // ── Track scroll position for page counter (vertical mode) ──
-  const handleScroll = useCallback(() => {
-    if (!containerRef.current || readingMode !== "vertical") return;
-    const container = containerRef.current;
-    const scrollPos = container.scrollTop + container.clientHeight / 2;
-    const images = container.querySelectorAll(".mr-page-img");
-    for (let i = 0; i < images.length; i++) {
-      const img = images[i] as HTMLElement;
-      if (img.offsetTop <= scrollPos && img.offsetTop + img.clientHeight > scrollPos) {
-        setCurrentPage(i);
-        break;
-      }
-    }
-  }, [readingMode]);
-
-  // ── Track snap scroll position for single/double mode ──
-  const handleSnapScroll = useCallback(() => {
-    if (!snapContainerRef.current) return;
-    const container = snapContainerRef.current;
-    const scrollLeft = container.scrollLeft;
-    const pageWidth = container.clientWidth;
-    const page = Math.round(scrollLeft / pageWidth);
-    setCurrentPage(readingDir === "rtl" ? pages.length - 1 - page : page);
-  }, [readingDir, pages.length]);
-
-  // ── Page navigation functions ──
-  const goToNextPage = useCallback(() => {
-    if (readingMode === "double") {
-      setCurrentPage(prev => Math.min(prev + 2, pages.length - 1));
-    } else {
-      setCurrentPage(prev => Math.min(prev + 1, pages.length - 1));
-    }
-  }, [readingMode, pages.length]);
-
-  const goToPrevPage = useCallback(() => {
-    if (readingMode === "double") {
-      setCurrentPage(prev => Math.max(prev - 2, 0));
-    } else {
-      setCurrentPage(prev => Math.max(prev - 1, 0));
-    }
-  }, [readingMode]);
-
-  const goToPage = useCallback((page: number) => {
-    setCurrentPage(Math.max(0, Math.min(page, pages.length - 1)));
-  }, [pages.length]);
-
-  // ── Sync currentPage to snap scroll position (single/double) ──
-  useEffect(() => {
-    if (readingMode === "vertical" || !snapContainerRef.current) return;
-    const container = snapContainerRef.current;
-    const targetPage = readingDir === "rtl" ? pages.length - 1 - currentPage : currentPage;
-    container.scrollTo({
-      left: targetPage * container.clientWidth,
-      behavior: "smooth",
-    });
-  }, [currentPage, readingMode, readingDir, pages.length]);
-
-  // ── Fullscreen toggle ──
+  // ── Fullscreen ──
   const toggleFullscreen = useCallback(() => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
-      setIsFullscreen(true);
+      readerRootRef.current?.requestFullscreen?.().catch(() => {});
     } else {
-      document.exitFullscreen().catch(() => {});
-      setIsFullscreen(false);
+      document.exitFullscreen?.().catch(() => {});
     }
+  }, []);
+
+  useEffect(() => {
+    function onFsChange() { setIsFullscreen(!!document.fullscreenElement); }
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
   }, []);
 
   // ── Keyboard shortcuts ──
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
-      // Don't capture if typing in an input
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-
-      if (readingMode === "vertical") {
-        if (e.key === "ArrowDown" || e.key === "ArrowRight") {
-          e.preventDefault();
-          containerRef.current?.scrollBy({ top: 300, behavior: "smooth" });
-        } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
-          e.preventDefault();
-          containerRef.current?.scrollBy({ top: -300, behavior: "smooth" });
-        }
-      } else {
-        const forward = readingDir === "ltr"
-          ? (e.key === "ArrowRight" || e.key === "ArrowDown" || e.key === " ")
-          : (e.key === "ArrowLeft" || e.key === "ArrowDown" || e.key === " ");
-        const backward = readingDir === "ltr"
-          ? (e.key === "ArrowLeft" || e.key === "ArrowUp")
-          : (e.key === "ArrowRight" || e.key === "ArrowUp");
-
-        if (forward) {
-          e.preventDefault();
-          goToNextPage();
-        } else if (backward) {
-          e.preventDefault();
-          goToPrevPage();
-        }
-      }
       if (e.key === "Escape") {
-        navigate({ page: "manga-detail", id: mangaId });
+        if (activePanel !== "none") { setActivePanel("none"); return; }
+        navigate({ page: "manga-detail", id: mangaId } as any);
+        return;
       }
-      if (e.key === "c" || e.key === "C") {
-        setShowChapterSidebar(prev => !prev);
+      if (e.key === "ArrowLeft") {
+        if (readingDir === "rtl") { setCurrentPage(prev => Math.min(prev + 1, pages.length - 1)); }
+        else { setCurrentPage(prev => Math.max(prev - 1, 0)); }
       }
-      if (e.key === "s" || e.key === "S") {
-        setShowSettings(prev => !prev);
+      if (e.key === "ArrowRight") {
+        if (readingDir === "rtl") { setCurrentPage(prev => Math.max(prev - 1, 0)); }
+        else { setCurrentPage(prev => Math.min(prev + 1, pages.length - 1)); }
       }
-      if (e.key === "f" || e.key === "F") {
-        toggleFullscreen();
-      }
+      if (e.key === "c" || e.key === "C") setActivePanel(p => p === "comments" ? "none" : "comments");
+      if (e.key === "l" || e.key === "L") setActivePanel(p => p === "chapters" ? "none" : "chapters");
+      if (e.key === "s" || e.key === "S") setActivePanel(p => p === "settings" ? "none" : "settings");
+      if (e.key === "f" || e.key === "F") toggleFullscreen();
+      if (e.key === "?" || e.key === "/") setActivePanel(p => p === "help" ? "none" : "help");
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [readingMode, pages.length, mangaId, readingDir, goToNextPage, goToPrevPage, toggleFullscreen]);
+  }, [pages.length, mangaId, readingDir, navigate, activePanel, toggleFullscreen]);
 
-  // ── Preload next chapter's pages when user is near the end of current chapter ──
-  // Fetches the next chapter's /api/manga/read response and caches it so
-  // navigation is instant when the user clicks "Next Chapter".
-  const [nextChapterPages, setNextChapterPages] = useState<any[] | null>(null);
+  // ── Scroll tracking for vertical mode ──
   useEffect(() => {
-    if (!nextChapter || pages.length === 0) {
-      setNextChapterPages(null);
-      return;
-    }
-    // Only preload when user is on the last 3 pages
-    if (currentPage < pages.length - 3) return;
-    if (nextChapterPages) return; // already preloaded
-
-    let cancelled = false;
-    const nextChId = buildNavChapterId(nextChapter);
-    fetch(`/api/manga/read?mangaId=${encodeURIComponent(mangaId)}&chapterId=${encodeURIComponent(nextChId)}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (!cancelled && data?.pages) {
-          setNextChapterPages(data.pages);
+    if (readingMode !== "vertical") return;
+    const container = containerRef.current;
+    if (!container) return;
+    function onScroll() {
+      const el = containerRef.current;
+      if (!el) return;
+      const scrollTop = el.scrollTop;
+      const pageElements = el.querySelectorAll("[data-page-index]");
+      let closest = 0;
+      let closestDist = Infinity;
+      pageElements.forEach((el) => {
+        const rect = el.getBoundingClientRect();
+        const dist = Math.abs(rect.top - 80);
+        if (dist < closestDist) {
+          closestDist = dist;
+          closest = parseInt(el.getAttribute("data-page-index") || "0", 10);
         }
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [currentPage, pages.length, nextChapter, mangaId, nextChapterPages]);
-
-  // ── Listen for fullscreen change events ──
-  useEffect(() => {
-    function onFsChange() {
-      setIsFullscreen(!!document.fullscreenElement);
+      });
+      setCurrentPage(closest);
     }
-    document.addEventListener("fullscreenchange", onFsChange);
-    return () => document.removeEventListener("fullscreenchange", onFsChange);
-  }, []);
+    container.addEventListener("scroll", onScroll, { passive: true });
+    return () => container.removeEventListener("scroll", onScroll);
+  }, [readingMode, pages.length]);
 
-  // ── Progress ──
-  const progress = pages.length > 0 ? ((currentPage + 1) / pages.length) * 100 : 0;
+  // ═══════════════════════════════════════════════════════════════════════
+  //  RENDER
+  // ═══════════════════════════════════════════════════════════════════════
 
-  // ── Double page display logic ──
-  const doublePages = readingDir === "rtl"
-    ? [pages[currentPage + 1], pages[currentPage]].filter(Boolean)
-    : [pages[currentPage], pages[currentPage + 1]].filter(Boolean);
-
-  // ═══════════════════════════════════════════
-  //  LOADING STATE
-  // ═══════════════════════════════════════════
-  if (loading) {
-    return (
-      <div className="mr-loading-screen">
-        <div className="mr-loader-ring">
-          <div /><div />
-        </div>
-        <p className="mr-loader-text">Loading chapter...</p>
-      </div>
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  //  ERROR STATE
-  // ═══════════════════════════════════════════
-  if (error) {
-    return (
-      <div className="mr-loading-screen">
-        <svg className="mr-error-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-          <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-        <p className="mr-error-text">{error}</p>
-        <button
-          onClick={() => navigate({ page: "manga-detail", id: mangaId })}
-          className="mr-error-btn"
-        >
-          Back to Manga
-        </button>
-      </div>
-    );
-  }
-
-  // ═══════════════════════════════════════════
-  //  MAIN READER
-  // ═══════════════════════════════════════════
   return (
-    <div ref={readerRootRef} className="mr-reader-root">
-      {/* ══════════════════════════════════════════
-          TOP TOOLBAR (floating, glassmorphic)
-          ══════════════════════════════════════════ */}
-      <div className={`mr-toolbar ${showControls || showSettings ? "mr-visible" : "mr-hidden"}`}>
-        <div className="mr-toolbar-glass">
-          <div className="mr-toolbar-row">
-            {/* Left: Back + Title */}
-            <div className="mr-toolbar-left">
-              <button
-                onClick={() => navigate({ page: "manga-detail", id: mangaId })}
-                className="mr-toolbar-btn"
-                title="Back to manga (Esc)"
-                aria-label="Back to manga detail"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div className="mr-toolbar-title">
-                <p className="mr-toolbar-manga">{mangaTitle}</p>
-                <p className="mr-toolbar-chapter">{chapterTitle}</p>
-              </div>
+    <div ref={readerRootRef} className="mr-root" style={{
+      position: "fixed", inset: 0, background: "#0a0a0a", zIndex: 9999,
+      display: "flex", flexDirection: "column", overflow: "hidden",
+      fontFamily: "var(--font-inter), Inter, sans-serif",
+    }}>
+
+      {/* ══ TOP BAR ══ */}
+      <div className="mr-top-bar" style={{
+        position: "absolute", top: 0, left: 0, right: 0, zIndex: 50,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "12px 20px",
+        background: "linear-gradient(to bottom, rgba(0,0,0,0.8), transparent)",
+        pointerEvents: "none",
+      }}>
+        {/* Left: Back button + title */}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", pointerEvents: "auto" }}>
+          <button onClick={() => navigate({ page: "manga-detail", id: mangaId } as any)}
+            className="mr-icon-btn" title="Back to detail (Esc)">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <div style={{ color: "#fff", minWidth: 0 }}>
+            <div style={{ fontSize: "14px", fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "300px" }}>
+              {mangaTitle}
             </div>
-
-            {/* Center: Mode switcher */}
-            <div className="mr-mode-switcher">
-              {([
-                { mode: "vertical" as ReadingMode, label: "Vertical", icon: (
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path d="M12 4v16M8 4v16M16 4v16" />
-                  </svg>
-                )},
-                { mode: "single" as ReadingMode, label: "Single", icon: (
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <rect x="5" y="2" width="14" height="20" rx="2" />
-                  </svg>
-                )},
-                { mode: "double" as ReadingMode, label: "Double", icon: (
-                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <rect x="2" y="3" width="9" height="18" rx="1" />
-                    <rect x="13" y="3" width="9" height="18" rx="1" />
-                  </svg>
-                )},
-              ]).map(({ mode, label, icon }) => (
-                <button
-                  key={mode}
-                  onClick={() => { setReadingMode(mode); setCurrentPage(0); }}
-                  className={`mr-mode-btn ${readingMode === mode ? "active" : ""}`}
-                  title={`${label} mode`}
-                  aria-label={`${label} reading mode`}
-                >
-                  {icon}
-                  <span className="mr-mode-label">{label}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Right: Controls */}
-            <div className="mr-toolbar-right">
-              <button
-                onClick={() => { setShowChapterSidebar(!showChapterSidebar); setShowSettings(false); }}
-                className={`mr-toolbar-btn ${showChapterSidebar ? "active" : ""}`}
-                title="Chapters (C)"
-                aria-label="Toggle chapter sidebar"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
-                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => { setShowSettings(!showSettings); setShowChapterSidebar(false); }}
-                className={`mr-toolbar-btn ${showSettings ? "active" : ""}`}
-                title="Settings (S)"
-                aria-label="Toggle settings"
-              >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
-                  <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-                </svg>
-              </button>
-              <button
-                onClick={toggleFullscreen}
-                className={`mr-toolbar-btn ${isFullscreen ? "active" : ""}`}
-                title="Fullscreen (F)"
-                aria-label="Toggle fullscreen"
-              >
-                {isFullscreen ? (
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path d="M9 9L4 4m0 0v4m0-4h4m7 5l5-5m0 0v4m0-4h-4M9 15l-5 5m0 0v-4m0 4h4m7-5l5 5m0 0v-4m0 4h-4" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path d="M4 8V4h4M20 8V4h-4M4 16v4h4M20 16v4h-4" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="mr-progress-bar">
-            <div className="mr-progress-fill" style={{ width: `${progress}%` }} />
-          </div>
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════════
-          SETTINGS PANEL (slide-down from toolbar)
-          ══════════════════════════════════════════ */}
-      <div className={`mr-settings-panel ${showSettings ? "mr-settings-open" : ""}`}>
-        <div className="mr-settings-glass">
-          <div className="mr-settings-inner">
-            {/* Image Fit */}
-            <div className="mr-settings-row">
-              <span className="mr-settings-label">Image Fit</span>
-              <div className="mr-settings-options">
-                {([
-                  { id: "width" as ImageFit, label: "Fit Width" },
-                  { id: "height" as ImageFit, label: "Fit Height" },
-                  { id: "original" as ImageFit, label: "Original" },
-                ]).map(opt => (
-                  <button
-                    key={opt.id}
-                    onClick={() => setImageFit(opt.id)}
-                    className={`mr-settings-opt ${imageFit === opt.id ? "active" : ""}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Reading Direction */}
-            <div className="mr-settings-row">
-              <span className="mr-settings-label">Direction</span>
-              <div className="mr-settings-options">
-                {([
-                  { id: "ltr" as ReadingDirection, label: "← LTR" },
-                  { id: "rtl" as ReadingDirection, label: "RTL →" },
-                ]).map(opt => (
-                  <button
-                    key={opt.id}
-                    onClick={() => setReadingDir(opt.id)}
-                    className={`mr-settings-opt ${readingDir === opt.id ? "active" : ""}`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Keyboard Shortcuts */}
-            <div className="mr-settings-row">
-              <span className="mr-settings-label">Shortcuts</span>
-              <div className="mr-shortcuts-grid">
-                <div className="mr-shortcut-item"><kbd>←</kbd><kbd>→</kbd> <span>Navigate</span></div>
-                <div className="mr-shortcut-item"><kbd>C</kbd> <span>Chapters</span></div>
-                <div className="mr-shortcut-item"><kbd>S</kbd> <span>Settings</span></div>
-                <div className="mr-shortcut-item"><kbd>F</kbd> <span>Fullscreen</span></div>
-                <div className="mr-shortcut-item"><kbd>Esc</kbd> <span>Back</span></div>
-              </div>
+            <div style={{ fontSize: "11px", color: "rgba(255,255,255,0.5)" }}>
+              {chapterTitle}
             </div>
           </div>
         </div>
+
+        {/* Right: Chapter selector — "1 of 68" + prev/next */}
+        <div style={{ pointerEvents: "auto", display: "flex", alignItems: "center", gap: "8px" }}>
+          <div style={{
+            background: "rgba(255,255,255,0.08)", borderRadius: "8px",
+            padding: "6px 14px", color: "#fff", fontSize: "13px", fontWeight: 600,
+            border: "1px solid rgba(255,255,255,0.1)",
+          }}>
+            Chapter {currentChapterNum || "?"} of {langFilteredChapters.length || "?"}
+          </div>
+          {prevChapter && (
+            <button onClick={() => goToChapter(prevChapter)} className="mr-icon-btn" title="Previous chapter (←)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 19l-7-7 7-7" /></svg>
+            </button>
+          )}
+          {nextChapter && (
+            <button onClick={() => goToChapter(nextChapter)} className="mr-icon-btn" title="Next chapter (→)">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 5l7 7-7 7" /></svg>
+            </button>
+          )}
+        </div>
       </div>
 
-      {/* ══════════════════════════════════════════
-          CHAPTER SIDEBAR (slide-in from right)
-          ══════════════════════════════════════════ */}
-      {/* Backdrop overlay */}
-      <div
-        className={`mr-sidebar-backdrop ${showChapterSidebar ? "mr-sidebar-backdrop-visible" : ""}`}
-        onClick={() => setShowChapterSidebar(false)}
-      />
-      <div className={`mr-chapter-sidebar ${showChapterSidebar ? "mr-sidebar-open" : ""}`}>
-        <div className="mr-sidebar-glass">
-          <div className="mr-sidebar-header">
-            <h3 className="mr-sidebar-title">Chapters</h3>
-            <button
-              onClick={() => setShowChapterSidebar(false)}
-              className="mr-sidebar-close"
-              aria-label="Close chapter list"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path d="M6 18L18 6M6 6l12 12" />
-              </svg>
+      {/* ══ PROGRESS BAR ══ */}
+      {pages.length > 0 && (
+        <div style={{
+          position: "absolute", top: 0, left: 0, right: 0, height: "3px",
+          background: "rgba(255,255,255,0.1)", zIndex: 51,
+        }}>
+          <div style={{
+            width: `${progress}%`, height: "100%",
+            background: "#1e88ff", transition: "width 0.2s",
+          }} />
+        </div>
+      )}
+
+      {/* ══ READER AREA — manga centered at 50% width ══ */}
+      <div ref={containerRef} style={{
+        flex: 1, overflow: readingMode === "vertical" ? "auto" : "hidden",
+        display: "flex", flexDirection: "column", alignItems: "center",
+        padding: "60px 0 80px",
+        scrollBehavior: smoothScroll ? "smooth" : "auto",
+      }}>
+        {loading && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%" }}>
+            <div style={{ width: "40px", height: "40px", border: "3px solid rgba(255,255,255,0.1)", borderTopColor: "#1e88ff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          </div>
+        )}
+
+        {error && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: "12px", color: "#fff" }}>
+            <p style={{ color: "#f87171", fontSize: "14px" }}>{error}</p>
+            <button onClick={() => navigate({ page: "manga-detail", id: mangaId } as any)}
+              style={{ padding: "8px 16px", background: "#1e88ff", borderRadius: "8px", color: "#fff", fontSize: "13px", fontWeight: 600, border: "none", cursor: "pointer" }}>
+              Back to detail
             </button>
           </div>
-          <div className="mr-sidebar-list">
-            {/* Copy before sorting to avoid mutating the memo's array. */}
-            {[...langFilteredChapters].sort((a: any, b: any) => a.number - b.number).map((ch: any) => {
-              // Build the chapterId for navigation using the centralized helper.
-              const navChapterId = buildNavChapterId(ch);
-              // Check if this is the active chapter
-              const isActive = chapterMatches(ch, chapterId);
-              return (
-                <button
-                  key={ch.id}
-                  onClick={() => {
-                    navigate({ page: "manga-read", id: mangaId, chapterId: navChapterId });
-                    setShowChapterSidebar(false);
-                  }}
-                  className={`mr-sidebar-item ${isActive ? "active" : ""}`}
-                >
-                  <span className="mr-sidebar-num">Ch. {ch.number}</span>
-                  <span className="mr-sidebar-name">
-                    {ch.title || `Chapter ${ch.number}`}
-                    {ch.scanGroup && (
-                      <span className="text-white/35 ml-1 text-[10px]">({ch.scanGroup})</span>
-                    )}
-                  </span>
-                  {isActive && (
-                    <span className="mr-sidebar-current">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+        )}
 
-      {/* ══════════════════════════════════════════
-          READER AREA
-          ══════════════════════════════════════════ */}
-      {readingMode === "vertical" ? (
-        /* ── VERTICAL SCROLL MODE ── */
-        <div
-          ref={containerRef}
-          onScroll={handleScroll}
-          onClick={handleReaderClick}
-          className="mr-vertical-container"
-        >
-          <div className={`mr-vertical-inner mr-fit-${imageFit}`}>
-            {pages.map((page, i) => (
-              <div
-                key={i}
-                className="mr-page-wrap"
-                onMouseEnter={() => setHoveredPageIndex(i)}
-                onMouseLeave={() => setHoveredPageIndex(null)}
-              >
-                <div className={`mr-page-marker ${hoveredPageIndex === i ? "mr-page-marker-visible" : ""}`}>
-                  {i + 1}
-                </div>
+        {!loading && !error && pages.length > 0 && (
+          <>
+            {readingMode === "vertical" && (
+              <>
+                {pages.map((page, i) => (
+                  <img
+                    key={i}
+                    src={preload ? page.proxiedUrl || page.url : (i <= currentPage + 2 ? page.proxiedUrl || page.url : "")}
+                    data-page-index={i}
+                    alt={`Page ${i + 1}`}
+                    loading={i <= currentPage + 2 ? "eager" : "lazy"}
+                    onError={(e) => { if (page.url !== (e.target as HTMLImageElement).src) (e.target as HTMLImageElement).src = page.url; }}
+                    style={{
+                      width: scalePages ? "50%" : "auto",
+                      maxWidth: "50%",
+                      minWidth: "300px",
+                      height: "auto",
+                      marginBottom: stripeMargin ? "0" : "4px",
+                      borderBottom: stripeMargin ? "2px solid #1a1a1a" : "none",
+                      filter: dimPages ? "brightness(0.85)" : "none",
+                      objectFit: imageFit === "height" ? "contain" : "fill",
+                      display: "block",
+                    }}
+                    onMouseEnter={() => setHoveredPageIndex(i)}
+                    onMouseLeave={() => setHoveredPageIndex(null)}
+                  />
+                ))}
+                {/* Page number markers on hover */}
+                {hoveredPageIndex !== null && (
+                  <div style={{
+                    position: "fixed", right: "20px", top: "50%",
+                    background: "rgba(0,0,0,0.8)", color: "#fff",
+                    padding: "4px 10px", borderRadius: "6px", fontSize: "12px",
+                    pointerEvents: "none", zIndex: 40,
+                  }}>
+                    Page {hoveredPageIndex + 1} / {pages.length}
+                  </div>
+                )}
+              </>
+            )}
+
+            {readingMode === "single" && (
+              <div style={{
+                width: "100%", height: "100%", display: "flex",
+                justifyContent: "center", alignItems: "center",
+                overflow: "hidden",
+              }} onClick={(e) => {
+                const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const isLeft = x < rect.width / 2;
+                if (readingDir === "rtl") {
+                  if (isLeft) setCurrentPage(p => Math.min(p + 1, pages.length - 1));
+                  else setCurrentPage(p => Math.max(p - 1, 0));
+                } else {
+                  if (isLeft) setCurrentPage(p => Math.max(p - 1, 0));
+                  else setCurrentPage(p => Math.min(p + 1, pages.length - 1));
+                }
+              }}>
                 <img
-                  src={page.proxiedUrl || page.url}
-                  alt={`Page ${i + 1}`}
-                  className="mr-page-img"
-                  loading={i < 3 ? "eager" : "lazy"}
-                  style={{ minHeight: "200px", aspectRatio: page.width && page.height ? `${page.width} / ${page.height}` : undefined }}
-                  onError={(e) => {
-                    // If the proxied URL 404s, fall back to the raw URL.
-                    const img = e.currentTarget;
-                    if (page.proxiedUrl && img.src === page.proxiedUrl && page.url && page.url !== page.proxiedUrl) {
-                      img.src = page.url;
-                    }
+                  src={pages[currentPage]?.proxiedUrl || pages[currentPage]?.url}
+                  alt={`Page ${currentPage + 1}`}
+                  onError={(e) => { const p = pages[currentPage]; if (p && p.url !== (e.target as HTMLImageElement).src) (e.target as HTMLImageElement).src = p.url; }}
+                  style={{
+                    maxWidth: "50%", maxHeight: "100vh",
+                    objectFit: "contain",
+                    filter: dimPages ? "brightness(0.85)" : "none",
                   }}
                 />
               </div>
-            ))}
+            )}
 
-            {/* End of chapter navigation */}
-            {pages.length > 0 && (
-              <div className="mr-end-nav">
-                <div className="mr-end-nav-divider" />
-                <p className="mr-end-nav-title">End of {chapterTitle}</p>
-                <div className="mr-end-nav-buttons">
-                  {prevChapter && (
-                    <button
-                      onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: buildNavChapterId(prevChapter) })}
-                      className="mr-end-btn mr-end-btn-prev"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path d="M15 19l-7-7 7-7" />
-                      </svg>
-                      <span>Prev Chapter</span>
-                    </button>
-                  )}
-                  <button
-                    onClick={() => navigate({ page: "manga-detail", id: mangaId })}
-                    className="mr-end-btn mr-end-btn-all"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
-                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-                    </svg>
-                    <span>All Chapters</span>
-                  </button>
-                  {nextChapter && (
-                    <button
-                      onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: buildNavChapterId(nextChapter) })}
-                      className="mr-end-btn mr-end-btn-next"
-                    >
-                      <span>Next Chapter</span>
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
+            {readingMode === "double" && (
+              <div style={{
+                width: "100%", height: "100%", display: "flex",
+                justifyContent: "center", alignItems: "center", gap: "2px",
+                overflow: "hidden",
+              }}>
+                {readingDir === "rtl"
+                  ? [pages[currentPage + 1], pages[currentPage]].filter(Boolean).map((p, i) => (
+                      <img key={i} src={p?.proxiedUrl || p?.url} alt="" style={{ maxWidth: "25%", maxHeight: "100vh", objectFit: "contain", filter: dimPages ? "brightness(0.85)" : "none" }} />
+                    ))
+                  : [pages[currentPage], pages[currentPage + 1]].filter(Boolean).map((p, i) => (
+                      <img key={i} src={p?.proxiedUrl || p?.url} alt="" style={{ maxWidth: "25%", maxHeight: "100vh", objectFit: "contain", filter: dimPages ? "brightness(0.85)" : "none" }} />
+                    ))
+                }
               </div>
             )}
-          </div>
-        </div>
-      ) : readingMode === "single" ? (
-        /* ── SINGLE PAGE — HORIZONTAL SNAP SCROLL ── */
-        <div
-          ref={snapContainerRef}
-          onScroll={handleSnapScroll}
-          onClick={handleReaderClick}
-          className="mr-snap-container"
-          style={{ direction: readingDir }}
-        >
-          {pages.map((page, i) => (
-            <div key={i} className="mr-snap-page">
-              <img
-                src={page.proxiedUrl || page.url}
-                alt={`Page ${i + 1}`}
-                className={`mr-snap-img mr-fit-${imageFit}`}
-                loading={i < 3 ? "eager" : "lazy"}
-                onError={(e) => {
-                  const img = e.currentTarget;
-                  if (page.proxiedUrl && img.src === page.proxiedUrl && page.url && page.url !== page.proxiedUrl) {
-                    img.src = page.url;
-                  }
-                }}
-              />
-              <div className="mr-snap-page-num">{i + 1}</div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        /* ── DOUBLE PAGE MODE ── */
-        <div className="mr-double-container" onClick={handleReaderClick}>
-          {/* Click zones for navigation */}
-          <div className="mr-click-zone mr-click-left" onClick={goToPrevPage} title="Previous page" />
-          <div className="mr-click-zone mr-click-right" onClick={goToNextPage} title="Next page" />
+          </>
+        )}
+      </div>
 
-          <div className="mr-double-display">
-            {doublePages.map((page, i) => (
-              <img
-                key={currentPage + i}
-                src={page.proxiedUrl || page.url}
-                alt={`Page ${currentPage + i + 1}`}
-                className={`mr-double-img mr-fit-${imageFit}`}
-                loading="eager"
-                onError={(e) => {
-                  const img = e.currentTarget;
-                  if (page.proxiedUrl && img.src === page.proxiedUrl && page.url && page.url !== page.proxiedUrl) {
-                    img.src = page.url;
-                  }
-                }}
-              />
-            ))}
+      {/* ══ FLOATING NAVBAR — bottom right ══ */}
+      <div style={{
+        position: "absolute", bottom: "20px", right: "20px", zIndex: 50,
+        display: "flex", flexDirection: "column", gap: "4px",
+        background: "rgba(20,20,20,0.9)", backdropFilter: "blur(12px)",
+        borderRadius: "14px", padding: "8px",
+        border: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+      }}>
+        {/* Home */}
+        <button className="mr-nav-btn" onClick={() => navigate({ page: "home" } as any)} title="Home">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+        </button>
+        {/* Detail page */}
+        <button className="mr-nav-btn" onClick={() => navigate({ page: "manga-detail", id: mangaId } as any)} title="Manga detail">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></svg>
+        </button>
+        {/* Comments */}
+        <button className={`mr-nav-btn ${activePanel === "comments" ? "mr-nav-btn-active" : ""}`} onClick={() => setActivePanel(p => p === "comments" ? "none" : "comments")} title="Comments (C)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
+        </button>
+        {/* Chapter list */}
+        <button className={`mr-nav-btn ${activePanel === "chapters" ? "mr-nav-btn-active" : ""}`} onClick={() => setActivePanel(p => p === "chapters" ? "none" : "chapters")} title="Chapter list (L)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+        </button>
+        {/* Fullscreen */}
+        <button className="mr-nav-btn" onClick={toggleFullscreen} title="Fullscreen (F)">
+          {isFullscreen ? (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3" /></svg>
+          ) : (
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 7V3h4m14 4V3h-4M3 17v4h4m14-4v4h-4" /></svg>
+          )}
+        </button>
+        {/* Settings */}
+        <button className={`mr-nav-btn ${activePanel === "settings" ? "mr-nav-btn-active" : ""}`} onClick={() => setActivePanel(p => p === "settings" ? "none" : "settings")} title="Settings (S)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>
+        </button>
+        {/* Help */}
+        <button className={`mr-nav-btn ${activePanel === "help" ? "mr-nav-btn-active" : ""}`} onClick={() => setActivePanel(p => p === "help" ? "none" : "help")} title="Help (?)">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12.01" y2="17" /></svg>
+        </button>
+      </div>
+
+      {/* ══ BOTTOM PAGE COUNTER (for single/double mode) ══ */}
+      {readingMode !== "vertical" && pages.length > 0 && (
+        <div style={{
+          position: "absolute", bottom: "20px", left: "50%",
+          transform: "translateX(-50%)", zIndex: 50,
+          display: "flex", alignItems: "center", gap: "12px",
+          background: "rgba(20,20,20,0.9)", backdropFilter: "blur(12px)",
+          borderRadius: "10px", padding: "8px 16px",
+          border: "1px solid rgba(255,255,255,0.08)",
+        }}>
+          <button className="mr-icon-btn-sm" onClick={() => setCurrentPage(p => Math.max(p - 1, 0))} disabled={currentPage === 0}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <span style={{ color: "#fff", fontSize: "13px", fontWeight: 600, minWidth: "60px", textAlign: "center" }}>
+            {currentPage + 1} / {pages.length}
+          </span>
+          <button className="mr-icon-btn-sm" onClick={() => setCurrentPage(p => Math.min(p + 1, pages.length - 1))} disabled={currentPage >= pages.length - 1}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+      )}
+
+      {/* ══ PANELS (slide-in from right) ══ */}
+      {activePanel !== "none" && (
+        <div style={{
+          position: "absolute", top: 0, right: 0, bottom: 0,
+          width: "380px", maxWidth: "90vw", zIndex: 60,
+          background: "rgba(15,15,15,0.97)", backdropFilter: "blur(20px)",
+          borderLeft: "1px solid rgba(255,255,255,0.08)",
+          display: "flex", flexDirection: "column",
+          animation: "mr-slide-in 0.2s ease-out",
+        }}>
+          {/* Panel header */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "16px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)",
+          }}>
+            <h3 style={{ color: "#fff", fontSize: "16px", fontWeight: 700, margin: 0 }}>
+              {activePanel === "comments" && "Chapter Comments"}
+              {activePanel === "chapters" && "Chapter List"}
+              {activePanel === "settings" && "Reader Settings"}
+              {activePanel === "help" && "Keyboard Shortcuts"}
+            </h3>
+            <button className="mr-icon-btn" onClick={() => setActivePanel("none")}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
           </div>
 
-          {/* Page counter overlay */}
-          <div className="mr-double-counter">
-            {currentPage + 1}{pages[currentPage + 1] ? `-${Math.min(currentPage + 2, pages.length)}` : ""} / {pages.length}
+          {/* Panel content */}
+          <div style={{ flex: 1, overflow: "auto" }}>
+            {activePanel === "comments" && (
+              <CommentsPanel mangaId={mangaId} chapterId={chapterId} chapterNum={currentChapterNum || 0} username={user?.username} />
+            )}
+            {activePanel === "chapters" && (
+              <ChapterListPanel chapters={allChapters} currentChapterId={chapterId} onSelect={goToChapter} readerLang={readerLang} />
+            )}
+            {activePanel === "settings" && (
+              <SettingsPanel
+                readingMode={readingMode} setReadingMode={setReadingMode}
+                imageFit={imageFit} setImageFit={setImageFit}
+                readingDir={readingDir} setReadingDir={setReadingDir}
+                stripeMargin={stripeMargin} setStripeMargin={setStripeMargin}
+                smoothScroll={smoothScroll} setSmoothScroll={setSmoothScroll}
+                preload={preload} setPreload={setPreload}
+                scalePages={scalePages} setScalePages={setScalePages}
+                dimPages={dimPages} setDimPages={setDimPages}
+              />
+            )}
+            {activePanel === "help" && <HelpPanel />}
           </div>
         </div>
       )}
 
-      {/* ══════════════════════════════════════════
-          BOTTOM NAVIGATION (floating, glassmorphic)
-          ══════════════════════════════════════════ */}
-      <div className={`mr-bottom-nav ${showControls ? "mr-visible" : "mr-hidden"}`}>
-        <div className="mr-bottom-glass">
-          {/* Prev chapter */}
-          {prevChapter ? (
-            <button
-              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: buildNavChapterId(prevChapter) })}
-              className="mr-bottom-chapter-btn"
-              title="Previous chapter"
-              aria-label="Previous chapter"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path d="M15 19l-7-7 7-7" />
-              </svg>
-              <span className="mr-bottom-chapter-label">Prev</span>
-            </button>
-          ) : (
-            <div className="mr-bottom-spacer" />
-          )}
+      {/* ══ CSS ══ */}
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes mr-slide-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        .mr-root * { box-sizing: border-box; }
+        .mr-icon-btn {
+          background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 8px; width: 36px; height: 36px;
+          display: flex; align-items: center; justify-content: center;
+          color: #fff; cursor: pointer; transition: all 0.15s;
+        }
+        .mr-icon-btn:hover { background: rgba(255,255,255,0.15); }
+        .mr-icon-btn-sm {
+          background: transparent; border: none; width: 28px; height: 28px;
+          display: flex; align-items: center; justify-content: center;
+          color: #fff; cursor: pointer; border-radius: 4px;
+        }
+        .mr-icon-btn-sm:hover { background: rgba(255,255,255,0.1); }
+        .mr-icon-btn-sm:disabled { opacity: 0.3; cursor: not-allowed; }
+        .mr-nav-btn {
+          background: transparent; border: none; width: 40px; height: 40px;
+          display: flex; align-items: center; justify-content: center;
+          color: rgba(255,255,255,0.6); cursor: pointer; border-radius: 8px;
+          transition: all 0.15s;
+        }
+        .mr-nav-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
+        .mr-nav-btn-active { background: rgba(30,136,255,0.2); color: #1e88ff; }
+      `}</style>
+    </div>
+  );
+}
 
-          {/* Page slider */}
-          <div className="mr-slider-area">
-            <span className="mr-slider-current">{currentPage + 1}</span>
-            <div className="mr-slider-track-wrap">
-              <div className="mr-slider-track-bg">
-                <div className="mr-slider-track-fill" style={{ width: `${progress}%` }} />
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={Math.max(pages.length - 1, 0)}
-                value={currentPage}
-                onChange={e => goToPage(parseInt(e.target.value))}
-                className="mr-slider-input"
-                aria-label={`Page ${currentPage + 1} of ${pages.length}`}
-              />
-            </div>
-            <span className="mr-slider-total">{pages.length}</span>
+// ═══════════════════════════════════════════════════════════════════════
+//  COMMENTS PANEL — per-chapter comments
+// ═══════════════════════════════════════════════════════════════════════
+
+function CommentsPanel({ mangaId, chapterId, chapterNum, username }: {
+  mangaId: string; chapterId: string; chapterNum: number; username?: string;
+}) {
+  const [comments, setComments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sort, setSort] = useState<"best" | "newest" | "oldest">("best");
+  const [text, setText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadComments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/manga/chapter-comments?mangaId=${encodeURIComponent(mangaId)}&chapterId=${encodeURIComponent(chapterId)}&sort=${sort}&username=${encodeURIComponent(username || "")}`);
+      if (res.ok) {
+        const data = await res.json();
+        setComments(data.comments || []);
+      }
+    } catch { /* ignore */ }
+    setLoading(false);
+  }, [mangaId, chapterId, sort, username]);
+
+  useEffect(() => { loadComments(); }, [loadComments]);
+
+  const handleSubmit = async () => {
+    if (!username) { alert("Please sign in to comment."); return; }
+    if (!text.trim()) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/manga/chapter-comments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mangaId, chapterId, chapterNum, username, text: text.trim() }),
+      });
+      if (res.ok) {
+        setText("");
+        loadComments();
+      }
+    } catch { /* ignore */ }
+    setSubmitting(false);
+  };
+
+  const handleLike = async (commentId: string) => {
+    if (!username) { alert("Please sign in to like."); return; }
+    try {
+      const res = await fetch("/api/manga/chapter-comments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commentId, username }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setComments(prev => prev.map(c => c.id === commentId ? { ...c, likes: data.likes, hasLiked: data.hasLiked } : c));
+      }
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* Sort tabs */}
+      <div style={{ display: "flex", gap: "4px", padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        {(["best", "newest", "oldest"] as const).map(s => (
+          <button key={s} onClick={() => setSort(s)}
+            style={{
+              padding: "5px 12px", borderRadius: "6px", border: "none", cursor: "pointer",
+              fontSize: "12px", fontWeight: 600, textTransform: "capitalize",
+              background: sort === s ? "rgba(30,136,255,0.2)" : "rgba(255,255,255,0.05)",
+              color: sort === s ? "#1e88ff" : "rgba(255,255,255,0.5)",
+            }}>
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {/* Comments list */}
+      <div style={{ flex: 1, overflow: "auto", padding: "8px 16px" }}>
+        {loading ? (
+          <div style={{ textAlign: "center", padding: "20px", color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>Loading...</div>
+        ) : comments.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px 20px", color: "rgba(255,255,255,0.3)", fontSize: "13px" }}>
+            No comments yet. Be the first to comment on this chapter!
           </div>
+        ) : (
+          comments.map(c => (
+            <div key={c.id} style={{
+              padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.04)",
+            }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+                <div style={{
+                  width: "28px", height: "28px", borderRadius: "50%",
+                  background: "linear-gradient(135deg, #1e88ff, #7c3aed)",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "#fff", fontSize: "12px", fontWeight: 700,
+                }}>
+                  {c.username?.charAt(0).toUpperCase() || "?"}
+                </div>
+                <span style={{ color: "#fff", fontSize: "13px", fontWeight: 600 }}>{c.username}</span>
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px" }}>
+                  {new Date(c.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+              <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "13px", lineHeight: 1.5, margin: "0 0 8px 36px" }}>
+                {c.text}
+              </p>
+              <button onClick={() => handleLike(c.id)}
+                style={{
+                  marginLeft: "36px", background: "transparent", border: "none",
+                  color: c.hasLiked ? "#1e88ff" : "rgba(255,255,255,0.4)",
+                  fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px",
+                }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill={c.hasLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+                </svg>
+                {c.likes}
+              </button>
+            </div>
+          ))
+        )}
+      </div>
 
-          {/* Next chapter */}
-          {nextChapter ? (
-            <button
-              onClick={() => navigate({ page: "manga-read", id: mangaId, chapterId: buildNavChapterId(nextChapter) })}
-              className="mr-bottom-chapter-btn"
-              title="Next chapter"
-              aria-label="Next chapter"
-            >
-              <span className="mr-bottom-chapter-label">Next</span>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          ) : (
-            <div className="mr-bottom-spacer" />
-          )}
+      {/* Comment input */}
+      <div style={{ padding: "12px 16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <textarea
+          value={text}
+          onChange={e => setText(e.target.value)}
+          placeholder={username ? "Write a comment..." : "Sign in to comment"}
+          disabled={!username}
+          maxLength={1000}
+          style={{
+            width: "100%", minHeight: "60px", maxHeight: "120px",
+            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "8px", padding: "10px", color: "#fff", fontSize: "13px",
+            resize: "vertical", outline: "none",
+          }}
+        />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
+          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px" }}>{text.length}/1000</span>
+          <button onClick={handleSubmit} disabled={!text.trim() || submitting || !username}
+            style={{
+              padding: "6px 16px", borderRadius: "6px", border: "none", cursor: "pointer",
+              background: text.trim() && !submitting && username ? "#1e88ff" : "rgba(255,255,255,0.1)",
+              color: "#fff", fontSize: "12px", fontWeight: 600,
+            }}>
+            {submitting ? "Posting..." : "Post"}
+          </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  CHAPTER LIST PANEL — groups, search, pagination
+// ═══════════════════════════════════════════════════════════════════════
+
+function ChapterListPanel({ chapters, currentChapterId, onSelect, readerLang }: {
+  chapters: any[]; currentChapterId: string; onSelect: (ch: any) => void; readerLang: string;
+}) {
+  const [search, setSearch] = useState("");
+  const [visibleCount, setVisibleCount] = useState(50);
+
+  // Group by scanlation group
+  const groups = useMemo(() => {
+    const map = new Map<string, any[]>();
+    const filtered = chapters.filter(ch => {
+      if (!search) return true;
+      const num = String(ch.number || "");
+      const title = (ch.title || "").toLowerCase();
+      return num.includes(search) || title.includes(search.toLowerCase());
+    });
+    for (const ch of filtered) {
+      const group = ch.scanGroup || ch.lang || "Unknown";
+      if (!map.has(group)) map.set(group, []);
+      map.get(group)!.push(ch);
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1].length - a[1].length);
+  }, [chapters, search]);
+
+  // Flatten for display (sorted by chapter number, desc)
+  const sortedChapters = useMemo(() => {
+    return [...chapters]
+      .filter(ch => {
+        if (!search) return true;
+        const num = String(ch.number || "");
+        const title = (ch.title || "").toLowerCase();
+        return num.includes(search) || title.includes(search.toLowerCase());
+      })
+      .sort((a, b) => (b.number || 0) - (a.number || 0));
+  }, [chapters, search]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      {/* Search */}
+      <div style={{ padding: "12px 16px" }}>
+        <input
+          type="text"
+          value={search}
+          onChange={e => { setSearch(e.target.value); setVisibleCount(50); }}
+          placeholder="Search chapters..."
+          style={{
+            width: "100%", padding: "8px 12px",
+            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "8px", color: "#fff", fontSize: "13px", outline: "none",
+          }}
+        />
+      </div>
+
+      {/* Stats */}
+      <div style={{ padding: "0 16px 8px", color: "rgba(255,255,255,0.4)", fontSize: "12px" }}>
+        {chapters.length} chapters · {groups.length} groups
+      </div>
+
+      {/* Chapter list */}
+      <div style={{ flex: 1, overflow: "auto", padding: "0 8px" }}>
+        {sortedChapters.slice(0, visibleCount).map((ch, i) => {
+          const isActive = chapterMatches(ch, currentChapterId);
+          const group = ch.scanGroup || ch.lang || "Unknown";
+          return (
+            <button
+              key={`${ch.id}-${i}`}
+              onClick={() => onSelect(ch)}
+              style={{
+                width: "100%", padding: "10px 12px", marginBottom: "2px",
+                background: isActive ? "rgba(30,136,255,0.15)" : "transparent",
+                border: "1px solid rgba(255,255,255,0.04)", borderRadius: "8px",
+                cursor: "pointer", textAlign: "left", transition: "all 0.15s",
+                display: "flex", alignItems: "center", justifyContent: "space-between",
+              }}
+              onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = "rgba(255,255,255,0.05)"; }}
+              onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = "transparent"; }}
+            >
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{
+                  color: isActive ? "#1e88ff" : "#fff", fontSize: "13px", fontWeight: 600,
+                  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                }}>
+                  Ch. {ch.number} {ch.title && ch.title !== `Chapter ${ch.number}` ? `— ${ch.title}` : ""}
+                </div>
+                <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px" }}>
+                  {group} · {ch.lang || "?"}
+                </div>
+              </div>
+              {ch.pages && (
+                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px", marginLeft: "8px" }}>
+                  {ch.pages}p
+                </span>
+              )}
+            </button>
+          );
+        })}
+        {visibleCount < sortedChapters.length && (
+          <button
+            onClick={() => setVisibleCount(c => c + 50)}
+            style={{
+              width: "100%", padding: "10px", margin: "8px 0",
+              background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)",
+              borderRadius: "8px", color: "rgba(255,255,255,0.6)", fontSize: "12px",
+              fontWeight: 600, cursor: "pointer",
+            }}
+          >
+            Load more ({sortedChapters.length - visibleCount} remaining)
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  SETTINGS PANEL
+// ═══════════════════════════════════════════════════════════════════════
+
+function SettingsPanel(props: {
+  readingMode: ReadingMode; setReadingMode: (m: ReadingMode) => void;
+  imageFit: ImageFit; setImageFit: (f: ImageFit) => void;
+  readingDir: ReadingDirection; setReadingDir: (d: ReadingDirection) => void;
+  stripeMargin: boolean; setStripeMargin: (v: boolean) => void;
+  smoothScroll: boolean; setSmoothScroll: (v: boolean) => void;
+  preload: boolean; setPreload: (v: boolean) => void;
+  scalePages: boolean; setScalePages: (v: boolean) => void;
+  dimPages: boolean; setDimPages: (v: boolean) => void;
+}) {
+  const { readingMode, setReadingMode, imageFit, setImageFit, readingDir, setReadingDir,
+    stripeMargin, setStripeMargin, smoothScroll, setSmoothScroll,
+    preload, setPreload, scalePages, setScalePages, dimPages, setDimPages } = props;
+
+  return (
+    <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: "20px" }}>
+      {/* Reading direction */}
+      <SettingRow label="Reading Direction">
+        <div style={{ display: "flex", gap: "4px" }}>
+          {(["ltr", "rtl"] as const).map(d => (
+            <button key={d} onClick={() => setReadingDir(d)}
+              style={settingBtnStyle(readingDir === d)}>
+              {d === "ltr" ? "← LTR" : "RTL →"}
+            </button>
+          ))}
+        </div>
+      </SettingRow>
+
+      {/* Reading mode */}
+      <SettingRow label="Reading Mode">
+        <div style={{ display: "flex", gap: "4px", flexWrap: "wrap" }}>
+          {(["vertical", "single", "double"] as const).map(m => (
+            <button key={m} onClick={() => setReadingMode(m)}
+              style={settingBtnStyle(readingMode === m)}>
+              {m.charAt(0).toUpperCase() + m.slice(1)}
+            </button>
+          ))}
+        </div>
+      </SettingRow>
+
+      {/* Image fit */}
+      <SettingRow label="Image Fit">
+        <div style={{ display: "flex", gap: "4px" }}>
+          {(["width", "height", "original"] as const).map(f => (
+            <button key={f} onClick={() => setImageFit(f)}
+              style={settingBtnStyle(imageFit === f)}>
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
+        </div>
+      </SettingRow>
+
+      {/* Toggles */}
+      <SettingToggle label="Stripe Margin" desc="Add a dark bar between pages" value={stripeMargin} onChange={setStripeMargin} />
+      <SettingToggle label="Smooth Scrolling" desc="Smooth scroll behavior" value={smoothScroll} onChange={setSmoothScroll} />
+      <SettingToggle label="Preload Pages" desc="Load all pages at once" value={preload} onChange={setPreload} />
+      <SettingToggle label="Scale Pages (50%)" desc="Scale manga to 50% width" value={scalePages} onChange={setScalePages} />
+      <SettingToggle label="Dim Pages" desc="Reduce brightness slightly" value={dimPages} onChange={setDimPages} />
+    </div>
+  );
+}
+
+function SettingRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div style={{ color: "rgba(255,255,255,0.5)", fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>
+        {label}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function SettingToggle({ label, desc, value, onChange }: { label: string; desc: string; value: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div>
+        <div style={{ color: "#fff", fontSize: "13px", fontWeight: 500 }}>{label}</div>
+        <div style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px" }}>{desc}</div>
+      </div>
+      <button onClick={() => onChange(!value)}
+        style={{
+          width: "40px", height: "22px", borderRadius: "11px", border: "none", cursor: "pointer",
+          background: value ? "#1e88ff" : "rgba(255,255,255,0.1)", position: "relative",
+          transition: "background 0.2s",
+        }}>
+        <div style={{
+          position: "absolute", top: "2px", left: value ? "20px" : "2px",
+          width: "18px", height: "18px", borderRadius: "50%", background: "#fff",
+          transition: "left 0.2s",
+        }} />
+      </button>
+    </div>
+  );
+}
+
+function settingBtnStyle(active: boolean): React.CSSProperties {
+  return {
+    padding: "6px 12px", borderRadius: "6px", border: "none", cursor: "pointer",
+    fontSize: "12px", fontWeight: 600,
+    background: active ? "rgba(30,136,255,0.2)" : "rgba(255,255,255,0.05)",
+    color: active ? "#1e88ff" : "rgba(255,255,255,0.5)",
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  HELP PANEL
+// ═══════════════════════════════════════════════════════════════════════
+
+function HelpPanel() {
+  const shortcuts = [
+    { key: "← / →", desc: "Previous / Next page" },
+    { key: "C", desc: "Toggle comments" },
+    { key: "L", desc: "Toggle chapter list" },
+    { key: "S", desc: "Toggle settings" },
+    { key: "F", desc: "Toggle fullscreen" },
+    { key: "?", desc: "Toggle this help" },
+    { key: "Esc", desc: "Back to manga detail" },
+  ];
+  return (
+    <div style={{ padding: "16px" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+        {shortcuts.map(s => (
+          <div key={s.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ color: "rgba(255,255,255,0.7)", fontSize: "13px" }}>{s.desc}</span>
+            <kbd style={{
+              padding: "3px 8px", borderRadius: "4px",
+              background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)",
+              color: "#fff", fontSize: "11px", fontFamily: "monospace", fontWeight: 700,
+            }}>
+              {s.key}
+            </kbd>
+          </div>
+        ))}
       </div>
     </div>
   );
