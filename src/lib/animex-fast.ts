@@ -202,14 +202,40 @@ export async function resolveAnimexProvider(
   }
 }
 
-// ── Batch: resolve sub + dub in parallel ──
+// ── Batch: resolve sub + dub in parallel (mimi first, fallback to other providers) ──
 export async function resolveAnimexMimiBoth(
   anilistId: number,
   episodeNum: number,
 ): Promise<{ sub: AnimexFastResult | null; dub: AnimexFastResult | null }> {
-  const [sub, dub] = await Promise.all([
+  // Try mimi first (fastest). If it fails, try other providers in parallel.
+  const [subMimi, dubMimi] = await Promise.all([
     resolveAnimexMimi(anilistId, episodeNum, "sub"),
     resolveAnimexMimi(anilistId, episodeNum, "dub"),
   ]);
+
+  // If mimi worked for both, return immediately
+  if (subMimi && dubMimi) return { sub: subMimi, dub: dubMimi };
+
+  // Otherwise, try fallback providers for the ones that failed
+  // These are the providers that return UNIQUE m3u8 URLs (verified via animex-servers API)
+  const FALLBACK_PROVIDERS = ["beep", "yuki", "uwu", "kiwi", "loli", "sora"];
+
+  const subFallback = !subMimi
+    ? Promise.any(
+        FALLBACK_PROVIDERS.map(p =>
+          resolveAnimexProvider(anilistId, episodeNum, "sub", p).then(r => r || Promise.reject())
+        )
+      ).catch(() => null)
+    : Promise.resolve(subMimi);
+
+  const dubFallback = !dubMimi
+    ? Promise.any(
+        FALLBACK_PROVIDERS.map(p =>
+          resolveAnimexProvider(anilistId, episodeNum, "dub", p).then(r => r || Promise.reject())
+        )
+      ).catch(() => null)
+    : Promise.resolve(dubMimi);
+
+  const [sub, dub] = await Promise.all([subFallback, dubFallback]);
   return { sub, dub };
 }

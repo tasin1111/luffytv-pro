@@ -243,9 +243,10 @@ export default function HLSPlayerNew({
     let waitingTimer: ReturnType<typeof setTimeout> | null = null;
     const onWaiting = () => {
       if (waitingTimer) clearTimeout(waitingTimer);
+      // Show loading after 1.5s of waiting (was 5s — too long, user gets confused)
       waitingTimer = setTimeout(() => {
         if (video.readyState < 3) setLoading(true);
-      }, 5000);
+      }, 1500);
     };
     const onPlaying = () => {
       if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
@@ -548,13 +549,16 @@ export default function HLSPlayerNew({
         })}
       </video>
 
-      {/* ═══ Loading spinner — animated glow ring ═══ */}
+      {/* ═══ Loading spinner — shows during initial load AND buffering ═══ */}
       {loading && !error && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="relative w-16 h-16">
-            <div className="absolute inset-0 rounded-full border-2 border-white/10" />
-            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white animate-spin" style={{ animationDuration: '0.8s' }} />
-            <div className="absolute inset-2 rounded-full border-2 border-transparent border-t-white/40 animate-spin" style={{ animationDuration: '1.2s', animationDirection: 'reverse' }} />
+          <div className="text-center space-y-2">
+            <div className="relative w-16 h-16 mx-auto">
+              <div className="absolute inset-0 rounded-full border-2 border-white/10" />
+              <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-white animate-spin" style={{ animationDuration: '0.8s' }} />
+              <div className="absolute inset-2 rounded-full border-2 border-transparent border-t-white/40 animate-spin" style={{ animationDuration: '1.2s', animationDirection: 'reverse' }} />
+            </div>
+            <p className="text-white/40 text-xs font-medium">Buffering...</p>
           </div>
         </div>
       )}

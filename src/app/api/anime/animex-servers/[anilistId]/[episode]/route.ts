@@ -27,6 +27,7 @@ const ANIMEX_REFERERS: Record<string, string> = {
   uwu: "https://allanime.uns.bio", koto: "https://allanime.uns.bio",
   kiwi: "https://anidb.app/", kami: "https://animex.one/",
   sax: "https://animex.one/", yume: "https://animex.one/",
+  loli: "https://allanime.uns.bio", sora: "https://allanime.uns.bio",
 };
 
 interface AnimexServer {
