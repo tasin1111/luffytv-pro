@@ -77,7 +77,7 @@ async function resolveAniDbId(
     const proxyUrl = `${WORKER_BASE}/proxy?url=${searchUrl}&ref=${ref}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const res = await fetch(proxyUrl, {
       headers: { "User-Agent": HEADERS["User-Agent"] },
       signal: controller.signal,
@@ -168,7 +168,7 @@ async function getEpisodes(anidbId: number): Promise<Map<number, number>> {
     const proxyUrl = `${WORKER_BASE}/proxy?url=${apiUrl}&ref=${ref}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const res = await fetch(proxyUrl, {
       headers: { "User-Agent": HEADERS["User-Agent"] },
       signal: controller.signal,
@@ -209,7 +209,7 @@ async function getEmbedUrl(
     const proxyUrl = `${WORKER_BASE}/proxy?url=${apiUrl}&ref=${ref}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const res = await fetch(proxyUrl, {
       headers: { "User-Agent": HEADERS["User-Agent"] },
       signal: controller.signal,
@@ -248,7 +248,7 @@ async function extractM3u8FromEmbed(embedUrl: string): Promise<string | null> {
     const proxyUrl = `${WORKER_BASE}/proxy?url=${pageUrl}&ref=${ref}`;
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 20000);
+    const timeout = setTimeout(() => controller.abort(), 10000);
     const res = await fetch(proxyUrl, {
       headers: { "User-Agent": HEADERS["User-Agent"] },
       signal: controller.signal,
@@ -306,14 +306,16 @@ export async function resolveAniDbEmbed(
       if (!episodeId) return null;
     }
 
-    // Step 3: Get embed URL + extract m3u8 IN PARALLEL
+    // Step 3: Get embed URL
     const embedUrl = await getEmbedUrl(episodeId, type);
     if (!embedUrl) return null;
 
-    // Step 4: Extract m3u8 from embed page (so we can play with hls.js directly)
+    // Step 4: Try to extract m3u8 from embed page (for direct hls.js playback)
+    // If this fails, we still return the embedUrl — the player will use it as an iframe.
     const m3u8Url = await extractM3u8FromEmbed(embedUrl);
 
-    return { embedUrl, m3u8Url, anidbId, episodeId, type };
+    // If m3u8 extraction failed, return embed URL only (player will use iframe)
+    return { embedUrl, m3u8Url: m3u8Url || null, anidbId, episodeId, type };
   } catch (err) {
     console.error(`[anidb-direct] resolveAniDbEmbed error:`, err);
     return null;
