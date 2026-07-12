@@ -719,22 +719,7 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
         alignItems: "center",
         justifyContent: "center",
       }}>
-        <style>{`
-          @keyframes atsu-spin { to { transform: rotate(360deg); } }
-          /* Mobile: single column stack */
-          .detail-layout { display: flex; flex-direction: column; gap: 20px; }
-          .detail-left { width: 100%; }
-          .detail-middle { width: 100%; }
-          .detail-right { width: 100%; }
-
-          /* Desktop (768px+): 3 columns side by side */
-          @media (min-width: 768px) {
-            .detail-layout { flex-direction: row; gap: 32px; align-items: flex-start; }
-            .detail-left { width: 210px; flex-shrink: 0; position: sticky; top: 24px; align-self: flex-start; }
-            .detail-middle { flex: 1; }
-            .detail-right { width: 300px; flex-shrink: 0; position: sticky; top: 24px; }
-          }
-        `}</style>
+        <style>{`@keyframes atsu-spin { to { transform: rotate(360deg); } }`}</style>
         <div style={{
           width: "40px",
           height: "40px",
@@ -771,19 +756,17 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
       color: COLOR_TEXT,
       fontFamily: FONT_STACK,
     }}>
-      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "16px" }} className="md:p-6">
-        <div className="detail-layout">
-          {/* ═══ LEFT COLUMN — poster + actions + side meta (card info) ═══ */}
+      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px" }}>
+        <div className="grid grid-cols-1 md:grid-cols-[210px_1fr]" style={{ gap: "32px" }}>
+          {/* ═══ LEFT COLUMN — poster + actions + side meta ═══ */}
           <aside
-            className="detail-left"
+            className="md:sticky md:top-6 md:self-start"
             style={{ display: "flex", flexDirection: "column", gap: "12px" }}
           >
-            {/* Poster (2:3 aspect ratio) — centered on mobile, left on desktop */}
+            {/* Poster (2:3 aspect ratio) */}
             {poster && (
               <div style={{
                 width: "100%",
-                maxWidth: "200px",
-                margin: "0 auto",
                 aspectRatio: "2 / 3",
                 borderRadius: "8px",
                 overflow: "hidden",
@@ -955,17 +938,17 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
             )}
           </aside>
 
-          {/* ═══ MIDDLE COLUMN — title + meta + Luffi chart + chapters ═══ */}
-          <div className="detail-middle" style={{ minWidth: 0 }}>
+          {/* ═══ RIGHT COLUMN — title + meta + synopsis + chapters ═══ */}
+          <div style={{ minWidth: 0 }}>
             {/* Title */}
             <h1 style={{
               color: COLOR_HEADING,
-              fontSize: "22px",
+              fontSize: "30px",
               fontWeight: 700,
               lineHeight: 1.2,
               marginTop: 0,
               marginBottom: "16px",
-            }} className="md:text-3xl">
+            }}>
               {displayTitle}
             </h1>
 
@@ -1082,17 +1065,31 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
               </span>
             </div>
 
-            {/* ══ LUFFI CHART (above chapters) — semicircular gauge ══ */}
-            <div style={{ marginBottom: "20px" }}>
-              <div style={{ color: COLOR_MUTED, fontSize: "14px", fontWeight: 600, marginBottom: "10px" }}>
-                Luffi Meter {vibeTotal > 0 && `(${vibeTotal} votes)`}
+            {/* ══ CHARTS ROW: Luffi Chart (left/middle) + VibeChart (right) ══ */}
+            <div style={{ display: "flex", gap: "24px", marginBottom: "20px", flexWrap: "wrap", alignItems: "flex-start" }}>
+
+              {/* ── Luffi Chart (semicircular gauge) — 4-option review ── */}
+              <div style={{ flex: "1", minWidth: "300px" }}>
+                <div style={{ color: COLOR_MUTED, fontSize: "14px", fontWeight: 600, marginBottom: "10px" }}>
+                  Luffi Meter {vibeTotal > 0 && `(${vibeTotal} votes)`}
+                </div>
+                <LuffiChart
+                  counts={vibeCounts}
+                  total={vibeTotal}
+                  userVibe={userVibe}
+                  onVote={submitVibe}
+                />
               </div>
-              <LuffiChart
-                counts={vibeCounts}
-                total={vibeTotal}
-                userVibe={userVibe}
-                onVote={submitVibe}
-              />
+
+              {/* ── VibeChart (donut) — genre mix ── */}
+              {manga.genres && manga.genres!.length > 0 && (
+                <div style={{ width: "300px", flexShrink: 0 }}>
+                  <div style={{ color: COLOR_MUTED, fontSize: "14px", fontWeight: 600, marginBottom: "10px" }}>
+                    Vibe Chart
+                  </div>
+                  <VibeDonutChart genres={manga.genres!} />
+                </div>
+              )}
             </div>
 
             {/* Rating widget — let logged-in users rate this manga (0-10)
@@ -1470,16 +1467,6 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
               <AnimeComments animeId={mangaId} animeTitle={displayTitle} />
             </section>
           </div>
-
-          {/* ═══ RIGHT COLUMN — Vibe Chart (donut) ═══ */}
-          {manga.genres && manga.genres.length > 0 && (
-            <aside className="detail-right">
-              <div style={{ color: COLOR_MUTED, fontSize: "14px", fontWeight: 600, marginBottom: "10px" }}>
-                Vibe Chart
-              </div>
-              <VibeDonutChart genres={manga.genres} />
-            </aside>
-          )}
         </div>
       </div>
     </div>
@@ -1547,7 +1534,7 @@ function LuffiChart({ counts, total, userVibe, onVote }: {
     <div style={{ background: "#17181c", borderRadius: "16px", padding: "20px" }}>
       {/* SVG gauge */}
       <div style={{ display: "flex", justifyContent: "center" }}>
-        <svg width="100%" height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} style={{ maxWidth: svgW, maxHeight: svgH }}>
+        <svg width="100%" height={svgH} viewBox={`0 0 ${svgW} ${svgH}`} style={{ maxWidth: svgW }}>
           {/* Background arc (full semicircle, dim) */}
           <path d={arcPath(0, 100)} fill="none" stroke="#27272a" strokeWidth={strokeW} strokeLinecap="round" />
           {/* Colored segments */}
