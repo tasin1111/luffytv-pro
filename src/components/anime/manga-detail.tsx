@@ -756,12 +756,12 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
       color: COLOR_TEXT,
       fontFamily: FONT_STACK,
     }}>
-      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "24px" }}>
-        <div className="grid grid-cols-1 md:grid-cols-[210px_1fr]" style={{ gap: "32px" }}>
-          {/* ═══ LEFT COLUMN — poster + actions + side meta ═══ */}
+      <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "24px" }}>
+        <div style={{ display: "flex", gap: "32px", alignItems: "flex-start" }}>
+          {/* ═══ LEFT COLUMN — poster + actions + side meta (card info) ═══ */}
           <aside
             className="md:sticky md:top-6 md:self-start"
-            style={{ display: "flex", flexDirection: "column", gap: "12px" }}
+            style={{ display: "flex", flexDirection: "column", gap: "12px", width: "210px", flexShrink: 0 }}
           >
             {/* Poster (2:3 aspect ratio) */}
             {poster && (
@@ -938,8 +938,8 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
             )}
           </aside>
 
-          {/* ═══ RIGHT COLUMN — title + meta + synopsis + chapters ═══ */}
-          <div style={{ minWidth: 0 }}>
+          {/* ═══ MIDDLE COLUMN — title + meta + Luffi chart + chapters ═══ */}
+          <div style={{ flex: 1, minWidth: 0 }}>
             {/* Title */}
             <h1 style={{
               color: COLOR_HEADING,
@@ -1065,31 +1065,17 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
               </span>
             </div>
 
-            {/* ══ CHARTS ROW: Luffi Chart (left/middle) + VibeChart (right) ══ */}
-            <div style={{ display: "flex", gap: "24px", marginBottom: "20px", flexWrap: "wrap", alignItems: "flex-start" }}>
-
-              {/* ── Luffi Chart (semicircular gauge) — 4-option review ── */}
-              <div style={{ flex: "1", minWidth: "300px" }}>
-                <div style={{ color: COLOR_MUTED, fontSize: "14px", fontWeight: 600, marginBottom: "10px" }}>
-                  Luffi Meter {vibeTotal > 0 && `(${vibeTotal} votes)`}
-                </div>
-                <LuffiChart
-                  counts={vibeCounts}
-                  total={vibeTotal}
-                  userVibe={userVibe}
-                  onVote={submitVibe}
-                />
+            {/* ══ LUFFI CHART (above chapters) — semicircular gauge ══ */}
+            <div style={{ marginBottom: "20px" }}>
+              <div style={{ color: COLOR_MUTED, fontSize: "14px", fontWeight: 600, marginBottom: "10px" }}>
+                Luffi Meter {vibeTotal > 0 && `(${vibeTotal} votes)`}
               </div>
-
-              {/* ── VibeChart (donut) — genre mix ── */}
-              {manga.genres && manga.genres!.length > 0 && (
-                <div style={{ width: "300px", flexShrink: 0 }}>
-                  <div style={{ color: COLOR_MUTED, fontSize: "14px", fontWeight: 600, marginBottom: "10px" }}>
-                    Vibe Chart
-                  </div>
-                  <VibeDonutChart genres={manga.genres!} />
-                </div>
-              )}
+              <LuffiChart
+                counts={vibeCounts}
+                total={vibeTotal}
+                userVibe={userVibe}
+                onVote={submitVibe}
+              />
             </div>
 
             {/* Rating widget — let logged-in users rate this manga (0-10)
@@ -1467,6 +1453,16 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
               <AnimeComments animeId={mangaId} animeTitle={displayTitle} />
             </section>
           </div>
+
+          {/* ═══ RIGHT COLUMN — Vibe Chart (donut) ═══ */}
+          {manga.genres && manga.genres.length > 0 && (
+            <aside style={{ width: "300px", flexShrink: 0, position: "sticky", top: "24px" }}>
+              <div style={{ color: COLOR_MUTED, fontSize: "14px", fontWeight: 600, marginBottom: "10px" }}>
+                Vibe Chart
+              </div>
+              <VibeDonutChart genres={manga.genres} />
+            </aside>
+          )}
         </div>
       </div>
     </div>
