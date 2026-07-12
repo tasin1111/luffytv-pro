@@ -102,6 +102,8 @@ export async function GET(request: NextRequest) {
         // ── Parallel detail fetch: fetch matching manga from the OTHER provider(s) ──
         const mergePromises: Promise<{ type: "at" | "mb"; chapters: any[]; detail?: any }>[] = [];
 
+        console.log(`[manga/detail] cross-provider search for "${titleForSearch}" (primary=${id}): atsuResults=${atsuResults.length}, mbResults=${mbResults.length}`);
+
         // If we're NOT at: (or we are, but want to merge extra atsu chapters),
         // find the atsumaru match and fetch its detail
         if (atsuResults.length > 0) {
@@ -116,18 +118,26 @@ export async function GET(request: NextRequest) {
             const atsuMangaId = atMatch.id.replace(/^at:/, "");
             // Skip if this is the same manga we already have (avoids duplicate chapters)
             if (id !== `at:${atsuMangaId}`) {
+              console.log(`[manga/detail] merging atsumaru: at:${atsuMangaId} ("${atMatch.title}")`);
               mergePromises.push(
-                getDetail(`at:${atsuMangaId}`).then(d => ({
-                  type: "at" as const,
-                  chapters: d?.chapters?.map((ch: any) => ({
+                getDetail(`at:${atsuMangaId}`).then(d => {
+                  const chapters = d?.chapters?.map((ch: any) => ({
                     ...ch,
                     id: `at:${atsuMangaId}:${ch.number}:${ch.id}`,
                     lang: "en",
-                  })) || [],
-                  detail: d,
-                })).catch(() => ({ type: "at" as const, chapters: [] }))
+                  })) || [];
+                  console.log(`[manga/detail] atsumaru merge: ${chapters.length} chapters from at:${atsuMangaId}`);
+                  return { type: "at" as const, chapters, detail: d };
+                }).catch((err) => {
+                  console.error(`[manga/detail] atsumaru merge FAILED for at:${atsuMangaId}:`, err?.message || err);
+                  return { type: "at" as const, chapters: [] };
+                })
               );
+            } else {
+              console.log(`[manga/detail] atsumaru match is same as primary, skipping merge`);
             }
+          } else {
+            console.log(`[manga/detail] no atsumaru match found`);
           }
         }
 

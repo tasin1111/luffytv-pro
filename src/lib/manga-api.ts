@@ -1245,10 +1245,11 @@ interface AtsuDirectChaptersPageResponse {
  */
 async function fetchAllAtsuChapters(rawId: string): Promise<NonNullable<AtsuDirectChaptersPageResponse["chapters"]>> {
   const MAX_PAGES = 30;
+  const BATCH_SIZE = 5; // fetch 5 pages at a time to avoid rate-limiting
   const all: NonNullable<AtsuDirectChaptersPageResponse["chapters"]> = [];
   const seen = new Set<string>();
 
-  const pagePromises = Array.from({ length: MAX_PAGES }, (_, i) => i + 1).map(async (page) => {
+  async function fetchPage(page: number) {
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 12000);
@@ -1263,17 +1264,26 @@ async function fetchAllAtsuChapters(rawId: string): Promise<NonNullable<AtsuDire
     } catch {
       return [];
     }
-  });
+  }
 
-  const results = await Promise.all(pagePromises);
-  for (const chs of results) {
-    if (!chs || chs.length === 0) continue;
-    for (const ch of chs) {
-      if (ch.id && !seen.has(ch.id)) {
-        seen.add(ch.id);
-        all.push(ch);
+  // Fetch in batches of 5 (sequential batches, parallel within each batch)
+  // to avoid overwhelming atsu.moe with 30 simultaneous requests.
+  for (let start = 1; start <= MAX_PAGES; start += BATCH_SIZE) {
+    const batch = Array.from({ length: BATCH_SIZE }, (_, i) => start + i).filter(p => p <= MAX_PAGES);
+    const results = await Promise.all(batch.map(fetchPage));
+    let gotAny = false;
+    for (const chs of results) {
+      if (!chs || chs.length === 0) continue;
+      gotAny = true;
+      for (const ch of chs) {
+        if (ch.id && !seen.has(ch.id)) {
+          seen.add(ch.id);
+          all.push(ch);
+        }
       }
     }
+    // If a whole batch returned nothing, stop early (no more pages)
+    if (!gotAny) break;
   }
   return all;
 }
@@ -1299,7 +1309,7 @@ async function fetchAllAtsuChapters(rawId: string): Promise<NonNullable<AtsuDire
 async function getAtsumaruDetailDirect(rawId: string): Promise<AtsuMangaDetail | null> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 25000);
     const [pageRes, allPaginatedChapters] = await Promise.all([
       fetch(
         `${ATSU_DIRECT_BASE}/api/manga/page?id=${encodeURIComponent(rawId)}`,
