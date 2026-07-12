@@ -757,9 +757,10 @@ export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail |
   let chapters: AtsuMangaChapter[];
   if (directChapters && directChapters.length > 0) {
     chapters = directChapters;
+    console.log(`[manga-api] ${mangaId}: using mangaball direct chapters (${chapters.length})`);
   } else {
-    console.log(`[manga-api] mangaball direct failed, using scrape-api chapters (${chaptersData?.chapters?.length || 0} chapters)`);
     chapters = (chaptersData?.chapters || []).map(mapChapter);
+    console.log(`[manga-api] ${mangaId}: mangaball direct failed (got ${directChapters?.length || 0}), using scrape-api chapters (${chapters.length})`);
   }
 
   // If both info and chapters failed, return null
