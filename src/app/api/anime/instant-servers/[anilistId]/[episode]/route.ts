@@ -9,6 +9,7 @@ import { resolveAllManga } from "@/lib/allmanga-direct";
 import { resolveAniZone } from "@/lib/anizone-direct";
 import { resolveAniWaves } from "@/lib/aniwaves-direct";
 import { fetchAniLightSources } from "@/lib/anilight-api";
+import { fetchAllKyrenSources } from "@/lib/kyren-api";
 import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
@@ -58,7 +59,7 @@ export async function GET(
     }
 
     const anidapId = await resolveAniDapId(id).catch(() => null);
-    const [animexMimi, anidbResult, aninekoM3u8s, anidapSub, anikageResult, senshiResult, allmangaResult, anizoneResult, aniwavesResult, anilightResult] = await Promise.all([
+    const [animexMimi, anidbResult, aninekoM3u8s, anidapSub, anikageResult, senshiResult, allmangaResult, anizoneResult, aniwavesResult, anilightResult, kyrenResults] = await Promise.all([
       withTimeout(resolveAnimexMimiBoth(id, epNum), 25000, { sub: null, dub: null }),
       withTimeout(resolveAniDbEmbeds(id, epNum, title), 30000, { sub: null, dub: null }),
       withTimeout(resolveAniNekoM3u8(id, epNum, title).catch(() => []), 25000, []),
@@ -72,12 +73,13 @@ export async function GET(
       withTimeout(resolveAniZone(id, epNum, title).catch(() => null), 25000, null),
       withTimeout(resolveAniWaves(id, epNum, title).catch(() => null), 25000, null),
       withTimeout(fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 25000 }).catch(() => []), 25000, []),
+      withTimeout(fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 25000 }).catch(() => []), 25000, []),
     ]);
 
     const servers: Array<{
       id: string;
       name: string;
-      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone" | "aniwaves" | "anilight";
+      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone" | "aniwaves" | "anilight" | "kyren";
       provider: string;
       type: "sub" | "dub";
       quality: string;
@@ -265,7 +267,31 @@ export async function GET(
       });
     });
 
-    // ── PRIORITY 7: Senshi (sub) — m3u8 from ninstream.com via Worker proxy ──
+    // ── PRIORITY 7: Kyren — HLS streams from kyren.moe (sub + dub, multiple servers) ──
+    // Kyren provides high-quality HLS with soft subtitles from multiple CDNs.
+    // Uses the Worker proxy (wrapKyrenStream inside kyren-api.ts handles this).
+    if (kyrenResults && kyrenResults.length > 0) {
+      let kyrenPriority = 7;
+      for (const r of kyrenResults) {
+        servers.push({
+          id: `kyren:${r.server}:${r.type}`,
+          name: `Kyren ${r.server.charAt(0).toUpperCase() + r.server.slice(1)}${r.type === "dub" ? " (Dub)" : ""}`,
+          source: "kyren",
+          provider: r.server,
+          type: r.type,
+          quality: r.quality || "1080p",
+          streamUrl: r.streamUrl,
+          isM3U8: r.isM3U8,
+          isMP4: r.isMP4,
+          isEmbed: false,
+          hardsub: false,
+          priority: kyrenPriority++,
+          subtitleTracks: (r.tracks || []).map((t: any) => ({ url: t.url, lang: t.lang || "en", label: t.label || "English" })),
+        });
+      }
+    }
+
+    // ── PRIORITY 8: Senshi (sub) — m3u8 from ninstream.com via Worker proxy ──
     // ninstream.com needs Referer: https://senshi.live/ — the Worker proxy
     // handles this via the CDN_REFERERS map (ninstream.com → https://senshi.live/).
     if (senshiResult?.m3u8Url) {
@@ -435,7 +461,7 @@ export async function GET(
     }
 
     console.log(
-      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anineko:${aninekoM3u8s.length > 0 ? "✓" : "✗"} anilight:${anilightResult.length > 0 ? "✓" : "✗"} senshi:${senshiResult ? "✓" : "✗"} allmanga:${allmangaResult?.sources?.length ? "✓" : "✗"} anikage:${anikageResult.intro || anikageResult.outro ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
+      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (mimi:${animexMimi.sub || animexMimi.dub ? "✓" : "✗"} anidb:${anidbResult.sub || anidbResult.dub ? "✓" : "✗"} anineko:${aninekoM3u8s.length > 0 ? "✓" : "✗"} anilight:${anilightResult.length > 0 ? "✓" : "✗"} kyren:${kyrenResults?.length > 0 ? "✓" : "✗"} senshi:${senshiResult ? "✓" : "✗"} allmanga:${allmangaResult?.sources?.length ? "✓" : "✗"} anikage:${anikageResult.intro || anikageResult.outro ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
     );
 
     return NextResponse.json({ servers });
