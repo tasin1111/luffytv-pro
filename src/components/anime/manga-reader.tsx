@@ -129,6 +129,12 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   const [scalePages, setScalePages] = useState<boolean>(() => lsGet(LS_KEY_SCALE, true));
   const [dimPages, setDimPages] = useState<boolean>(() => lsGet(LS_KEY_DIM, false));
 
+  // ── Zoom state (50% default, 25%-150% range) ──
+  const [zoom, setZoom] = useState<number>(50);
+  const ZOOM_MIN = 25;
+  const ZOOM_MAX = 150;
+  const ZOOM_STEP = 10;
+
   // ── Persist settings ──
   useEffect(() => { lsSet(LS_KEY_READING_MODE, readingMode); }, [readingMode]);
   useEffect(() => { lsSet(LS_KEY_IMAGE_FIT, imageFit); }, [imageFit]);
@@ -402,9 +408,9 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
                     loading={i <= currentPage + 2 ? "eager" : "lazy"}
                     onError={(e) => { if (page.url !== (e.target as HTMLImageElement).src) (e.target as HTMLImageElement).src = page.url; }}
                     style={{
-                      width: scalePages ? "50%" : "auto",
-                      maxWidth: "50%",
-                      minWidth: "300px",
+                      width: scalePages ? `${zoom}%` : "auto",
+                      maxWidth: "100%",
+                      minWidth: "200px",
                       height: "auto",
                       marginBottom: stripeMargin ? "0" : "4px",
                       borderBottom: stripeMargin ? "2px solid #1a1a1a" : "none",
@@ -452,7 +458,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
                   alt={`Page ${currentPage + 1}`}
                   onError={(e) => { const p = pages[currentPage]; if (p && p.url !== (e.target as HTMLImageElement).src) (e.target as HTMLImageElement).src = p.url; }}
                   style={{
-                    maxWidth: "50%", maxHeight: "100vh",
+                    maxWidth: `${zoom}%`, maxHeight: "100vh",
                     objectFit: "contain",
                     filter: dimPages ? "brightness(0.85)" : "none",
                   }}
@@ -523,6 +529,38 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
         </button>
       </div>
 
+      {/* ══ ZOOM CONTROLS — bottom left corner ══ */}
+      <div style={{
+        position: "absolute", bottom: "20px", left: "20px", zIndex: 50,
+        display: "flex", alignItems: "center", gap: "2px",
+        background: "rgba(20,20,20,0.9)", backdropFilter: "blur(12px)",
+        borderRadius: "10px", padding: "4px",
+        border: "1px solid rgba(255,255,255,0.08)",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+      }}>
+        {/* Previous page (left arrow) */}
+        <button className="mr-nav-btn" onClick={() => setCurrentPage(p => Math.max(p - 1, 0))} disabled={currentPage === 0} title="Previous page">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 19l-7-7 7-7" /></svg>
+        </button>
+        {/* Next page (right arrow) */}
+        <button className="mr-nav-btn" onClick={() => setCurrentPage(p => Math.min(p + 1, pages.length - 1))} disabled={currentPage >= pages.length - 1} title="Next page">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 5l7 7-7 7" /></svg>
+        </button>
+        <div style={{ width: "1px", height: "20px", background: "rgba(255,255,255,0.1)", margin: "0 4px" }} />
+        {/* Zoom out */}
+        <button className="mr-nav-btn" onClick={() => setZoom(z => Math.max(ZOOM_MIN, z - ZOOM_STEP))} disabled={zoom <= ZOOM_MIN} title="Zoom out">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
+        </button>
+        {/* Zoom percentage */}
+        <span style={{ color: "#fff", fontSize: "12px", fontWeight: 600, minWidth: "40px", textAlign: "center" }}>
+          {zoom}%
+        </span>
+        {/* Zoom in */}
+        <button className="mr-nav-btn" onClick={() => setZoom(z => Math.min(ZOOM_MAX, z + ZOOM_STEP))} disabled={zoom >= ZOOM_MAX} title="Zoom in">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /><line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" /></svg>
+        </button>
+      </div>
+
       {/* ══ BOTTOM PAGE COUNTER (for single/double mode) ══ */}
       {readingMode !== "vertical" && pages.length > 0 && (
         <div style={{
@@ -574,7 +612,15 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
           {/* Panel content */}
           <div style={{ flex: 1, overflow: "auto" }}>
             {activePanel === "comments" && (
-              <CommentsPanel mangaId={mangaId} chapterId={chapterId} chapterNum={currentChapterNum || 0} username={user?.username} />
+              <CommentsPanel
+                mangaId={mangaId}
+                chapterId={chapterId}
+                chapterNum={currentChapterNum || 0}
+                username={user?.username}
+                mangaTitle={mangaTitle}
+                scanGroup={langFilteredChapters[currentChapterIdx]?.scanGroup}
+                onClose={() => setActivePanel("none")}
+              />
             )}
             {activePanel === "chapters" && (
               <ChapterListPanel chapters={allChapters} currentChapterId={chapterId} onSelect={goToChapter} readerLang={readerLang} />
@@ -632,14 +678,18 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
 //  COMMENTS PANEL — per-chapter comments
 // ═══════════════════════════════════════════════════════════════════════
 
-function CommentsPanel({ mangaId, chapterId, chapterNum, username }: {
+function CommentsPanel({ mangaId, chapterId, chapterNum, username, mangaTitle, scanGroup, onClose }: {
   mangaId: string; chapterId: string; chapterNum: number; username?: string;
+  mangaTitle: string; scanGroup?: string; onClose: () => void;
 }) {
   const [comments, setComments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [sort, setSort] = useState<"best" | "newest" | "oldest">("best");
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [chapterLikes, setChapterLikes] = useState(0);
+  const [hasLikedChapter, setHasLikedChapter] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
 
   const loadComments = useCallback(async () => {
     setLoading(true);
@@ -654,6 +704,20 @@ function CommentsPanel({ mangaId, chapterId, chapterNum, username }: {
   }, [mangaId, chapterId, sort, username]);
 
   useEffect(() => { loadComments(); }, [loadComments]);
+
+  useEffect(() => {
+    const totalLikes = comments.reduce((sum, c) => sum + (c.likes || 0), 0);
+    setChapterLikes(totalLikes);
+  }, [comments]);
+
+  useEffect(() => {
+    if (username) {
+      fetch(`/api/manga/follow?mangaId=${encodeURIComponent(mangaId)}&username=${encodeURIComponent(username)}`)
+        .then(r => r.ok ? r.json() : null)
+        .then(d => { if (d) setIsFollowing(d.isFollowing); })
+        .catch(() => {});
+    }
+  }, [mangaId, username]);
 
   const handleSubmit = async () => {
     if (!username) { alert("Please sign in to comment."); return; }
@@ -688,95 +752,170 @@ function CommentsPanel({ mangaId, chapterId, chapterNum, username }: {
     } catch { /* ignore */ }
   };
 
+  const toggleFollow = async () => {
+    if (!username) { alert("Please sign in to follow."); return; }
+    try {
+      const res = await fetch("/api/manga/follow", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mangaId, username }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsFollowing(data.isFollowing);
+      }
+    } catch { /* ignore */ }
+  };
+
+  const formatTimeAgo = (dateStr: string) => {
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const days = Math.floor(diff / 86400000);
+    if (days > 30) return `${Math.floor(days / 30)}mo ago`;
+    if (days > 0) return `${days}d ago`;
+    const hours = Math.floor(diff / 3600000);
+    if (hours > 0) return `${hours}h ago`;
+    const mins = Math.floor(diff / 60000);
+    if (mins > 0) return `${mins}m ago`;
+    return "just now";
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      {/* Sort tabs */}
-      <div style={{ display: "flex", gap: "4px", padding: "12px 16px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-        {(["best", "newest", "oldest"] as const).map(s => (
-          <button key={s} onClick={() => setSort(s)}
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#18181b" }}>
+      {/* HEADER: Like | Translated by | Follow | Close */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "10px 12px", background: "#27272a", borderBottom: "1px solid #3f3f46",
+      }}>
+        <button onClick={() => username ? setHasLikedChapter(!hasLikedChapter) : alert("Sign in to like")}
+          style={{
+            background: "transparent", border: "none", cursor: "pointer",
+            display: "flex", alignItems: "center", gap: "4px",
+            color: hasLikedChapter ? "#1e88ff" : "#d4d4d8", fontSize: "13px", fontWeight: 600,
+          }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill={hasLikedChapter ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+            <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+          </svg>
+          {chapterLikes}
+        </button>
+        <span style={{ color: "#a1a1aa", fontSize: "12px", flex: 1, textAlign: "center" }}>
+          {scanGroup ? `Translated by ${scanGroup}` : mangaTitle}
+        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button onClick={toggleFollow}
             style={{
-              padding: "5px 12px", borderRadius: "6px", border: "none", cursor: "pointer",
-              fontSize: "12px", fontWeight: 600, textTransform: "capitalize",
-              background: sort === s ? "rgba(30,136,255,0.2)" : "rgba(255,255,255,0.05)",
-              color: sort === s ? "#1e88ff" : "rgba(255,255,255,0.5)",
+              background: "transparent", border: "none", cursor: "pointer",
+              display: "flex", alignItems: "center", gap: "4px",
+              color: isFollowing ? "#1e88ff" : "#d4d4d8", fontSize: "13px", fontWeight: 600,
             }}>
-            {s}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill={isFollowing ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+              <path d="M19 21l-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+            </svg>
+            {isFollowing ? "Following" : "Follow"}
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 5l7 7-7 7" /></svg>
           </button>
-        ))}
+          <button onClick={onClose}
+            style={{ background: "transparent", border: "none", cursor: "pointer", color: "#a1a1aa", padding: "2px" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
       </div>
 
-      {/* Comments list */}
-      <div style={{ flex: 1, overflow: "auto", padding: "8px 16px" }}>
+      {/* SORT BAR: "N comments" | Best / Newest / Oldest */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "8px 12px", background: "#1f1f23", borderBottom: "1px solid #3f3f46",
+      }}>
+        <span style={{ color: "#d4d4d8", fontSize: "13px", fontWeight: 500 }}>
+          {comments.length} {comments.length === 1 ? "comment" : "comments"}
+        </span>
+        <div style={{ display: "flex", gap: "4px" }}>
+          {(["best", "newest", "oldest"] as const).map(s => (
+            <button key={s} onClick={() => setSort(s)}
+              style={{
+                padding: "4px 10px", borderRadius: "4px", border: "none", cursor: "pointer",
+                fontSize: "12px", fontWeight: 600, textTransform: "capitalize",
+                background: sort === s ? "#3f3f46" : "transparent",
+                color: sort === s ? "#fff" : "#71717a",
+              }}>
+              {s}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* COMMENTS LIST */}
+      <div style={{ flex: 1, overflow: "auto", padding: "0 12px" }}>
         {loading ? (
-          <div style={{ textAlign: "center", padding: "20px", color: "rgba(255,255,255,0.4)", fontSize: "13px" }}>Loading...</div>
+          <div style={{ textAlign: "center", padding: "40px 20px", color: "#71717a", fontSize: "13px" }}>Loading comments...</div>
         ) : comments.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "40px 20px", color: "rgba(255,255,255,0.3)", fontSize: "13px" }}>
-            No comments yet. Be the first to comment on this chapter!
+          <div style={{ textAlign: "center", padding: "60px 20px", color: "#52525b", fontSize: "13px" }}>
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" style={{ marginBottom: "12px", opacity: 0.3 }}>
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            <div>No comments yet</div>
+            <div style={{ fontSize: "11px", marginTop: "4px" }}>Be the first to share your thoughts!</div>
           </div>
         ) : (
           comments.map(c => (
-            <div key={c.id} style={{
-              padding: "12px 0", borderBottom: "1px solid rgba(255,255,255,0.04)",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "6px" }}>
+            <div key={c.id} style={{ padding: "12px 0", borderBottom: "1px solid #27272a" }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "10px" }}>
                 <div style={{
-                  width: "28px", height: "28px", borderRadius: "50%",
+                  width: "36px", height: "36px", borderRadius: "50%",
                   background: "linear-gradient(135deg, #1e88ff, #7c3aed)",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  color: "#fff", fontSize: "12px", fontWeight: 700,
+                  color: "#fff", fontSize: "14px", fontWeight: 700, flexShrink: 0,
                 }}>
                   {c.username?.charAt(0).toUpperCase() || "?"}
                 </div>
-                <span style={{ color: "#fff", fontSize: "13px", fontWeight: 600 }}>{c.username}</span>
-                <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px" }}>
-                  {new Date(c.createdAt).toLocaleDateString()}
-                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                    <span style={{ color: "#fff", fontSize: "13px", fontWeight: 700 }}>{c.username}</span>
+                    <span style={{ color: "#52525b", fontSize: "11px" }}>{formatTimeAgo(c.createdAt)}</span>
+                  </div>
+                  <p style={{ color: "#d4d4d8", fontSize: "13px", lineHeight: 1.5, margin: "4px 0 6px" }}>{c.text}</p>
+                  <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                    <button onClick={() => handleLike(c.id)}
+                      style={{ background: "transparent", border: "none", cursor: "pointer", color: c.hasLiked ? "#1e88ff" : "#71717a", fontSize: "12px", fontWeight: 500, display: "flex", alignItems: "center", gap: "4px", padding: 0 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill={c.hasLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+                      </svg>
+                      {c.likes}
+                    </button>
+                    <button style={{ background: "transparent", border: "none", cursor: "pointer", color: "#71717a", fontSize: "12px", fontWeight: 500, display: "flex", alignItems: "center", gap: "4px", padding: 0 }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17" />
+                      </svg>
+                      0
+                    </button>
+                  </div>
+                </div>
+                <button style={{ background: "transparent", border: "none", cursor: "pointer", color: "#52525b", padding: "4px", flexShrink: 0 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="12" cy="19" r="2" /></svg>
+                </button>
               </div>
-              <p style={{ color: "rgba(255,255,255,0.8)", fontSize: "13px", lineHeight: 1.5, margin: "0 0 8px 36px" }}>
-                {c.text}
-              </p>
-              <button onClick={() => handleLike(c.id)}
-                style={{
-                  marginLeft: "36px", background: "transparent", border: "none",
-                  color: c.hasLiked ? "#1e88ff" : "rgba(255,255,255,0.4)",
-                  fontSize: "12px", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px",
-                }}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill={c.hasLiked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
-                  <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
-                </svg>
-                {c.likes}
-              </button>
             </div>
           ))
         )}
       </div>
 
-      {/* Comment input */}
-      <div style={{ padding: "12px 16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-        <textarea
+      {/* COMMENT INPUT */}
+      <div style={{ padding: "10px 12px", background: "#1f1f23", borderTop: "1px solid #3f3f46" }}>
+        <input
+          type="text"
           value={text}
           onChange={e => setText(e.target.value)}
-          placeholder={username ? "Write a comment..." : "Sign in to comment"}
+          onKeyDown={e => { if (e.key === "Enter" && text.trim()) handleSubmit(); }}
+          placeholder={username ? "Share your thoughts about this series..." : "Sign in to comment"}
           disabled={!username}
           maxLength={1000}
-          style={{
-            width: "100%", minHeight: "60px", maxHeight: "120px",
-            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
-            borderRadius: "8px", padding: "10px", color: "#fff", fontSize: "13px",
-            resize: "vertical", outline: "none",
-          }}
+          style={{ width: "100%", padding: "10px 14px", background: "#27272a", border: "1px solid #3f3f46", borderRadius: "8px", color: "#fff", fontSize: "13px", outline: "none" }}
         />
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "8px" }}>
-          <span style={{ color: "rgba(255,255,255,0.3)", fontSize: "11px" }}>{text.length}/1000</span>
-          <button onClick={handleSubmit} disabled={!text.trim() || submitting || !username}
-            style={{
-              padding: "6px 16px", borderRadius: "6px", border: "none", cursor: "pointer",
-              background: text.trim() && !submitting && username ? "#1e88ff" : "rgba(255,255,255,0.1)",
-              color: "#fff", fontSize: "12px", fontWeight: 600,
-            }}>
+        {text.trim() && (
+          <button onClick={handleSubmit} disabled={submitting}
+            style={{ marginTop: "6px", padding: "6px 16px", borderRadius: "6px", border: "none", cursor: "pointer", background: "#1e88ff", color: "#fff", fontSize: "12px", fontWeight: 600 }}>
             {submitting ? "Posting..." : "Post"}
           </button>
-        </div>
+        )}
       </div>
     </div>
   );
