@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getChapterImages, getMangaDexChapterPages } from "@/lib/manga-api";
+import { getChapterImages } from "@/lib/manga-api";
 import { proxifyMangaImage } from "@/lib/proxy";
 
 export const runtime = "nodejs";
@@ -13,14 +13,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    let pages = await getChapterImages(mangaId, chapterId);
-
-    // If combined function failed, try MangaDex directly as last resort
-    if (pages.length === 0) {
-      try {
-        pages = await getMangaDexChapterPages(chapterId);
-      } catch { /* direct MangaDex also failed */ }
-    }
+    const pages = await getChapterImages(mangaId, chapterId);
 
     // Proxy images through our Cloudflare Worker (edge, single-hop, fast)
     const proxiedPages = pages.map(page => ({

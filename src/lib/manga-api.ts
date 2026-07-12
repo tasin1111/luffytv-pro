@@ -646,6 +646,45 @@ async function searchComixViaProxy(query: string): Promise<AtsuMangaEntry[]> {
  * construct a minimal detail from chapters data alone. This ensures
  * the detail page still renders even when info is unavailable.
  */
+/** Lightweight metadata-only fetch — NO chapters, NO cross-provider merge.
+ *  Used by the home page to get anilistId + poster without the expensive
+ *  full detail call (which triggers parallel chapter merges). */
+export async function getMangaMeta(mangaId: string): Promise<{ id: string; anilistId?: number; title: string; poster: string; } | null> {
+  if (!mangaId) return null;
+  const { provider, rawId } = parseProviderFromId(mangaId);
+
+  try {
+    if (provider === "comix") {
+      // For comix, just do a quick detail fetch (it's HTML scraping, fast enough)
+      const d = await getComixDetail(rawId);
+      if (!d) return null;
+      return { id: mangaId, anilistId: d.anilistId, title: d.title, poster: d.poster || "" };
+    }
+
+    if (provider === "atsumaru") {
+      // Use direct atsu.moe API (has anilistId)
+      const d = await getAtsumaruDetailDirect(rawId);
+      if (d) return { id: mangaId, anilistId: d.anilistId, title: d.title, poster: d.poster || "" };
+    }
+
+    // For mangaball (or atsumaru fallback), use scrape-api info (no chapters)
+    const info = await scrapeFetch<ScrapeInfoResponse>(
+      `/api/scrape/info?id=${encodeURIComponent(rawId)}&provider=${provider}`,
+    );
+    if (info) {
+      return {
+        id: mangaId,
+        anilistId: info.anilistId,
+        title: info.title || "",
+        poster: info.image || "",
+      };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export async function getMangaDetail(mangaId: string): Promise<AtsuMangaDetail | null> {
   if (!mangaId) return null;
   const { provider, rawId } = parseProviderFromId(mangaId);
@@ -1057,8 +1096,17 @@ function mapAtsuHomeItem(item: any): AtsuMangaEntry {
   };
 }
 
-/** Fetch atsu.moe home page directly and return curated sections */
+/** Fetch atsu.moe home page directly and return curated sections.
+ *  Cached for 60 seconds so /api/manga/home|popular|top-rated|recently-added
+ *  don't each re-fetch the full home page. */
+let _atsuHomeCache: { data: AtsuHomeSection[]; ts: number } | null = null;
+const ATSU_HOME_CACHE_TTL = 60_000; // 60s
+
 async function getAtsumaruHomeDirect(): Promise<AtsuHomeSection[]> {
+  // Return cached data if fresh
+  if (_atsuHomeCache && Date.now() - _atsuHomeCache.ts < ATSU_HOME_CACHE_TTL) {
+    return _atsuHomeCache.data;
+  }
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
@@ -1067,7 +1115,7 @@ async function getAtsumaruHomeDirect(): Promise<AtsuHomeSection[]> {
       signal: controller.signal,
     });
     clearTimeout(timeout);
-    if (!res.ok) return [];
+    if (!res.ok) return _atsuHomeCache?.data || [];
     const data = await res.json();
     const rawSections: any[] = data?.homePage?.sections || [];
     const sections: AtsuHomeSection[] = [];
@@ -1082,10 +1130,12 @@ async function getAtsumaruHomeDirect(): Promise<AtsuHomeSection[]> {
         items,
       });
     }
+    // Update cache
+    _atsuHomeCache = { data: sections, ts: Date.now() };
     return sections;
   } catch (err) {
     console.error("[manga-api] getAtsumaruHomeDirect error:", err);
-    return [];
+    return _atsuHomeCache?.data || [];
   }
 }
 
@@ -1557,21 +1607,3 @@ export const getAtsuChapterImages = getChapterImages;
 
 /** Atsumaru home alias. */
 export const getAtsuHome = getMangaHome;
-
-/**
- * MangaDex direct chapter pages — kept as a stub for backwards
- * compatibility with /api/manga/read/route.ts which falls back to
- * this if the primary fetch fails. With the new manga-scrape-api,
- * MangaDex fallback is not needed (the scraper API already handles
- * provider routing), so this always returns an empty array.
- */
-export async function getMangaDexChapterPages(_chapterId: string): Promise<AtsuChapterPage[]> {
-  return [];
-}
-
-/**
- * mapMangaDexEntry — kept as a stub for backwards compatibility.
- */
-export function mapMangaDexEntry(_m: any): AtsuMangaEntry {
-  return { id: "", title: "", source: "mangadex" };
-}

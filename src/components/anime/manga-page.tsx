@@ -174,11 +174,13 @@ export default function MangaPage() {
         candidates.sort((a, b) => (b.rating || 0) - (a.rating || 0));
         const top = candidates.slice(0, 10);
 
-        // Fetch detail for anilistId (parallel, capped at 8)
+        // Fetch META ONLY (no chapters) for anilistId (parallel, capped at 8).
+        // Uses the lightweight /api/manga/meta endpoint instead of /api/manga/detail
+        // to avoid the expensive cross-provider chapter merge on the home page.
         const infos = await Promise.all(
           top.slice(0, 8).map(async m => {
             try {
-              const res = await fetch(`/api/manga/detail?id=${encodeURIComponent(m.id)}`);
+              const res = await fetch(`/api/manga/meta?id=${encodeURIComponent(m.id)}`);
               if (res.ok) {
                 const d = await res.json();
                 // anilistId may come back as a string from the API — parse to number

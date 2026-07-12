@@ -91,9 +91,10 @@ export async function GET(request: NextRequest) {
     if (titleForSearch && titleForSearch !== "Unknown Title" && detail.chapters?.length) {
       try {
         // ── Parallel search: search BOTH providers at once ──
+        // atsu.moe ALWAYS runs as an extra English source (even for at: manga)
+        // to catch any extra chapters the primary provider might be missing.
         const [atsuResults, mbResults] = await Promise.all([
-          // Only search atsumaru if we're NOT already an at: manga
-          id.startsWith("at:") ? Promise.resolve([]) : searchManga(titleForSearch, 5),
+          searchManga(titleForSearch, 5),
           // Only search mangaball if we're NOT already a mb: manga
           id.startsWith("mb:") ? Promise.resolve([]) : searchMangaMangaball(titleForSearch),
         ]);
@@ -101,8 +102,9 @@ export async function GET(request: NextRequest) {
         // ── Parallel detail fetch: fetch matching manga from the OTHER provider(s) ──
         const mergePromises: Promise<{ type: "at" | "mb"; chapters: any[]; detail?: any }>[] = [];
 
-        // If we're mb: or cx:, find the atsumaru match and fetch its detail
-        if (!id.startsWith("at:") && atsuResults.length > 0) {
+        // If we're NOT at: (or we are, but want to merge extra atsu chapters),
+        // find the atsumaru match and fetch its detail
+        if (atsuResults.length > 0) {
           const atMatch = atsuResults.find(r => {
             const rTitle = (r.englishTitle || r.title || "").toLowerCase();
             const sTitle = titleForSearch.toLowerCase();
@@ -112,17 +114,20 @@ export async function GET(request: NextRequest) {
 
           if (atMatch) {
             const atsuMangaId = atMatch.id.replace(/^at:/, "");
-            mergePromises.push(
-              getDetail(`at:${atsuMangaId}`).then(d => ({
-                type: "at" as const,
-                chapters: d?.chapters?.map((ch: any) => ({
-                  ...ch,
-                  id: `at:${atsuMangaId}:${ch.number}:${ch.id}`,
-                  lang: "en",
-                })) || [],
-                detail: d,
-              })).catch(() => ({ type: "at" as const, chapters: [] }))
-            );
+            // Skip if this is the same manga we already have (avoids duplicate chapters)
+            if (id !== `at:${atsuMangaId}`) {
+              mergePromises.push(
+                getDetail(`at:${atsuMangaId}`).then(d => ({
+                  type: "at" as const,
+                  chapters: d?.chapters?.map((ch: any) => ({
+                    ...ch,
+                    id: `at:${atsuMangaId}:${ch.number}:${ch.id}`,
+                    lang: "en",
+                  })) || [],
+                  detail: d,
+                })).catch(() => ({ type: "at" as const, chapters: [] }))
+              );
+            }
           }
         }
 

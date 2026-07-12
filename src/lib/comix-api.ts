@@ -141,8 +141,23 @@ export async function searchComix(query: string): Promise<AtsuMangaEntry[]> {
       signal: controller.signal,
     });
     clearTimeout(timeout);
-    if (!res.ok) return [];
-    const html = await res.text();
+
+    let html: string;
+    if (!res.ok) {
+      // Direct fetch failed (likely CF block) — fall back to z-ai page_reader proxy
+      const proxyBase = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
+      const proxyRes = await fetch(
+        `${proxyBase}/api/manga/comix-proxy?url=${encodeURIComponent(`${COMIX_BASE}/browse?q=${encodeURIComponent(query)}&page=1`)}`,
+        { signal: AbortSignal.timeout(15000) },
+      );
+      if (!proxyRes.ok) return [];
+      html = await proxyRes.text();
+    } else {
+      html = await res.text();
+    }
+
     // Extract initial-data JSON
     const match = html.match(/<script type="application\/json" id="initial-data">(.*?)<\/script>/s);
     if (!match) return [];

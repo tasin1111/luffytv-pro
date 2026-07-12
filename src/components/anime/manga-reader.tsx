@@ -416,7 +416,33 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [readingMode, currentPage, pages.length, mangaId, readingDir, goToNextPage, goToPrevPage, toggleFullscreen]);
+  }, [readingMode, pages.length, mangaId, readingDir, goToNextPage, goToPrevPage, toggleFullscreen]);
+
+  // ── Preload next chapter's pages when user is near the end of current chapter ──
+  // Fetches the next chapter's /api/manga/read response and caches it so
+  // navigation is instant when the user clicks "Next Chapter".
+  const [nextChapterPages, setNextChapterPages] = useState<any[] | null>(null);
+  useEffect(() => {
+    if (!nextChapter || pages.length === 0) {
+      setNextChapterPages(null);
+      return;
+    }
+    // Only preload when user is on the last 3 pages
+    if (currentPage < pages.length - 3) return;
+    if (nextChapterPages) return; // already preloaded
+
+    let cancelled = false;
+    const nextChId = buildNavChapterId(nextChapter);
+    fetch(`/api/manga/read?mangaId=${encodeURIComponent(mangaId)}&chapterId=${encodeURIComponent(nextChId)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!cancelled && data?.pages) {
+          setNextChapterPages(data.pages);
+        }
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentPage, pages.length, nextChapter, mangaId, nextChapterPages]);
 
   // ── Listen for fullscreen change events ──
   useEffect(() => {
