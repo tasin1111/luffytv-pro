@@ -1065,67 +1065,31 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
               </span>
             </div>
 
-            {/* ── VibeBar — genre percentages ── */}
-            {manga.genres && manga.genres!.length > 0 && (
-              <div style={{ marginBottom: "16px" }}>
-                <div style={{ color: COLOR_MUTED, fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>
-                  VibeBar — Genre Mix
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
-                  {manga.genres!.slice(0, 8).map((g, i) => {
-                    const pct = Math.round(100 / manga.genres!.length);
-                    const colors = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
-                    return (
-                      <div key={g} style={{
-                        display: "flex", alignItems: "center", gap: "4px",
-                        padding: "4px 10px", borderRadius: "6px",
-                        background: `${colors[i % colors.length]}20`,
-                        border: `1px solid ${colors[i % colors.length]}40`,
-                        fontSize: "12px", fontWeight: 600,
-                      }}>
-                        <span style={{ color: colors[i % colors.length] }}>{g}</span>
-                        <span style={{ color: COLOR_MUTED }}>{pct}%</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+            {/* ══ CHARTS ROW: Luffi Chart (left/middle) + VibeChart (right) ══ */}
+            <div style={{ display: "flex", gap: "24px", marginBottom: "20px", flexWrap: "wrap", alignItems: "flex-start" }}>
 
-            {/* ── MockTailBar — 4-option quick review ── */}
-            <div style={{ marginBottom: "16px" }}>
-              <div style={{ color: COLOR_MUTED, fontSize: "11px", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "8px" }}>
-                MockTailBar — Quick Review {vibeTotal > 0 && `(${vibeTotal} reviews)`}
+              {/* ── Luffi Chart (semicircular gauge) — 4-option review ── */}
+              <div style={{ flex: "1", minWidth: "300px" }}>
+                <div style={{ color: COLOR_MUTED, fontSize: "14px", fontWeight: 600, marginBottom: "10px" }}>
+                  Luffi Meter {vibeTotal > 0 && `(${vibeTotal} votes)`}
+                </div>
+                <LuffiChart
+                  counts={vibeCounts}
+                  total={vibeTotal}
+                  userVibe={userVibe}
+                  onVote={submitVibe}
+                />
               </div>
-              <div style={{ display: "flex", gap: "8px" }}>
-                {([
-                  { id: "drop", label: "Drop", icon: "👎", color: "#ef4444" },
-                  { id: "bold", label: "Bold", icon: "🤔", color: "#f59e0b" },
-                  { id: "great", label: "Great", icon: "👍", color: "#10b981" },
-                  { id: "recommended", label: "Recommended", icon: "⭐", color: "#1e88ff" },
-                ] as const).map(v => {
-                  const count = vibeCounts[v.id as keyof typeof vibeCounts] || 0;
-                  const pct = vibeTotal > 0 ? Math.round((count / vibeTotal) * 100) : 0;
-                  const isSelected = userVibe === v.id;
-                  return (
-                    <button
-                      key={v.id}
-                      onClick={() => submitVibe(v.id)}
-                      style={{
-                        flex: 1, padding: "10px 6px", borderRadius: "8px", cursor: "pointer",
-                        border: isSelected ? `2px solid ${v.color}` : "1px solid rgba(255,255,255,0.1)",
-                        background: isSelected ? `${v.color}15` : "rgba(255,255,255,0.03)",
-                        display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      <span style={{ fontSize: "20px" }}>{v.icon}</span>
-                      <span style={{ color: isSelected ? v.color : COLOR_HEADING, fontSize: "12px", fontWeight: 600 }}>{v.label}</span>
-                      <span style={{ color: COLOR_MUTED, fontSize: "10px" }}>{count} ({pct}%)</span>
-                    </button>
-                  );
-                })}
-              </div>
+
+              {/* ── VibeChart (donut) — genre mix ── */}
+              {manga.genres && manga.genres!.length > 0 && (
+                <div style={{ width: "300px", flexShrink: 0 }}>
+                  <div style={{ color: COLOR_MUTED, fontSize: "14px", fontWeight: 600, marginBottom: "10px" }}>
+                    Vibe Chart
+                  </div>
+                  <VibeDonutChart genres={manga.genres!} />
+                </div>
+              )}
             </div>
 
             {/* Rating widget — let logged-in users rate this manga (0-10)
@@ -1504,6 +1468,185 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
             </section>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  LUFFI CHART — Semicircular gauge (4-option review)
+//  Based on the reference HTML "Moctale Meter" design.
+//  Options: Drop (skip), Bold (timepass), Great (go for it), Recommended (perfection)
+// ═══════════════════════════════════════════════════════════════════════
+
+function LuffiChart({ counts, total, userVibe, onVote }: {
+  counts: { drop: number; bold: number; great: number; recommended: number };
+  total: number;
+  userVibe: string | null;
+  onVote: (vibe: string) => void;
+}) {
+  const VIBES = [
+    { id: "drop", label: "Drop", color: "#f0407e" },
+    { id: "bold", label: "Bold", color: "#f2a71b" },
+    { id: "great", label: "Great", color: "#16d6a5" },
+    { id: "recommended", label: "Recommended", color: "#8b5cf6" },
+  ];
+
+  // Calculate percentages
+  const data = VIBES.map(v => ({
+    ...v,
+    count: counts[v.id as keyof typeof counts] || 0,
+    pct: total > 0 ? Math.round(((counts[v.id as keyof typeof counts] || 0) / total) * 100) : 0,
+  }));
+
+  // The "center percentage" = the percentage of positive votes (great + recommended)
+  const positivePct = total > 0
+    ? Math.round(((counts.great + counts.recommended) / total) * 100)
+    : 0;
+  const dominantVibe = data.reduce((a, b) => a.pct >= b.pct ? a : b, data[0]);
+  const centerColor = dominantVibe.pct > 0 ? dominantVibe.color : "#9a9a9a";
+
+  // SVG gauge parameters (matching the reference HTML)
+  const cx = 210, cy = 200, r = 150, strokeW = 26;
+  const svgW = 420, svgH = 230;
+
+  function pointAt(pct: number) {
+    const angleDeg = 180 - (pct / 100) * 180;
+    const angleRad = angleDeg * Math.PI / 180;
+    return { x: cx + r * Math.cos(angleRad), y: cy - r * Math.sin(angleRad) };
+  }
+  function arcPath(p1: number, p2: number) {
+    const start = pointAt(p1);
+    const end = pointAt(p2);
+    const largeArc = (p2 - p1) > 50 ? 1 : 0;
+    return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 1 ${end.x} ${end.y}`;
+  }
+
+  let cursor = 0;
+  const segments = data.map(d => {
+    if (d.pct <= 0) return null;
+    const seg = { path: arcPath(cursor, cursor + d.pct), color: d.color };
+    cursor += d.pct;
+    return seg;
+  }).filter(Boolean);
+
+  return (
+    <div style={{ background: "#17181c", borderRadius: "16px", padding: "20px" }}>
+      {/* SVG gauge */}
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}>
+          {/* Background arc (full semicircle, dim) */}
+          <path d={arcPath(0, 100)} fill="none" stroke="#27272a" strokeWidth={strokeW} strokeLinecap="round" />
+          {/* Colored segments */}
+          {segments.map((seg, i) => (
+            <path key={i} d={seg!.path} fill="none" stroke={seg!.color} strokeWidth={strokeW} strokeLinecap="round" />
+          ))}
+          {/* Center text: percentage */}
+          <text x={cx} y={cy - 40} textAnchor="middle" style={{ fontSize: "34px", fontWeight: 700, fill: centerColor }}>
+            {positivePct}%
+          </text>
+          {/* Center subtext: vote count */}
+          <text x={cx} y={cy - 18} textAnchor="middle" style={{ fontSize: "13px", fill: "#9a9a9a" }}>
+            {total} {total === 1 ? "vote" : "votes"}
+          </text>
+        </svg>
+      </div>
+
+      {/* Legend + vote buttons */}
+      <div style={{ display: "flex", justifyContent: "space-between", marginTop: "6px", padding: "0 10px" }}>
+        {data.map(v => (
+          <button
+            key={v.id}
+            onClick={() => onVote(v.id)}
+            style={{
+              display: "flex", alignItems: "center", gap: "8px",
+              color: userVibe === v.id ? v.color : "#f2f2f2",
+              fontSize: "14px", cursor: "pointer",
+              background: "transparent", border: "none",
+              fontWeight: userVibe === v.id ? 700 : 400,
+            }}
+          >
+            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: v.color, display: "inline-block" }} />
+            {v.label} <b>{v.pct}%</b>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+//  VIBE DONUT CHART — Genre mix donut
+//  Based on the reference HTML "Vibe Chart" design.
+// ═══════════════════════════════════════════════════════════════════════
+
+function VibeDonutChart({ genres }: { genres: string[] }) {
+  const COLORS = ["#2f6feb", "#7c3aed", "#45464d", "#a9714f", "#16d6a5", "#f0407e", "#f2a71b", "#8b5cf6"];
+  const topGenres = genres.slice(0, 8);
+  const pct = Math.round(100 / topGenres.length);
+
+  const data = topGenres.map((g, i) => ({
+    label: g,
+    pct,
+    color: COLORS[i % COLORS.length],
+  }));
+
+  // Donut SVG parameters (matching the reference HTML)
+  const cx = 110, cy = 95, rOuter = 78, rInner = 54;
+  const svgW = 220, svgH = 190;
+
+  function pointAt(pct: number, radius: number) {
+    const angleDeg = pct * 3.6 - 90;
+    const angleRad = angleDeg * Math.PI / 180;
+    return { x: cx + radius * Math.cos(angleRad), y: cy + radius * Math.sin(angleRad) };
+  }
+  function donutSegment(p1: number, p2: number) {
+    const largeArc = (p2 - p1) > 50 ? 1 : 0;
+    const oStart = pointAt(p1, rOuter);
+    const oEnd = pointAt(p2, rOuter);
+    const iEnd = pointAt(p2, rInner);
+    const iStart = pointAt(p1, rInner);
+    return `M ${oStart.x} ${oStart.y} A ${rOuter} ${rOuter} 0 ${largeArc} 1 ${oEnd.x} ${oEnd.y} L ${iEnd.x} ${iEnd.y} A ${rInner} ${rInner} 0 ${largeArc} 0 ${iStart.x} ${iStart.y} Z`;
+  }
+
+  let cursor = 0;
+  const segments = data.map(d => {
+    const seg = { path: donutSegment(cursor, cursor + d.pct), color: d.color, label: d.label, pct: d.pct };
+    cursor += d.pct;
+    return seg;
+  });
+
+  // Center: show the first/largest genre
+  const centerLabel = data[0]?.label || "";
+  const centerPct = data[0]?.pct || 0;
+
+  return (
+    <div style={{ background: "#17181c", borderRadius: "16px", padding: "22px 26px 26px", boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}>
+      {/* SVG donut */}
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <svg width={svgW} height={svgH} viewBox={`0 0 ${svgW} ${svgH}`}>
+          {segments.map((seg, i) => (
+            <path key={i} d={seg.path} fill={seg.color} />
+          ))}
+          {/* Center label */}
+          <text x={cx} y={cy - 4} textAnchor="middle" style={{ fontSize: "15px", fill: "#f2f2f2", fontWeight: 500 }}>
+            {centerLabel}
+          </text>
+          <text x={cx} y={cy + 20} textAnchor="middle" style={{ fontSize: "22px", fill: "#f2f2f2", fontWeight: 700 }}>
+            {centerPct}%
+          </text>
+        </svg>
+      </div>
+
+      {/* Legend */}
+      <div style={{ marginTop: "16px", display: "flex", flexDirection: "column", gap: "10px" }}>
+        {data.map(d => (
+          <div key={d.label} style={{ display: "flex", alignItems: "center", fontSize: "14px", color: "#f2f2f2" }}>
+            <span style={{ width: "10px", height: "10px", borderRadius: "50%", background: d.color, marginRight: "10px" }} />
+            <span style={{ flex: 1, color: "#cfcfcf" }}>{d.label}</span>
+            <span style={{ fontWeight: 600 }}>{d.pct}%</span>
+          </div>
+        ))}
       </div>
     </div>
   );

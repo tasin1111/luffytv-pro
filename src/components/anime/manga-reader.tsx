@@ -223,6 +223,17 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   const nextChapter = currentChapterIdx >= 0 && currentChapterIdx < langFilteredChapters.length - 1 ? langFilteredChapters[currentChapterIdx + 1] : null;
   const currentChapterNum = currentChapterIdx >= 0 ? langFilteredChapters[currentChapterIdx]?.number : 0;
 
+  // Count UNIQUE chapter numbers (not all variants — e.g., Berserk has ~364 chapters,
+  // not 4565 which includes all language/scan-group variants)
+  const uniqueChapterCount = useMemo(() => {
+    const seen = new Set<number>();
+    for (const ch of allChapters) {
+      const num = Math.round((ch.number || 0) * 100) / 100;
+      seen.add(num);
+    }
+    return seen.size;
+  }, [allChapters]);
+
   const switchEpisode = useCallback((epNum: number) => {
     navigate({ page: "manga-read", id: mangaId, chapterId: String(epNum) } as any);
   }, [navigate, mangaId]);
@@ -344,7 +355,7 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
             padding: "6px 14px", color: "#fff", fontSize: "13px", fontWeight: 600,
             border: "1px solid rgba(255,255,255,0.1)",
           }}>
-            Chapter {currentChapterNum || "?"} of {langFilteredChapters.length || "?"}
+            Chapter {currentChapterNum || "?"} of {uniqueChapterCount || "?"}
           </div>
           {prevChapter && (
             <button onClick={() => goToChapter(prevChapter)} className="mr-icon-btn" title="Previous chapter (←)">
