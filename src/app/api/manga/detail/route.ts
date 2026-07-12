@@ -4,6 +4,7 @@ import {
   searchManga,
   searchMangaMangaball,
   getMangaDetail as getDetail,
+  getAtsumaruChaptersFast,
 } from "@/lib/manga-api";
 
 export const runtime = "nodejs";
@@ -119,15 +120,21 @@ export async function GET(request: NextRequest) {
             // Skip if this is the same manga we already have (avoids duplicate chapters)
             if (id !== `at:${atsuMangaId}`) {
               console.log(`[manga/detail] merging atsumaru: at:${atsuMangaId} ("${atMatch.title}")`);
+              // Use FAST chapters fetch (scrape-api only, ~0.3s) instead of
+              // full getDetail (which triggers slow atsu.moe direct scraper).
+              // Also fetch full detail in parallel for metadata (but don't block on it).
               mergePromises.push(
-                getDetail(`at:${atsuMangaId}`).then(d => {
-                  const chapters = d?.chapters?.map((ch: any) => ({
+                Promise.all([
+                  getAtsumaruChaptersFast(atsuMangaId),
+                  getDetail(`at:${atsuMangaId}`).catch(() => null),
+                ]).then(([chapters, d]) => {
+                  const mapped = chapters.map((ch: any) => ({
                     ...ch,
                     id: `at:${atsuMangaId}:${ch.number}:${ch.id}`,
                     lang: "en",
-                  })) || [];
-                  console.log(`[manga/detail] atsumaru merge: ${chapters.length} chapters from at:${atsuMangaId}`);
-                  return { type: "at" as const, chapters, detail: d };
+                  }));
+                  console.log(`[manga/detail] atsumaru merge: ${mapped.length} chapters from at:${atsuMangaId}`);
+                  return { type: "at" as const, chapters: mapped, detail: d };
                 }).catch((err) => {
                   console.error(`[manga/detail] atsumaru merge FAILED for at:${atsuMangaId}:`, err?.message || err);
                   return { type: "at" as const, chapters: [] };

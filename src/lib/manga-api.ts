@@ -515,6 +515,32 @@ export async function searchManga(query: string, _limit = 20): Promise<AtsuManga
 }
 
 /**
+ * FAST atsumaru chapters fetch — uses scrape-api only (NO direct atsu.moe).
+ * Used by the cross-provider merge in /api/manga/detail so the merge doesn't
+ * block on the slow direct atsu.moe scraper (which fetches 30 pages).
+ * Returns chapters in AtsuMangaChapter format, ready to merge.
+ */
+export async function getAtsumaruChaptersFast(rawId: string): Promise<AtsuMangaChapter[]> {
+  try {
+    const data = await scrapeFetch<ScrapeChaptersResponse>(
+      `/api/scrape/chapters?id=${encodeURIComponent(rawId)}&provider=atsumaru`,
+    );
+    if (!data?.chapters) return [];
+    return data.chapters.map(ch => ({
+      id: ch.id,
+      title: ch.title || `Chapter ${ch.number}`,
+      number: ch.number,
+      date: ch.date,
+      pages: ch.pages,
+      lang: ch.lang || "en",
+      scanGroup: ch.scanGroup || "",
+    }));
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Search manga on mangaball via the manga-scrape-api.
  */
 export async function searchMangaMangaball(query: string): Promise<AtsuMangaEntry[]> {
