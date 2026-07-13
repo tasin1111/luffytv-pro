@@ -10,6 +10,7 @@ import { resolveAniZone } from "@/lib/anizone-direct";
 import { resolveAniWaves } from "@/lib/aniwaves-direct";
 import { fetchAniLightSources } from "@/lib/anilight-api";
 import { fetchAllKyrenSources } from "@/lib/kyren-api";
+import { resolveAniKoto } from "@/lib/anikoto-direct";
 import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
@@ -57,7 +58,7 @@ export async function GET(
     const servers: Array<{
       id: string;
       name: string;
-      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone" | "aniwaves" | "anilight" | "kyren";
+      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone" | "aniwaves" | "anilight" | "kyren" | "anikoto";
       provider: string;
       type: "sub" | "dub";
       quality: string;
@@ -153,6 +154,18 @@ export async function GET(
           if (aw?.servers?.length) { let p = 14; for (const srv of aw.servers) servers.push({ id: `aniwaves:${srv.svId}:${srv.type}`, name: srv.name, source: "aniwaves", provider: String(srv.svId), type: srv.type, quality: "1080p", streamUrl: srv.embedUrl, isM3U8: false, isMP4: false, isEmbed: true, hardsub: false, priority: p++, intro: aw.intro, outro: aw.outro }); }
         } catch {}
       })(),
+      // AniKoto (priority 16) — embed URLs from anikotoapi.site
+      (async () => {
+        try {
+          const ak = await withTimeout(resolveAniKoto(id, epNum, title).catch(() => null), 25000, null);
+          if (ak?.servers?.length) {
+            let p = 16;
+            for (const srv of ak.servers) {
+              servers.push({ id: `anikoto:${srv.type}:${p}`, name: srv.name, source: "anikoto", provider: "anikoto", type: srv.type, quality: srv.quality, streamUrl: srv.embedUrl, isM3U8: false, isMP4: false, isEmbed: true, hardsub: false, priority: p++, intro: ak.intro, outro: ak.outro });
+            }
+          }
+        } catch {}
+      })(),
       // AniKage (skip times only, priority 15) — runs independently, doesn't block
       (async () => {
         try {
@@ -196,7 +209,7 @@ export async function GET(
     servers.sort((a, b) => a.priority - b.priority);
 
     console.log(
-      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (animex:${servers.some(s => s.source === "animex") ? "✓" : "✗"} anidb:${servers.some(s => s.source === "anidb") ? "✓" : "✗"} anineko:${servers.some(s => s.source === "anineko") ? "✓" : "✗"} anilight:${servers.some(s => s.source === "anilight") ? "✓" : "✗"} kyren:${servers.some(s => s.source === "kyren") ? "✓" : "✗"} senshi:${servers.some(s => s.source === "senshi") ? "✓" : "✗"} allmanga:${servers.some(s => s.source === "allmanga") ? "✓" : "✗"} anikage:${anikageIntro || anikageOutro ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
+      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (animex:${servers.some(s => s.source === "animex") ? "✓" : "✗"} anidb:${servers.some(s => s.source === "anidb") ? "✓" : "✗"} anineko:${servers.some(s => s.source === "anineko") ? "✓" : "✗"} anilight:${servers.some(s => s.source === "anilight") ? "✓" : "✗"} kyren:${servers.some(s => s.source === "kyren") ? "✓" : "✗"} senshi:${servers.some(s => s.source === "senshi") ? "✓" : "✗"} allmanga:${servers.some(s => s.source === "allmanga") ? "✓" : "✗"} anikoto:${servers.some(s => s.source === "anikoto") ? "✓" : "✗"} anikage:${anikageIntro || anikageOutro ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
     );
 
     return NextResponse.json({ servers });
