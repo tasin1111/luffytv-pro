@@ -46,6 +46,24 @@ export default function NovelReaderPage({
   novelId, novelTitle, chapterId, chapterNum, chapterTitle, totalChapters, novelSource
 }: NovelReaderProps) {
   const navigate = useAppStore(s => s.navigate);
+  const recordMediaProgress = useAppStore(s => s.recordMediaProgress);
+
+  // ── Sync: record reading progress for the profile "Continue" + XP ──
+  useEffect(() => {
+    if (!novelId) return;
+    let cover = "";
+    try { cover = sessionStorage.getItem(`novel-cover-${novelId}`) || ""; } catch { /* ignore */ }
+    const percent = totalChapters > 0 ? Math.round((chapterNum / totalChapters) * 100) : 0;
+    recordMediaProgress({
+      kind: "novel",
+      mediaId: novelId,
+      title: novelTitle || "Novel",
+      cover,
+      unitLabel: `Ch. ${chapterNum}`,
+      percent,
+      resume: { page: "novel-read", novelId, novelTitle, chapterId, chapterNum, chapterTitle, totalChapters, novelSource },
+    }, 5);
+  }, [novelId, chapterNum, chapterId, novelTitle, chapterTitle, totalChapters, novelSource, recordMediaProgress]);
 
   // Content state
   const [content, setContent] = useState("");

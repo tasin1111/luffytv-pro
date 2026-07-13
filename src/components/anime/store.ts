@@ -90,6 +90,48 @@ export interface HistoryItem {
 }
 
 // ============================================================
+// Generic per-type Library / Progress / Activity
+// (anime keeps its own history/bookmarks above; this covers
+//  manga, movies, tv & novels so the profile can show every
+//  section in sync)
+// ============================================================
+
+export type MediaKind = "manga" | "movie" | "tv" | "novel";
+
+/** A saved title ("My List" / bookmark) for a non-anime section. */
+export interface LibraryEntry {
+  key: string;          // `${kind}:${mediaId}`
+  kind: MediaKind;
+  mediaId: string;
+  title: string;
+  cover?: string;
+  meta?: string;        // e.g. "Manhwa" / "2021" / "24 ch"
+  score?: number;
+  addedAt: number;      // epoch ms
+  resume: Route;        // detail route to reopen the title
+}
+
+/** Latest reading/watching position for a non-anime title (Continue). */
+export interface MediaProgressEntry {
+  key: string;          // `${kind}:${mediaId}`
+  kind: MediaKind;
+  mediaId: string;
+  title: string;
+  cover?: string;
+  unitLabel: string;    // "Ch. 45" / "S1·E3" / "Ch. 12"
+  percent: number;      // 0-100 best-effort
+  updatedAt: number;    // epoch ms
+  resume: Route;        // exact watch/read route to resume
+}
+
+/** Append-only activity log — powers XP, level, streaks & heatmap. */
+export interface ActivityEvent {
+  ts: number;                       // epoch ms
+  kind: MediaKind | "anime";
+  xp: number;
+}
+
+// ============================================================
 // Route Types
 // ============================================================
 
@@ -158,6 +200,19 @@ interface AppState {
   /** Update progress for an existing history entry (called periodically during playback) */
   updateHistoryProgress: (animeId: string, episodeNum: number, progress: number, duration: number) => void;
   isBookmarked: (animeId: string) => boolean;
+  // ── Generic per-type library / progress / activity (manga/movie/tv/novel) ──
+  library: LibraryEntry[];
+  mediaProgress: MediaProgressEntry[];
+  activity: ActivityEvent[];
+  /** Toggle-add a title to the user's library ("My List"). */
+  addToLibrary: (entry: Omit<LibraryEntry, "key" | "addedAt"> & { addedAt?: number }) => void;
+  removeFromLibrary: (kind: MediaKind, mediaId: string) => void;
+  isInLibrary: (kind: MediaKind, mediaId: string) => boolean;
+  /** Upsert a Continue-position and log an activity event (awards XP). */
+  recordMediaProgress: (
+    entry: Omit<MediaProgressEntry, "key" | "updatedAt"> & { updatedAt?: number },
+    xp?: number,
+  ) => void;
   // ── Auth (localStorage-based, persisted) ──
   user: User | null;
   setUser: (user: User | null) => void;
@@ -272,6 +327,41 @@ export const useAppStore = create<AppState>()(
     ),
   })),
   isBookmarked: (animeId) => get().bookmarks.some((b) => b.animeId === animeId),
+  // ── Generic library / progress / activity ──
+  library: [],
+  mediaProgress: [],
+  activity: [],
+  addToLibrary: (entry) => set((state) => {
+    const key = `${entry.kind}:${entry.mediaId}`;
+    if (state.library.some((e) => e.key === key)) return {};
+    const newEntry: LibraryEntry = { ...entry, key, addedAt: entry.addedAt ?? Date.now() };
+    return { library: [newEntry, ...state.library].slice(0, 500) };
+  }),
+  removeFromLibrary: (kind, mediaId) => set((state) => ({
+    library: state.library.filter((e) => e.key !== `${kind}:${mediaId}`),
+  })),
+  isInLibrary: (kind, mediaId) => get().library.some((e) => e.key === `${kind}:${mediaId}`),
+  recordMediaProgress: (entry, xp = 0) => set((state) => {
+    const key = `${entry.kind}:${entry.mediaId}`;
+    const now = entry.updatedAt ?? Date.now();
+    const existing = state.mediaProgress.find((p) => p.key === key);
+    // Award XP at most once per title per calendar day (keeps XP/heatmap honest
+    // even though progress ticks fire often).
+    const sameDay = (a: number, b: number) => {
+      const da = new Date(a), db = new Date(b);
+      return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+    };
+    const grant = xp > 0 && !(existing && sameDay(existing.updatedAt, now));
+    const filtered = state.mediaProgress.filter((p) => p.key !== key);
+    const newEntry: MediaProgressEntry = { ...entry, key, updatedAt: now };
+    const activity = grant
+      ? [{ ts: now, kind: entry.kind, xp }, ...state.activity].slice(0, 3000)
+      : state.activity;
+    return {
+      mediaProgress: [newEntry, ...filtered].slice(0, 200),
+      activity,
+    };
+  }),
   // ── Auth state ──
   user: null,
   setUser: (user) => set({ user }),
@@ -283,6 +373,9 @@ export const useAppStore = create<AppState>()(
         history: state.history,
         bookmarks: state.bookmarks,
         user: state.user,
+        library: state.library,
+        mediaProgress: state.mediaProgress,
+        activity: state.activity,
       }),
     }
   )

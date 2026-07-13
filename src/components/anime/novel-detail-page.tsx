@@ -50,8 +50,29 @@ const genreColors: Record<string, string> = {
 
 export default function NovelDetailPage({ novelId, novelTitle, novelCover, novelAuthor, novelSource }: NovelDetailProps) {
   const navigate = useAppStore(s => s.navigate);
+  const addToLibrary = useAppStore(s => s.addToLibrary);
+  const removeFromLibrary = useAppStore(s => s.removeFromLibrary);
+  const inLibrary = useAppStore(s => s.library.some(e => e.key === `novel:${novelId}`));
   const [detail, setDetail] = useState<NovelDetailData | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Stash the cover so the reader's "Continue" card has an image
+  useEffect(() => {
+    if (novelId && novelCover) {
+      try { sessionStorage.setItem(`novel-cover-${novelId}`, novelCover); } catch { /* ignore */ }
+    }
+  }, [novelId, novelCover]);
+
+  const toggleLibrary = () => {
+    if (inLibrary) { removeFromLibrary("novel", novelId); return; }
+    addToLibrary({
+      kind: "novel", mediaId: novelId,
+      title: novelTitle || "Novel",
+      cover: novelCover || "",
+      meta: novelAuthor || undefined,
+      resume: { page: "novel-detail", novelId, novelTitle, novelCover, novelAuthor, novelSource },
+    });
+  };
   const [error, setError] = useState("");
   const [chapterSearch, setChapterSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("asc");
@@ -223,22 +244,34 @@ export default function NovelDetailPage({ novelId, novelTitle, novelCover, novel
             </div>
           </div>
 
-          {/* ── Start Reading button ── */}
-          {detail?.chapters && detail.chapters.length > 0 && (
+          {/* ── Start Reading + My List buttons ── */}
+          <div className="flex gap-2 mb-8">
+            {detail?.chapters && detail.chapters.length > 0 && (
+              <button
+                onClick={() => handleChapterClick(detail.chapters[0])}
+                className="flex-1 py-4 rounded-xl bg-[#a855f7] text-white text-[13px] font-bold uppercase tracking-wider hover:bg-[#9333ea] hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all"
+                style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
+                  </svg>
+                  Start Reading — Chapter 1
+                </span>
+              </button>
+            )}
             <button
-              onClick={() => handleChapterClick(detail.chapters[0])}
-              className="w-full py-4 rounded-xl bg-[#a855f7] text-white text-[13px] font-bold uppercase tracking-wider hover:bg-[#9333ea] hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all mb-8"
-              style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace" }}
+              onClick={toggleLibrary}
+              className="shrink-0 px-5 py-4 rounded-xl text-[13px] font-bold uppercase tracking-wider border transition-all"
+              style={{ fontFamily: "var(--font-space-mono), 'Space Mono', monospace", color: inLibrary ? "#10B981" : "#e8eaee", borderColor: inLibrary ? "rgba(16,185,129,0.5)" : "rgba(255,255,255,0.15)", background: inLibrary ? "rgba(16,185,129,0.1)" : "rgba(255,255,255,0.02)" }}
             >
               <span className="flex items-center justify-center gap-2">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M4 19.5A2.5 2.5 0 016.5 17H20" />
-                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z" />
-                </svg>
-                Start Reading — Chapter 1
+                <svg className="w-4 h-4" fill={inLibrary ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
+                {inLibrary ? "Saved" : "My List"}
               </span>
             </button>
-          )}
+          </div>
 
           {/* ── Chapter list ── */}
           <div className="bg-white/[0.02] border border-white/[0.06] rounded-2xl overflow-hidden">

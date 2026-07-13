@@ -36,6 +36,7 @@ const ACCENT = "#34D399";
 
 export default function TVWatchPage({ tvId, season: initialSeason, episode: initialEpisode }: { tvId: number; season: number; episode: number }) {
   const navigate = useAppStore(s => s.navigate);
+  const recordMediaProgress = useAppStore(s => s.recordMediaProgress);
   const [show, setShow] = useState<TVShowInfo | null>(null);
   const [episodes, setEpisodes] = useState<SeasonEpisodes | null>(null);
   const [currentSeason, setCurrentSeason] = useState(initialSeason);
@@ -63,6 +64,20 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
     load();
     return () => { cancelled = true; };
   }, [tvId]);
+
+  // ── Sync: record for the profile "Continue" + XP (per season/episode) ──
+  useEffect(() => {
+    if (!show) return;
+    recordMediaProgress({
+      kind: "tv",
+      mediaId: String(tvId),
+      title: show.name || "TV Show",
+      cover: show.poster_path ? `https://image.tmdb.org/t/p/w342${show.poster_path}` : "",
+      unitLabel: `S${currentSeason}·E${currentEpisode}`,
+      percent: 100,
+      resume: { page: "tv-watch", id: tvId, season: currentSeason, episode: currentEpisode },
+    }, 10);
+  }, [show, tvId, currentSeason, currentEpisode, recordMediaProgress]);
 
   useEffect(() => {
     let cancelled = false;

@@ -91,6 +91,9 @@ interface MangaDetailProps {
 export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
   const navigate = useAppStore(s => s.navigate);
   const user = useAppStore(s => s.user);
+  const addToLibrary = useAppStore(s => s.addToLibrary);
+  const removeFromLibrary = useAppStore(s => s.removeFromLibrary);
+  const inLibrary = useAppStore(s => s.library.some(e => e.key === `manga:${mangaId}`));
   const [manga, setManga] = useState<MangaDetailData | null>(null);
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState<string>("");
@@ -837,6 +840,32 @@ export default function MangaDetailPage({ mangaId }: MangaDetailProps) {
                 Latest Chapter
               </button>
             )}
+
+            {/* My List (library) toggle */}
+            <button
+              onClick={() => {
+                if (inLibrary) { removeFromLibrary("manga", mangaId); return; }
+                addToLibrary({
+                  kind: "manga", mediaId: mangaId,
+                  title: displayTitle || manga.title || "Manga",
+                  cover: poster,
+                  meta: manga.type || undefined,
+                  resume: { page: "manga-detail", id: mangaId },
+                });
+              }}
+              style={{
+                width: "100%", padding: "11px", borderRadius: "8px",
+                background: inLibrary ? "rgba(244,114,182,0.12)" : COLOR_SLATE3,
+                color: inLibrary ? "#F472B6" : COLOR_HEADING,
+                fontWeight: 600, fontSize: "13px",
+                border: inLibrary ? "1px solid rgba(244,114,182,0.4)" : "1px solid #424144",
+                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+                fontFamily: FONT_STACK, marginTop: "8px",
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill={inLibrary ? "currentColor" : "none"} stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round"><path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
+              {inLibrary ? "In My List" : "Add to My List"}
+            </button>
 
             {/* Rating (with purple star) */}
             {manga.rating ? (

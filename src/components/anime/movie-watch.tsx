@@ -34,6 +34,7 @@ const ACCENT = "#1e88ff";
 
 export default function MovieWatchPage({ movieId }: { movieId: number }) {
   const navigate = useAppStore(s => s.navigate);
+  const recordMediaProgress = useAppStore(s => s.recordMediaProgress);
   const [movie, setMovie] = useState<MovieInfo | null>(null);
   const [activeServer, setActiveServer] = useState<string>("");
   const [iframeError, setIframeError] = useState(false);
@@ -51,6 +52,18 @@ export default function MovieWatchPage({ movieId }: { movieId: number }) {
           const data = await res.json();
           setMovie(data);
           if (tmdbServers.length > 0) setActiveServer(prev => prev || tmdbServers[0].id);
+          // ── Sync: record for the profile "Continue" + XP ──
+          try {
+            recordMediaProgress({
+              kind: "movie",
+              mediaId: String(movieId),
+              title: data.title || data.original_title || "Movie",
+              cover: data.poster_path ? `https://image.tmdb.org/t/p/w342${data.poster_path}` : "",
+              unitLabel: "Movie",
+              percent: 100,
+              resume: { page: "movie-watch", id: movieId },
+            }, 15);
+          } catch { /* ignore */ }
         }
       } catch { /* ignore */ }
     }

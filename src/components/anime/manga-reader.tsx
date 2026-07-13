@@ -104,6 +104,7 @@ function lsSet(key: string, value: any) {
 export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
   const navigate = useAppStore(s => s.navigate);
   const user = useAppStore((s: any) => s.user);
+  const recordMediaProgress = useAppStore(s => s.recordMediaProgress);
 
   // ── Data State ──
   const [pages, setPages] = useState<ChapterPage[]>([]);
@@ -197,6 +198,25 @@ export default function MangaReader({ mangaId, chapterId }: MangaReaderProps) {
               }),
             });
           } catch { /* history is best-effort */ }
+
+          // ── Sync: record reading progress for the profile "Continue" + XP ──
+          try {
+            const cover = detail.poster || detail.cover || "";
+            const num = ch?.number;
+            const idx = chs.findIndex((c: any) => c === ch);
+            const percent = chs.length > 0 && idx >= 0
+              ? Math.round(((idx + 1) / chs.length) * 100)
+              : 0;
+            recordMediaProgress({
+              kind: "manga",
+              mediaId: mangaId,
+              title: detail.englishTitle || detail.title || mangaTitle || "Manga",
+              cover,
+              unitLabel: num != null ? `Ch. ${num}` : "Reading",
+              percent,
+              resume: { page: "manga-read", id: mangaId, chapterId },
+            }, 5);
+          } catch { /* ignore */ }
         }
       } catch (err) {
         console.error("[manga-reader] load error:", err);

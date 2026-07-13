@@ -73,11 +73,27 @@ function RailSection({ title, items }: { title: string; items: TMDBContentItem[]
 
 export default function TVDetailPage({ tvId }: { tvId: number }) {
   const navigate = useAppStore(s => s.navigate);
+  const addToLibrary = useAppStore(s => s.addToLibrary);
+  const removeFromLibrary = useAppStore(s => s.removeFromLibrary);
+  const inLibrary = useAppStore(s => s.library.some(e => e.key === `tv:${tvId}`));
   const [show, setShow] = useState<TVDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [showTrailer, setShowTrailer] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState(1);
   const [episodes, setEpisodes] = useState<SeasonEpisodes | null>(null);
+
+  const toggleLibrary = () => {
+    if (!show) return;
+    if (inLibrary) { removeFromLibrary("tv", String(tvId)); return; }
+    addToLibrary({
+      kind: "tv", mediaId: String(tvId),
+      title: (show as any).name || "TV Show",
+      cover: (show as any).poster_path ? `https://image.tmdb.org/t/p/w342${(show as any).poster_path}` : "",
+      meta: ((show as any).first_air_date || "").slice(0, 4) || undefined,
+      score: (show as any).vote_average ? Math.round((show as any).vote_average * 10) / 10 : undefined,
+      resume: { page: "tv-detail", id: tvId },
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -225,6 +241,14 @@ export default function TVDetailPage({ tvId }: { tvId: number }) {
                       {showTrailer ? "Hide Trailer" : "Trailer"}
                     </button>
                   )}
+                  <button
+                    onClick={toggleLibrary}
+                    className="inline-flex items-center gap-2 px-5 py-3 rounded-xl text-sm font-bold border transition-colors"
+                    style={{ fontFamily: GROTESK, color: inLibrary ? "#34D399" : "#e8eaee", borderColor: inLibrary ? "rgba(52,211,153,0.5)" : "rgba(255,255,255,0.15)", background: inLibrary ? "rgba(52,211,153,0.1)" : "rgba(10,13,19,0.8)" }}
+                  >
+                    <svg className="w-4 h-4" fill={inLibrary ? "currentColor" : "none"} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" /></svg>
+                    {inLibrary ? "In My List" : "My List"}
+                  </button>
                 </div>
               </div>
             </div>
