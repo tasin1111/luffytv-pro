@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore, useMemo, useRef, useCallback, Component, ReactNode } from "react";
 import { useAppStore, parseHash, getSectionNavLinks } from "@/components/anime/store";
 import Navbar from "@/components/anime/navbar";
+import { NovelNavbar } from "@/components/anime/novel-navbar";
 import SearchPage from "@/components/anime/search-page";
 import AnimeDetailPage from "@/components/anime/anime-detail";
 import WatchPage from "@/components/anime/watch-page";
@@ -238,7 +239,9 @@ export default function MainPage() {
   const isBrowseFullBleed = isAnimeSectionRoute && (sectionSubPage === "browse" || sectionSubPage === "schedule");
 
   // Whether footer & floating navbar are visible
-  const showNavAndFooter = !isWatchPage && !isMangaReader && !isStandalonePage && route.page !== "signin" && route.page !== "signup";
+  // Novel routes get their own navbar (NovelNavbar) — hide the anime navbar
+  const isNovelRoute = route.page === "novel" || route.page === "novel-detail";
+  const showNavAndFooter = !isWatchPage && !isMangaReader && !isStandalonePage && route.page !== "signin" && route.page !== "signup" && !isNovelRoute && route.page !== "novel-read";
   const sectionLinks = getSectionNavLinks(route);
   const hasSubNav = sectionLinks.length > 0;
 
@@ -303,10 +306,13 @@ export default function MainPage() {
       {/* Floating Per-Page Navbar */}
       {showNavAndFooter && <Navbar />}
 
+      {/* Novel section gets its own white/purple navbar */}
+      {isNovelRoute && <NovelNavbar />}
+
       {/* Main Content — render immediately (even during splash) so fetches start early */}
       <ErrorBoundary>
-      <div className={`min-h-screen bg-[#000000] flex flex-col ${!showSplash ? "content-reveal" : "opacity-0 pointer-events-none"}`}>
-        <main className={`${isWatchPage ? 'w-full px-0 lg:px-0 pt-0' : isMangaReader ? 'w-full' : isHomeFullBleed ? 'w-full' : isBrowseFullBleed ? 'w-full pt-[0px]' : showNavAndFooter ? 'w-full pt-[72px] px-4 lg:px-8' : isFullWidth ? 'w-full pt-4' : 'max-w-[1400px] mx-auto px-4 lg:px-8 pt-4'} ${isWatchPage || isMangaReader || isBrowseFullBleed || isStandalonePage || isAuthPage ? "" : "pb-28 lg:pb-12"} flex-1`}>
+      <div className={`min-h-screen flex flex-col ${!showSplash ? "content-reveal" : "opacity-0 pointer-events-none"} ${isNovelRoute || route.page === "novel-read" ? "bg-white" : "bg-[#000000]"}`}>
+        <main className={`${isWatchPage ? 'w-full px-0 lg:px-0 pt-0' : isMangaReader ? 'w-full' : isHomeFullBleed ? 'w-full' : isBrowseFullBleed ? 'w-full pt-[0px]' : isNovelRoute ? 'w-full pt-[72px] px-4 lg:px-8' : showNavAndFooter ? 'w-full pt-[72px] px-4 lg:px-8' : isFullWidth ? 'w-full pt-4' : 'max-w-[1400px] mx-auto px-4 lg:px-8 pt-4'} ${isWatchPage || isMangaReader || isBrowseFullBleed || isStandalonePage || isAuthPage ? "" : "pb-28 lg:pb-12"} flex-1`}>
           {renderPage()}
         </main>
         {showNavAndFooter && (
