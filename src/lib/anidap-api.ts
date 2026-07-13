@@ -50,7 +50,9 @@
  *   We fix this in `normalizeTrackUrl()` by stripping the ":///" and replacing with "://".
  */
 
-const ANIDAP_FRONT = "https://anidap.se";
+// NOTE: AniDap moved from anidap.se → anidap.lol (anidap.se 301-redirects).
+// The chad.anidap.se API backend still works with either origin.
+const ANIDAP_FRONT = "https://anidap.lol";
 const ANIDAP_API = "https://chad.anidap.se/rest/api";
 
 import { wrapStreamUrl, wrapM3u8Url } from "./proxy";

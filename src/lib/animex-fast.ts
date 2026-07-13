@@ -226,7 +226,9 @@ export async function resolveAnimexMimiBoth(
 
   // Otherwise, try fallback providers for the ones that failed
   // These are the providers that return UNIQUE m3u8 URLs (verified via animex-servers API)
-  const FALLBACK_PROVIDERS = ["beep", "yuki", "uwu", "kiwi", "loli", "sora"];
+  // NOTE: "beep" removed — not working (playeng.animeapps.top often 403s)
+  // NOTE: "uwu" removed — not working (vault-XX.uwucdn.top CF-vs-CF block)
+  const FALLBACK_PROVIDERS = ["yuki", "kiwi", "loli", "sora"];
 
   const subFallback = !subMimi
     ? Promise.any(
