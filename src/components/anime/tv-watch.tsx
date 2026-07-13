@@ -129,15 +129,21 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
       if (res.ok) {
         const data = await res.json();
         if (data.sources && Array.isArray(data.sources) && data.sources.length > 0) {
-          setStream({
-            origin: "vidlink",
-            sources: data.sources,
-            subtitles: data.subtitles || [],
-            hls: [],
-            error: "",
-            loading: false,
-          });
-          return;
+          // Filter out DASH sources — our player only supports MP4 and HLS
+          const playableSources = data.sources.filter((s: PlayerSource) =>
+            s.format !== "dash" && !s.url.includes(".mpd")
+          );
+          if (playableSources.length > 0) {
+            setStream({
+              origin: "vidlink",
+              sources: playableSources,
+              subtitles: data.subtitles || [],
+              hls: [],
+              error: "",
+              loading: false,
+            });
+            return;
+          }
         }
       }
     } catch { /* fall through to error */ }

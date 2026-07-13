@@ -222,7 +222,6 @@ export default function MovieTvPlayer({
         controls
         playsInline
         poster={poster}
-        crossOrigin="anonymous"
       >
         {subtitles.map((sub, idx) => (
           <track
