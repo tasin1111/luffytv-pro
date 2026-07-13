@@ -205,3 +205,21 @@ export function changePassword(userId: string, oldPassword: string, newPassword:
 export function listUsersCount(): number {
   return loadUsers().length;
 }
+
+/** All registered users on this browser, without password hashes. */
+export function listUsersSafe(): Omit<StoredUser, "passwordHash">[] {
+  return loadUsers()
+    .map(({ passwordHash, ...safe }) => safe)
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+}
+
+/** True if the given user is the site owner/admin (earliest signup or allow-listed). */
+const ADMIN_EMAILS = ["aznayeem2012@gmail.com"];
+export function isAdminUser(user: { id?: string; email?: string } | null | undefined): boolean {
+  if (!user) return false;
+  if (user.email && ADMIN_EMAILS.includes(user.email.toLowerCase())) return true;
+  const users = loadUsers();
+  if (users.length === 0) return false;
+  const earliest = users.slice().sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0];
+  return !!user.id && earliest.id === user.id;
+}

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, type ReactNode } from "react";
 import { useAppStore, type User, type HistoryItem, type BookmarkItem, type LibraryEntry, type MediaProgressEntry } from "./store";
-import { updateUserProfile } from "@/lib/auth-local";
+import { updateUserProfile, isAdminUser } from "@/lib/auth-local";
 
 // ── Customization presets ──
 const BANNER_PRESETS: Record<string, (accent: string) => string> = {
@@ -270,6 +270,18 @@ export default function ProfilePage() {
         >
           {/* Edit + logout buttons top-right */}
           <div className="absolute top-4 right-4 flex gap-2 z-10">
+            {isAdminUser(user) && (
+              <button
+                onClick={() => navigate({ page: "admin" })}
+                className="px-3 py-1.5 rounded-lg border text-xs font-bold flex items-center gap-1.5 transition-all"
+                style={{ backgroundColor: accent + "18", borderColor: accent + "55", color: accent }}
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <span className="hidden sm:inline">Admin</span>
+              </button>
+            )}
             <button
               onClick={openEditModal}
               className="px-3 py-1.5 rounded-lg bg-white/[0.04] border border-[#1a1a1a] text-xs font-medium text-gray-400 hover:text-white hover:bg-white/[0.08] transition-all flex items-center gap-1.5"

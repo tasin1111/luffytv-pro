@@ -32,6 +32,8 @@ import NovelReaderPage from "@/components/anime/novel-reader-page";
 import SignInPage from "@/components/anime/signin-page";
 import SignUpPage from "@/components/anime/signup-page";
 import ProfilePage from "@/components/anime/profile-page";
+import AdminPage from "@/components/anime/admin-page";
+import { trackPageview } from "@/lib/analytics";
 import ScraperPage from "@/components/anime/scraper-page";
 import ScraperAnimePage from "@/components/anime/scraper-anime-page";
 import ScraperWatchPage from "@/components/anime/scraper-watch-page";
@@ -191,6 +193,11 @@ export default function MainPage() {
     return () => window.removeEventListener("hashchange", handleHash);
   }, []);
 
+  // Analytics — record a page view whenever the route changes.
+  useEffect(() => {
+    trackPageview(route.page);
+  }, [route]);
+
   // Ctrl+K is now handled by the Navbar component (opens search modal)
 
   const handleSplashComplete = () => {
@@ -280,6 +287,7 @@ export default function MainPage() {
       case "signin": return <SignInPage />;
       case "signup": return <SignUpPage />;
       case "profile": return <ProfilePage />;
+      case "admin": return <AdminPage />;
       case "music": return <MusicPage />;
       case "torrent": return <TorrentPage />;
       case "scraper": return <ScraperPage />;
