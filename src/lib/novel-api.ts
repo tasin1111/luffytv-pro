@@ -148,7 +148,9 @@ export async function getGenres(): Promise<{ value: string; label: string }[]> {
 }
 
 export async function searchNovels(query: string, limit = 20): Promise<Novel[]> {
-  const data = await fetchNA<NovelListResponse>(`/novels/list?search=${encodeURIComponent(query)}&fuzzy=1&limit=${limit}`);
+  // Use the /novels (browse) endpoint with search param — the /list endpoint
+  // doesn't return search results, only the browse endpoint does.
+  const data = await fetchNA<any>(`/novels?search=${encodeURIComponent(query)}&fuzzy=1&per_page=${limit}`);
   return data?.novels || [];
 }
 
