@@ -116,8 +116,12 @@ export async function getSkipTimes(
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 6000);
+    // URL format: types[]=op&types[]=ed&types[]=mixed-op&types[]=mixed-ed&types[]=recap
+    // (the AniSkip API expects types[] syntax — using `types=` without
+    // brackets gets parsed as a single value by some backends and only
+    // the last type survives)
     const res = await fetch(
-      `${ANISKIP_API}/${anilistId}/${episodeNum}?types[]=op&types[]=ed&episodeLength=${episodeLength}`,
+      `${ANISKIP_API}/${anilistId}/${episodeNum}?types[]=op&types[]=ed&types[]=mixed-op&types[]=mixed-ed&types[]=recap&episodeLength=${episodeLength}`,
       { signal: controller.signal, headers: { Accept: "application/json" } },
     );
     clearTimeout(timeout);
@@ -146,11 +150,61 @@ export async function getSkipTimes(
     const intro = all.find(s => s.type === "op" || s.type === "mixed-op") || null;
     const outro = all.find(s => s.type === "ed" || s.type === "mixed-ed") || null;
 
-    const result: SkipTimesResponse = { intro, outro, all };
+    const result: SkipTimesResponse = {
+      intro: validateSkipTime(intro, "intro"),
+      outro: validateSkipTime(outro, "outro"),
+      all,
+    };
     _aniskipCache.set(cacheKey, { data: result, ts: Date.now() });
     return result;
   } catch (err) {
     console.error("[episode-metadata] getSkipTimes error:", err);
     return { intro: null, outro: null, all: [] };
   }
+}
+
+// ─── Skip time validation ──────────────────────────────────────────────────
+//
+// Multiple sources (AniKage, AniKoto, even AniSkip occasionally) return
+// garbage skip times. Common failure modes:
+//   1. {start: 0, end: 0}  — "no data" sentinel that isn't filtered
+//   2. intro at 1270s      — provider swapped intro/outro labels
+//   3. outro at start       — same swap, other direction
+//   4. start >= end         — zero or negative-length interval
+//
+// We filter all of these. A valid intro starts within the first 5 minutes
+// (300s). A valid outro starts after the first 5 minutes. Both must be
+// at least 10 seconds long.
+//
+// Thresholds:
+//   INTRO_MAX_START = 300s  (5 min —intros don't start 5+ minutes in)
+//   OUTRO_MIN_START = 300s  (5 min — outros don't start in the first 5 min)
+//   MIN_DURATION    = 10s   (skip segment must be at least 10s long)
+//
+export const INTRO_MAX_START = 300; // 5 minutes
+export const OUTRO_MIN_START = 300; // 5 minutes
+export const MIN_SKIP_DURATION = 10; // seconds
+
+export function validateSkipTime(
+  t: { start: number; end: number } | null | undefined,
+  kind: "intro" | "outro",
+): { start: number; end: number } | null {
+  if (!t) return null;
+  if (typeof t.start !== "number" || typeof t.end !== "number") return null;
+  if (!isFinite(t.start) || !isFinite(t.end)) return null;
+  if (t.start < 0 || t.end < 0) return null;
+  if (t.start >= t.end) return null; // zero or negative length
+  if (t.end - t.start < MIN_SKIP_DURATION) return null; // too short
+
+  if (kind === "intro") {
+    // Intros are at the start of the episode — within the first 5 minutes.
+    // If "intro" starts at 1270s, it's actually an outro (provider bug).
+    if (t.start > INTRO_MAX_START) return null;
+  } else {
+    // Outros are at the end — they start after the first 5 minutes.
+    // If "outro" starts at 0s or 5s, it's garbage data.
+    if (t.start < OUTRO_MIN_START) return null;
+  }
+
+  return { start: t.start, end: t.end };
 }

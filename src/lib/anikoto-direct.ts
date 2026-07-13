@@ -22,6 +22,12 @@ const SPOOF_REF = "https://hianimes.re/";
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
+// Import the skip-time validator. Megaplay's API returns {start: 0, end: 0}
+// when there's no data (NOT null), and occasionally returns intro/outro
+// that are swapped (intro at 1270s, outro at 0s). The validator filters
+// both cases so garbage data never reaches the player.
+import { validateSkipTime } from "./episode-metadata";
+
 // ── Cache ──
 const CACHE_TTL = 60 * 60 * 1000;
 const cacheTimestamps = new Map<string, number>();
@@ -117,8 +123,18 @@ async function extractMegaPlayStream(embedUrl: string, audio: string): Promise<{
       });
     }
 
-    const intro = data?.intro ? { start: data.intro.start || 0, end: data.intro.end || 0 } : null;
-    const outro = data?.outro ? { start: data.outro.start || 0, end: data.outro.end || 0 } : null;
+    // Validate skip times — Megaplay returns {start: 0, end: 0} when there's
+    // no data, and sometimes returns intro/outro that are swapped (e.g.
+    // Demon Slayer had intro at 1270s — that's the outro position).
+    // The validator filters all of these so only correct data reaches the player.
+    const intro = validateSkipTime(
+      data?.intro ? { start: data.intro.start, end: data.intro.end } : null,
+      "intro",
+    );
+    const outro = validateSkipTime(
+      data?.outro ? { start: data.outro.start, end: data.outro.end } : null,
+      "outro",
+    );
 
     return { m3u8Url, embedUrl, subtitles, intro, outro };
   } catch (err) {

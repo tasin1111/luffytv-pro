@@ -18,6 +18,10 @@ const WORKER_BASE =
   process.env.NEXT_PUBLIC_PROXY_BASE ||
   "https://luffytv-proxy.ggy892767.workers.dev";
 
+// Import the skip-time validator. AniKage returns {start: 0, end: 0} when
+// there's no data, and we filter that out here.
+import { validateSkipTime } from "./episode-metadata";
+
 const HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -192,12 +196,16 @@ async function getSkipTimes(
     }
 
     const data = await res.json();
-    const intro = data.intro && data.intro.start > 0
-      ? { start: data.intro.start, end: data.intro.end }
-      : null;
-    const outro = data.outro && data.outro.start > 0
-      ? { start: data.outro.start, end: data.outro.end }
-      : null;
+    // Validate skip times — AniKage returns {start: 0, end: 0} when there's
+    // no data for this anime/episode. The validator filters that out.
+    const intro = validateSkipTime(
+      data.intro ? { start: data.intro.start, end: data.intro.end } : null,
+      "intro",
+    );
+    const outro = validateSkipTime(
+      data.outro ? { start: data.outro.start, end: data.outro.end } : null,
+      "outro",
+    );
 
     // Extract embed URLs as servers (for backward compatibility)
     const servers: AniKageServer[] = [];

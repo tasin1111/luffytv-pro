@@ -28,6 +28,7 @@ interface AniDapServer {
   streamUrl: string;
   isM3U8: boolean;
   isMP4: boolean;
+  isDASH?: boolean;
   hardsub: boolean;
   subtitleTracks: Array<{ url: string; lang: string; label: string }>;
   intro: { start: number; end: number } | null;
@@ -66,6 +67,7 @@ export async function GET(
         streamUrl: r.streamUrl,
         isM3U8: r.isM3U8,
         isMP4: r.isMP4 || false,
+        isDASH: r.isDASH === true,
         hardsub: meta?.hardsub === true,
         subtitleTracks: r.tracks?.map((t: any) => ({
           url: t.url,

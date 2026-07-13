@@ -267,9 +267,19 @@ async function getEmbedUrl(
 
     // sub = Japanese (jpn), dub = English (eng)
     const targetCode = type === "dub" ? "eng" : "jpn";
-    const lang = languages.find((l) => l.code === targetCode) || languages[0];
+    // STRICT MATCH: only return the requested language. If it's not
+    // available (e.g., anime has no English dub), return null instead
+    // of falling back to languages[0] (which is usually Japanese sub).
+    // The old fallback caused "AniDB (Dub)" to play the sub video — the
+    // user would click dub and get Japanese audio with no warning.
+    const lang = languages.find((l) => l.code === targetCode);
 
-    return lang?.embed_url || null;
+    if (!lang) {
+      console.log(`[anidb-direct] no ${targetCode} (${type}) for ep ${episodeId} — available: [${languages.map(l => l.code).join(",")}]`);
+      return null;
+    }
+
+    return lang.embed_url || null;
   } catch (err) {
     console.error(`[anidb-direct] getEmbedUrl error:`, err);
     return null;

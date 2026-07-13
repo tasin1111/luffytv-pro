@@ -1,39 +1,60 @@
 /**
- * AniDap API Client
- * -----------------
+ * AniDap API Client — REWRITTEN 2026-07-13
+ * ----------------------------------------
  * AniDap (https://anidap.se) is a public anime streaming aggregator.
- * It exposes a REST API at `chad.anidap.se/rest/api/...` that returns
- * HLS m3u8 streams + WebVTT subtitles + intro/outro chapters for every
- * anime, in sub and dub, across 11 providers.
  *
- * API shape (all require Origin: https://anidap.se + Referer: https://anidap.se/):
+ * API endpoints (all require Origin: https://anidap.se + Referer: https://anidap.se/):
  *
  *   1. AniList → AniDap ID mapping
  *      GET https://anidap.se/api/anime/{anilistId}
- *      → { data: { id: "one-piece-p8k27", anilistId: 21, malId: 21, ... } }
+ *      → { success: true, data: { id: "one-piece-p8k27", anilistId: 21, ... } }
+ *      NOTE: the `id` here is a slug, NOT a number.
  *
- *   2. Sources for a specific episode + type + provider
- *      GET https://chad.anidap.se/rest/api/sources?id={anidapId}&epNum={n}&type={sub|dub}&providerId={provider}
+ *   2. Available providers for an episode
+ *      GET https://chad.anidap.se/rest/api/servers?id={slug}&epNum={n}
  *      → {
- *          sources: [{ url, quality, type }],
- *          tracks:  [{ id, url, lang, label, kind, default }],
- *          audio:   null,
- *          chapters:[{ title: "Intro"|"Outro", start, end }],
- *          headers: { Origin: "https://animex.one" }
+ *          subProviders: [{ id, default, tip }, ...],
+ *          dubProviders: [{ id, default, tip }, ...]
  *        }
  *
- * Providers (per the user's spec):
- *   sub:    vee, yuki, miku, neko, beep, meme, uwu, kuro, sax, yume
- *   dub:    mimi, yuki, miku, uwu, kuro, sax, yume
+ *   3. Sources for a specific episode + type + provider
+ *      GET https://chad.anidap.se/rest/api/sources?id={slug}&epNum={n}&type={sub|dub}&providerId={provider}
+ *      → {
+ *          sources:  [{ url, quality, type }],          // m3u8 or mp4
+ *          tracks:   [{ id, url, lang, label, kind, default }] | null,  // WebVTT/SRT captions
+ *          chapters: [{ title: "Intro"|"Outro", start, end }] | null,    // intro/outro
+ *          headers:  { Referer, Origin } | null
+ *        }
  *
- *   (beep, meme, uwu, kuro, sax, yume serve hardsub content under type=sub
- *    — they will return null `tracks` because subtitles are burned in.)
+ * ACTUAL PROVIDERS (verified 2026-07-13 via /servers endpoint):
+ *   sub: beep (soft, fast), mimi (soft, fastest), yuki (soft, multi-q),
+ *        loli (HARDSUB, fast), uwu (HARDSUB, fast, HQ), kiwi (HARDSUB, fast, HQ),
+ *        sora (soft, fast, HQ)
+ *   dub: mimi, yuki, uwu, kiwi, sora
+ *
+ * Provider tips (from /servers response):
+ *   - beep:  "Soft sub, Fast"          — returns captions via chapters only (no VTT tracks)
+ *   - mimi:  "Soft sub, Fastest, High quality" — no VTT tracks (captions in video? unclear)
+ *   - yuki:  "Soft sub, Good, Multi quality"   — returns VTT tracks (1 English track for OP)
+ *   - loli:  "Hard sub, Fast"          — no VTT tracks (subs burned in)
+ *   - uwu:   "Hard sub, Fast, High quality"   — no VTT tracks (subs burned in)
+ *   - kiwi:  "Hard sub, Fast, High quality"   — no VTT tracks (subs burned in)
+ *   - sora:  "Soft sub, Fast, High quality"   — returns MULTIPLE VTT tracks (en, th, vi, id)
+ *
+ * The previous code listed 13 fake providers (vee, miku, neko, meme, kuro, sax, yume, koto, kami,
+ * LIGHT, NEAR, RYU, MISA, etc.) which DON'T EXIST on AniDap. The /sources call would 404 for all
+ * of them, so AniDap appeared broken. This rewrite uses the REAL 7-provider catalog.
+ *
+ * Captions bug:
+ *   sora's track URLs sometimes have a triple-slash bug: "https:///subbl.krussdomi.com/..."
+ *   We fix this in `normalizeTrackUrl()` by stripping the ":///" and replacing with "://".
  */
 
 const ANIDAP_FRONT = "https://anidap.se";
 const ANIDAP_API = "https://chad.anidap.se/rest/api";
 
-import { wrapStreamUrl } from "./proxy";
+import { wrapStreamUrl, wrapM3u8Url } from "./proxy";
+import { validateSkipTime } from "./episode-metadata";
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
@@ -49,58 +70,39 @@ const ANIDAP_HEADERS: Record<string, string> = {
   "Sec-Fetch-Site": "same-site",
 };
 
-// ─── Provider catalog ────────────────────────────────────────────────────────
-//
-// AniDap providers — ONLY the real AniDap provider names. Death Note character
-// names (LIGHT, NEAR, RYU, etc.) belong to ANILIGHT, not AniDap.
-//
+// ─── Provider catalog (VERIFIED — see header comment) ──────────────────────
 
 export type AniDapProvider =
-  // softsub providers (VTT tracks included)
-  | "vee" | "yuki" | "miku" | "neko" | "beep"
-  // hardsub providers (no VTT tracks — subs burned into video)
-  | "meme" | "uwu" | "kuro" | "sax" | "yume" | "mochi" | "koto" | "kami"
-  // dub-only provider
-  | "mimi";
+  | "beep"   | "mimi"  | "yuki"  | "loli"  | "vee"
+  | "uwu"    | "kiwi"  | "sora";
 
-// Full provider catalog — covers ALL providers that AniDap's /servers endpoint
-// can return. We try every one in parallel (batched) so we don't miss any.
 export const ANIDAP_SUB_PROVIDERS: AniDapProvider[] = [
-  "vee", "yuki", "miku", "neko", "beep",        // softsub
-  "meme", "uwu", "kuro", "sax", "yume", "mochi", "koto", "kami",  // hardsub
+  "beep", "mimi", "yuki", "loli", "vee", "uwu", "kiwi", "sora",
 ];
 
 export const ANIDAP_DUB_PROVIDERS: AniDapProvider[] = [
-  "mimi", "yuki", "miku", "uwu", "kuro", "sax", "yume", "mochi",
+  "mimi", "yuki", "uwu", "kiwi", "sora",
 ];
 
-// Provider metadata for nice display names + flags
-export const ANIDAP_PROVIDER_META: Record<AniDapProvider, { name: string; hardsub: boolean; dub: boolean; sub: boolean }> = {
-  // Soft sub providers
-  vee:   { name: "Vee",   hardsub: false, sub: true,  dub: false },
-  yuki:  { name: "Yuki",  hardsub: false, sub: true,  dub: true  },
-  miku:  { name: "Miku",  hardsub: false, sub: true,  dub: true  },
-  neko:  { name: "Neko",  hardsub: false, sub: true,  dub: false },
-  beep:  { name: "Beep",  hardsub: false, sub: true,  dub: false },
-  // Hard sub providers
-  meme:  { name: "Meme",  hardsub: true,  sub: true,  dub: false },
-  uwu:   { name: "Uwu",   hardsub: true,  sub: true,  dub: true  },
-  kuro:  { name: "Kuro",  hardsub: true,  sub: true,  dub: true  },
-  sax:   { name: "Sax",   hardsub: true,  sub: true,  dub: true  },
-  yume:  { name: "Yume",  hardsub: true,  sub: true,  dub: true  },
-  mochi: { name: "Mochi", hardsub: true,  sub: true,  dub: true  },
-  koto:  { name: "Koto",  hardsub: true,  sub: true,  dub: false },
-  kami:  { name: "Kami",  hardsub: true,  sub: true,  dub: false },
-  // Dub-only
-  mimi:  { name: "Mimi",  hardsub: true,  sub: false, dub: true  },
+export const ANIDAP_PROVIDER_META: Record<AniDapProvider, {
+  name: string; hardsub: boolean; dub: boolean; sub: boolean; tip: string;
+}> = {
+  beep: { name: "Beep",  hardsub: false, sub: true,  dub: false, tip: "Soft sub, Fast" },
+  mimi: { name: "Mimi",  hardsub: false, sub: true,  dub: true,  tip: "Soft sub, Fastest, High quality" },
+  yuki: { name: "Yuki",  hardsub: false, sub: true,  dub: true,  tip: "Soft sub, Good, Multi quality" },
+  loli: { name: "Loli",  hardsub: true,  sub: true,  dub: false, tip: "Hard sub, Fast" },
+  vee:  { name: "Vee",   hardsub: false, sub: true,  dub: false, tip: "Soft sub, Fast" },
+  uwu:  { name: "Uwu",   hardsub: true,  sub: true,  dub: true,  tip: "Hard sub, Fast, High quality" },
+  kiwi: { name: "Kiwi",  hardsub: true,  sub: true,  dub: true,  tip: "Hard sub, Fast, High quality" },
+  sora: { name: "Sora",  hardsub: false, sub: true,  dub: true,  tip: "Soft sub, Fast, High quality" },
 };
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────
 
 export interface AniDapSource {
   url: string;
-  quality: string;       // "1080p", "720p", "auto", etc.
-  type: string;          // "video/mpegurl" | "video/mp4" | ...
+  quality: string;       // "1080p", "720p", "auto"
+  type: string;          // "video/mpegurl" | "video/mp4" | undefined
 }
 
 export interface AniDapTrack {
@@ -129,18 +131,17 @@ export interface AniDapSourcesResponse {
 export interface AniDapDetailResponse {
   success: boolean;
   data?: {
-    id: string;          // AniDap ID like "one-piece-p8k27"
+    id: string;          // AniDap slug like "one-piece-p8k27"
     anilistId?: number;
     malId?: number;
     titleRomaji?: string;
     titleEnglish?: string;
-    titles?: Record<string, string>;
     [k: string]: any;
   };
   error?: string;
 }
 
-// ─── AniList ID → AniDap ID resolver (with in-memory cache) ────────────────────
+// ─── AniList ID → AniDap slug resolver (with cache) ─────────────────────────
 
 const anidapIdCache = new Map<number, string | null>();
 
@@ -174,14 +175,14 @@ export async function resolveAniDapId(anilistId: number): Promise<string | null>
   }
 }
 
-// ─── Fetch sources for a specific provider ────────────────────────────────────
+// ─── Fetch sources for a specific provider ──────────────────────────────────
 
 export async function getAniDapSources(
   anidapId: string,
   epNum: number,
   type: "sub" | "dub",
   provider: AniDapProvider,
-  timeoutMs = 8000
+  timeoutMs = 10000
 ): Promise<AniDapSourcesResponse | null> {
   const url = `${ANIDAP_API}/sources?id=${encodeURIComponent(anidapId)}&epNum=${epNum}&type=${type}&providerId=${provider}`;
 
@@ -202,143 +203,12 @@ export async function getAniDapSources(
   }
 }
 
-// ─── Build a playable, CORS-friendly URL for an AniDap stream ─────────────────
-//
-// Strategy copied from Anistream.one's player (node 16 chunk):
-//
-//   1. Apply provider-specific CDN swap (no proxy needed — these are the same
-//      files served from a non-Cloudflare-protected mirror):
-//        beep:  playeng.animeapps.top/r2/      → bd.24stream.xyz/media/
-//        mochi: tools.fast4speed.rsvp          → mp4.24stream.xyz/storage
-//               vibeplayer.site/public/stream/ → hawk.24stream.xyz/media/
-//        mimi:  vibeplayer.site/public/stream/ → hawk.24stream.xyz/media/
-//        kiwi:  hls.anidb.app/stream/          → wave.24stream.xyz/stream/
-//        wave:  (any hostname)                 → wv.24stream.xyz/media/
-//
-//   2. If no swap applies (or after the swap), wrap through proxy.anikuro.to
-//      with the correct referer:
-//        vee:   https://www.animeonsen.xyz/
-//        yuki:  https://megaplay.buzz
-//        miku:  https://ply.24stream.xyz/media/
-//        neko:  https://animeverse.to/
-//        uwu:   https://kwik.cx/
-//        beep:  https://animex.one/  (already swapped to bd.24stream.xyz — direct, no proxy)
-//        ...
-//
-// The CDN swap is HUGE — bd.24stream.xyz serves the exact same files as
-// playeng.animeapps.top but without Cloudflare's bot protection. So Animex
-// "beep" streams (which return Google Cloud HTML from the original URL) play
-// perfectly from bd.24stream.xyz directly.
-//
-const ANIDAP_STREAM_REFERER = "https://animex.one/";
+// ─── Discover which providers have this episode ─────────────────────────────
 
-/** Provider-specific referer for the rare case we need to proxy. */
-const ANIDAP_PROVIDER_REFERER: Record<AniDapProvider, string> = {
-  vee:   "https://www.animeonsen.xyz/",
-  yuki:  "https://megaplay.buzz/",
-  miku:  "https://ply.24stream.xyz/media/",
-  neko:  "https://animeverse.to/",
-  beep:  "https://animex.one/",
-  meme:  "https://animex.one/",
-  uwu:   "https://kwik.cx/",
-  kuro:  "https://animex.one/",
-  sax:   "https://animex.one/",
-  yume:  "https://animex.one/",
-  mochi: "https://animex.one/",
-  koto:  "https://animex.one/",
-  kami:  "https://animex.one/",
-  mimi:  "https://animex.one/",
-  // Death Note character names — all use the same CDN as beep (playeng.animeapps.top)
-  LIGHT: "https://animex.one/", NEAR: "https://animex.one/", RYU: "https://animex.one/",
-  MISA: "https://animex.one/", KIWI: "https://animex.one/", MEG: "https://animex.one/",
-  MISORA: "https://animex.one/", RAYE: "https://animex.one/", REM: "https://animex.one/",
-  L: "https://animex.one/", WATARI: "https://animex.one/", TAKADA: "https://animex.one/",
-  AIZAWA: "https://animex.one/", SOICHIRO: "https://animex.one/",
-};
-
-/**
- * Apply provider-specific CDN swap (Anistream's oi() function).
- * Returns the swapped URL (still on a 24stream.xyz subdomain, no proxy needed),
- * or the original URL if no swap applies.
- */
-function applyCdnSwap(url: string, provider: AniDapProvider): string {
-  const u = url.trim();
-  if (!u.startsWith("http")) return u;
-
-  // beep + Death Note character names + koto + kami all use playeng.animeapps.top
-  // → swap to bd.24stream.xyz/media/ (non-CF-protected mirror)
-  const BEEP_LIKE = new Set<AniDapProvider>([
-    "beep", "koto", "kami",
-    "LIGHT", "NEAR", "RYU", "MISA", "KIWI", "MEG",
-    "MISORA", "RAYE", "REM", "L", "WATARI", "TAKADA", "AIZAWA", "SOICHIRO",
-  ]);
-  if (BEEP_LIKE.has(provider)) {
-    return u.replace("https://playeng.animeapps.top/r2/", "https://bd.24stream.xyz/media/");
-  }
-  // mimi/meme/mochi use vibeplayer.site → hawk.24stream.xyz
-  if (provider === "mimi" || provider === "meme" || provider === "mochi") {
-    return u.replace("https://vibeplayer.site/public/stream/", "https://hawk.24stream.xyz/media/");
-  }
-  return u;
-}
-
-export function buildAniDapProxyUrl(streamUrl: string, isMP4 = false, provider?: AniDapProvider): string {
-  // Step 1: Apply provider-specific CDN swap (direct mirror, no proxy needed)
-  const swapped = provider ? applyCdnSwap(streamUrl, provider) : streamUrl;
-
-  // Step 2: If the swap produced a 24stream.xyz URL, route through worker for Referer.
-  // (bd/hawk/mp4/ply.24stream.xyz return 403 without proper Referer — our worker
-  // adds the correct Referer from REFERER_MAP.)
-  if (/^https?:\/\/[^/]*\.24stream\.xyz\//.test(swapped)) {
-    return wrapStreamUrl(swapped);
-  }
-
-  // Step 3: For non-24stream URLs (e.g. vibeplayer.site, animeonsen.xyz),
-  // route through our worker — it adds the correct Referer per hostname.
-  // OLD approach used cdn.animex.su XOR wrapper — DEAD as of 2026-06-25.
-  return wrapStreamUrl(swapped);
-}
-
-/**
- * Build a proxy URL for an AniDap WebVTT subtitle track.
- * Route through our worker — it handles Referer + CORS.
- * OLD approach used cdn.animex.su XOR wrapper — DEAD as of 2026-06-25.
- */
-export function buildAniDapSubtitleProxyUrl(subtitleUrl: string): string {
-  return wrapStreamUrl(subtitleUrl);
-}
-
-// ─── Convenience: fetch from many providers in parallel ───────────────────────
-
-export interface AniDapVerifiedResult {
-  provider: AniDapProvider;
-  type: "sub" | "dub";
-  sources: AniDapSource[];
-  tracks: AniDapTrack[];
-  chapters: AniDapChapter[];
-  intro: { start: number; end: number } | null;
-  outro: { start: number; end: number } | null;
-  /** Best playable stream URL (already proxied through prox.animex.one) */
-  streamUrl: string;
-  /** Highest quality label, e.g. "1080p" */
-  quality: string;
-  /** Whether the stream is HLS (m3u8) or MP4 */
-  isM3U8: boolean;
-  isMP4: boolean;
-}
-
-/**
- * Discover which providers actually have this episode (sub + dub).
- * ONE call to `/servers` — no per-provider hammering.
- * Skips embed-type providers (ok.ru, mp4upload, streamtape, etc.)
- * since those return iframe embeds, not m3u8/mp4 streams.
- */
 interface AniDapServerEntry {
   id: string;
   default?: boolean;
   tip?: string;
-  type?: string;    // "embed" for iframe embeds — we skip these
-  url?: string;     // only present for embeds
 }
 
 interface AniDapServersResponse {
@@ -360,15 +230,12 @@ export async function discoverAniDapServers(
     ]);
     if (!res || !res.ok) return { sub: [], dub: [] };
     const data: AniDapServersResponse = await res.json();
-    if (data?.error) {
-      console.log(`[AniDap] servers endpoint: ${data.error}`);
-      return { sub: [], dub: [] };
-    }
+    if (data?.error) return { sub: [], dub: [] };
 
     const filterProviders = (list: AniDapServerEntry[] | undefined): AniDapProvider[] => {
       if (!Array.isArray(list)) return [];
       return list
-        .filter(s => s?.id && s.type !== "embed")  // skip iframe embeds (ok.ru, mp4upload, etc.)
+        .filter(s => s?.id && ANIDAP_PROVIDER_META[s.id as AniDapProvider])
         .map(s => s.id as AniDapProvider);
     };
 
@@ -381,19 +248,75 @@ export async function discoverAniDapServers(
   }
 }
 
+// ─── Helpers ────────────────────────────────────────────────────────────────
+
 /**
- * Fetch sources from EVERY provider in our catalog (10 sub + 7 dub).
+ * Fix the triple-slash bug in sora's track URLs:
+ *   "https:///subbl.krussdomi.com/..." → "https://subbl.krussdomi.com/..."
+ */
+function normalizeTrackUrl(url: string): string {
+  if (!url) return "";
+  return url.replace(/^https?:\/\/\/+/i, "https://");
+}
+
+/**
+ * Wrap an AniDap stream URL through our Cloudflare Worker proxy.
+ * The worker adds the correct Referer per CDN (see CDN_RULES in worker code).
+ */
+export function buildAniDapProxyUrl(streamUrl: string, isMP4 = false): string {
+  if (!streamUrl) return "";
+  // All AniDap streams go through the worker — the worker has referer rules
+  // for all the CDNs AniDap uses (24stream.xyz, mewstream.buzz, krussdomi.com,
+  // anidb.app, vibeplayer.site, etc.).
+  return isMP4 ? wrapStreamUrl(streamUrl) : wrapM3u8Url(streamUrl);
+}
+
+/**
+ * Wrap an AniDap caption track URL through the worker proxy.
+ * Fixes the triple-slash bug first.
+ */
+export function buildAniDapSubtitleProxyUrl(subtitleUrl: string): string {
+  const fixed = normalizeTrackUrl(subtitleUrl);
+  if (!fixed) return "";
+  return wrapStreamUrl(fixed);
+}
+
+// ─── Verified result type ───────────────────────────────────────────────────
+
+export interface AniDapVerifiedResult {
+  provider: AniDapProvider;
+  type: "sub" | "dub";
+  sources: AniDapSource[];
+  tracks: AniDapTrack[];
+  chapters: AniDapChapter[];
+  intro: { start: number; end: number } | null;
+  outro: { start: number; end: number } | null;
+  /** Best playable stream URL (already proxied through our Worker) */
+  streamUrl: string;
+  /** Highest quality label, e.g. "1080p" */
+  quality: string;
+  /** Whether the stream is HLS (m3u8) or MP4 or DASH (mpd) */
+  isM3U8: boolean;
+  isMP4: boolean;
+  isDASH: boolean;
+  /** Whether subtitles are burned into the video (hardsub) */
+  hardsub: boolean;
+}
+
+/**
+ * Fetch sources from EVERY available provider in parallel.
  *
  * Strategy:
- *   - First: get embed providers from /servers endpoint (sax, yume — type=embed).
- *     These have DIRECT URLs (ok.ru, mp4upload) — no /sources call needed.
- *     This gives us instant servers even when /sources is rate-limited.
- *   - Then: try ALL providers from our catalog via /sources endpoint.
- *     Batched 3-at-a-time with 700ms gap to dodge AniDap's rate limiter.
- *   - Providers that return "bot_detected" or "too_many_requests" are
- *     silently skipped (they're rate-limited, not absent).
+ *   1. Call /servers to get the list of providers that actually have this episode.
+ *      This is fast (<1s) and tells us exactly which providers to query.
+ *   2. For each provider, call /sources to get the m3u8 + tracks + chapters.
+ *      All calls run in parallel (7 sub + 5 dub = 12 max calls).
+ *   3. Validate skip times (filter out {0,0} and swapped intro/outro).
+ *   4. Return only providers that yielded a playable stream.
  *
- * Returns only providers that actually have a playable stream.
+ * If /servers fails (rare), fall back to trying ALL providers from the catalog.
+ *
+ * Total time: ~3-5s (parallel calls, each <2s).
  */
 export async function fetchAllAniDapSources(
   anilistId: number,
@@ -408,153 +331,118 @@ export async function fetchAllAniDapSources(
 
   const wantSub = options?.sub ?? true;
   const wantDub = options?.dub ?? true;
-  const timeoutMs = options?.timeoutMs ?? 8000;
+  const timeoutMs = options?.timeoutMs ?? 10000;
 
-  // ── STEP 1: Get embed providers from /servers endpoint (instant — no rate limit) ──
-  // These are direct iframe embeds (ok.ru, mp4upload) that don't need /sources call.
-  const embedResults: AniDapVerifiedResult[] = [];
-  try {
-    const serversResp = await Promise.race([
-      fetch(`https://chad.anidap.se/rest/api/servers?id=${anidapId}&epNum=${epNum}`, {
-        headers: { "User-Agent": "Mozilla/5.0", Accept: "application/json" },
-        cache: "no-store",
-      }),
-      new Promise<Response | null>(r => setTimeout(() => r(null), 5000)),
-    ]);
-    if (serversResp && serversResp.ok) {
-      const serversData = await serversResp.json();
-      const collectEmbeds = (list: any[], type: "sub" | "dub") => {
-        if (!Array.isArray(list)) return;
-        for (const p of list) {
-          if (p?.type === "embed" && p?.url) {
-            embedResults.push({
-              provider: p.id,
-              type,
-              sources: [],
-              tracks: [],
-              chapters: [],
-              intro: null,
-              outro: null,
-              streamUrl: p.url,
-              quality: "auto",
-              isM3U8: false,
-              isMP4: false,
-            });
-          }
-        }
-      };
-      if (wantSub) collectEmbeds(serversData.subProviders, "sub");
-      if (wantDub) collectEmbeds(serversData.dubProviders, "dub");
-      console.log(`[AniDap] ${embedResults.length} embed providers from /servers (instant)`);
-    }
-  } catch {
-    // /servers failed — continue with /sources approach
+  // ── STEP 1: Discover available providers via /servers ──
+  let subProviders: AniDapProvider[] = [];
+  let dubProviders: AniDapProvider[] = [];
+  if (wantSub || wantDub) {
+    const discovered = await discoverAniDapServers(anidapId, epNum);
+    subProviders = wantSub ? discovered.sub : [];
+    dubProviders = wantDub ? discovered.dub : [];
   }
 
-  // Build the full job list from our catalog — try EVERY provider, not just
-  // the ones /servers reports. /servers is unreliable and often omits
-  // providers that actually have the episode (e.g. sax for One Piece ep 1).
+  // Fallback: if /servers returned nothing, try the full catalog
+  if (wantSub && subProviders.length === 0) {
+    subProviders = ANIDAP_SUB_PROVIDERS;
+  }
+  if (wantDub && dubProviders.length === 0) {
+    dubProviders = ANIDAP_DUB_PROVIDERS;
+  }
+
+  // ── STEP 2: Build job list (provider + type pairs) ──
   const jobs: Array<{ provider: AniDapProvider; type: "sub" | "dub" }> = [];
-  if (wantSub) {
-    for (const p of ANIDAP_SUB_PROVIDERS) jobs.push({ provider: p, type: "sub" });
-  }
-  if (wantDub) {
-    for (const p of ANIDAP_DUB_PROVIDERS) jobs.push({ provider: p, type: "dub" });
-  }
+  for (const p of subProviders) jobs.push({ provider: p, type: "sub" });
+  for (const p of dubProviders) jobs.push({ provider: p, type: "dub" });
 
-  console.log(`[AniDap] ${anidapId} ep${epNum}: trying ALL ${jobs.length} providers from catalog (batched ${4}-at-a-time, 500ms gap)`);
+  console.log(`[AniDap] ${anidapId} ep${epNum}: trying ${jobs.length} providers (${subProviders.length} sub + ${dubProviders.length} dub) in parallel`);
 
-  // Fetch sources in batches of 4 (with 500ms gap to dodge rate limiter).
-  // Timing: 17 providers / 4 per batch = 5 batches × (5s + 0.5s) = ~27s
-  // — fits within Vercel's 30s function timeout.
-  const BATCH_SIZE = 4;
-  const BATCH_GAP_MS = 500;
+  // ── STEP 3: Fetch all sources in parallel ──
+  const results = await Promise.allSettled(
+    jobs.map(async (job): Promise<AniDapVerifiedResult | null> => {
+      const data = await getAniDapSources(anidapId, epNum, job.type, job.provider, timeoutMs);
+      if (!data?.sources?.length) return null;
+
+      // Pick the best playable source (prefer HLS m3u8, then MP4, then DASH)
+      const isHls = (s: AniDapSource) =>
+        (s.type && s.type.includes("mpegurl")) || s.url.includes(".m3u8") || s.url.endsWith(".txt");
+      const isMp4 = (s: AniDapSource) =>
+        (s.type && s.type.includes("mp4")) || s.url.includes(".mp4");
+      const isDash = (s: AniDapSource) =>
+        (s.type && s.type.includes("dash")) || s.url.includes(".mpd");
+
+      // Quality ranking — 1080p > 720p > 480p > 360p > auto
+      const qRank = (q: string): number => {
+        const m = (q || "").match(/(\d{3,4})p?/i);
+        if (m) return parseInt(m[1], 10);
+        if (/auto/i.test(q)) return 1;
+        return 0;
+      };
+
+      const playable =
+        data.sources.filter(isHls).sort((a, b) => qRank(b.quality) - qRank(a.quality))[0] ||
+        data.sources.filter(isMp4).sort((a, b) => qRank(b.quality) - qRank(a.quality))[0] ||
+        data.sources.filter(isDash).sort((a, b) => qRank(b.quality) - qRank(a.quality))[0] ||
+        data.sources[0];
+
+      if (!playable?.url) return null;
+
+      const m3u8 = isHls(playable);
+      const mp4 = isMp4(playable);
+      const dash = isDash(playable);
+      // DASH (.mpd) URLs go through wrapStreamUrl (not wrapM3u8Url) so the worker
+      // doesn't try to rewrite the manifest as m3u8.
+      const proxyUrl = dash
+        ? wrapStreamUrl(playable.url)
+        : buildAniDapProxyUrl(playable.url, mp4);
+
+      // Parse intro/outro from chapters — VALIDATE to filter bad data
+      const chapters = data.chapters || [];
+      const introChapter = chapters.find(c => /intro/i.test(c.title));
+      const outroChapter = chapters.find(c => /outro|ending|ed\b/i.test(c.title));
+      const intro = validateSkipTime(
+        introChapter ? { start: introChapter.start, end: introChapter.end } : null,
+        "intro",
+      );
+      const outro = validateSkipTime(
+        outroChapter ? { start: outroChapter.start, end: outroChapter.end } : null,
+        "outro",
+      );
+
+      // Process caption tracks — fix URL bug + wrap through proxy
+      const rawTracks = (data.tracks || []).filter(t => t?.url);
+      const tracks: AniDapTrack[] = rawTracks.map(t => ({
+        id: t.id,
+        url: normalizeTrackUrl(t.url),
+        lang: t.lang || "en",
+        label: t.label || t.lang || "English",
+        kind: t.kind || "captions",
+        default: t.default,
+      }));
+
+      return {
+        provider: job.provider,
+        type: job.type,
+        sources: data.sources,
+        tracks,
+        chapters,
+        intro,
+        outro,
+        streamUrl: proxyUrl,
+        quality: playable.quality || "auto",
+        isM3U8: m3u8,
+        isMP4: mp4,
+        isDASH: dash,
+        hardsub: ANIDAP_PROVIDER_META[job.provider]?.hardsub ?? false,
+      };
+    })
+  );
+
   const verified: AniDapVerifiedResult[] = [];
-
-  for (let i = 0; i < jobs.length; i += BATCH_SIZE) {
-    const batch = jobs.slice(i, i + BATCH_SIZE);
-    const batchResults = await Promise.allSettled(
-      batch.map(async (job): Promise<AniDapVerifiedResult | null> => {
-        const data = await getAniDapSources(anidapId, epNum, job.type, job.provider, timeoutMs);
-        if (!data?.sources?.length) return null;
-
-        // Pick the best playable source (prefer HLS m3u8, then MP4)
-        const isHls = (s: AniDapSource) =>
-          s.type?.includes("mpegurl") || s.url.includes(".m3u8") || s.url.endsWith(".txt");
-        const isMp4 = (s: AniDapSource) =>
-          s.type?.includes("mp4") || s.url.includes(".mp4");
-
-        // Quality ranking — 1080p > 720p > 480p > 360p > auto
-        const qRank = (q: string): number => {
-          const m = (q || "").match(/(\d{3,4})p?/i);
-          if (m) return parseInt(m[1], 10);
-          if (/auto/i.test(q)) return 1;
-          return 0;
-        };
-
-        const playable =
-          data.sources.filter(isHls).sort((a, b) => qRank(b.quality) - qRank(a.quality))[0] ||
-          data.sources.filter(isMp4).sort((a, b) => qRank(b.quality) - qRank(a.quality))[0] ||
-          data.sources[0];
-
-        if (!playable?.url) return null;
-
-        const m3u8 = isHls(playable);
-        const mp4 = isMp4(playable);
-
-        // ── VERIFICATION REMOVED ──
-        // HEAD verification was killing valid servers (CDNs return 403 on HEAD
-        // but 200 on GET, time-limited URLs expire, etc.)
-        // Return ALL servers — player retries on failure.
-        const proxyUrl = buildAniDapProxyUrl(playable.url, mp4, job.provider);
-
-        // Parse intro/outro from chapters
-        const chapters = data.chapters || [];
-        const intro = chapters.find(c => /intro/i.test(c.title)) || null;
-        const outro = chapters.find(c => /outro|ending|ed/i.test(c.title)) || null;
-
-        const tracks = (data.tracks || []).filter(t => t?.url);
-
-        return {
-          provider: job.provider,
-          type: job.type,
-          sources: data.sources,
-          tracks,
-          chapters,
-          intro: intro ? { start: intro.start, end: intro.end } : null,
-          outro: outro ? { start: outro.start, end: outro.end } : null,
-          streamUrl: proxyUrl,
-          quality: playable.quality || "auto",
-          isM3U8: m3u8,
-          isMP4: mp4,
-        };
-      })
-    );
-
-    for (const r of batchResults) {
-      if (r.status === "fulfilled" && r.value) verified.push(r.value);
-    }
-
-    // Small gap between batches to avoid hammering AniDap's rate limiter
-    if (i + BATCH_SIZE < jobs.length) {
-      await new Promise(r => setTimeout(r, BATCH_GAP_MS));
-    }
+  for (const r of results) {
+    if (r.status === "fulfilled" && r.value) verified.push(r.value);
   }
 
-  console.log(`[AniDap] ${verified.length}/${jobs.length} API providers yielded playable streams`);
-
-  // ── Merge embed results (from /servers) with /sources results ──
-  // Dedupe by provider+type — if /sources already returned a stream for this
-  // provider, skip the embed version (m3u8/mp4 is better than iframe).
-  const seen = new Set(verified.map(v => `${v.provider}:${v.type}`));
-  for (const e of embedResults) {
-    const key = `${e.provider}:${e.type}`;
-    if (!seen.has(key)) {
-      verified.push(e);
-      seen.add(key);
-    }
-  }
-
-  console.log(`[AniDap] ${verified.length} total (${embedResults.length} embed + ${verified.length - embedResults.length} sources)`);
+  console.log(`[AniDap] ${verified.length}/${jobs.length} providers yielded playable streams`);
   return verified;
 }

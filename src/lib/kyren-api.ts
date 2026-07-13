@@ -3,9 +3,10 @@
  * ----------------
  * Kyren (https://kyren.moe) is a Next.js anime streaming site with a public
  * API at kyren.moe/api (NOT api.kyren.moe — that subdomain is heavily
- * Cloudflare-protected). The same-origin API on kyren.moe works fine from
- * curl (different TLS fingerprint than Node's fetch / undici), so we use
- * curl via child_process for all Kyren API calls.
+ * Cloudflare-protected). The same-origin API on kyren.moe works fine via
+ * our Cloudflare Worker proxy (the worker sends proper browser headers
+ * including Sec-CH-UA, Referer, Origin, etc., so kyren.moe's CF doesn't
+ * challenge it).
  *
  * API shape:
  *   1. Search (by query):
@@ -34,14 +35,16 @@
  *          subtitles: [{ url, lang, label }]  // optional
  *        }
  *
- * The HLS stream URLs (api.kyren.moe/v1/hls/m/...) return valid m3u8 with
- * permissive CORS headers (access-control-allow-origin: *). They play
- * DIRECTLY from the browser — no proxy needed.
+ * The HLS stream URLs (api.kyren.moe/v1/hls/m/...) are wrapped through
+ * our Cloudflare Worker proxy (token endpoint /p/{token}) because
+ * api.kyren.moe is CF-protected. The worker sends the correct
+ * Referer: https://kyren.moe/ header.
  *
- * IMPORTANT: We use curl (via child_process) for Kyren API calls because
- * Node's fetch / undici gets Cloudflare-challenged (403) while curl doesn't.
- * This is the same TLS fingerprint bypass technique used in our scraper
- * stream proxy. On Vercel, curl IS available (verified).
+ * IMPORTANT: As of 2026-07-13, only `senshi` and `megaplay-direct`
+ * servers work reliably. `pahe`, `vidnest`, `vidnest-pahe` return
+ * "AnimePahe entry not found" (Kyren's pahe backend is broken), and
+ * `vidnest-direct` returns "upstream 403" (vidnest CDN is blocking).
+ * See KYREN_HLS_SERVERS for the current working list.
  */
 
 import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "./proxy";
@@ -103,13 +106,23 @@ export type KyrenServer =
   | "vidnest"
   | "vidnest-pahe";
 
+/**
+ * Working Kyren HLS servers.
+ *
+ * NOTE: As of 2026-07-13, Kyren's backend returns permanent errors for
+ * pahe, vidnest, vidnest-pahe ("AnimePahe entry not found") and
+ * vidnest-direct ("upstream 403"). These servers are broken UPSTREAM —
+ * Kyren's own backend can't reach AnimePahe or vidnest's CDN.
+ * We've removed them from the default list so we don't waste 4 broken
+ * HTTP requests per episode load (was adding ~3-4s to instant-servers
+ * resolution time).
+ *
+ * Only `senshi` and `megaplay-direct` work reliably. If Kyren fixes
+ * pahe/vidnest upstream, re-add them here.
+ */
 export const KYREN_HLS_SERVERS: KyrenServer[] = [
-  "pahe",
   "senshi",
-  "vidnest-direct",
   "megaplay-direct",
-  "vidnest",
-  "vidnest-pahe",
 ];
 
 export const KYREN_SERVER_NAMES: Record<KyrenServer, string> = {
@@ -310,7 +323,10 @@ export async function fetchAllKyrenSources(
 ): Promise<KyrenVerifiedResult[]> {
   const wantSub = options?.sub ?? true;
   const wantDub = options?.dub ?? true;
-  const timeoutMs = options?.timeoutMs ?? 10000;
+  // Per-request timeout: 8s (was 10s — Kyren's API responds in <1s when
+  // working, so 8s gives ample headroom for slow connections without
+  // adding unnecessary delay to the instant-servers route).
+  const timeoutMs = options?.timeoutMs ?? 8000;
 
   const anime = await resolveKyrenAnime(anilistId, timeoutMs);
   if (!anime) {

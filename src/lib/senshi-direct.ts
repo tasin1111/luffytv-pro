@@ -159,12 +159,21 @@ async function getEpisodeInfo(
 
     if (!ep) return null;
 
-    const intro = ep.intro_start != null && ep.intro_end != null
-      ? { start: ep.intro_start, end: ep.intro_end }
-      : null;
-    const outro = ep.outro_start != null && ep.outro_end != null
-      ? { start: ep.outro_start, end: ep.outro_end }
-      : null;
+    // Validate skip times — Senshi occasionally returns 0/empty values
+    // when the anime has no intro/outro data.
+    const { validateSkipTime } = await import("./episode-metadata");
+    const intro = validateSkipTime(
+      ep.intro_start != null && ep.intro_end != null
+        ? { start: ep.intro_start, end: ep.intro_end }
+        : null,
+      "intro",
+    );
+    const outro = validateSkipTime(
+      ep.outro_start != null && ep.outro_end != null
+        ? { start: ep.outro_start, end: ep.outro_end }
+        : null,
+      "outro",
+    );
 
     return { intro, outro };
   } catch {

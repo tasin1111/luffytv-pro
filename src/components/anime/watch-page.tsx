@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAppStore } from "./store";
 import HLSPlayerNew from "./hls-player-new";
 import AnimeComments from "./anime-comments";
@@ -8,6 +8,7 @@ import WatchPageExtras from "./watch-page-extras";
 import { getProviderDisplayName } from "@/lib/miruro-api";
 import { proxifyM3u8, proxify } from "@/lib/proxy";
 import { WatchPageShell } from "./watch-page-shell";
+import { validateSkipTime } from "@/lib/episode-metadata";
 
 // ============================================================
 // DASH PLAYER — for AnimeOnsen .mpd streams
@@ -431,12 +432,25 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   const [animeScore, setAnimeScore] = useState<number | null>(null);
   const [animeNextAiring, setAnimeNextAiring] = useState<{ episode: number; airingAt: number } | null>(null);
   // Skip times — PERSISTENT across provider switches.
-  // PRIMARY: AniKage (provides skip times for ALL anime, new and old)
-  // BACKUP: AniSkip (community database, only covers old/popular anime)
-  // The instant-servers API already returns AniKage intro/outro on every
-  // server entry, but we also fetch from AniSkip as a backup for anime
-  // that AniKage doesn't have.
+  // PRIMARY: AniSkip (community DB — most reliable, well-tested)
+  // BACKUP: AniKage (works for ALL anime including new ones, but times
+  //         are sometimes misaligned with non-AniKage streams)
+  // The instant-servers API returns AniKage intro/outro on every server
+  // entry, but we ALSO fetch from AniSkip separately and PREFER it because
+  // AniKage times are sometimes off (wrong episode cut, recap offset, etc).
   const [aniskipData, setAniskipData] = useState<{ intro: { start: number; end: number } | null; outro: { start: number; end: number } | null }>({ intro: null, outro: null });
+  // AniKage skip times stored separately so we can prefer AniSkip when both exist.
+  const [anikageData, setAnikageData] = useState<{ intro: { start: number; end: number } | null; outro: { start: number; end: number } | null }>({ intro: null, outro: null });
+  // Effective skip times: AniSkip wins, AniKage fallback.
+  // Both are validated again here as defense-in-depth — even if a provider
+  // slips {start: 0, end: 0} through, the validator catches it before
+  // it reaches the player. This prevents the "outro button shows at anime
+  // start" bug where bad outro data (start=0) made the button appear
+  // immediately when the video loaded.
+  const effectiveSkip = useMemo(() => ({
+    intro: validateSkipTime(aniskipData.intro || anikageData.intro || null, "intro"),
+    outro: validateSkipTime(aniskipData.outro || anikageData.outro || null, "outro"),
+  }), [aniskipData, anikageData]);
 
   // ── Providers Map ──
   const [providersMap, setProvidersMap] = useState<Record<string, ProviderEpisodes>>({});
@@ -1224,47 +1238,55 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   }, [anilistId, episodeNum]);
 
   // ── Fetch skip times (PERSISTENT across provider switches) ──
-  // PRIMARY: AniKage (works for ALL anime, new and old)
-  // BACKUP: AniSkip (community database, only covers old/popular anime)
+  // PRIMARY: AniSkip (community DB — most reliable, well-tested)
+  // BACKUP: AniKage (works for ALL anime including new ones, but times
+  //         are sometimes misaligned with non-AniKage streams)
   //
-  // These are fetched ONCE per episode and stored in state. They persist
-  // when switching providers — the skip button stays no matter which server
-  // the user selects. This works because skip times are timestamps, not
-  // stream-dependent.
+  // Both sources are fetched in parallel and stored separately. The
+  // effective skip time (aniskipData.intro || anikageData.intro) is
+  // computed via `effectiveSkip` useMemo above. AniSkip WINS when both
+  // are available — this fixes the "outro time is messed up" issue
+  // where AniKage times were being applied to streams from other
+  // providers (which may have different intro/outro positions).
   useEffect(() => {
     if (!anilistId || !episodeNum) return;
     let cancelled = false;
     setAniskipData({ intro: null, outro: null }); // reset on episode change
+    setAnikageData({ intro: null, outro: null });
 
-    // Fetch AniSkip (backup — covers old/popular anime)
-    // Uses the EXACT URL format from the user: types=op&types=ed&types=mixed-op&types=mixed-ed&types=recap
-    fetch(`https://api.aniskip.com/v2/skip-times/${anilistId}/${episodeNum}?types=op&types=ed&types=mixed-op&types=mixed-ed&types=recap&episodeLength=0`)
+    // Fetch AniSkip (PRIMARY — covers old/popular anime, very reliable)
+    // URL format: types[]=op&types[]=ed&types[]=mixed-op&types[]=mixed-ed&types[]=recap
+    // (the API expects types[] syntax — using `types=` without brackets
+    // gets parsed as a single value by some backends and only `recap` survives)
+    fetch(`https://api.aniskip.com/v2/skip-times/${anilistId}/${episodeNum}?types[]=op&types[]=ed&types[]=mixed-op&types[]=mixed-ed&types[]=recap&episodeLength=0`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
-        if (cancelled || !data?.results || !Array.isArray(data.results)) return;
+        if (cancelled || !data?.found || !data?.results || !Array.isArray(data.results)) return;
         const intro = data.results.find((r: any) => r.skipType === "op" || r.skipType === "mixed-op");
         const outro = data.results.find((r: any) => r.skipType === "ed" || r.skipType === "mixed-ed");
-        setAniskipData(prev => ({
-          intro: prev.intro || (intro ? { start: intro.interval.startTime, end: intro.interval.endTime } : null),
-          outro: prev.outro || (outro ? { start: outro.interval.startTime, end: outro.interval.endTime } : null),
-        }));
+        if (cancelled) return;
+        setAniskipData({
+          intro: intro ? { start: intro.interval.startTime, end: intro.interval.endTime } : null,
+          outro: outro ? { start: outro.interval.startTime, end: outro.interval.endTime } : null,
+        });
+        console.log(`[WatchPage] AniSkip: intro=${intro ? `${intro.interval.startTime}-${intro.interval.endTime}` : "no"} outro=${outro ? `${outro.interval.startTime}-${outro.interval.endTime}` : "no"}`);
       })
       .catch(() => {});
 
-    // ALSO fetch AniKage skip times (PRIMARY — works for ALL anime)
-    // This ensures skip times are permanent even for servers from the main
-    // servers route (not just instant-servers).
+    // Fetch AniKage skip times (BACKUP — works for ALL anime, applied to every instant server)
     fetch(`/api/anime/instant-servers/${anilistId}/${episodeNum}${animeTitle ? `?title=${encodeURIComponent(animeTitle)}` : ""}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (cancelled || !data?.servers?.length) return;
-        // Find the first server with intro/outro (from AniKage)
+        // Find the first server with intro/outro (these come from AniKage in
+        // the instant-servers route — see lines 259-264 of that route).
         const serverWithSkip = data.servers.find((s: any) => s.intro || s.outro);
         if (serverWithSkip) {
-          setAniskipData(prev => ({
-            intro: prev.intro || serverWithSkip.intro || null,
-            outro: prev.outro || serverWithSkip.outro || null,
-          }));
+          setAnikageData({
+            intro: serverWithSkip.intro || null,
+            outro: serverWithSkip.outro || null,
+          });
+          console.log(`[WatchPage] AniKage: intro=${serverWithSkip.intro ? `${serverWithSkip.intro.start}-${serverWithSkip.intro.end}` : "no"} outro=${serverWithSkip.outro ? `${serverWithSkip.outro.start}-${serverWithSkip.outro.end}` : "no"}`);
         }
       })
       .catch(() => {});
@@ -1295,13 +1317,20 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     const isEmbed = (server as any).isEmbed === true;
     const isDASH = (server as any).isDASH === true;
 
-    // Skip times priority:
-    // 1. Server intro/outro (from AniKage — already on every instant server)
-    // 2. AniSkip (backup for anime AniKage doesn't cover)
-    // Both are PERSISTENT across provider switches.
+    // Skip times priority (PERSISTENT across provider switches):
+    // 1. AniSkip (community DB, fetched separately — most reliable)
+    // 2. AniKage (from instant-servers, baked into every server entry)
+    // 3. Server's own intro/outro (same as #2 — already on every instant server)
+    //
+    // AniSkip WINS over AniKage because AniKage times are sometimes misaligned
+    // with streams from other providers (different recaps, different cuts).
+    // All values are validated — bad data (start=0, swapped intro/outro,
+    // too-short intervals) is filtered out before reaching the player.
     const subtitleTracks = (server as ServerEntry).subtitleTracks || [];
-    const intro = (server as ServerEntry).intro ?? aniskipData.intro;
-    const outro = (server as ServerEntry).outro ?? aniskipData.outro;
+    const serverIntro = validateSkipTime((server as ServerEntry).intro ?? null, "intro");
+    const serverOutro = validateSkipTime((server as ServerEntry).outro ?? null, "outro");
+    const intro = effectiveSkip.intro ?? serverIntro ?? null;
+    const outro = effectiveSkip.outro ?? serverOutro ?? null;
 
     const newStreamData: StreamData = {
       video_link: streamUrl,
@@ -1343,7 +1372,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
         duration: 0,
       });
     }
-  }, [selectedServer, serverList, aniskipData]);
+  }, [selectedServer, serverList, effectiveSkip]);
 
   // ── Track playback progress for Continue Watching ──
   // Listens to the video element's timeupdate event and saves progress

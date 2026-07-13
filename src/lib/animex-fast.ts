@@ -167,12 +167,20 @@ export async function resolveAnimexProvider(
     if (!m3u8Source?.url) return null;
 
     // Parse intro/outro from chapters
+    // Validate each one — chapter titles can be misleading (e.g. "preview"
+    // labeled as "ed"), and we only want real intro/outro segments.
     let intro: { start: number; end: number } | null = null;
     let outro: { start: number; end: number } | null = null;
     if (Array.isArray(sourceData.chapters)) {
+      // Inline import to avoid circular dependency issues at module load
+      const { validateSkipTime } = await import("./episode-metadata");
       for (const ch of sourceData.chapters) {
-        if (/intro/i.test(ch.title || "")) intro = { start: ch.start, end: ch.end };
-        if (/outro|ending|ed/i.test(ch.title || "")) outro = { start: ch.start, end: ch.end };
+        if (/intro/i.test(ch.title || "")) {
+          intro = validateSkipTime({ start: ch.start, end: ch.end }, "intro") || intro;
+        }
+        if (/outro|ending|ed/i.test(ch.title || "")) {
+          outro = validateSkipTime({ start: ch.start, end: ch.end }, "outro") || outro;
+        }
       }
     }
 

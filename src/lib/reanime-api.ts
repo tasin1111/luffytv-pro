@@ -28,6 +28,7 @@
  */
 
 import { wrapStreamUrl, wrapM3u8UrlWithReferer } from "./proxy";
+import { validateSkipTime } from "./episode-metadata";
 
 const REANIME_BASE = "https://reanime.to";
 const FLIXCLOUD_BASE = "https://flixcloud.cc";
@@ -582,12 +583,18 @@ export async function fetchAllReAnimeSources(
           isMP4: false,
           isEmbed: false,
           subtitleTracks,
-          intro: decrypted.intro
-            ? { start: decrypted.intro.start, end: decrypted.intro.end }
-            : null,
-          outro: decrypted.outro
-            ? { start: decrypted.outro.start, end: decrypted.outro.end }
-            : null,
+          intro: validateSkipTime(
+            decrypted.intro
+              ? { start: decrypted.intro.start, end: decrypted.intro.end }
+              : null,
+            "intro",
+          ),
+          outro: validateSkipTime(
+            decrypted.outro
+              ? { start: decrypted.outro.start, end: decrypted.outro.end }
+              : null,
+            "outro",
+          ),
         });
       } else {
         // Fall back to embed URL as iframe source

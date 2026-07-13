@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import Hls from 'hls.js';
 import { proxify, proxifyM3u8 } from '@/lib/proxy';
+import { validateSkipTime } from '@/lib/episode-metadata';
 
 interface HLSPlayerProps {
   url: string;
@@ -32,11 +33,18 @@ interface HLSPlayerProps {
 
 export default function HLSPlayerNew({
   url, animeId, episodeNum, sourceType = 'hls',
-  intro, outro, allStreams, subtitleTracks, onEnded, onProviderFailed, autoplay = true,
+  intro: introProp, outro: outroProp, allStreams, subtitleTracks, onEnded, onProviderFailed, autoplay = true,
 }: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // Defense-in-depth: validate skip times at the player level too.
+  // Even if upstream code fails to filter bad data, this guarantees
+  // the outro button never appears at the start of the video (which
+  // happens when outro.start = 0 from a provider's "no data" sentinel).
+  const intro = validateSkipTime(introProp ?? null, "intro");
+  const outro = validateSkipTime(outroProp ?? null, "outro");
 
   // Keep the latest callbacks in refs so the stream-loading and video-event
   // effects DON'T list them as deps. Parents (e.g. watch-page-shell) re-render
@@ -67,6 +75,11 @@ export default function HLSPlayerNew({
   const [playbackRate, setPlaybackRate] = useState(1);
   const [showSkipIntro, setShowSkipIntro] = useState(false);
   const [showSkipOutro, setShowSkipOutro] = useState(false);
+  // Track when user clicked skip — prevents the button from re-appearing
+  // immediately after the click (the timeupdate loop would otherwise keep
+  // showing it because video.currentTime is still in the skip range).
+  const skipIntroClickedRef = useRef(0);
+  const skipOutroClickedRef = useRef(0);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverX, setHoverX] = useState(0);
   const [seekRipple, setSeekRipple] = useState<{ x: number; dir: 'left' | 'right' } | null>(null);
@@ -214,12 +227,19 @@ export default function HLSPlayerNew({
       // Show skip intro button from 3s BEFORE intro starts until 5s AFTER it ends.
       // Also show immediately if video just loaded and we're already in the intro range
       // (happens when mimi loads super fast and starts playing at 0s, which is before intro.start)
-      if (intro && video.currentTime >= (intro.start - 3) && video.currentTime < (intro.end + 5)) {
+      //
+      // BUT: if the user just clicked Skip Intro (within last 8s), DON'T re-show the
+      // button — otherwise it instantly pops back up because video.currentTime is still
+      // in the intro range right after the seek.
+      const sinceIntroClick = Date.now() - skipIntroClickedRef.current;
+      const sinceOutroClick = Date.now() - skipOutroClickedRef.current;
+
+      if (intro && video.currentTime >= (intro.start - 3) && video.currentTime < (intro.end + 5) && sinceIntroClick > 8000) {
         setShowSkipIntro(true);
       } else {
         setShowSkipIntro(false);
       }
-      if (outro && video.currentTime >= (outro.start - 3) && video.currentTime < (outro.end + 10)) {
+      if (outro && video.currentTime >= (outro.start - 3) && video.currentTime < (outro.end + 10) && sinceOutroClick > 8000) {
         setShowSkipOutro(true);
       } else {
         setShowSkipOutro(false);
@@ -349,8 +369,20 @@ export default function HLSPlayerNew({
     setActiveMenu(null);
   };
   const skipTime = (seconds: number) => { if (videoRef.current) videoRef.current.currentTime += seconds; };
-  const skipIntro = () => { { if (videoRef.current && intro) videoRef.current.currentTime = intro.end; } };
-  const skipOutro = () => { { if (videoRef.current && outro) videoRef.current.currentTime = outro.end; } };
+  const skipIntro = () => {
+    if (videoRef.current && intro) {
+      videoRef.current.currentTime = intro.end;
+      skipIntroClickedRef.current = Date.now();
+      setShowSkipIntro(false);
+    }
+  };
+  const skipOutro = () => {
+    if (videoRef.current && outro) {
+      videoRef.current.currentTime = outro.end;
+      skipOutroClickedRef.current = Date.now();
+      setShowSkipOutro(false);
+    }
+  };
 
   // ─── Screenshot: capture current video frame as PNG ───────────────
   const takeScreenshot = useCallback(() => {
