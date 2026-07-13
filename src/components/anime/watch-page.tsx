@@ -1030,33 +1030,20 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
           const newServers = data.servers.filter((s: ServerEntry) => !existingIds.has(s.id));
           return [...prev, ...newServers];
         });
-        // Auto-select AnimeX Mimi sub as the DEFAULT server (priority 0 — fastest)
-        // Falls back to AniDB, then first instant server.
+        // Auto-select the FIRST available server instantly.
+        // The user wants playback to start ASAP — don't wait for mimi specifically.
+        // Just grab the first server in the list (already sorted by priority:
+        // priority 0 mimi, 1 anidb, 2 mimi-dub, ...) and load it immediately.
         // Only auto-selects if no server is selected yet.
         setSelectedServer(prev => {
           if (prev) return prev; // don't override if already selected
-          // INSTANT: pick the FIRST available server immediately
-          // Priority: mimi → anidb → first sub server → first any server
-          const mimiSub = data.servers.find((s: ServerEntry) => s.id === "animex:mimi:sub");
-          if (mimiSub) {
+          if (data.servers.length > 0) {
             setStreamLoading(false);
-            return mimiSub.id;
-          }
-          const anidbSub = data.servers.find((s: ServerEntry) => s.id === "anidb:sub");
-          if (anidbSub) {
-            setStreamLoading(false);
-            return anidbSub.id;
-          }
-          // Fallback: first sub server of any type
-          const firstSub = data.servers.find((s: ServerEntry) => s.type === "sub" && !s.isEmbed);
-          if (firstSub) {
-            setStreamLoading(false);
-            return firstSub.id;
-          }
-          // Last resort: first server
-          if (data.servers[0]) {
-            setStreamLoading(false);
-            return data.servers[0].id;
+            // Pick the first non-embed sub server (best playback experience)
+            const firstSub = data.servers.find((s: ServerEntry) => s.type === "sub" && !s.isEmbed);
+            const pick = firstSub || data.servers[0];
+            console.log(`[WatchPage] Instant-auto-selected: ${pick.id} (from ${data.servers.length} servers)`);
+            return pick.id;
           }
           return prev;
         });
