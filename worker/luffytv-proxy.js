@@ -116,6 +116,15 @@ const CDN_RULES = [
   { test: h => h === 'reanime.to' || h.endsWith('.reanime.to'),
     referer: 'https://reanime.to/', origin: 'https://reanime.to', secSite: 'same-origin' },
 
+  // ─── Vidlink CDN (movie/TV direct streams) ───
+  // stormvv.vodvidl.site, storm.vodvidl.site — Vidlink MP4/DASH streams
+  // Requires Referer: https://vidlink.pro/ (returns 403 without it)
+  { test: h => h.endsWith('.vodvidl.site') || h === 'vodvidl.site',
+    referer: 'https://vidlink.pro/', origin: 'https://vidlink.pro', secSite: 'cross-site' },
+  // hakunaymatata.com — Vidlink CDN (bcdn, cacdn, sacdn subdomains)
+  { test: h => h.endsWith('.hakunaymatata.com') || h === 'hakunaymatata.com',
+    referer: 'https://vidlink.pro/', origin: 'https://vidlink.pro', secSite: 'cross-site' },
+
   // ─── Luna-Stream CDNs (added 2026-07-13) ───
   // seiryuu.vid-cdn.xyz — Luna AniZone HLS + ASS subtitles
   // Needs anizone.to referer (returns 403 without it)

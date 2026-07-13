@@ -46,9 +46,33 @@ export async function GET(request: NextRequest) {
 
     // Vidlink stream URLs require Referer: https://vidlink.pro/ — the CDN
     // (stormvv.vodvidl.site) returns 403 without it. The browser can't set
-    // a custom Referer, so we MUST proxy through /api/stream.
+    // a custom Referer, so we MUST proxy.
+    //
+    // We use the Cloudflare Worker proxy (/p/{token}) which XOR-encodes the
+    // URL + referer into a base64 token — avoids query param encoding issues
+    // that break with Vercel's edge network (the MP4 URLs contain ? and &
+    // which get mangled by Vercel's query param parsing).
+    const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
+    const XOR_KEY = "10b06cdc1ca48c9fb0b94af97cc040cf";
+
+    function encodeWorkerToken(url: string, referer: string): string {
+      // XOR encode: url + "\0" + referer
+      const combined = url + "\0" + referer;
+      const keyBytes = new TextEncoder().encode(XOR_KEY);
+      const dataBytes = new TextEncoder().encode(combined);
+      const xored = new Uint8Array(dataBytes.length);
+      for (let i = 0; i < dataBytes.length; i++) {
+        xored[i] = dataBytes[i] ^ keyBytes[i % keyBytes.length];
+      }
+      // Convert to base64url
+      let binary = "";
+      for (let i = 0; i < xored.length; i++) binary += String.fromCharCode(xored[i]);
+      const b64 = Buffer.from(binary, "binary").toString("base64");
+      return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
+
     const wrap = (url: string) =>
-      `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent("https://vidlink.pro/")}`;
+      `${WORKER_BASE}/p/${encodeWorkerToken(url, "https://vidlink.pro/")}`;
 
     return NextResponse.json(
       {
