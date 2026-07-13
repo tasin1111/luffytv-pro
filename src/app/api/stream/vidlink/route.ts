@@ -44,25 +44,22 @@ export async function GET(request: NextRequest) {
 
     const streams = await getVidlinkStreams(tmdbId, type, se, ep);
 
-    // Vidlink streams have time-limited tokens that expire after ~1 hour.
-    // Do NOT cache the response — always fetch fresh URLs.
-    // Vidlink flags include "cors-allowed" — the MP4 URLs can be played
-    // directly by the browser without a proxy. We still provide proxyUrl
-    // as a fallback in case CORS fails for some users.
+    // Vidlink stream URLs require Referer: https://vidlink.pro/ — the CDN
+    // (stormvv.vodvidl.site) returns 403 without it. The browser can't set
+    // a custom Referer, so we MUST proxy through /api/stream.
+    const wrap = (url: string) =>
+      `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent("https://vidlink.pro/")}`;
 
     return NextResponse.json(
       {
         source: "vidlink",
         sources: streams.sources.map((s) => ({
           ...s,
-          // Use the direct URL — Vidlink streams are CORS-allowed
-          // (no proxyUrl needed, but we include it as fallback)
-          proxyUrl: s.url,
+          proxyUrl: wrap(s.url),
         })),
         subtitles: streams.subtitles.map((sub) => ({
           ...sub,
-          // Subtitle URLs need proxying (CORS + SRT→VTT conversion)
-          proxyUrl: `/api/stream?url=${encodeURIComponent(sub.url)}&referer=${encodeURIComponent("https://vidlink.pro/")}`,
+          proxyUrl: wrap(sub.url),
         })),
       },
       { headers: { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store, no-cache, must-revalidate" } }

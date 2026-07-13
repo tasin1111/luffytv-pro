@@ -51,6 +51,8 @@ const ALLOWED_HOSTS = [
   "echovideo.ru", "play.echovideo.ru",
   // Vidlink + enc-dec API (movie/TV direct streams)
   "vidlink.pro", "api.vidlink.pro", "enc-dec.app",
+  // Vidlink CDN hosts (MP4 stream URLs)
+  "vodvidl.site", "hakunaymatata.com",
   // Moviebox API + player domain
   "aoneroom.com", "h5-api.aoneroom.com", "moviebox.ph",
   // Netfilm player domain (Moviebox stream CDN)
@@ -192,9 +194,9 @@ export async function GET(request: NextRequest) {
 
     if (range) headers["Range"] = range;
 
-    // Fetch with timeout (15s)
+    // Fetch with timeout (60s — large MP4 files take time to start streaming)
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15000);
+    const timeout = setTimeout(() => controller.abort(), 60000);
     const res = await fetch(targetUrl, { headers, redirect: "follow", signal: controller.signal });
     clearTimeout(timeout);
 
