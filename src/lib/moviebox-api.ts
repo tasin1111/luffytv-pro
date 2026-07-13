@@ -80,8 +80,8 @@ const PLAYER_HEADERS: Record<string, string> = {
   "sec-fetch-site": "same-origin",
 };
 
-// In-memory bearer token cache (per server instance)
-let _bearerToken: string | null = null;
+// In-memory bearer token cache — Moviebox tokens expire quickly, so we
+// always fetch a fresh one for each request (don't cache).
 let _streamDomain: string | null = null;
 
 function extractTokenFromHeaders(res: Response): string | null {
@@ -104,19 +104,17 @@ function extractTokenFromHeaders(res: Response): string | null {
 }
 
 async function getBearerToken(): Promise<string> {
-  if (_bearerToken) return _bearerToken;
+  // Always fetch a fresh token — Moviebox tokens expire within seconds.
   const url = `${API_BASE}/home?host=moviebox.ph`;
   const res = await fetch(url, {
     headers: DEFAULT_HEADERS,
     redirect: "follow",
     signal: AbortSignal.timeout(25000),
   });
-  // We don't care about the body — only the headers carry the token.
   const tok = extractTokenFromHeaders(res);
   if (!tok) {
     throw new Error("moviebox: failed to acquire bearer token");
   }
-  _bearerToken = tok;
   return tok;
 }
 
@@ -161,9 +159,8 @@ async function makeApiRequest<T = unknown>(
 
   const res = await fetch(url, init);
 
-  // Refresh token if server sends a new one in x-user header
-  const newTok = extractTokenFromHeaders(res);
-  if (newTok) _bearerToken = newTok;
+  // Refresh token if server sends a new one in x-user header (for logging only)
+  const _newTok = extractTokenFromHeaders(res);
 
   if (!res.ok) {
     throw new Error(`moviebox: ${method} ${url} failed ${res.status}`);
@@ -174,6 +171,10 @@ async function makeApiRequest<T = unknown>(
 /**
  * Search Moviebox by keyword.
  * Returns an array of { title, slug, subjectId, poster }.
+ *
+ * The API returns items in two possible shapes:
+ *   1. { subject: { title, detailPath, subjectId, cover: { url } } }
+ *   2. { title, detailPath, subjectId, cover: { url } } (flat)
  */
 export async function searchMoviebox(query: string): Promise<MovieboxSearchResult[]> {
   const url = `${API_BASE}/subject/search`;
@@ -188,10 +189,14 @@ export async function searchMoviebox(query: string): Promise<MovieboxSearchResul
   for (const item of raw) {
     if (!item || typeof item !== "object") continue;
     const obj = item as Record<string, unknown>;
-    const title = (obj.title as string) || "";
-    const slug = (obj.detailPath as string) || "";
-    const subjectId = String(obj.subjectId ?? "");
-    const cover = (obj.cover as Record<string, unknown> | undefined)?.url as string | undefined;
+    // The subject data might be nested under `subject` or at the top level
+    const sub = (obj.subject as Record<string, unknown> | undefined) || obj;
+
+    const title = (sub.title as string) || (obj.word as string) || "";
+    const slug = (sub.detailPath as string) || "";
+    const subjectId = String(sub.subjectId ?? "");
+    const cover = (sub.cover as Record<string, unknown> | undefined)?.url as string | undefined;
+
     if (!title || !slug || !subjectId) continue;
     results.push({ title, slug, subjectId, poster: cover || "" });
   }
