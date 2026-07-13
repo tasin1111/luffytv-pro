@@ -29,6 +29,12 @@ export type StoredUser = {
   avatarColor?: string;
   bio?: string;
   createdAt: string;
+  // ── Profile customization ──
+  accentColor?: string;     // themes XP bar / badges / active tabs
+  avatarEmoji?: string;     // optional emoji shown instead of the letter
+  banner?: string;          // header banner preset key (see BANNER_PRESETS)
+  favorites?: string[];     // favorite genres shown as chips
+  tagline?: string;         // short flair under the name
 };
 
 const AVATAR_COLORS = [
@@ -167,6 +173,11 @@ export function updateUserProfile(userId: string, updates: {
   bio?: string;
   avatar?: string;
   avatarColor?: string;
+  accentColor?: string;
+  avatarEmoji?: string;
+  banner?: string;
+  favorites?: string[];
+  tagline?: string;
 }): Omit<StoredUser, "passwordHash"> | null {
   const users = loadUsers();
   const idx = users.findIndex((u) => u.id === userId);

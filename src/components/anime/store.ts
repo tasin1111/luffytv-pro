@@ -231,6 +231,12 @@ export interface User {
   avatarColor?: string;  // bg color for avatar
   bio?: string;
   createdAt: string;
+  // ── Profile customization ──
+  accentColor?: string;  // themes XP bar / badges / active tabs
+  avatarEmoji?: string;  // optional emoji shown instead of the letter
+  banner?: string;       // header banner preset key
+  favorites?: string[];  // favorite genres shown as chips
+  tagline?: string;      // short flair under the name
 }
 
 export const useAppStore = create<AppState>()(
