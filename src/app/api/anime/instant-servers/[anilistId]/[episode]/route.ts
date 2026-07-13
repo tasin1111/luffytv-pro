@@ -126,15 +126,15 @@ export async function GET(
       (async () => {
         try {
           const al = await withTimeout(fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 25000 }).catch(() => []), 25000, []);
-          al.filter((r: any) => r.type === "sub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:sub:${i}`, name: `AniLight ${r.quality}`.trim(), source: "anilight", provider: "anilight", type: "sub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 5 + i, subtitleTracks: wrapSubs((r.tracks || []).map((t: any) => ({ url: t.url), lang: t.lang || "en", label: t.label || "English" })) }));
-          al.filter((r: any) => r.type === "dub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:dub:${i}`, name: `AniLight ${r.quality} (Dub)`.trim(), source: "anilight", provider: "anilight", type: "dub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 6 + i, subtitleTracks: wrapSubs((r.tracks || []).map((t: any) => ({ url: t.url), lang: t.lang || "en", label: t.label || "English" })) }));
+          al.filter((r: any) => r.type === "sub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:sub:${i}`, name: `AniLight ${r.quality}`.trim(), source: "anilight", provider: "anilight", type: "sub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 5 + i, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: wrapStreamUrl(t.url), lang: t.lang || "en", label: t.label || "English" })) }));
+          al.filter((r: any) => r.type === "dub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:dub:${i}`, name: `AniLight ${r.quality} (Dub)`.trim(), source: "anilight", provider: "anilight", type: "dub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 6 + i, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: wrapStreamUrl(t.url), lang: t.lang || "en", label: t.label || "English" })) }));
         } catch {}
       })(),
       // Kyren (priority 7)
       (async () => {
         try {
           const kr = await withTimeout(fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 25000 }).catch(() => []), 25000, []);
-          if (kr?.length) { let p = 7; for (const r of kr) servers.push({ id: `kyren:${r.server}:${r.type}`, name: `Kyren ${r.server.charAt(0).toUpperCase() + r.server.slice(1)}${r.type === "dub" ? " (Dub)" : ""}`, source: "kyren", provider: r.server, type: r.type, quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: p++, subtitleTracks: wrapSubs((r.tracks || []).map((t: any) => ({ url: t.url), lang: t.lang || "en", label: t.label || "English" })) }); }
+          if (kr?.length) { let p = 7; for (const r of kr) servers.push({ id: `kyren:${r.server}:${r.type}`, name: `Kyren ${r.server.charAt(0).toUpperCase() + r.server.slice(1)}${r.type === "dub" ? " (Dub)" : ""}`, source: "kyren", provider: r.server, type: r.type, quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: p++, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: wrapStreamUrl(t.url), lang: t.lang || "en", label: t.label || "English" })) }); }
         } catch {}
       })(),
       // Senshi (priority 8)
@@ -246,7 +246,7 @@ export async function GET(
           const ad = await withTimeout(getAniDapSources(anidapId, epNum, "sub", "beep").catch(() => null), 25000, null);
           if (ad?.sources?.length) {
             const src = ad.sources.find((s: any) => s.url?.includes(".m3u8") || s.type?.includes("mpegurl"));
-            if (src?.url) servers.push({ id: "anidap:beep:sub", name: "AniDap Beep", source: "anidap", provider: "beep", type: "sub", quality: src.quality || "1080p", streamUrl: wrapM3u8Url(src.url), isM3U8: true, isMP4: false, isEmbed: false, hardsub: true, priority: 10, subtitleTracks: wrapSubs((ad.tracks || []).map((t: any) => ({ url: t.url), lang: t.lang, label: t.label })), intro: ad.intro || null, outro: ad.outro || null });
+            if (src?.url) servers.push({ id: "anidap:beep:sub", name: "AniDap Beep", source: "anidap", provider: "beep", type: "sub", quality: src.quality || "1080p", streamUrl: wrapM3u8Url(src.url), isM3U8: true, isMP4: false, isEmbed: false, hardsub: true, priority: 10, subtitleTracks: (ad.tracks || []).map((t: any) => ({ url: wrapStreamUrl(t.url), lang: t.lang, label: t.label })), intro: ad.intro || null, outro: ad.outro || null });
           }
         } catch {}
       })(),
