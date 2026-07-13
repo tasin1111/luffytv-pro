@@ -355,14 +355,39 @@ export async function GET(
       console.log(`[instant-servers] AniKage skip times applied to ALL servers: intro=${JSON.stringify(anikageIntro)} outro=${JSON.stringify(anikageOutro)}`);
     }
 
+    // DEDUPLICATE — remove servers with the same source:provider:type combo.
+    // Some providers (especially AniPm) return multiple servers with the same
+    // provider name (e.g. "Pulse" appears 4 times). We keep only the first
+    // (which is usually the best quality after per-provider dedup).
+    // Also deduplicate by streamUrl — different providers may return the same
+    // underlying m3u8 URL (e.g. Kyren Senshi and Luna Senshi both point to
+    // the same ninstream.com URL).
+    const seenKeys = new Set<string>();
+    const seenUrls = new Set<string>();
+    const deduped: typeof servers = [];
+    for (const s of servers) {
+      const key = `${s.source}:${s.provider}:${s.type}`;
+      // Normalize URL for comparison (strip query strings that are just cache busters)
+      const urlKey = s.streamUrl.split("?")[0];
+      if (seenKeys.has(key)) continue;
+      if (seenUrls.has(urlKey)) continue;
+      seenKeys.add(key);
+      seenUrls.add(urlKey);
+      deduped.push(s);
+    }
+    const dupesRemoved = servers.length - deduped.length;
+    if (dupesRemoved > 0) {
+      console.log(`[instant-servers] Removed ${dupesRemoved} duplicate servers`);
+    }
+
     // Sort by priority
-    servers.sort((a, b) => a.priority - b.priority);
+    deduped.sort((a, b) => a.priority - b.priority);
 
     console.log(
-      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (animex:${servers.some(s => s.source === "animex") ? "✓" : "✗"} anidb:${servers.some(s => s.source === "anidb") ? "✓" : "✗"} anineko:${servers.some(s => s.source === "anineko") ? "✓" : "✗"} anilight:${servers.some(s => s.source === "anilight") ? "✓" : "✗"} kyren:${servers.some(s => s.source === "kyren") ? "✓" : "✗"} senshi:${servers.some(s => s.source === "senshi") ? "✓" : "✗"} allmanga:${servers.some(s => s.source === "allmanga") ? "✓" : "✗"} anikoto:${servers.some(s => s.source === "anikoto") ? "✓" : "✗"} reanime:${servers.some(s => s.source === "reanime") ? "✓" : "✗"} anikage:${anikageIntro || anikageOutro ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"} luna:${servers.some(s => s.source === "luna") ? "✓" : "✗"})`,
+      `[instant-servers] AniList ${id} ep ${epNum}: ${deduped.length} instant servers (animex:${deduped.some(s => s.source === "animex") ? "✓" : "✗"} anidb:${deduped.some(s => s.source === "anidb") ? "✓" : "✗"} anineko:${deduped.some(s => s.source === "anineko") ? "✓" : "✗"} anilight:${deduped.some(s => s.source === "anilight") ? "✓" : "✗"} kyren:${deduped.some(s => s.source === "kyren") ? "✓" : "✗"} senshi:${deduped.some(s => s.source === "senshi") ? "✓" : "✗"} allmanga:${deduped.some(s => s.source === "allmanga") ? "✓" : "✗"} anikoto:${deduped.some(s => s.source === "anikoto") ? "✓" : "✗"} reanime:${deduped.some(s => s.source === "reanime") ? "✓" : "✗"} anikage:${anikageIntro || anikageOutro ? "✓" : "✗"} anidap:${deduped.some(s => s.source === "anidap") ? "✓" : "✗"} luna:${deduped.some(s => s.source === "luna") ? "✓" : "✗"} anipm:${deduped.some(s => s.source === "anipm") ? "✓" : "✗"})`,
     );
 
-    return NextResponse.json({ servers });
+    return NextResponse.json({ servers: deduped });
   } catch (err) {
     console.error("[instant-servers] error:", err);
     return NextResponse.json({ servers: [] });

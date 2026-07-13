@@ -239,6 +239,26 @@ export async function fetchAniPmSources(
   if (wantSub && data.sub) processServers(data.sub, "sub");
   if (wantDub && data.dub) processServers(data.dub, "dub");
 
-  console.log(`[AniPm] ${verified.length} servers (${data.sub?.length || 0} sub + ${data.dub?.length || 0} dub)`);
-  return verified;
+  // DEDUPLICATE by provider name — AniPm returns MANY servers with the same
+  // provider (e.g. "Pulse" appears 4 times, "Lyra" appears 2+ times with
+  // different URLs). We keep only ONE per provider: prefer HLS over embed,
+  // then prefer the first occurrence.
+  const seen = new Set<string>();
+  const deduped: AniPmVerifiedResult[] = [];
+  // Sort: HLS first (isM3U8=true), then file (isMP4), then embed — so the
+  // first occurrence of each provider is the best quality.
+  const sorted = [...verified].sort((a, b) => {
+    const aRank = a.isM3U8 ? 0 : (a.isMP4 ? 1 : 2);
+    const bRank = b.isM3U8 ? 0 : (b.isMP4 ? 1 : 2);
+    return aRank - bRank;
+  });
+  for (const r of sorted) {
+    const key = `${r.provider}:${r.type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    deduped.push(r);
+  }
+
+  console.log(`[AniPm] ${deduped.length} servers (deduped from ${verified.length})`);
+  return deduped;
 }
