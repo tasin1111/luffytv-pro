@@ -71,17 +71,25 @@ const ANIDAP_HEADERS: Record<string, string> = {
 };
 
 // ─── Provider catalog (VERIFIED — see header comment) ──────────────────────
+//
+// NOTE: "uwu" is removed from the active provider list because vault-XX.uwucdn.top
+// (the CDN uwu uses) is Cloudflare-protected and blocks our Cloudflare Worker's
+// fetch() with a 403. This is a CF-vs-CF issue — Workers fetching CF-protected
+// sites sometimes get challenged. Direct curl works, but the worker can't bypass it.
+// If Cloudflare fixes this or we switch to a non-CF proxy, re-add "uwu" here.
 
 export type AniDapProvider =
   | "beep"   | "mimi"  | "yuki"  | "loli"  | "vee"
-  | "uwu"    | "kiwi"  | "sora";
+  | "kiwi"  | "sora"  | "uwu";
 
 export const ANIDAP_SUB_PROVIDERS: AniDapProvider[] = [
-  "beep", "mimi", "yuki", "loli", "vee", "uwu", "kiwi", "sora",
+  "beep", "mimi", "yuki", "loli", "vee", "kiwi", "sora",
+  // "uwu" — disabled (vault-XX.uwucdn.top returns 403 to our worker)
 ];
 
 export const ANIDAP_DUB_PROVIDERS: AniDapProvider[] = [
-  "mimi", "yuki", "uwu", "kiwi", "sora",
+  "mimi", "yuki", "kiwi", "sora",
+  // "uwu" — disabled (vault-XX.uwucdn.top returns 403 to our worker)
 ];
 
 export const ANIDAP_PROVIDER_META: Record<AniDapProvider, {
@@ -92,7 +100,7 @@ export const ANIDAP_PROVIDER_META: Record<AniDapProvider, {
   yuki: { name: "Yuki",  hardsub: false, sub: true,  dub: true,  tip: "Soft sub, Good, Multi quality" },
   loli: { name: "Loli",  hardsub: true,  sub: true,  dub: false, tip: "Hard sub, Fast" },
   vee:  { name: "Vee",   hardsub: false, sub: true,  dub: false, tip: "Soft sub, Fast" },
-  uwu:  { name: "Uwu",   hardsub: true,  sub: true,  dub: true,  tip: "Hard sub, Fast, High quality" },
+  uwu:  { name: "Uwu",   hardsub: true,  sub: true,  dub: true,  tip: "Hard sub, Fast, High quality (disabled — CF block)" },
   kiwi: { name: "Kiwi",  hardsub: true,  sub: true,  dub: true,  tip: "Hard sub, Fast, High quality" },
   sora: { name: "Sora",  hardsub: false, sub: true,  dub: true,  tip: "Soft sub, Fast, High quality" },
 };

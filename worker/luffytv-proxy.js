@@ -115,6 +115,28 @@ const CDN_RULES = [
   // ReAnime (reanime.to) — CF-protected, needs same-origin referer
   { test: h => h === 'reanime.to' || h.endsWith('.reanime.to'),
     referer: 'https://reanime.to/', origin: 'https://reanime.to', secSite: 'same-origin' },
+
+  // ─── Luna-Stream CDNs (added 2026-07-13) ───
+  // seiryuu.vid-cdn.xyz — Luna AniZone HLS + ASS subtitles
+  // Needs anizone.to referer (returns 403 without it)
+  { test: h => h.endsWith('.vid-cdn.xyz') || h === 'vid-cdn.xyz',
+    referer: 'https://anizone.to/', origin: 'https://anizone.to', secSite: 'cross-site' },
+  // as-cdn21.top — Luna AnimeSalt HLS (already proxied through luna, but just in case)
+  { test: h => h.endsWith('.as-cdn21.top') || h === 'as-cdn21.top',
+    referer: 'https://animesalt.to/', origin: 'https://animesalt.to', secSite: 'cross-site' },
+  // stream.neongambit.com / stream2.neongambit.com — Luna HadFree
+  { test: h => h.endsWith('.neongambit.com') || h === 'neongambit.com',
+    referer: 'https://luna-stream.me/', origin: 'https://luna-stream.me', secSite: 'cross-site' },
+  // api.anime.nexus / assets.anime.nexus — Luna AnimeNexus
+  { test: h => h.endsWith('.anime.nexus') || h === 'anime.nexus',
+    referer: 'https://anime.nexus/', origin: 'https://anime.nexus', secSite: 'same-origin' },
+  // 1oe.lostproject.club — AniDap Yuki subtitle CDN
+  { test: h => h.endsWith('.lostproject.club') || h === 'lostproject.club',
+    referer: 'https://megaplay.buzz/', origin: 'https://megaplay.buzz', secSite: 'cross-site' },
+  // subbl.krussdomi.com — AniDap Sora subtitle CDN
+  { test: h => h.endsWith('.krussdomi.com') || h === 'krussdomi.com',
+    referer: 'https://krussdomi.com/', origin: 'https://krussdomi.com', secSite: 'same-origin' },
+
   // Catch-all: default to megaplay.buzz referer (works for most anime CDNs)
   { test: h => true,
     referer: 'https://megaplay.buzz/', origin: 'https://megaplay.buzz', secSite: 'cross-site' },
@@ -304,8 +326,22 @@ async function proxyTarget(targetUrl, refParam, request) {
   }
 
   // Binary / TS segment: stream as-is
+  // BUT: fix Content-Type for subtitle files (.vtt, .srt, .ass)
+  // Many CDNs return application/octet-stream for subtitles, which causes
+  // the browser's <track> element to refuse rendering them.
+  // We detect by file extension and set the correct MIME type.
+  let contentType = upstreamResp.headers.get('Content-Type') || 'application/octet-stream';
+  const urlPath = targetUrl.split('?')[0].toLowerCase().split('#')[0];
+  if (urlPath.endsWith('.vtt')) {
+    contentType = 'text/vtt; charset=utf-8';
+  } else if (urlPath.endsWith('.srt')) {
+    contentType = 'application/x-subrip; charset=utf-8';
+  } else if (urlPath.endsWith('.ass')) {
+    contentType = 'text/x-ass; charset=utf-8';
+  }
+
   const passHeaders = {
-    'Content-Type':  upstreamResp.headers.get('Content-Type') || 'application/octet-stream',
+    'Content-Type':  contentType,
     'Cache-Control': 'public, max-age=86400, immutable',
     ...corsHeaders(),
   };

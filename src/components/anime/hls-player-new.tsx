@@ -573,10 +573,12 @@ export default function HLSPlayerNew({
         crossOrigin="anonymous"
       >
         {(subtitleTracks || []).map((t, i) => {
-          let trackSrc = t.url;
-          if (!t.url.startsWith('blob:') && !t.url.startsWith('data:') && !t.url.startsWith('/')) {
-            trackSrc = proxify(t.url, 'raw');
-          }
+          // The subtitle URL is ALREADY wrapped through our worker proxy
+          // (instant-servers route does wrapStreamUrl(t.url), and watch-page-shell
+          // may proxify() it again — but proxify/wrapStreamUrl both check for
+          // already-wrapped URLs and return as-is, so no double-wrapping).
+          // Just use t.url directly — no need to proxify again here.
+          const trackSrc = t.url;
           return (
             <track key={`ext-sub-${i}`} kind="subtitles" src={trackSrc} srcLang={t.lang || 'en'} label={t.label || t.lang || 'English'} default={i === 0 && hlsSubtitles.length === 0} />
           );

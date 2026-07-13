@@ -72,17 +72,19 @@ export type LunaProvider =
   | "senshi"
   | "anidb"
   | "animesalt"
-  | "hadfree"
   | "anibd"
   | "animenexus";
 
+// NOTE: "hadfree" removed — stream.neongambit.com returns 403 for ALL referers
+// (the CDN is broken or requires auth we don't have).
+// NOTE: "animenexus" kept but often returns 403/429 — api.anime.nexus is
+// CF-protected and blocks our worker. It works occasionally.
 export const LUNA_PROVIDERS: LunaProvider[] = [
   "anizone",
   "megaplay",
   "senshi",
   "anidb",
   "animesalt",
-  "hadfree",
   "anibd",
   "animenexus",
 ];
@@ -95,7 +97,6 @@ export const LUNA_PROVIDER_META: Record<LunaProvider, {
   senshi:     { name: "Senshi",     hardsub: true,  type: "sub" },
   anidb:      { name: "AniDB",      hardsub: false, type: "sub" },
   animesalt:  { name: "AnimeSalt",  hardsub: false, type: "sub" },
-  hadfree:    { name: "HadFree",    hardsub: false, type: "sub" },
   anibd:      { name: "AniBD",      hardsub: true,  type: "sub" },
   animenexus: { name: "AnimeNexus", hardsub: false, type: "sub" },
 };

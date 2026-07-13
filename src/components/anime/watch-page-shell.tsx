@@ -234,7 +234,7 @@ export function WatchPageShell({
                 allStreams={streamData.hls_sources?.map((s: any) => ({
                   url: proxifyM3u8(s.url), quality: s.quality || "Auto", label: s.label || s.quality || "Auto",
                 })) || []}
-                subtitleTracks={(streamData.subtitle_tracks || []).map((s: any) => ({ url: proxify(s.url, "raw"), lang: s.label || "en", label: s.label || "English" }))}
+                subtitleTracks={(streamData.subtitle_tracks || []).map((s: any) => ({ url: s.url, lang: s.label || "en", label: s.label || "English" }))}
                 onEnded={handleVideoEnded}
                 onProviderFailed={() => handleProviderFailed(activeProvider)}
                 autoplay={autoPlay}
