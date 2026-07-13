@@ -111,14 +111,18 @@ export interface ReAnimeVerifiedResult {
 
 // ─── Fetch helper ─────────────────────────────────────────────────────────────
 
+const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
+
 async function reanimeFetch<T = any>(
   path: string,
-  timeoutMs = 8000
+  timeoutMs = 15000
 ): Promise<T | null> {
   try {
-    const url = path.startsWith("http") ? path : `${REANIME_BASE}${path}`;
+    const targetUrl = path.startsWith("http") ? path : `${REANIME_BASE}${path}`;
+    // Route through Worker proxy to bypass Cloudflare on reanime.to
+    const proxyUrl = `${WORKER_BASE}/proxy?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent("https://reanime.to/")}`;
     const res = await Promise.race([
-      fetch(url, { headers: HEADERS, cache: "no-store" }),
+      fetch(proxyUrl, { headers: { "Accept": "application/json" }, cache: "no-store" }),
       new Promise<Response | null>((r) => setTimeout(() => r(null), timeoutMs)),
     ]);
     if (!res || !res.ok) {
@@ -127,7 +131,6 @@ async function reanimeFetch<T = any>(
     }
     const text = await res.text();
     if (text.startsWith("<")) {
-      // CF challenge page
       console.error(`[ReAnime] ${path} → CF challenge`);
       return null;
     }

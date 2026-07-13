@@ -112,6 +112,9 @@ const CDN_RULES = [
   { test: h => h === 'animeyubi.com' || h.endsWith('.animeyubi.com'),
     referer: 'https://animeyubi.com/', origin: 'https://animeyubi.com', secSite: 'same-origin' },
 
+  // ReAnime (reanime.to) — CF-protected, needs same-origin referer
+  { test: h => h === 'reanime.to' || h.endsWith('.reanime.to'),
+    referer: 'https://reanime.to/', origin: 'https://reanime.to', secSite: 'same-origin' },
   // Catch-all: default to megaplay.buzz referer (works for most anime CDNs)
   { test: h => true,
     referer: 'https://megaplay.buzz/', origin: 'https://megaplay.buzz', secSite: 'cross-site' },
