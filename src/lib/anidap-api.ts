@@ -78,20 +78,23 @@ const ANIDAP_HEADERS: Record<string, string> = {
 // (the CDN uwu uses) is Cloudflare-protected and blocks our Cloudflare Worker's
 // fetch() with a 403. This is a CF-vs-CF issue — Workers fetching CF-protected
 // sites sometimes get challenged. Direct curl works, but the worker can't bypass it.
-// If Cloudflare fixes this or we switch to a non-CF proxy, re-add "uwu" here.
+// NOTE: "vee" is removed — returns DASH .mpd streams from cdn.animeonsen.xyz
+// which our player doesn't support well. Re-add if DASH support is added.
 
 export type AniDapProvider =
-  | "beep"   | "mimi"  | "yuki"  | "loli"  | "vee"
-  | "kiwi"  | "sora"  | "uwu";
+  | "beep"   | "mimi"  | "yuki"  | "loli"
+  | "kiwi"  | "sora"  | "uwu"  | "vee";
 
 export const ANIDAP_SUB_PROVIDERS: AniDapProvider[] = [
-  "beep", "mimi", "yuki", "loli", "vee", "kiwi", "sora",
+  "beep", "mimi", "yuki", "loli", "kiwi", "sora",
   // "uwu" — disabled (vault-XX.uwucdn.top returns 403 to our worker)
+  // "vee" — disabled (returns DASH .mpd, player doesn't support well)
 ];
 
 export const ANIDAP_DUB_PROVIDERS: AniDapProvider[] = [
   "mimi", "yuki", "kiwi", "sora",
   // "uwu" — disabled (vault-XX.uwucdn.top returns 403 to our worker)
+  // "vee" — disabled (returns DASH .mpd, player doesn't support well)
 ];
 
 export const ANIDAP_PROVIDER_META: Record<AniDapProvider, {

@@ -355,29 +355,24 @@ export async function GET(
       console.log(`[instant-servers] AniKage skip times applied to ALL servers: intro=${JSON.stringify(anikageIntro)} outro=${JSON.stringify(anikageOutro)}`);
     }
 
-    // DEDUPLICATE — remove servers with the same source:provider:type combo.
-    // Some providers (especially AniPm) return multiple servers with the same
-    // provider name (e.g. "Pulse" appears 4 times). We keep only the first
-    // (which is usually the best quality after per-provider dedup).
-    // Also deduplicate by streamUrl — different providers may return the same
-    // underlying m3u8 URL (e.g. Kyren Senshi and Luna Senshi both point to
-    // the same ninstream.com URL).
-    const seenKeys = new Set<string>();
+    // DEDUPLICATE — remove only EXACT URL duplicates (same full URL including
+    // query string). We do NOT:
+    //   - Strip query strings (they contain stream tokens — different query
+    //     strings = different streams)
+    //   - Dedup by source:provider:type (different URLs from the same provider
+    //     are different mirrors and should all be shown)
+    //   - Filter by type (embed, mp4, and hls are ALL shown — the user wants
+    //     every server visible)
     const seenUrls = new Set<string>();
     const deduped: typeof servers = [];
     for (const s of servers) {
-      const key = `${s.source}:${s.provider}:${s.type}`;
-      // Normalize URL for comparison (strip query strings that are just cache busters)
-      const urlKey = s.streamUrl.split("?")[0];
-      if (seenKeys.has(key)) continue;
-      if (seenUrls.has(urlKey)) continue;
-      seenKeys.add(key);
-      seenUrls.add(urlKey);
+      if (seenUrls.has(s.streamUrl)) continue;
+      seenUrls.add(s.streamUrl);
       deduped.push(s);
     }
     const dupesRemoved = servers.length - deduped.length;
     if (dupesRemoved > 0) {
-      console.log(`[instant-servers] Removed ${dupesRemoved} duplicate servers`);
+      console.log(`[instant-servers] Removed ${dupesRemoved} exact-URL duplicate servers`);
     }
 
     // Sort by priority
