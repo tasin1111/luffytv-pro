@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo, type ReactNode } from "react";
-import { useAppStore, type User, type HistoryItem } from "./store";
+import { useAppStore, type User, type HistoryItem, type BookmarkItem, type LibraryEntry, type MediaProgressEntry } from "./store";
 import { updateUserProfile } from "@/lib/auth-local";
 
 /**
@@ -25,6 +25,10 @@ export default function ProfilePage() {
   const setUser = useAppStore((s) => s.setUser);
   const logout = useAppStore((s) => s.logout);
   const history = useAppStore((s) => s.history);
+  const bookmarks = useAppStore((s) => s.bookmarks);
+  const library = useAppStore((s) => s.library);
+  const mediaProgress = useAppStore((s) => s.mediaProgress);
+  const activity = useAppStore((s) => s.activity);
 
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
@@ -40,25 +44,58 @@ export default function ProfilePage() {
   }, [user, navigate]);
 
   // ── Level / XP math ──
-  // 1 episode = 10 XP, Level = floor(totalXP / 1000) + 1
-  const totalXP = history.length * 10;
+  // Anime episode = 10 XP; manga/movie/tv/novel activity carries its own XP.
+  // Level = floor(totalXP / 1000) + 1
+  const activityXP = activity.reduce((sum, a) => sum + a.xp, 0);
+  const totalXP = history.length * 10 + activityXP;
   const level = Math.floor(totalXP / 1000) + 1;
   const xpInCurrentLevel = totalXP % 1000;
   const xpToNextLevel = 1000 - xpInCurrentLevel;
   const xpProgressPct = (xpInCurrentLevel / 1000) * 100;
 
+  // ── Cross-section tallies (real synced data) ──
+  const kindCount = useMemo(() => {
+    const c: Record<string, number> = { anime: history.length, manga: 0, movie: 0, tv: 0, novel: 0 };
+    for (const a of activity) c[a.kind] = (c[a.kind] || 0) + 1;
+    return c;
+  }, [history, activity]);
+
+  const mangaLib = useMemo(() => library.filter((l) => l.kind === "manga").sort((a, b) => b.addedAt - a.addedAt), [library]);
+  const novelLib = useMemo(() => library.filter((l) => l.kind === "novel").sort((a, b) => b.addedAt - a.addedAt), [library]);
+  const savedTotal = bookmarks.length + library.length;
+
+  // ── Achievements (real thresholds) ──
+  const achievements = useMemo(() => {
+    const activeSections = (["anime", "manga", "movie", "tv", "novel"] as const).filter((k) => kindCount[k] > 0).length;
+    const defs = [
+      { id: "first", icon: "🌱", title: "First Steps", desc: "Log your first activity", ok: (kindCount.anime + kindCount.manga + kindCount.movie + kindCount.tv + kindCount.novel) >= 1 },
+      { id: "explorer", icon: "🧭", title: "Explorer", desc: "Active in 2 sections", ok: activeSections >= 2 },
+      { id: "polymath", icon: "🌐", title: "Polymath", desc: "Active in all 5 sections", ok: activeSections >= 5 },
+      { id: "animefan", icon: "📺", title: "Anime Fan", desc: "Watch 10 episodes", ok: kindCount.anime >= 10 },
+      { id: "animemaster", icon: "🏆", title: "Anime Master", desc: "Watch 50 episodes", ok: kindCount.anime >= 50 },
+      { id: "mangareader", icon: "📖", title: "Manga Reader", desc: "Read 10 chapters", ok: kindCount.manga >= 10 },
+      { id: "cinephile", icon: "🎬", title: "Cinephile", desc: "Watch 10 movies", ok: kindCount.movie >= 10 },
+      { id: "binger", icon: "📡", title: "Binge Viewer", desc: "Watch 25 TV episodes", ok: kindCount.tv >= 25 },
+      { id: "bookworm", icon: "📚", title: "Bookworm", desc: "Read 5 novel chapters", ok: kindCount.novel >= 5 },
+      { id: "collector", icon: "⭐", title: "Collector", desc: "Save 10 titles", ok: savedTotal >= 10 },
+      { id: "curator", icon: "💎", title: "Curator", desc: "Save 50 titles", ok: savedTotal >= 50 },
+      { id: "level5", icon: "🚀", title: "Rising Star", desc: "Reach level 5", ok: level >= 5 },
+    ];
+    return { defs, unlocked: defs.filter((d) => d.ok).length, total: defs.length };
+  }, [kindCount, savedTotal, level]);
+
   // ── Activity heatmap data ──
   // Count episodes watched per day, then build a 7-row × N-week grid.
   const heatmap = useMemo(() => {
     const counts: Record<string, number> = {};
-    for (const h of history) {
-      try {
-        const d = new Date(h.updatedAt);
-        if (isNaN(d.getTime())) continue;
-        const key = dateKey(d);
-        counts[key] = (counts[key] || 0) + 1;
-      } catch {}
-    }
+    const tally = (ts: number) => {
+      const d = new Date(ts);
+      if (isNaN(d.getTime())) return;
+      const key = dateKey(d);
+      counts[key] = (counts[key] || 0) + 1;
+    };
+    for (const h of history) { try { tally(new Date(h.updatedAt).getTime()); } catch {} }
+    for (const a of activity) tally(a.ts);
 
     const numWeeks = activityRange === "year" ? 53 : activityRange === "month" ? 5 : 1;
     const today = new Date();
@@ -77,8 +114,9 @@ export default function ProfilePage() {
       days.push({ date: new Date(cur), count: counts[k] || 0, key: k });
       cur.setDate(cur.getDate() + 1);
     }
-    return { days, numWeeks, counts };
-  }, [history, activityRange]);
+    const total = Object.values(counts).reduce((s, n) => s + n, 0);
+    return { days, numWeeks, counts, total };
+  }, [history, activity, activityRange]);
 
   if (!user) return null;
 
@@ -224,7 +262,7 @@ export default function ProfilePage() {
             {/* Activity History */}
             <Module
               title="Activity History"
-              subtitle="Anime episodes watched per day"
+              subtitle="Everything you watch & read, per day"
               icon={
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -233,7 +271,7 @@ export default function ProfilePage() {
             >
               <div className="flex items-center justify-between mb-4">
                 <span className="text-xs text-gray-500">
-                  {history.length} episode{history.length !== 1 ? "s" : ""} watched total
+                  {heatmap.total} activit{heatmap.total !== 1 ? "ies" : "y"} total
                 </span>
                 <div className="relative">
                   <select
@@ -323,9 +361,9 @@ export default function ProfilePage() {
             >
               <div className="flex gap-1 mb-4 border-b border-[#1a1a1a]">
                 {([
-                  { id: "active" as const, label: "Active" },
-                  { id: "manga" as const, label: "Manga" },
-                  { id: "novel" as const, label: "Novel" },
+                  { id: "active" as const, label: "Anime", count: bookmarks.length },
+                  { id: "manga" as const, label: "Manga", count: mangaLib.length },
+                  { id: "novel" as const, label: "Novel", count: novelLib.length },
                 ]).map((t) => (
                   <button
                     key={t.id}
@@ -337,22 +375,37 @@ export default function ProfilePage() {
                     }`}
                   >
                     {t.label}
+                    {t.count > 0 && <span className="ml-1.5 text-gray-600">({t.count})</span>}
                   </button>
                 ))}
               </div>
-              <div className="text-center py-10">
-                <div className="w-12 h-12 rounded-full bg-[#1a1a1a] flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-                  </svg>
-                </div>
-                <p className="text-sm text-gray-400 font-medium">
-                  No public {playlistTab === "active" ? "anime" : playlistTab} playlists found
-                </p>
-                <p className="text-xs text-gray-600 mt-1">
-                  Create a playlist and set it to public to share it with the community
-                </p>
-              </div>
+              {playlistTab === "active" && (
+                <BookmarkGrid
+                  items={bookmarks}
+                  navigate={navigate}
+                  emptyLabel="No saved anime yet"
+                  emptyCta="Browse Anime"
+                  onCta={() => navigate({ page: "home" })}
+                />
+              )}
+              {playlistTab === "manga" && (
+                <LibraryGrid
+                  items={mangaLib}
+                  navigate={navigate}
+                  emptyLabel="No saved manga yet"
+                  emptyCta="Browse Manga"
+                  onCta={() => navigate({ page: "manga" })}
+                />
+              )}
+              {playlistTab === "novel" && (
+                <LibraryGrid
+                  items={novelLib}
+                  navigate={navigate}
+                  emptyLabel="No saved novels yet"
+                  emptyCta="Browse Novels"
+                  onCta={() => navigate({ page: "novel" })}
+                />
+              )}
             </Module>
 
             {/* Recently Watched Episodes */}
@@ -364,7 +417,7 @@ export default function ProfilePage() {
                 </svg>
               }
             >
-              <RecentlyWatched history={history} navigate={navigate} />
+              <RecentlyWatched history={history} mediaProgress={mediaProgress} navigate={navigate} />
             </Module>
           </div>
 
@@ -381,8 +434,13 @@ export default function ProfilePage() {
             >
               <div className="flex flex-col">
                 <StatRow label="Level" value={level} />
-                <StatRow label="Episodes" value={history.length} />
-                <StatRow label="Comments" value={0} last />
+                <StatRow label="Total XP" value={totalXP.toLocaleString()} />
+                <StatRow label="Anime Episodes" value={kindCount.anime} />
+                <StatRow label="Manga Chapters" value={kindCount.manga} />
+                <StatRow label="Movies Watched" value={kindCount.movie} />
+                <StatRow label="TV Episodes" value={kindCount.tv} />
+                <StatRow label="Novel Chapters" value={kindCount.novel} />
+                <StatRow label="Saved Titles" value={savedTotal} last />
               </div>
             </Module>
 
@@ -395,15 +453,24 @@ export default function ProfilePage() {
                 </svg>
               }
             >
-              <div className="text-center py-8">
-                <div className="w-14 h-14 rounded-full bg-[#1a1a1a] flex items-center justify-center mx-auto mb-3">
-                  <svg className="w-7 h-7 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                  </svg>
-                </div>
-                <p className="text-sm text-gray-400 font-medium leading-relaxed">
-                  Start watching anime and engaging to unlock achievements!
-                </p>
+              <p className="text-xs text-gray-500 mb-4 -mt-2">
+                <span className="font-bold text-gray-300">{achievements.unlocked}</span> of {achievements.total} unlocked
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                {achievements.defs.map((a) => (
+                  <div
+                    key={a.id}
+                    title={`${a.title} — ${a.desc}`}
+                    className={`rounded-lg border p-2.5 text-center transition-all ${
+                      a.ok
+                        ? "border-[#3b82f6]/40 bg-[#3b82f6]/10"
+                        : "border-[#1a1a1a] bg-[#0a0a0a] opacity-50"
+                    }`}
+                  >
+                    <div className="text-xl mb-1" style={{ filter: a.ok ? "none" : "grayscale(1)" }}>{a.icon}</div>
+                    <p className="text-[10px] font-bold text-gray-300 leading-tight">{a.title}</p>
+                  </div>
+                ))}
               </div>
             </Module>
           </div>
@@ -604,15 +671,49 @@ function StatRow({ label, value, last }: { label: string; value: number | string
   );
 }
 
-// ── Recently Watched Episodes ──
+// A normalized "recently active" tile — anime history + cross-section progress.
+type RecentTile = {
+  key: string;
+  title: string;
+  cover?: string;
+  badge: string;
+  percent: number;
+  ts: number;
+  onClick: () => void;
+};
+
+// ── Recently Watched / Read (all sections) ──
 function RecentlyWatched({
   history,
+  mediaProgress,
   navigate,
 }: {
   history: HistoryItem[];
+  mediaProgress: MediaProgressEntry[];
   navigate: (r: any) => void;
 }) {
-  if (history.length === 0) {
+  const tiles: RecentTile[] = [
+    ...history.map((h) => ({
+      key: `a-${h.id}`,
+      title: h.animeName,
+      cover: h.thumbnail,
+      badge: `EP ${h.episodeNum}`,
+      percent: h.progress,
+      ts: new Date(h.updatedAt).getTime(),
+      onClick: () => navigate({ page: "watch", id: h.animeId, episode: h.episodeNum, title: h.animeName, image: h.thumbnail }),
+    })),
+    ...mediaProgress.map((p) => ({
+      key: p.key,
+      title: p.title,
+      cover: p.cover,
+      badge: p.unitLabel,
+      percent: p.percent,
+      ts: p.updatedAt,
+      onClick: () => navigate(p.resume),
+    })),
+  ].sort((a, b) => b.ts - a.ts);
+
+  if (tiles.length === 0) {
     return (
       <div className="text-center py-10">
         <div className="w-12 h-12 rounded-full bg-[#1a1a1a] flex items-center justify-center mx-auto mb-3">
@@ -620,8 +721,8 @@ function RecentlyWatched({
             <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
           </svg>
         </div>
-        <p className="text-sm text-gray-400 font-medium">No watch history yet</p>
-        <p className="text-xs text-gray-600 mt-1">Start watching anime to see your progress here</p>
+        <p className="text-sm text-gray-400 font-medium">Nothing watched or read yet</p>
+        <p className="text-xs text-gray-600 mt-1">Start watching or reading to see your progress here</p>
         <button
           onClick={() => navigate({ page: "home" })}
           className="mt-4 px-4 py-2 rounded-lg bg-[#3b82f6] text-white text-xs font-bold hover:bg-[#60a5fa] transition-all"
@@ -634,57 +735,116 @@ function RecentlyWatched({
 
   return (
     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-      {history.slice(0, 12).map((h) => (
-        <button
-          key={h.id}
-          onClick={() =>
-            navigate({
-              page: "watch",
-              id: h.animeId,
-              episode: h.episodeNum,
-              title: h.animeName,
-              image: h.thumbnail,
-            })
-          }
-          className="group text-left"
-        >
+      {tiles.slice(0, 12).map((t) => (
+        <button key={t.key} onClick={t.onClick} className="group text-left">
           <div className="relative w-full aspect-[3/4] bg-[#1a1a1a] rounded-lg overflow-hidden">
-            {h.thumbnail ? (
-              <img
-                src={h.thumbnail}
-                alt={h.animeName}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                loading="lazy"
-              />
+            {t.cover ? (
+              <img src={t.cover} alt={t.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-700 font-bold text-2xl">
-                {h.animeName.charAt(0)}
-              </div>
+              <div className="w-full h-full flex items-center justify-center text-gray-700 font-bold text-2xl">{t.title.charAt(0)}</div>
             )}
-            {/* Episode badge */}
-            <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/80 backdrop-blur text-[10px] font-bold text-white">
-              EP {h.episodeNum}
-            </div>
-            {/* Progress bar */}
+            <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/80 backdrop-blur text-[10px] font-bold text-white">{t.badge}</div>
             <div className="absolute bottom-0 left-0 right-0 h-1 bg-black/60">
-              <div
-                className="h-full bg-[#3b82f6]"
-                style={{ width: `${Math.min(h.progress, 100)}%` }}
-              />
+              <div className="h-full bg-[#3b82f6]" style={{ width: `${Math.min(t.percent, 100)}%` }} />
             </div>
-            {/* Play overlay on hover */}
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
               <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur flex items-center justify-center">
-                <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
-                </svg>
+                <svg className="w-4 h-4 text-white ml-0.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
               </div>
             </div>
           </div>
-          <p className="text-xs font-semibold text-gray-300 truncate mt-2 group-hover:text-[#3b82f6] transition-colors">
-            {h.animeName}
-          </p>
-          <p className="text-[10px] text-gray-500">{Math.round(h.progress)}% watched</p>
+          <p className="text-xs font-semibold text-gray-300 truncate mt-2 group-hover:text-[#3b82f6] transition-colors">{t.title}</p>
+          <p className="text-[10px] text-gray-500">{Math.round(t.percent)}%</p>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Empty state used by playlist grids ──
+function GridEmpty({ label, cta, onCta }: { label: string; cta: string; onCta: () => void }) {
+  return (
+    <div className="text-center py-10">
+      <div className="w-12 h-12 rounded-full bg-[#1a1a1a] flex items-center justify-center mx-auto mb-3">
+        <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+        </svg>
+      </div>
+      <p className="text-sm text-gray-400 font-medium">{label}</p>
+      <p className="text-xs text-gray-600 mt-1">Tap “My List” on any title to save it here</p>
+      <button onClick={onCta} className="mt-4 px-4 py-2 rounded-lg bg-[#3b82f6] text-white text-xs font-bold hover:bg-[#60a5fa] transition-all">{cta}</button>
+    </div>
+  );
+}
+
+// ── Anime bookmark grid (Public Playlists → Anime) ──
+function BookmarkGrid({
+  items,
+  navigate,
+  emptyLabel,
+  emptyCta,
+  onCta,
+}: {
+  items: BookmarkItem[];
+  navigate: (r: any) => void;
+  emptyLabel: string;
+  emptyCta: string;
+  onCta: () => void;
+}) {
+  if (items.length === 0) return <GridEmpty label={emptyLabel} cta={emptyCta} onCta={onCta} />;
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+      {items.map((b) => (
+        <button key={b.id} onClick={() => navigate({ page: "anime", id: b.animeId })} className="group text-left">
+          <div className="relative w-full aspect-[3/4] bg-[#1a1a1a] rounded-lg overflow-hidden">
+            {b.thumbnail ? (
+              <img src={b.thumbnail} alt={b.animeName} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-700 font-bold text-2xl">{b.animeName.charAt(0)}</div>
+            )}
+            {b.score ? (
+              <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 backdrop-blur text-[10px] font-bold text-yellow-400">★ {b.score}</div>
+            ) : null}
+          </div>
+          <p className="text-xs font-semibold text-gray-300 truncate mt-2 group-hover:text-[#3b82f6] transition-colors">{b.animeName}</p>
+          {b.type && <p className="text-[10px] text-gray-500 truncate">{b.type}</p>}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// ── Library grid (Public Playlists → Manga / Novel) ──
+function LibraryGrid({
+  items,
+  navigate,
+  emptyLabel,
+  emptyCta,
+  onCta,
+}: {
+  items: LibraryEntry[];
+  navigate: (r: any) => void;
+  emptyLabel: string;
+  emptyCta: string;
+  onCta: () => void;
+}) {
+  if (items.length === 0) return <GridEmpty label={emptyLabel} cta={emptyCta} onCta={onCta} />;
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+      {items.map((l) => (
+        <button key={l.key} onClick={() => navigate(l.resume)} className="group text-left">
+          <div className="relative w-full aspect-[3/4] bg-[#1a1a1a] rounded-lg overflow-hidden">
+            {l.cover ? (
+              <img src={l.cover} alt={l.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-gray-700 font-bold text-2xl">{l.title.charAt(0)}</div>
+            )}
+            {l.score ? (
+              <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/80 backdrop-blur text-[10px] font-bold text-yellow-400">★ {l.score}</div>
+            ) : null}
+          </div>
+          <p className="text-xs font-semibold text-gray-300 truncate mt-2 group-hover:text-[#3b82f6] transition-colors">{l.title}</p>
+          {l.meta && <p className="text-[10px] text-gray-500 truncate">{l.meta}</p>}
         </button>
       ))}
     </div>
