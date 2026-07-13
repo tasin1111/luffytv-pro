@@ -44,46 +44,35 @@ export async function GET(request: NextRequest) {
 
     const streams = await getVidlinkStreams(tmdbId, type, se, ep);
 
-    // Vidlink stream URLs require Referer: https://vidlink.pro/ — the CDN
-    // (stormvv.vodvidl.site) returns 403 without it. The browser can't set
-    // a custom Referer, so we MUST proxy.
-    //
-    // We use the Cloudflare Worker proxy (/p/{token}) which XOR-encodes the
-    // URL + referer into a base64 token — avoids query param encoding issues
-    // that break with Vercel's edge network (the MP4 URLs contain ? and &
-    // which get mangled by Vercel's query param parsing).
-    const WORKER_BASE = process.env.NEXT_PUBLIC_PROXY_BASE || "https://luffytv-proxy.ggy892767.workers.dev";
-    const XOR_KEY = "10b06cdc1ca48c9fb0b94af97cc040cf";
+    // Filter out DASH sources (player only supports MP4 + HLS)
+    const playableSources = streams.sources.filter(s => s.format !== "dash" && !s.url.includes(".mpd"));
 
-    function encodeWorkerToken(url: string, referer: string): string {
-      // XOR encode: url + "\0" + referer
-      const combined = url + "\0" + referer;
-      const keyBytes = new TextEncoder().encode(XOR_KEY);
-      const dataBytes = new TextEncoder().encode(combined);
-      const xored = new Uint8Array(dataBytes.length);
-      for (let i = 0; i < dataBytes.length; i++) {
-        xored[i] = dataBytes[i] ^ keyBytes[i % keyBytes.length];
+    // Build proxy URLs using the dedicated /api/stream/vidlink-play/[quality] route.
+    // This route fetches the video server-side with Referer: https://vidlink.pro/
+    // and streams it to the browser. Avoids query param encoding issues.
+    const buildProxyUrl = (quality: string) => {
+      const params = new URLSearchParams({
+        tmdbId: String(tmdbId),
+        type,
+      });
+      if (type === "tv") {
+        params.set("season", String(season || 1));
+        params.set("episode", String(episode || 1));
       }
-      // Convert to base64url
-      let binary = "";
-      for (let i = 0; i < xored.length; i++) binary += String.fromCharCode(xored[i]);
-      const b64 = Buffer.from(binary, "binary").toString("base64");
-      return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-    }
-
-    const wrap = (url: string) =>
-      `${WORKER_BASE}/p/${encodeWorkerToken(url, "https://vidlink.pro/")}`;
+      return `/api/stream/vidlink-play/${encodeURIComponent(quality)}?${params.toString()}`;
+    };
 
     return NextResponse.json(
       {
         source: "vidlink",
-        sources: streams.sources.map((s) => ({
+        sources: playableSources.map((s) => ({
           ...s,
-          proxyUrl: wrap(s.url),
+          proxyUrl: buildProxyUrl(s.quality),
         })),
+        // Subtitles still use /api/stream (simpler URLs, no ? or & issues)
         subtitles: streams.subtitles.map((sub) => ({
           ...sub,
-          proxyUrl: wrap(sub.url),
+          proxyUrl: `/api/stream?url=${encodeURIComponent(sub.url)}&referer=${encodeURIComponent("https://vidlink.pro/")}`,
         })),
       },
       { headers: { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store, no-cache, must-revalidate" } }
