@@ -154,14 +154,34 @@ export async function GET(
           if (aw?.servers?.length) { let p = 14; for (const srv of aw.servers) servers.push({ id: `aniwaves:${srv.svId}:${srv.type}`, name: srv.name, source: "aniwaves", provider: String(srv.svId), type: srv.type, quality: "1080p", streamUrl: srv.embedUrl, isM3U8: false, isMP4: false, isEmbed: true, hardsub: false, priority: p++, intro: aw.intro, outro: aw.outro }); }
         } catch {}
       })(),
-      // AniKoto (priority 16) — embed URLs from anikotoapi.site
+      // AniKoto (priority 16) — m3u8 from megaplay.buzz + vidwish.live fallback
       (async () => {
         try {
           const ak = await withTimeout(resolveAniKoto(id, epNum, title).catch(() => null), 25000, null);
           if (ak?.servers?.length) {
             let p = 16;
             for (const srv of ak.servers) {
-              servers.push({ id: `anikoto:${srv.type}:${p}`, name: srv.name, source: "anikoto", provider: "anikoto", type: srv.type, quality: srv.quality, streamUrl: srv.embedUrl, isM3U8: false, isMP4: false, isEmbed: true, hardsub: false, priority: p++, intro: ak.intro, outro: ak.outro });
+              // If we have m3u8, wrap through Worker proxy. Otherwise use embed URL as iframe.
+              const streamUrl = srv.m3u8Url
+                ? wrapM3u8UrlWithReferer(srv.m3u8Url, srv.referer)
+                : srv.embedUrl;
+              servers.push({
+                id: `anikoto:${srv.type}:${p}`,
+                name: srv.name,
+                source: "anikoto",
+                provider: "anikoto",
+                type: srv.type,
+                quality: srv.quality,
+                streamUrl,
+                isM3U8: !!srv.m3u8Url,
+                isMP4: false,
+                isEmbed: !srv.m3u8Url,
+                hardsub: false,
+                priority: p++,
+                subtitleTracks: srv.subtitleTracks,
+                intro: srv.intro || ak.intro,
+                outro: srv.outro || ak.outro,
+              });
             }
           }
         } catch {}

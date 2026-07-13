@@ -1,36 +1,31 @@
 /**
- * AniKoto Direct — scraper for anikototv.to via anikotoapi.site API
+ * AniKoto Direct — full scraper for anikototv.to / megaplay.buzz
+ *
+ * Based on working scraper code provided by the user.
  *
  * Pipeline:
- *   1. Search anikotoapi.site/recent-anime?q={title} → find anime by AniList ID
- *   2. Get series data: anikotoapi.site/series/{anikoto_id} → episodes with embed URLs
- *   3. Return embed URLs (megaplay.buzz/stream/s-2/{embed_id}/{sub|dub})
+ *   1. Fetch megaplay.buzz embed page: /stream/ani/{anilistId}/{epNum}/{sub|dub}
+ *   2. Extract data-id from the page HTML
+ *   3. Call megaplay.buzz/stream/getSources?id={fileId} → returns m3u8 URL + subtitles + intro/outro
+ *   4. Also try vidwish.live as fallback (same pattern, uses data-realid)
+ *   5. Also try anikototv.to AJAX endpoints for additional servers
  *
- * The embed URLs are iframe-able — the MegaCloud/MegaPlay player loads inside an iframe.
- * The player uses heavily obfuscated JS to generate the m3u8 client-side, so we can't
- * extract the m3u8 server-side. But the iframe embed works perfectly.
+ * The m3u8 URL is wrapped through the Worker proxy for playback.
  */
 
-const ANIKOTO_API = "https://anikotoapi.site";
+const MEGAPLAY = "https://megaplay.buzz";
+const VIDWISH = "https://vidwish.live";
+const ANIKOTO = "https://anikototv.to";
+const ANIZIP = "https://api.ani.zip/mappings";
+const JIKAN = "https://api.jikan.moe/v4";
+const SPOOF_REF = "https://hianimes.re/";
 
-// Rate limiter (anikotoapi.site: 60 requests per 120 seconds)
-let lastRequestTime = 0;
-const MIN_REQUEST_INTERVAL = 2100;
-
-async function rateLimitedFetch(url: string): Promise<Response> {
-  const now = Date.now();
-  const elapsed = now - lastRequestTime;
-  if (elapsed < MIN_REQUEST_INTERVAL) {
-    await new Promise(r => setTimeout(r, MIN_REQUEST_INTERVAL - elapsed));
-  }
-  lastRequestTime = Date.now();
-  return fetch(url, { headers: { "User-Agent": "Mozilla/5.0", "Accept": "application/json" } });
-}
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
 // ── Cache ──
-const anilistToAnikotoCache = new Map<number, number | null>();
 const CACHE_TTL = 60 * 60 * 1000;
 const cacheTimestamps = new Map<string, number>();
+const anikotoShowCache = new Map<number, { slug: string; showId: string } | null>();
 
 function isCacheFresh(key: string): boolean {
   const ts = cacheTimestamps.get(key);
@@ -38,12 +33,46 @@ function isCacheFresh(key: string): boolean {
   return Date.now() - ts < CACHE_TTL;
 }
 
+async function httpGet(url: string, referer?: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": UA,
+      "Accept": "text/html,*/*",
+      "Accept-Language": "en-US,en;q=0.9",
+      ...(referer ? { "Referer": referer } : {}),
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.text();
+}
+
+async function getJSON(url: string, referer?: string): Promise<any> {
+  const res = await fetch(url, {
+    headers: {
+      "User-Agent": UA,
+      "Accept": "application/json, */*",
+      "Accept-Language": "en-US,en;q=0.9",
+      "X-Requested-With": "XMLHttpRequest",
+      ...(referer ? { "Referer": referer } : {}),
+    },
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
 // ── Types ──
 export interface AniKotoServer {
   name: string;
-  embedUrl: string;
+  m3u8Url: string | null;  // Direct m3u8 URL (null if embed only)
+  embedUrl: string;        // Embed URL (fallback)
   type: "sub" | "dub";
   quality: string;
+  referer: string;
+  subtitleTracks?: Array<{ url: string; lang: string; label: string }>;
+  intro?: { start: number; end: number } | null;
+  outro?: { start: number; end: number } | null;
 }
 
 export interface AniKotoResult {
@@ -52,116 +81,213 @@ export interface AniKotoResult {
   outro: { start: number; end: number } | null;
 }
 
-// ── Step 1: Search for anime by title → get AniKoto internal ID ──
-async function resolveAniKotoId(
-  anilistId: number,
-  title: string,
-): Promise<number | null> {
-  const cacheKey = `anikoto:${anilistId}`;
-  if (anilistToAnikotoCache.has(anilistId) && isCacheFresh(cacheKey)) {
-    return anilistToAnikotoCache.get(anilistId)!;
-  }
-
+// ── Extract m3u8 from megaplay embed page ──
+async function extractMegaPlayStream(embedUrl: string, audio: string): Promise<{
+  m3u8Url: string | null;
+  embedUrl: string;
+  subtitles: Array<{ url: string; lang: string; label: string }>;
+  intro: { start: number; end: number } | null;
+  outro: { start: number; end: number } | null;
+} | null> {
   try {
-    const res = await rateLimitedFetch(
-      `${ANIKOTO_API}/recent-anime?q=${encodeURIComponent(title)}`,
+    const html = await httpGet(embedUrl, SPOOF_REF);
+
+    // Extract data-id from the page
+    const idMatch = html.match(/data-id="([^"]*)"/);
+    if (!idMatch?.[1]) return null;
+    const fileId = idMatch[1];
+
+    // Extract data-realid (for VidWish fallback)
+    const realIdMatch = html.match(/data-realid="([^"]*)"/);
+    const realId = realIdMatch?.[1] || null;
+
+    // Call getSources API → returns m3u8 URL
+    const data = await getJSON(
+      `${MEGAPLAY}/stream/getSources?id=${fileId}&id=${fileId}`,
+      `${MEGAPLAY}/`,
     );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const list: any[] = data?.data || [];
 
-    // Find by AniList ID (ani_id field)
-    let match = list.find((a: any) => String(a.ani_id) === String(anilistId));
-    // Fallback: match by title
-    if (!match) {
-      const titleLower = title.toLowerCase();
-      match = list.find((a: any) =>
-        (a.title || "").toLowerCase() === titleLower ||
-        (a.alternative || "").toLowerCase() === titleLower
-      ) || list[0];
+    const m3u8Url = data?.sources?.file || null;
+    const subtitles: Array<{ url: string; lang: string; label: string }> = [];
+    for (const t of data?.tracks || []) {
+      subtitles.push({
+        url: t.file,
+        lang: t.label?.toLowerCase() || "en",
+        label: t.label || "English",
+      });
     }
 
-    const id = match?.id || null;
-    anilistToAnikotoCache.set(anilistId, id);
-    cacheTimestamps.set(cacheKey, Date.now());
+    const intro = data?.intro ? { start: data.intro.start || 0, end: data.intro.end || 0 } : null;
+    const outro = data?.outro ? { start: data.outro.start || 0, end: data.outro.end || 0 } : null;
 
-    if (id) {
-      console.log(`[anikoto-direct] AniList ${anilistId} → AniKoto ${id} ("${match.title}")`);
-    }
-
-    return id;
+    return { m3u8Url, embedUrl, subtitles, intro, outro };
   } catch (err) {
-    console.error(`[anikoto-direct] resolveAniKotoId error:`, err);
+    console.error(`[anikoto-direct] extractMegaPlayStream error:`, err);
     return null;
   }
 }
 
-// ── Step 2: Get series data → episodes with embed URLs ──
-async function getSeriesData(anikotoId: number): Promise<any | null> {
+// ── Extract m3u8 from VidWish embed (fallback) ──
+async function extractVidWishStream(realId: string, audio: string): Promise<{
+  m3u8Url: string | null;
+  embedUrl: string;
+  subtitles: Array<{ url: string; lang: string; label: string }>;
+} | null> {
   try {
-    const res = await rateLimitedFetch(`${ANIKOTO_API}/series/${anikotoId}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    if (!data?.ok) return null;
-    return data;
+    const embedUrl = `${VIDWISH}/stream/s-2/${realId}/${audio}`;
+    const html = await httpGet(embedUrl, SPOOF_REF);
+
+    const idMatch = html.match(/data-id="([^"]*)"/);
+    if (!idMatch?.[1]) return null;
+    const fileId = idMatch[1];
+
+    const data = await getJSON(
+      `${VIDWISH}/stream/getSources?id=${fileId}&id=${fileId}`,
+      `${VIDWISH}/`,
+    );
+
+    const m3u8Url = data?.sources?.file || null;
+    const subtitles: Array<{ url: string; lang: string; label: string }> = [];
+    for (const t of data?.tracks || []) {
+      subtitles.push({
+        url: t.file,
+        lang: t.label?.toLowerCase() || "en",
+        label: t.label || "English",
+      });
+    }
+
+    return { m3u8Url, embedUrl, subtitles };
   } catch {
     return null;
   }
 }
 
-// ── Main: resolve embed URLs for AniList ID + episode ──
+// ── Main: resolve m3u8 for AniList ID + episode ──
 export async function resolveAniKoto(
   anilistId: number,
   episodeNum: number,
   title: string,
 ): Promise<AniKotoResult | null> {
   try {
-    // Step 1: Find AniKoto internal ID
-    const anikotoId = await resolveAniKotoId(anilistId, title);
-    if (!anikotoId) return null;
-
-    // Step 2: Get series data with episodes
-    const seriesData = await getSeriesData(anikotoId);
-    if (!seriesData?.data?.episodes?.length) return null;
-
-    // Step 3: Find the episode by number
-    const episodes: any[] = seriesData.data.episodes;
-    const ep = episodes.find((e: any) => Number(e.number) === episodeNum);
-    if (!ep) {
-      console.log(`[anikoto-direct] episode ${episodeNum} not found (have ${episodes.length} episodes)`);
-      return null;
-    }
-
-    // Step 4: Build server list from embed URLs
     const servers: AniKotoServer[] = [];
-    const embedUrls = ep.embed_url || {};
+    let intro: { start: number; end: number } | null = null;
+    let outro: { start: number; end: number } | null = null;
 
-    if (embedUrls.sub) {
-      servers.push({
-        name: "AniKoto Sub",
-        embedUrl: embedUrls.sub,
-        type: "sub",
-        quality: "1080p",
-      });
+    // ── Step 1: Try Megaplay direct (fastest — uses AniList ID directly) ──
+    for (const audio of ["sub", "dub"] as const) {
+      const embedUrl = `${MEGAPLAY}/stream/ani/${anilistId}/${episodeNum}/${audio}`;
+      const result = await extractMegaPlayStream(embedUrl, audio);
+
+      if (result?.m3u8Url) {
+        servers.push({
+          name: `AniKoto ${audio === "sub" ? "Sub" : "Dub"}`,
+          m3u8Url: result.m3u8Url,
+          embedUrl: result.embedUrl,
+          type: audio,
+          quality: "1080p",
+          referer: `${MEGAPLAY}/`,
+          subtitleTracks: result.subtitles,
+          intro: result.intro,
+          outro: result.outro,
+        });
+        if (result.intro && !intro) intro = result.intro;
+        if (result.outro && !outro) outro = result.outro;
+      } else if (result) {
+        // m3u8 extraction failed but we have the embed URL
+        servers.push({
+          name: `AniKoto ${audio === "sub" ? "Sub" : "Dub"} (Embed)`,
+          m3u8Url: null,
+          embedUrl: result.embedUrl,
+          type: audio,
+          quality: "1080p",
+          referer: `${MEGAPLAY}/`,
+          subtitleTracks: result.subtitles,
+          intro: result.intro,
+          outro: result.outro,
+        });
+      }
     }
-    if (embedUrls.dub) {
-      servers.push({
-        name: "AniKoto Dub",
-        embedUrl: embedUrls.dub,
-        type: "dub",
-        quality: "1080p",
-      });
+
+    // ── Step 2: If Megaplay didn't work, try VidWish fallback ──
+    if (servers.length === 0) {
+      // Need to get the realId from the megaplay page first
+      for (const audio of ["sub", "dub"] as const) {
+        const embedUrl = `${MEGAPLAY}/stream/ani/${anilistId}/${episodeNum}/${audio}`;
+        try {
+          const html = await httpGet(embedUrl, SPOOF_REF);
+          const realIdMatch = html.match(/data-realid="([^"]*)"/);
+          if (realIdMatch?.[1]) {
+            const vidwishResult = await extractVidWishStream(realIdMatch[1], audio);
+            if (vidwishResult?.m3u8Url) {
+              servers.push({
+                name: `AniKoto VidWish ${audio === "sub" ? "Sub" : "Dub"}`,
+                m3u8Url: vidwishResult.m3u8Url,
+                embedUrl: vidwishResult.embedUrl,
+                type: audio,
+                quality: "1080p",
+                referer: `${VIDWISH}/`,
+                subtitleTracks: vidwishResult.subtitles,
+              });
+            }
+          }
+        } catch { /* ignore */ }
+      }
+    }
+
+    // ── Step 3: If still nothing, try anikotoapi.site for embed URLs ──
+    if (servers.length === 0) {
+      try {
+        // Search by title
+        const searchRes = await fetch(
+          `https://anikotoapi.site/recent-anime?q=${encodeURIComponent(title)}`,
+          { headers: { "User-Agent": UA, "Accept": "application/json" }, signal: AbortSignal.timeout(10000) },
+        );
+        if (searchRes.ok) {
+          const searchData = await searchRes.json();
+          const match = (searchData?.data || []).find((a: any) => String(a.ani_id) === String(anilistId))
+            || (searchData?.data || [])[0];
+          if (match?.id) {
+            const seriesRes = await fetch(
+              `https://anikotoapi.site/series/${match.id}`,
+              { headers: { "User-Agent": UA, "Accept": "application/json" }, signal: AbortSignal.timeout(10000) },
+            );
+            if (seriesRes.ok) {
+              const seriesData = await seriesRes.json();
+              const eps = seriesData?.data?.episodes || [];
+              const ep = eps.find((e: any) => Number(e.number) === episodeNum);
+              if (ep?.embed_url) {
+                for (const audio of ["sub", "dub"] as const) {
+                  const url = ep.embed_url[audio];
+                  if (url) {
+                    // Try to extract m3u8 from the embed URL
+                    const result = await extractMegaPlayStream(url, audio);
+                    servers.push({
+                      name: `AniKoto ${audio === "sub" ? "Sub" : "Dub"}`,
+                      m3u8Url: result?.m3u8Url || null,
+                      embedUrl: url,
+                      type: audio,
+                      quality: "1080p",
+                      referer: `${MEGAPLAY}/`,
+                      subtitleTracks: result?.subtitles,
+                      intro: result?.intro,
+                      outro: result?.outro,
+                    });
+                    if (result?.intro && !intro) intro = result.intro;
+                    if (result?.outro && !outro) outro = result.outro;
+                  }
+                }
+              }
+            }
+          }
+        }
+      } catch { /* ignore */ }
     }
 
     if (servers.length === 0) return null;
 
-    console.log(`[anikoto-direct] resolved ${servers.length} servers for AniList ${anilistId} ep${episodeNum}`);
+    console.log(`[anikoto-direct] resolved ${servers.length} servers for AniList ${anilistId} ep${episodeNum} (${servers.filter(s => s.m3u8Url).length} with m3u8, ${servers.filter(s => !s.m3u8Url).length} embed-only)`);
 
-    return {
-      servers,
-      intro: null,
-      outro: null,
-    };
+    return { servers, intro, outro };
   } catch (err) {
     console.error(`[anikoto-direct] resolveAniKoto error:`, err);
     return null;
