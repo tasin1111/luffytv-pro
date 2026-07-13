@@ -355,10 +355,18 @@ export default function HLSPlayerNew({
       if (video) for (let i = 0; i < video.textTracks.length; i++) video.textTracks[i].mode = 'disabled';
       setCurrentSubtitle(track);
     } else {
+      // External subtitle (<track> element)
+      // video.textTracks includes BOTH HLS-embedded tracks AND external <track>
+      // elements in one combined list, in menu order:
+      //   [HLS sub 0, HLS sub 1, ..., ext sub 0, ext sub 1, ...]
+      // So the absolute index `track` IS the correct index in video.textTracks.
+      // (The old code used `externalIdx = track - hlsSubtitles.length` which
+      // pointed to the WRONG textTrack when HLS subs existed — e.g. picking
+      // "English 2" at menu index 3 with 2 HLS subs would calculate externalIdx=1
+      // and enable textTracks[1] which is HLS sub 1, not the external "English 2".)
       if (hlsRef.current) hlsRef.current.subtitleTrack = -1;
-      const externalIdx = track - hlsSubtitles.length;
       const video = videoRef.current;
-      if (video) for (let i = 0; i < video.textTracks.length; i++) video.textTracks[i].mode = (i === externalIdx) ? 'showing' : 'disabled';
+      if (video) for (let i = 0; i < video.textTracks.length; i++) video.textTracks[i].mode = (i === track) ? 'showing' : 'disabled';
       setCurrentSubtitle(track);
     }
     setActiveMenu(null);
