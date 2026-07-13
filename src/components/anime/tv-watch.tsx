@@ -1,8 +1,11 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useAppStore } from "./store";
-import { getTmdbServers } from "@/lib/embed-servers";
+import MovieTvPlayer, {
+  type PlayerSource,
+  type PlayerSubtitle,
+} from "./movie-tv-player";
 
 interface TVShowInfo {
   id: number;
@@ -34,6 +37,26 @@ interface SeasonEpisodes {
 const GROTESK = "var(--font-space-grotesk), 'Space Grotesk', sans-serif";
 const ACCENT = "#34D399";
 
+type SourceOrigin = "vidlink" | "moviebox" | null;
+
+interface StreamState {
+  origin: SourceOrigin;
+  sources: PlayerSource[];
+  subtitles: PlayerSubtitle[];
+  hls: PlayerSource[];
+  error: string;
+  loading: boolean;
+}
+
+const EMPTY_STREAM: StreamState = {
+  origin: null,
+  sources: [],
+  subtitles: [],
+  hls: [],
+  error: "",
+  loading: true,
+};
+
 export default function TVWatchPage({ tvId, season: initialSeason, episode: initialEpisode }: { tvId: number; season: number; episode: number }) {
   const navigate = useAppStore(s => s.navigate);
   const recordMediaProgress = useAppStore(s => s.recordMediaProgress);
@@ -41,14 +64,12 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
   const [episodes, setEpisodes] = useState<SeasonEpisodes | null>(null);
   const [currentSeason, setCurrentSeason] = useState(initialSeason);
   const [currentEpisode, setCurrentEpisode] = useState(initialEpisode);
-  const [activeServer, setActiveServer] = useState<string>("");
-  const [iframeError, setIframeError] = useState(false);
-  const [useDirectEmbed, setUseDirectEmbed] = useState(true);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [stream, setStream] = useState<StreamState>(EMPTY_STREAM);
+  const [activeTab, setActiveTab] = useState<"mp4" | "hls">("mp4");
   const episodeRailRef = useRef<HTMLDivElement>(null);
+  const lastFetchKeyRef = useRef<string>("");
 
-  const tmdbServers = getTmdbServers();
-
+  // ── Load show metadata ──
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -57,7 +78,6 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
         if (res.ok && !cancelled) {
           const data = await res.json();
           setShow(data);
-          if (tmdbServers.length > 0) setActiveServer(prev => prev || tmdbServers[0].id);
         }
       } catch { /* ignore */ }
     }
@@ -79,6 +99,7 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
     }, 10);
   }, [show, tvId, currentSeason, currentEpisode, recordMediaProgress]);
 
+  // ── Load season episodes ──
   useEffect(() => {
     let cancelled = false;
     async function loadSeason() {
@@ -91,10 +112,110 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
     return () => { cancelled = true; };
   }, [tvId, currentSeason]);
 
-  const currentServer = tmdbServers.find(s => s.id === activeServer);
-  const embedUrl = currentServer?.generateUrl({
-    tmdbId: tvId, episode: currentEpisode, season: currentSeason, translation: "sub",
-  }) || "";
+  // ── Fetch streams (Vidlink primary, Moviebox fallback) ──
+  const loadStreams = useCallback(async (title: string, season: number, episode: number) => {
+    const fetchKey = `tv:${tvId}:${season}:${episode}`;
+    if (lastFetchKeyRef.current === fetchKey) return;
+    lastFetchKeyRef.current = fetchKey;
+
+    setStream({ ...EMPTY_STREAM, loading: true });
+
+    // 1) Try Vidlink
+    try {
+      const res = await fetch(
+        `/api/stream/vidlink?tmdbId=${tvId}&type=tv&season=${season}&episode=${episode}`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.sources && Array.isArray(data.sources) && data.sources.length > 0) {
+          setStream({
+            origin: "vidlink",
+            sources: data.sources,
+            subtitles: data.subtitles || [],
+            hls: [],
+            error: "",
+            loading: false,
+          });
+          return;
+        }
+      }
+    } catch { /* fall through to Moviebox */ }
+
+    // 2) Fallback: Moviebox (search by show title)
+    if (!title) {
+      setStream({
+        origin: null,
+        sources: [],
+        subtitles: [],
+        hls: [],
+        error: "No streams available for this episode.",
+        loading: false,
+      });
+      return;
+    }
+
+    try {
+      const searchRes = await fetch(`/api/stream/moviebox?query=${encodeURIComponent(title)}`);
+      if (!searchRes.ok) throw new Error("moviebox search failed");
+      const searchData = await searchRes.json();
+      const results = (searchData.results || []) as Array<{
+        title: string;
+        slug: string;
+        subjectId: string;
+        poster: string;
+      }>;
+      if (results.length === 0) {
+        throw new Error("Moviebox returned no matches");
+      }
+      const best = results[0];
+      const streamRes = await fetch(
+        `/api/stream/moviebox?subjectId=${encodeURIComponent(best.subjectId)}&detailPath=${encodeURIComponent(best.slug)}&season=${season}&episode=${episode}`
+      );
+      if (!streamRes.ok) throw new Error("moviebox stream failed");
+      const streamData = await streamRes.json();
+      const sources: PlayerSource[] = (streamData.sources || []).filter((s: PlayerSource) => s.url);
+      const hls: PlayerSource[] = (streamData.hls || []).filter((s: PlayerSource) => s.url);
+      if (sources.length === 0 && hls.length === 0) {
+        throw new Error("Moviebox returned no playable streams");
+      }
+      setStream({
+        origin: "moviebox",
+        sources,
+        subtitles: [],
+        hls,
+        error: "",
+        loading: false,
+      });
+      setActiveTab(sources.length > 0 ? "mp4" : "hls");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Stream fetch failed";
+      setStream({
+        origin: null,
+        sources: [],
+        subtitles: [],
+        hls: [],
+        error: `No streams available — ${msg}`,
+        loading: false,
+      });
+    }
+  }, [tvId]);
+
+  // When show name + season/episode is set, fetch streams.
+  useEffect(() => {
+    if (!show?.name) return;
+    loadStreams(show.name, currentSeason, currentEpisode);
+  }, [show, currentSeason, currentEpisode, loadStreams]);
+
+  // Active sources (mp4 or hls)
+  const activeSources: PlayerSource[] =
+    activeTab === "hls" && stream.hls.length > 0 ? stream.hls : stream.sources;
+
+  // Determine the poster URL for the video element.
+  const posterUrl = show?.backdrop_path
+    ? `https://image.tmdb.org/t/p/w780${show.backdrop_path}`
+    : show?.poster_path
+      ? `https://image.tmdb.org/t/p/w780${show.poster_path}`
+      : undefined;
 
   const currentEp = episodes?.episodes?.find(e => e.episode_number === currentEpisode);
   const score = show?.vote_average != null ? (show.vote_average > 10 ? show.vote_average / 10 : show.vote_average) : 0;
@@ -102,8 +223,6 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
   const goToEpisode = (season: number, episode: number) => {
     setCurrentSeason(season);
     setCurrentEpisode(episode);
-    setIframeError(false);
-    setUseDirectEmbed(true);
     navigate({ page: "tv-watch", id: tvId, season, episode });
   };
 
@@ -142,69 +261,102 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
           className="relative w-full aspect-video bg-black overflow-hidden lg:rounded-2xl border-y lg:border border-white/[0.07]"
           style={{ boxShadow: "0 24px 80px rgba(52,211,153,0.08)" }}
         >
-          {embedUrl && !iframeError ? (
-            <iframe
-              ref={iframeRef}
-              key={`${embedUrl}-${useDirectEmbed}`}
-              src={useDirectEmbed ? embedUrl : `/api/embed/proxy?url=${encodeURIComponent(embedUrl)}`}
-              className="absolute inset-0 w-full h-full"
-              allowFullScreen
-              allow="autoplay; fullscreen; picture-in-picture; encrypted-media; screen-wake-lock; clipboard-write; document-domain"
-              referrerPolicy="no-referrer"
-              onError={() => {
-                if (useDirectEmbed) setUseDirectEmbed(false);
-                else setIframeError(true);
-              }}
+          {stream.loading ? (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-12 h-12 rounded-full border-2 border-[#34D399] border-t-transparent animate-spin" />
+                <span className="text-[11px] font-extrabold uppercase tracking-[0.22em] text-white/70" style={{ fontFamily: GROTESK }}>
+                  Fetching direct streams…
+                </span>
+              </div>
+            </div>
+          ) : activeSources.length > 0 ? (
+            <MovieTvPlayer
+              sources={activeSources}
+              subtitles={stream.subtitles}
+              poster={posterUrl}
+              accentColor={ACCENT}
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div className="text-center space-y-3">
+            <div className="absolute inset-0 flex items-center justify-center px-4">
+              <div className="text-center space-y-3 max-w-md">
                 <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto border border-[#34D399]/30 bg-[#34D399]/10">
-                  <svg className="w-7 h-7 text-[#34D399] translate-x-[1px]" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
+                  <svg className="w-7 h-7 text-[#34D399]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                    <path d="M12 9v4M12 17h.01M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  </svg>
                 </div>
-                <p className="text-[#767d8a] text-sm">{iframeError ? "This server failed — try another one below" : "Select a server to start watching"}</p>
+                <p className="text-[#e8eaee] text-[14px] font-semibold" style={{ fontFamily: GROTESK }}>
+                  {stream.error || "No direct streams available for this episode."}
+                </p>
+                <p className="text-[#767d8a] text-[12px]">
+                  Source: <span className="font-bold text-[#a1a7b3]">{stream.origin || "none"}</span> — Vidlink + Moviebox fallback exhausted.
+                </p>
               </div>
             </div>
           )}
         </div>
 
-        {/* ═══ Server deck ═══ */}
+        {/* ═══ Quality deck (replaces the old channel list) ═══ */}
         <div className="mx-4 lg:mx-0 rounded-2xl bg-[#0a0d13] border border-white/[0.07] p-4 sm:p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="ltv-tv-chbadge"><i />Channel Select</span>
-            <span className="text-[11px] text-[#5b616c]">If playback fails, switch server</span>
+            <span className="ltv-tv-chbadge"><i />Quality</span>
+            <span className="text-[11px] text-[#5b616c]">
+              {stream.loading ? "Loading…" : stream.origin ? `Source: ${stream.origin}` : "No source"}
+            </span>
           </div>
+          {stream.hls.length > 0 && stream.sources.length > 0 && (
+            <div className="flex items-center gap-2 mb-3">
+              <button
+                onClick={() => setActiveTab("mp4")}
+                className={`px-3 py-1 rounded-md text-[11px] font-bold transition-colors border ${
+                  activeTab === "mp4"
+                    ? "text-white border-transparent"
+                    : "text-[#a1a7b3] border-white/[0.08] hover:text-white"
+                }`}
+                style={{ fontFamily: GROTESK, background: activeTab === "mp4" ? ACCENT : undefined }}
+              >
+                MP4 Direct
+              </button>
+              <button
+                onClick={() => setActiveTab("hls")}
+                className={`px-3 py-1 rounded-md text-[11px] font-bold transition-colors border ${
+                  activeTab === "hls"
+                    ? "text-white border-transparent"
+                    : "text-[#a1a7b3] border-white/[0.08] hover:text-white"
+                }`}
+                style={{ fontFamily: GROTESK, background: activeTab === "hls" ? ACCENT : undefined }}
+              >
+                HLS Adaptive
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-2 flex-wrap">
-            {tmdbServers.map((server, idx) => {
-              const active = activeServer === server.id;
-              return (
-                <button
-                  key={server.id}
-                  onClick={() => { setActiveServer(server.id); setIframeError(false); setUseDirectEmbed(true); }}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold transition-all border ${
-                    active
-                      ? "text-white border-transparent"
-                      : "text-[#a1a7b3] border-white/[0.08] bg-white/[0.02] hover:text-white hover:border-white/20"
-                  }`}
-                  style={{ fontFamily: GROTESK, background: active ? ACCENT : undefined }}
+            {!stream.loading && activeSources.length > 0 ? (
+              activeSources.map((s, idx) => (
+                <span
+                  key={`q-${idx}`}
+                  className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-md text-[12px] font-bold border border-white/[0.08] bg-white/[0.02] text-[#c4c9d2]"
+                  style={{ fontFamily: GROTESK }}
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${active ? "bg-white" : "bg-[#5b616c]"}`} />
-                  CH {idx + 1}
-                </button>
-              );
-            })}
-            <button
-              onClick={() => { setUseDirectEmbed(!useDirectEmbed); setIframeError(false); }}
-              className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-[12px] font-bold transition-all border ${
-                useDirectEmbed
-                  ? "text-[#34D399] border-[#34D399]/35 bg-[#34D399]/10"
-                  : "text-[#767d8a] border-white/[0.08] hover:text-[#c4c9d2]"
-              }`}
-              style={{ fontFamily: GROTESK }}
-              title={useDirectEmbed ? "Direct embed — bypasses proxy" : "Proxy mode — anti-sandbox enabled"}
-            >
-              {useDirectEmbed ? "Direct" : "Proxy"}
-            </button>
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#34D399]" />
+                  {s.quality}
+                  <span className="text-[9px] uppercase opacity-60 text-[#5b616c]">{s.format}</span>
+                </span>
+              ))
+            ) : (
+              <span className="text-[12px] text-[#5b616c] italic" style={{ fontFamily: GROTESK }}>
+                {stream.loading ? "Fetching qualities…" : "No qualities available"}
+              </span>
+            )}
+            {stream.subtitles.length > 0 && (
+              <span className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[11px] font-bold text-[#a1a7b3] border border-white/[0.08] bg-white/[0.02]" style={{ fontFamily: GROTESK }}>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.2}>
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <path d="M7 13h2M14 13h3M7 10h2M11 10h3" />
+                </svg>
+                {stream.subtitles.length} subtitle{stream.subtitles.length > 1 ? "s" : ""}
+              </span>
+            )}
           </div>
         </div>
 

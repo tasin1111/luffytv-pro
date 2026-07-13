@@ -318,108 +318,15 @@ const vidnestHindi: EmbedServer = {
 
 // =====================================================
 // TMDB SERVERS — Movies/TV Shows
+//
+// NOTE: Movies/TV no longer use embed iframes. Stream playback for
+// movies and TV now goes through direct Vidlink + Moviebox scraping
+// (see src/lib/vidlink-api.ts and src/lib/moviebox-api.ts). The
+// MovieWatchPage and TVWatchPage components render a <video> element
+// with direct MP4/HLS sources instead of an iframe.
 // =====================================================
 
-const vidcore: EmbedServer = {
-  id: "vidcore", name: "VidCore", priority: 0, supportsSub: true, supportsDub: false, supportsHindi: false,
-  idType: "tmdb", color: "#EF4444", category: "tmdb", streamType: "iframe",
-  generateUrl: (p) => {
-    if (!p.tmdbId) return "";
-    if (p.season && p.season > 0) return `https://vidcore.net/tv/${p.tmdbId}/${p.season}/${p.episode}?autoPlay=true`;
-    return `https://vidcore.net/movie/${p.tmdbId}?autoPlay=true`;
-  },
-};
-
-const vidplays: EmbedServer = {
-  id: "vidplays", name: "VidPlays", priority: 1, supportsSub: true, supportsDub: false, supportsHindi: false,
-  idType: "tmdb", color: "#14B8A6", category: "tmdb", streamType: "iframe",
-  generateUrl: (p) => {
-    if (!p.tmdbId) return "";
-    if (p.season && p.season > 0) return `https://vidplays.fun/embed/tv/${p.tmdbId}/${p.season}/${p.episode}`;
-    return `https://vidplays.fun/embed/movie/${p.tmdbId}`;
-  },
-};
-
-const vidfast: EmbedServer = {
-  id: "vidfast", name: "VidFast", priority: 2, supportsSub: true, supportsDub: false, supportsHindi: false,
-  idType: "tmdb", color: "#3B82F6", category: "tmdb", streamType: "iframe",
-  generateUrl: (p) => {
-    if (!p.tmdbId) return "";
-    if (p.season && p.season > 0) return `https://vidfast.pro/tv/${p.tmdbId}/${p.season}/${p.episode}?autoPlay=true&nextButton=true&autoNext=true`;
-    return `https://vidfast.pro/movie/${p.tmdbId}?autoPlay=true`;
-  },
-};
-
-const vidnestTv: EmbedServer = {
-  id: "vidnest-tv", name: "VidNest TV", priority: 3, supportsSub: true, supportsDub: false, supportsHindi: false,
-  idType: "tmdb", color: "#D32F3F", category: "tmdb", streamType: "iframe",
-  generateUrl: (p) => {
-    if (!p.tmdbId) return "";
-    return `https://vidnest.fun/tv/${p.tmdbId}/${p.season || 1}/${p.episode}`;
-  },
-};
-
-const videasyTv: EmbedServer = {
-  id: "videasy-tv", name: "Videasy TV", priority: 4, supportsSub: true, supportsDub: false, supportsHindi: false,
-  idType: "tmdb", color: "#E63946", category: "tmdb", streamType: "iframe",
-  generateUrl: (p) => {
-    if (!p.tmdbId) return "";
-    if (p.season && p.season > 0) return `https://player.videasy.net/tv/${p.tmdbId}/${p.season}/${p.episode}?color=E63946&nextEpisode=true&autoplayNextEpisode=true`;
-    return `https://player.videasy.net/movie/${p.tmdbId}?color=E63946`;
-  },
-};
-
-const vidplusTv: EmbedServer = {
-  id: "vidplus-tv", name: "VidPlus TV", priority: 5, supportsSub: true, supportsDub: false, supportsHindi: false,
-  idType: "tmdb", color: "#EC4899", category: "tmdb", streamType: "iframe",
-  generateUrl: (p) => {
-    if (!p.tmdbId) return "";
-    if (p.season && p.season > 0) return `https://player.vidplus.to/embed/tv/${p.tmdbId}/${p.season}/${p.episode}?autoplay=true&autonext=true&nextbutton=true&primarycolor=E63946`;
-    return `https://player.vidplus.to/embed/movie/${p.tmdbId}?autoplay=true&primarycolor=E63946`;
-  },
-};
-
-const peachify: EmbedServer = {
-  id: "peachify", name: "Peachify", priority: 6, supportsSub: true, supportsDub: true, supportsHindi: true,
-  idType: "tmdb", color: "#F472B6", category: "tmdb", streamType: "iframe",
-  generateUrl: (p) => {
-    if (!p.tmdbId) return "";
-    const params = new URLSearchParams({ autoPlay: "true", autoNext: "30", showNextBtn: "true", accent: "E63946" });
-    if (p.translation === "hindi") { params.set("dub", "Hindi"); params.set("sub", "English"); }
-    else if (p.translation === "dub") { params.set("dub", "English"); }
-    if (p.season && p.season > 0) return `https://peachify.top/embed/tv/${p.tmdbId}/${p.season}/${p.episode}?${params}`;
-    return `https://peachify.top/embed/movie/${p.tmdbId}?${params}`;
-  },
-};
-
-const embedmaster: EmbedServer = {
-  id: "embedmaster", name: "EmbedMaster", priority: 7, supportsSub: true, supportsDub: false, supportsHindi: false,
-  idType: "tmdb", color: "#6366F1", category: "tmdb", streamType: "iframe",
-  generateUrl: (p) => {
-    if (!p.tmdbId) return "";
-    if (p.season && p.season > 0) return `https://embedmaster.link/tv/${p.tmdbId}/${p.season}/${p.episode}`;
-    return `https://embedmaster.link/movie/${p.tmdbId}`;
-  },
-};
-
-const vidlinkTv: EmbedServer = {
-  id: "vidlink-tv", name: "VidLink TV", priority: 8, supportsSub: true, supportsDub: false, supportsHindi: false,
-  idType: "tmdb", color: "#E63946", category: "tmdb", streamType: "iframe",
-  generateUrl: (p) => {
-    if (!p.tmdbId) return "";
-    if (p.season && p.season > 0) return `https://vidlink.pro/tv/${p.tmdbId}/${p.season}/${p.episode}`;
-    return `https://vidlink.pro/movie/${p.tmdbId}`;
-  },
-};
-
-const vidsrcme: EmbedServer = {
-  id: "vidsrcme", name: "VidSrcMe", priority: 9, supportsSub: true, supportsDub: false, supportsHindi: false,
-  idType: "tmdb", color: "#22C55E", category: "tmdb", streamType: "iframe",
-  generateUrl: (p) => {
-    if (!p.tmdbId) return "";
-    return `https://vidsrcme.ru/embed/tv?tmdb=${p.tmdbId}&season=${p.season || 1}&episode=${p.episode}`;
-  },
-};
+const TMDB_SERVERS: EmbedServer[] = [];
 
 // =====================================================
 // ALL SERVERS
@@ -441,11 +348,6 @@ const ANIME_SERVERS: EmbedServer[] = [
 const HINDI_SERVERS: EmbedServer[] = [
   anixtvHindi,       // Charmander
   vidnestHindi,      // Flareon
-];
-
-const TMDB_SERVERS: EmbedServer[] = [
-  vidcore, vidplays, vidfast, vidnestTv, videasyTv,
-  vidplusTv, peachify, embedmaster, vidlinkTv, vidsrcme,
 ];
 
 const ALL_SERVERS: EmbedServer[] = [

@@ -49,6 +49,12 @@ const ALLOWED_HOSTS = [
   "ani.pm",
   // AniWaves embed CDNs
   "echovideo.ru", "play.echovideo.ru",
+  // Vidlink + enc-dec API (movie/TV direct streams)
+  "vidlink.pro", "api.vidlink.pro", "enc-dec.app",
+  // Moviebox API + player domain
+  "aoneroom.com", "h5-api.aoneroom.com", "moviebox.ph",
+  // Netfilm player domain (Moviebox stream CDN)
+  "netfilm.world", "api.netfilm.world",
 ];
 
 function isHostAllowed(url: string): boolean {
@@ -94,7 +100,22 @@ function guessContentType(url: string): string {
   if (url.endsWith(".ts")) return "video/mp2t";
   if (url.endsWith(".mp4")) return "video/mp4";
   if (url.endsWith(".vtt")) return "text/vtt";
+  if (url.endsWith(".srt")) return "text/vtt"; // converted on-the-fly below
   return "video/mp4";
+}
+
+// Convert SRT subtitle content to WebVTT so the browser <track> element
+// renders it. WebVTT is essentially SRT with a "WEBVTT" header and
+// timestamps using "." (period) as the millisecond separator (SRT uses ",").
+function srtToVtt(srt: string): string {
+  const body = srt
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/^\uFEFF/, "") // strip BOM
+    .replace(/^\d+\s*$/gm, "") // strip index lines like "1", "2"...
+    .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, "$1.$2") // , → . in timestamps
+    .trim();
+  return `WEBVTT\n\n${body}\n`;
 }
 
 function handleM3u8(content: string, originalUrl: string, referer: string): NextResponse {
@@ -184,7 +205,41 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const contentType = res.headers.get("content-type") || guessContentType(targetUrl);
+    const upstreamContentType = res.headers.get("content-type") || "";
+    const looksLikeSubtitle =
+      targetUrl.endsWith(".srt") ||
+      targetUrl.endsWith(".vtt") ||
+      upstreamContentType.includes("text/plain") && (targetUrl.endsWith(".srt") || targetUrl.endsWith(".vtt"));
+
+    // For SRT subtitles, convert to WebVTT on the fly so the <track>
+    // element can render them. Browsers won't render SRT directly.
+    if (targetUrl.endsWith(".srt") || (looksLikeSubtitle && upstreamContentType.includes("text/plain") && targetUrl.endsWith(".srt"))) {
+      const srtContent = await res.text();
+      const vttContent = srtToVtt(srtContent);
+      return new NextResponse(vttContent, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/vtt; charset=utf-8",
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "no-cache",
+        },
+      });
+    }
+
+    // For .vtt subtitles, just pass through with correct content-type
+    if (targetUrl.endsWith(".vtt")) {
+      const vttContent = await res.text();
+      return new NextResponse(vttContent, {
+        status: 200,
+        headers: {
+          "Content-Type": "text/vtt; charset=utf-8",
+          "Access-Control-Allow-Origin": "*",
+          "Cache-Control": "no-cache",
+        },
+      });
+    }
+
+    const contentType = upstreamContentType || guessContentType(targetUrl);
 
     // For m3u8 playlists, rewrite URLs to proxy through us
     if (contentType.includes("mpegurl") || targetUrl.endsWith(".m3u8")) {
