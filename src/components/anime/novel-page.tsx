@@ -229,7 +229,7 @@ export default function NovelPage() {
       ) : (
         <>
           {/* ── TRENDING NOW ── */}
-          <Section title="Trending Now" accent="bg-white">
+          <Section id="novel-section-trending" title="Trending Now" accent="bg-white">
             {loading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {Array.from({ length: 8 }).map((_, i) => <NovelCardSkeleton key={i} />)}
@@ -242,7 +242,7 @@ export default function NovelPage() {
           </Section>
 
           {/* ── RECENTLY UPDATED ── */}
-          <Section title="Recently Updated" accent="bg-white">
+          <Section id="novel-section-recent" title="Recently Updated" accent="bg-white">
             {loading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
                 {Array.from({ length: 8 }).map((_, i) => <NovelCardSkeleton key={i} />)}
@@ -256,7 +256,7 @@ export default function NovelPage() {
 
           {/* ── BROWSE BY GENRE ── */}
           {genres.length > 0 && (
-            <Section title="Browse by Genre" accent="bg-[#D4A017]">
+            <Section id="novel-section-browse" title="Browse by Genre" accent="bg-[#D4A017]">
               <div className="flex flex-wrap gap-2">
                 {genres.slice(0, 24).map((g) => (
                   <button
@@ -337,9 +337,9 @@ function HeroSpotlight({ novel, onRead }: { novel: Novel; onRead: () => void }) 
 
 // ── Section wrapper ──────────────────────────────────────────────────────────
 
-function Section({ title, accent, children }: { title: string; accent: string; children: React.ReactNode }) {
+function Section({ id, title, accent, children }: { id?: string; title: string; accent: string; children: React.ReactNode }) {
   return (
-    <section className="px-4 max-w-7xl mx-auto mb-10">
+    <section id={id} className="px-4 max-w-7xl mx-auto mb-10 scroll-mt-20">
       <div className="flex items-center gap-2 mb-4">
         <div className={`w-1 h-5 rounded-full ${accent}`} />
         <h2 className="text-lg sm:text-xl font-bold text-white">{title}</h2>
