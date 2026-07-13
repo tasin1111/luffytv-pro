@@ -311,7 +311,7 @@ export default function MainPage() {
 
       {/* Main Content — render immediately (even during splash) so fetches start early */}
       <ErrorBoundary>
-      <div className={`min-h-screen flex flex-col ${!showSplash ? "content-reveal" : "opacity-0 pointer-events-none"} ${isNovelRoute || route.page === "novel-read" ? "bg-white" : "bg-[#000000]"}`}>
+      <div className={`min-h-screen flex flex-col ${!showSplash ? "content-reveal" : "opacity-0 pointer-events-none"} bg-[#000000]`}>
         <main className={`${isWatchPage ? 'w-full px-0 lg:px-0 pt-0' : isMangaReader ? 'w-full' : isHomeFullBleed ? 'w-full' : isBrowseFullBleed ? 'w-full pt-[0px]' : isNovelRoute ? 'w-full pt-[72px] px-4 lg:px-8' : showNavAndFooter ? 'w-full pt-[72px] px-4 lg:px-8' : isFullWidth ? 'w-full pt-4' : 'max-w-[1400px] mx-auto px-4 lg:px-8 pt-4'} ${isWatchPage || isMangaReader || isBrowseFullBleed || isStandalonePage || isAuthPage ? "" : "pb-28 lg:pb-12"} flex-1`}>
           {renderPage()}
         </main>
