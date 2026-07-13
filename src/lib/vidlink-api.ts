@@ -190,7 +190,9 @@ export async function getVidlinkStreams(
   if (type === "tv") {
     const se = season && season > 0 ? season : 1;
     const ep = episode && episode > 0 ? episode : 1;
-    url = `${VIDLINK_API}/tv/${encrypted}?multiLang=1&se=${se}&ep=${ep}`;
+    // TV uses path-based season/episode: /api/b/tv/{enc}/{se}/{ep}
+    // (NOT query params — query params return HTML, not JSON)
+    url = `${VIDLINK_API}/tv/${encrypted}/${se}/${ep}?multiLang=1`;
   } else {
     url = `${VIDLINK_API}/movie/${encrypted}?multiLang=1`;
   }

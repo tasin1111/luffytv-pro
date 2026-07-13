@@ -112,54 +112,16 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
     return () => { cancelled = true; };
   }, [tvId, currentSeason]);
 
-  // ── Fetch streams (Moviebox primary, Vidlink fallback) ──
-  const loadStreams = useCallback(async (title: string, season: number, episode: number) => {
+  // ── Fetch streams (Vidlink — primary and only source) ──
+  // Moviebox stream API (netfilm.world) returns 403 "invalid region" from
+  // our server, so Vidlink is the only working source.
+  const loadStreams = useCallback(async (_title: string, season: number, episode: number) => {
     const fetchKey = `tv:${tvId}:${season}:${episode}`;
     if (lastFetchKeyRef.current === fetchKey) return;
     lastFetchKeyRef.current = fetchKey;
 
     setStream({ ...EMPTY_STREAM, loading: true });
 
-    // 1) Try Moviebox FIRST (has multi-dub + subtitles)
-    if (title) {
-      try {
-        const searchRes = await fetch(`/api/stream/moviebox?query=${encodeURIComponent(title)}`);
-        if (searchRes.ok) {
-          const searchData = await searchRes.json();
-          const results = (searchData.results || []) as Array<{
-            title: string;
-            slug: string;
-            subjectId: string;
-            poster: string;
-          }>;
-          if (results.length > 0) {
-            const best = results[0];
-            const streamRes = await fetch(
-              `/api/stream/moviebox?subjectId=${encodeURIComponent(best.subjectId)}&detailPath=${encodeURIComponent(best.slug)}&season=${season}&episode=${episode}`
-            );
-            if (streamRes.ok) {
-              const streamData = await streamRes.json();
-              const sources: PlayerSource[] = (streamData.sources || []).filter((s: PlayerSource) => s.url);
-              const hls: PlayerSource[] = (streamData.hls || []).filter((s: PlayerSource) => s.url);
-              if (sources.length > 0 || hls.length > 0) {
-                setStream({
-                  origin: "moviebox",
-                  sources,
-                  subtitles: streamData.subtitles || [],
-                  hls,
-                  error: "",
-                  loading: false,
-                });
-                setActiveTab(sources.length > 0 ? "mp4" : "hls");
-                return;
-              }
-            }
-          }
-        }
-      } catch { /* fall through to Vidlink */ }
-    }
-
-    // 2) Fallback: Vidlink
     try {
       const res = await fetch(
         `/api/stream/vidlink?tmdbId=${tvId}&type=tv&season=${season}&episode=${episode}`
@@ -185,7 +147,7 @@ export default function TVWatchPage({ tvId, season: initialSeason, episode: init
       sources: [],
       subtitles: [],
       hls: [],
-      error: "No streams available — Moviebox + Vidlink exhausted.",
+      error: "No streams available — Vidlink failed.",
       loading: false,
     });
   }, [tvId]);
