@@ -147,6 +147,40 @@ export default function NovelPage() {
     return () => clearInterval(interval);
   }, [editorsChoice]);
 
+  // Listen for search events from the NovelNavbar
+  useEffect(() => {
+    const onNovelSearch = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string;
+      if (detail) {
+        setSearchQuery(detail);
+        // Scroll to top so search results are visible
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    };
+    window.addEventListener("novel-search", onNovelSearch);
+    return () => window.removeEventListener("novel-search", onNovelSearch);
+  }, []);
+
+  // Listen for tab events from the NovelNavbar (scroll to section)
+  useEffect(() => {
+    const onNovelTab = (e: Event) => {
+      const detail = (e as CustomEvent).detail as string;
+      if (detail) {
+        // Clear search if we're switching to a section
+        if (detail === "trending" || detail === "browse" || detail === "recent") {
+          setSearchQuery("");
+        }
+        // Scroll to the section after a short delay (to ensure DOM is ready)
+        setTimeout(() => {
+          const el = document.getElementById(`novel-section-${detail}`);
+          if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+        }, 150);
+      }
+    };
+    window.addEventListener("novel-tab", onNovelTab);
+    return () => window.removeEventListener("novel-tab", onNovelTab);
+  }, []);
+
   // Debounced search
   useEffect(() => {
     if (!searchQuery.trim()) {

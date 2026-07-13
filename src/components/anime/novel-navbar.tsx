@@ -131,17 +131,22 @@ export function NovelNavbar() {
         {/* Divider */}
         <span style={{ width: "1px", height: "20px", background: "rgba(255, 255, 255, 0.18)", margin: "0 4px", flexShrink: 0 }} />
 
-        {/* Search button (opens search input) */}
-        <form onSubmit={handleSearch} className="hidden md:flex items-center gap-2">
+        {/* Search input — dispatches to NovelPage on every keystroke */}
+        <div className="hidden md:flex items-center gap-2">
           <Search className="w-4 h-4 text-white/50" />
           <input
             type="text"
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSearchQuery(val);
+              // Dispatch to NovelPage immediately (no need to press Enter)
+              window.dispatchEvent(new CustomEvent("novel-search", { detail: val }));
+            }}
             placeholder="Search novels..."
             className="bg-transparent border-none outline-none text-sm text-white placeholder-white/40 w-32 lg:w-48"
           />
-        </form>
+        </div>
       </nav>
 
       {/* ═══ RIGHT ICONS PILL ═══ */}
@@ -190,17 +195,21 @@ export function NovelNavbar() {
             className="absolute top-16 left-0 right-0 bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-white/10 p-4 space-y-2"
             onClick={(e) => e.stopPropagation()}
           >
-            <form onSubmit={handleSearch} className="relative mb-4">
+            <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/40" />
               <input
                 type="text"
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSearchQuery(val);
+                  window.dispatchEvent(new CustomEvent("novel-search", { detail: val }));
+                }}
                 placeholder="Search novels..."
                 className="w-full pl-10 pr-4 py-2.5 rounded-full bg-white/[0.06] border border-white/[0.08] text-sm text-white outline-none focus:border-white/30"
                 autoFocus
               />
-            </form>
+            </div>
             {navItems.map((item) => (
               <button
                 key={item.label}
