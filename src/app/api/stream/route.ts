@@ -13,6 +13,7 @@ const ALLOWED_HOSTS = [
   "flixcloud.cc", "fetch1.flixcloud.cc", "fetch2.flixcloud.cc",
   "s4.anilist.co", "kwik.cx", "kwik.si",
   "megaplay.buzz", "megaplay.online",
+  "reanime.to",
   "cimovix.store", "cdn.cimovix.store",
   "wixmp.com", "cdn.wixmp.com", "fast4speed.rsvp",
   "cdn1.animex.tech", "cdn2.animex.tech", "animex.tech",

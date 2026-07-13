@@ -119,8 +119,10 @@ async function reanimeFetch<T = any>(
 ): Promise<T | null> {
   try {
     const targetUrl = path.startsWith("http") ? path : `${REANIME_BASE}${path}`;
-    // Route through Worker proxy to bypass Cloudflare on reanime.to
-    const proxyUrl = `${WORKER_BASE}/proxy?url=${encodeURIComponent(targetUrl)}&ref=${encodeURIComponent("https://reanime.to/")}`;
+    // Route through /api/stream (Vercel server proxy) — reanime.to is CF-protected
+    // and blocks both Vercel direct fetch AND Cloudflare Workers (CF-to-CF).
+    // Vercel's /api/stream sends proper headers that bypass CF for API endpoints.
+    const proxyUrl = `/api/stream?url=${encodeURIComponent(targetUrl)}&referer=${encodeURIComponent("https://reanime.to/")}`;
     const res = await Promise.race([
       fetch(proxyUrl, { headers: { "Accept": "application/json" }, cache: "no-store" }),
       new Promise<Response | null>((r) => setTimeout(() => r(null), timeoutMs)),
@@ -130,8 +132,8 @@ async function reanimeFetch<T = any>(
       return null;
     }
     const text = await res.text();
-    if (text.startsWith("<")) {
-      console.error(`[ReAnime] ${path} → CF challenge`);
+    if (text.startsWith("<") || text.startsWith("{\"error")) {
+      console.error(`[ReAnime] ${path} → blocked or error`);
       return null;
     }
     return JSON.parse(text) as T;
