@@ -68,6 +68,31 @@ async function resolveAniDbId(
     return anidbIdCache.get(anilistId)!;
   }
 
+  // If no title provided, try to get it from AniList
+  if (!title || title.trim().length === 0) {
+    try {
+      const alRes = await fetch("https://graphql.anilist.co", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          query: `query($id:Int){Media(id:$id,type:ANIME){title{english romaji}}}`,
+          variables: { id: anilistId },
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (alRes.ok) {
+        const alData = await alRes.json();
+        title = alData?.data?.Media?.title?.english || alData?.data?.Media?.title?.romaji || "";
+      }
+    } catch { /* ignore */ }
+    if (!title) {
+      console.error(`[anidb-direct] no title for AniList ${anilistId} — can't search`);
+      anidbIdCache.set(anilistId, null);
+      cacheTimestamps.set(cacheKey, Date.now());
+      return null;
+    }
+  }
+
   try {
     // Search AniDB via Worker proxy (search endpoint is CF-protected)
     const searchUrl = encodeURIComponent(
@@ -124,12 +149,27 @@ async function resolveAniDbId(
       // Extract the title from this result item
       const titleMatch = item.match(/<p class="text-sm[^"]*"[^>]*>([^<]+)<\/p>/);
       if (titleMatch) {
-        const resultTitle = titleMatch[1].trim().toLowerCase();
+        // Decode HTML entities (&#039; → ', &amp; → &, etc.) before comparing
+        const resultTitle = titleMatch[1].trim()
+          .replace(/&#0?39;/g, "'")
+          .replace(/&amp;/g, "&")
+          .replace(/&quot;/g, '"')
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .toLowerCase();
+        
+        // Exact match
         if (resultTitle === titleLower) {
           bestId = id;
-          break; // exact match
+          break;
         }
+        // Partial match (search term is contained in result)
         if (!bestId && resultTitle.includes(titleLower)) {
+          bestId = id;
+        }
+        // Also check reverse: result title is contained in search term
+        // (handles "Frieren" matching "Frieren: Beyond Journey's End")
+        if (!bestId && titleLower.includes(resultTitle.split(":")[0].trim())) {
           bestId = id;
         }
       }
