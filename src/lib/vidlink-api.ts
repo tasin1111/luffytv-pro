@@ -51,6 +51,9 @@ export interface VidlinkStreams {
 const ENC_DEC_API = "https://enc-dec.app/api/enc-vidlink";
 const VIDLINK_API = "https://vidlink.pro/api/b";
 
+// No caching — Vidlink stream URLs have time-limited tokens that expire
+// after ~1 hour. Each request must fetch fresh URLs.
+
 const DEFAULT_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36",

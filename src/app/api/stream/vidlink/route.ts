@@ -44,25 +44,28 @@ export async function GET(request: NextRequest) {
 
     const streams = await getVidlinkStreams(tmdbId, type, se, ep);
 
-    // Wrap each video URL through /api/stream so the browser can play it
-    // without CORS issues. Subtitle URLs get the same treatment; the
-    // stream proxy auto-converts .srt → .vtt.
-    const wrap = (url: string) =>
-      `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent("https://vidlink.pro/")}`;
+    // Vidlink streams have time-limited tokens that expire after ~1 hour.
+    // Do NOT cache the response — always fetch fresh URLs.
+    // Vidlink flags include "cors-allowed" — the MP4 URLs can be played
+    // directly by the browser without a proxy. We still provide proxyUrl
+    // as a fallback in case CORS fails for some users.
 
     return NextResponse.json(
       {
         source: "vidlink",
         sources: streams.sources.map((s) => ({
           ...s,
-          proxyUrl: wrap(s.url),
+          // Use the direct URL — Vidlink streams are CORS-allowed
+          // (no proxyUrl needed, but we include it as fallback)
+          proxyUrl: s.url,
         })),
         subtitles: streams.subtitles.map((sub) => ({
           ...sub,
-          proxyUrl: wrap(sub.url),
+          // Subtitle URLs need proxying (CORS + SRT→VTT conversion)
+          proxyUrl: `/api/stream?url=${encodeURIComponent(sub.url)}&referer=${encodeURIComponent("https://vidlink.pro/")}`,
         })),
       },
-      { headers: { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store" } }
+      { headers: { "Access-Control-Allow-Origin": "*", "Cache-Control": "no-store, no-cache, must-revalidate" } }
     );
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Vidlink fetch failed";
