@@ -11,6 +11,7 @@ import { resolveAniWaves } from "@/lib/aniwaves-direct";
 import { fetchAniLightSources } from "@/lib/anilight-api";
 import { fetchAllKyrenSources } from "@/lib/kyren-api";
 import { resolveAniKoto } from "@/lib/anikoto-direct";
+import { fetchAllReAnimeSources } from "@/lib/reanime-api";
 import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
@@ -58,7 +59,7 @@ export async function GET(
     const servers: Array<{
       id: string;
       name: string;
-      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone" | "aniwaves" | "anilight" | "kyren" | "anikoto";
+      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone" | "aniwaves" | "anilight" | "kyren" | "anikoto" | "reanime";
       provider: string;
       type: "sub" | "dub";
       quality: string;
@@ -186,6 +187,34 @@ export async function GET(
           }
         } catch {}
       })(),
+      // ReAnime (priority 17) — FlixCLOUD decrypted m3u8 (AES-256-CBC)
+      (async () => {
+        try {
+          const ra = await withTimeout(fetchAllReAnimeSources(id, epNum, undefined, { sub: true, dub: true, timeoutMs: 25000 }).catch(() => []), 25000, []);
+          if (ra?.length) {
+            let p = 17;
+            for (const r of ra) {
+              servers.push({
+                id: `reanime:${r.provider}:${p}`,
+                name: `ReAnime ${r.provider.includes("dub") ? "(Dub)" : r.provider.includes("sub") ? "" : ""}`.trim() || `ReAnime ${p}`,
+                source: "reanime",
+                provider: r.provider,
+                type: r.type,
+                quality: r.quality || "1080p",
+                streamUrl: r.streamUrl,
+                isM3U8: r.isM3U8,
+                isMP4: r.isMP4,
+                isEmbed: r.isEmbed,
+                hardsub: false,
+                priority: p++,
+                subtitleTracks: r.subtitleTracks,
+                intro: r.intro,
+                outro: r.outro,
+              });
+            }
+          }
+        } catch {}
+      })(),
       // AniKage (skip times only, priority 15) — runs independently, doesn't block
       (async () => {
         try {
@@ -229,7 +258,7 @@ export async function GET(
     servers.sort((a, b) => a.priority - b.priority);
 
     console.log(
-      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (animex:${servers.some(s => s.source === "animex") ? "✓" : "✗"} anidb:${servers.some(s => s.source === "anidb") ? "✓" : "✗"} anineko:${servers.some(s => s.source === "anineko") ? "✓" : "✗"} anilight:${servers.some(s => s.source === "anilight") ? "✓" : "✗"} kyren:${servers.some(s => s.source === "kyren") ? "✓" : "✗"} senshi:${servers.some(s => s.source === "senshi") ? "✓" : "✗"} allmanga:${servers.some(s => s.source === "allmanga") ? "✓" : "✗"} anikoto:${servers.some(s => s.source === "anikoto") ? "✓" : "✗"} anikage:${anikageIntro || anikageOutro ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
+      `[instant-servers] AniList ${id} ep ${epNum}: ${servers.length} instant servers (animex:${servers.some(s => s.source === "animex") ? "✓" : "✗"} anidb:${servers.some(s => s.source === "anidb") ? "✓" : "✗"} anineko:${servers.some(s => s.source === "anineko") ? "✓" : "✗"} anilight:${servers.some(s => s.source === "anilight") ? "✓" : "✗"} kyren:${servers.some(s => s.source === "kyren") ? "✓" : "✗"} senshi:${servers.some(s => s.source === "senshi") ? "✓" : "✗"} allmanga:${servers.some(s => s.source === "allmanga") ? "✓" : "✗"} anikoto:${servers.some(s => s.source === "anikoto") ? "✓" : "✗"} reanime:${servers.some(s => s.source === "reanime") ? "✓" : "✗"} anikage:${anikageIntro || anikageOutro ? "✓" : "✗"} anidap:${servers.some(s => s.source === "anidap") ? "✓" : "✗"})`,
     );
 
     return NextResponse.json({ servers });
