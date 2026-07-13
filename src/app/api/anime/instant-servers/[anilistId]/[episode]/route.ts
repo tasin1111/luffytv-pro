@@ -12,7 +12,7 @@ import { fetchAniLightSources } from "@/lib/anilight-api";
 import { fetchAllKyrenSources } from "@/lib/kyren-api";
 import { resolveAniKoto } from "@/lib/anikoto-direct";
 import { fetchAllReAnimeSources } from "@/lib/reanime-api";
-import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
+import { wrapM3u8Url, wrapM3u8UrlWithReferer, wrapStreamUrl } from "@/lib/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,6 +56,16 @@ export async function GET(
       ]);
     }
 
+    // Wrap subtitle URLs through the Worker proxy so they work cross-origin
+    function wrapSubs(tracks?: Array<{ url: string; lang: string; label: string }>): Array<{ url: string; lang: string; label: string }> | undefined {
+      if (!tracks || tracks.length === 0) return undefined;
+      return tracks.map(t => ({
+        url: t.url.startsWith("http") ? wrapStreamUrl(t.url) : t.url,
+        lang: t.lang || "en",
+        label: t.label || "English",
+      }));
+    }
+
     const servers: Array<{
       id: string;
       name: string;
@@ -88,8 +98,8 @@ export async function GET(
       (async () => {
         try {
           const m = await withTimeout(resolveAnimexMimiBoth(id, epNum), 25000, { sub: null, dub: null });
-          if (m.sub?.m3u8Url) servers.push({ id: "animex:mimi:sub", name: "AnimeX Mimi", source: "animex", provider: "mimi", type: "sub", quality: m.sub.quality || "1080p", streamUrl: m.sub.m3u8Url, isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 0, subtitleTracks: m.sub.tracks, intro: m.sub.intro || null, outro: m.sub.outro || null });
-          if (m.dub?.m3u8Url) servers.push({ id: "animex:mimi:dub", name: "AnimeX Mimi (Dub)", source: "animex", provider: "mimi", type: "dub", quality: m.dub.quality || "1080p", streamUrl: m.dub.m3u8Url, isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 2, subtitleTracks: m.dub.tracks, intro: m.dub.intro || null, outro: m.dub.outro || null });
+          if (m.sub?.m3u8Url) servers.push({ id: "animex:mimi:sub", name: "AnimeX Mimi", source: "animex", provider: "mimi", type: "sub", quality: m.sub.quality || "1080p", streamUrl: m.sub.m3u8Url, isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 0, subtitleTracks: wrapSubs(m.sub.tracks), intro: m.sub.intro || null, outro: m.sub.outro || null });
+          if (m.dub?.m3u8Url) servers.push({ id: "animex:mimi:dub", name: "AnimeX Mimi (Dub)", source: "animex", provider: "mimi", type: "dub", quality: m.dub.quality || "1080p", streamUrl: m.dub.m3u8Url, isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 2, subtitleTracks: wrapSubs(m.dub.tracks), intro: m.dub.intro || null, outro: m.dub.outro || null });
         } catch {}
       })(),
       // AniDB (priority 1, 3)
@@ -108,7 +118,7 @@ export async function GET(
           const ns = await withTimeout(resolveAniNekoM3u8(id, epNum, title).catch(() => []), 25000, []);
           for (let i = 0; i < Math.min(ns.length, 3); i++) {
             const s = ns[i];
-            servers.push({ id: `anineko:${i}`, name: s.serverName, source: "anineko", provider: "anineko", type: "sub", quality: "1080p", streamUrl: wrapM3u8Url(s.m3u8Url), isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 4 + i, subtitleTracks: s.subtitleUrl ? [{ url: s.subtitleUrl, lang: "en", label: "English" }] : undefined });
+            servers.push({ id: `anineko:${i}`, name: s.serverName, source: "anineko", provider: "anineko", type: "sub", quality: "1080p", streamUrl: wrapM3u8Url(s.m3u8Url), isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 4 + i, subtitleTracks: wrapSubs(s.subtitleUrl ? [{ url: s.subtitleUrl, lang: "en", label: "English" }] : undefined) });
           }
         } catch {}
       })(),
@@ -116,15 +126,15 @@ export async function GET(
       (async () => {
         try {
           const al = await withTimeout(fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 25000 }).catch(() => []), 25000, []);
-          al.filter((r: any) => r.type === "sub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:sub:${i}`, name: `AniLight ${r.quality}`.trim(), source: "anilight", provider: "anilight", type: "sub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 5 + i, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: t.url, lang: t.lang || "en", label: t.label || "English" })) }));
-          al.filter((r: any) => r.type === "dub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:dub:${i}`, name: `AniLight ${r.quality} (Dub)`.trim(), source: "anilight", provider: "anilight", type: "dub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 6 + i, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: t.url, lang: t.lang || "en", label: t.label || "English" })) }));
+          al.filter((r: any) => r.type === "sub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:sub:${i}`, name: `AniLight ${r.quality}`.trim(), source: "anilight", provider: "anilight", type: "sub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 5 + i, subtitleTracks: wrapSubs((r.tracks || []).map((t: any) => ({ url: t.url), lang: t.lang || "en", label: t.label || "English" })) }));
+          al.filter((r: any) => r.type === "dub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:dub:${i}`, name: `AniLight ${r.quality} (Dub)`.trim(), source: "anilight", provider: "anilight", type: "dub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 6 + i, subtitleTracks: wrapSubs((r.tracks || []).map((t: any) => ({ url: t.url), lang: t.lang || "en", label: t.label || "English" })) }));
         } catch {}
       })(),
       // Kyren (priority 7)
       (async () => {
         try {
           const kr = await withTimeout(fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 25000 }).catch(() => []), 25000, []);
-          if (kr?.length) { let p = 7; for (const r of kr) servers.push({ id: `kyren:${r.server}:${r.type}`, name: `Kyren ${r.server.charAt(0).toUpperCase() + r.server.slice(1)}${r.type === "dub" ? " (Dub)" : ""}`, source: "kyren", provider: r.server, type: r.type, quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: p++, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: t.url, lang: t.lang || "en", label: t.label || "English" })) }); }
+          if (kr?.length) { let p = 7; for (const r of kr) servers.push({ id: `kyren:${r.server}:${r.type}`, name: `Kyren ${r.server.charAt(0).toUpperCase() + r.server.slice(1)}${r.type === "dub" ? " (Dub)" : ""}`, source: "kyren", provider: r.server, type: r.type, quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: p++, subtitleTracks: wrapSubs((r.tracks || []).map((t: any) => ({ url: t.url), lang: t.lang || "en", label: t.label || "English" })) }); }
         } catch {}
       })(),
       // Senshi (priority 8)
@@ -145,7 +155,7 @@ export async function GET(
       (async () => {
         try {
           const az = await withTimeout(resolveAniZone(id, epNum, title).catch(() => null), 25000, null);
-          if (az?.m3u8Url) servers.push({ id: "anizone:sub", name: "AniZone", source: "anizone", provider: "anizone", type: "sub", quality: "1080p", streamUrl: wrapM3u8UrlWithReferer(az.m3u8Url, "https://anizone.to/"), isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 13, subtitleTracks: az.subtitleTracks });
+          if (az?.m3u8Url) servers.push({ id: "anizone:sub", name: "AniZone", source: "anizone", provider: "anizone", type: "sub", quality: "1080p", streamUrl: wrapM3u8UrlWithReferer(az.m3u8Url, "https://anizone.to/"), isM3U8: true, isMP4: false, isEmbed: false, hardsub: false, priority: 13, subtitleTracks: wrapSubs(az.subtitleTracks) });
         } catch {}
       })(),
       // AniWaves (priority 14)
@@ -179,7 +189,7 @@ export async function GET(
                 isEmbed: !srv.m3u8Url,
                 hardsub: false,
                 priority: p++,
-                subtitleTracks: srv.subtitleTracks,
+                subtitleTracks: wrapSubs(srv.subtitleTracks),
                 intro: srv.intro || ak.intro,
                 outro: srv.outro || ak.outro,
               });
@@ -207,7 +217,7 @@ export async function GET(
                 isEmbed: r.isEmbed,
                 hardsub: false,
                 priority: p++,
-                subtitleTracks: r.subtitleTracks,
+                subtitleTracks: wrapSubs(r.subtitleTracks),
                 intro: r.intro,
                 outro: r.outro,
               });
@@ -236,7 +246,7 @@ export async function GET(
           const ad = await withTimeout(getAniDapSources(anidapId, epNum, "sub", "beep").catch(() => null), 25000, null);
           if (ad?.sources?.length) {
             const src = ad.sources.find((s: any) => s.url?.includes(".m3u8") || s.type?.includes("mpegurl"));
-            if (src?.url) servers.push({ id: "anidap:beep:sub", name: "AniDap Beep", source: "anidap", provider: "beep", type: "sub", quality: src.quality || "1080p", streamUrl: wrapM3u8Url(src.url), isM3U8: true, isMP4: false, isEmbed: false, hardsub: true, priority: 10, subtitleTracks: (ad.tracks || []).map((t: any) => ({ url: t.url, lang: t.lang, label: t.label })), intro: ad.intro || null, outro: ad.outro || null });
+            if (src?.url) servers.push({ id: "anidap:beep:sub", name: "AniDap Beep", source: "anidap", provider: "beep", type: "sub", quality: src.quality || "1080p", streamUrl: wrapM3u8Url(src.url), isM3U8: true, isMP4: false, isEmbed: false, hardsub: true, priority: 10, subtitleTracks: wrapSubs((ad.tracks || []).map((t: any) => ({ url: t.url), lang: t.lang, label: t.label })), intro: ad.intro || null, outro: ad.outro || null });
           }
         } catch {}
       })(),
