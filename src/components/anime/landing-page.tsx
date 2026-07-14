@@ -544,8 +544,7 @@ export default function LandingPage() {
         </section>
       )}
 
-      {/* ═══ MOVIES & TV SHOWCASE — real TMDB artwork ═══ */}
-      {spotlight && (
+      {/* ═══ LIBRARY ═══ */}
       <section id="library" ref={(el: HTMLElement | null) => { chapterRefs.current.library = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
         <div className="max-w-7xl mx-auto">
           <SectionHeading
