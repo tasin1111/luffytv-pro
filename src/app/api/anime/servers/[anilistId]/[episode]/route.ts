@@ -39,7 +39,7 @@ import { fetchAniPmSources } from "@/lib/anipm-api";
 import { fetchAnimetsuSources } from "@/lib/animetsu-api";
 import { fetchAnimeHeavenSources } from "@/lib/animeheaven-api";
 // AniWaves removed — not working (user request)
-import { fetchAllAnimePaheSources, ANIMEPAHE_ENABLED } from "@/lib/animepahe-api";
+import { fetchAnimePaheSources as fetchAllAnimePaheSources } from "@/lib/animepahe-api";
 import { fetchAllOnsenSources, ONSEN_ENABLED } from "@/lib/animeonsen-api";
 import { fetchAllReAnimeSources, REANIME_ENABLED } from "@/lib/reanime-api";
 
@@ -212,7 +212,7 @@ export async function GET(
     fetchAnimeHeavenSources(id, epNum, { timeoutMs: OTHER_TIMEOUT }),
     // AnimePahe: external scraper with Cloudflare bypass (env-configured).
     // Skipped silently if ANIMEPAHE_SCRAPER_URL and ANIMEPAHE_CF_CLEARANCE are not set.
-    ANIMEPAHE_ENABLED
+    true
       ? fetchAllAnimePaheSources(id, epNum, animeTitles, { sub: true, dub: true, timeoutMs: OTHER_TIMEOUT })
       : Promise.resolve([]),
     // AnimeOnsen: DASH .mpd streams with ASS subtitles (self-hosted CDN)

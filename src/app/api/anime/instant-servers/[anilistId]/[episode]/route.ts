@@ -8,6 +8,7 @@ import { resolveSenshi } from "@/lib/senshi-direct";
 import { resolveAllManga } from "@/lib/allmanga-direct";
 import { resolveAniZone } from "@/lib/anizone-direct";
 import { resolveAniWaves } from "@/lib/aniwaves-direct";
+import { fetchAnimePaheSources } from "@/lib/animepahe-api";
 import { fetchAniLightSources } from "@/lib/anilight-api";
 import { fetchAllKyrenSources } from "@/lib/kyren-api";
 import { resolveAniKoto } from "@/lib/anikoto-direct";
@@ -110,6 +111,38 @@ export async function GET(
     let anikageOutro: { start: number; end: number } | null = null;
 
     const providerPromises: Promise<void>[] = [
+      // AnimePahe (priority 0.8) — pure m3u8 + subtitles, CF bypass via scraper
+      (async () => {
+        try {
+          const paheResults = await withTimeout(
+            fetchAnimePaheSources(id, epNum, title).catch(() => []),
+            10000,
+            [],
+          );
+          if (paheResults?.length) {
+            let p = 0.8;
+            for (const r of paheResults) {
+              servers.push({
+                id: `animepahe:${r.provider}:${r.type}`,
+                name: `AnimePahe ${r.quality}${r.type === "dub" ? " (Dub)" : ""}`,
+                source: "animepahe" as any,
+                provider: r.provider,
+                type: r.type,
+                quality: r.quality || "1080p",
+                streamUrl: r.streamUrl,
+                isM3U8: r.isM3U8,
+                isMP4: r.isMP4,
+                isEmbed: false,
+                hardsub: r.hardsub,
+                priority: p++,
+                subtitleTracks: r.tracks,
+                intro: r.intro || null,
+                outro: r.outro || null,
+              });
+            }
+          }
+        } catch {}
+      })(),
       // AnimeX mimi (priority 0 sub, 0.5 dub) — FASTEST
       (async () => {
         try {
