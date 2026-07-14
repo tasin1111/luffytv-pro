@@ -21,7 +21,6 @@ import NovelReaderPage from "@/components/anime/novel-reader-page";
 import SignInPage from "@/components/anime/signin-page";
 import SignUpPage from "@/components/anime/signup-page";
 import ProfilePage from "@/components/anime/profile-page";
-import AdminPage from "@/components/anime/admin-page";
 import { trackPageview } from "@/lib/analytics";
 import ScraperPage from "@/components/anime/scraper-page";
 import ScraperAnimePage from "@/components/anime/scraper-anime-page";
@@ -279,7 +278,6 @@ export default function MainPage() {
       case "signin": return <SignInPage />;
       case "signup": return <SignUpPage />;
       case "profile": return <ProfilePage />;
-      case "admin": return <AdminPage />;
       case "music": return <MusicPage />;
       case "torrent": return <TorrentPage />;
       case "scraper": return <ScraperPage />;

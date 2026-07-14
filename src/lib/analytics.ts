@@ -184,6 +184,105 @@ export function getMetrics(data: AnalyticsData = loadAnalytics()): AnalyticsMetr
   };
 }
 
+export interface RangeMetrics {
+  days: number;
+  views: number;
+  sessions: number;
+  bounceRate: number;
+  avgSessionSec: number;
+  // % change vs the previous equal-length window (null when no prior data)
+  viewsDelta: number | null;
+  sessionsDelta: number | null;
+  bounceDelta: number | null;
+  avgDelta: number | null;
+  series: { day: number; views: number; sessions: number }[];
+  topPaths: { path: string; count: number }[];
+  referrers: { source: string; count: number }[];
+}
+
+function pctDelta(cur: number, prev: number): number | null {
+  if (prev === 0) return cur === 0 ? 0 : null;
+  return Math.round(((cur - prev) / prev) * 100);
+}
+
+/** Metrics for the last `days` days plus deltas vs the previous window. */
+export function getRangeMetrics(days: number, data: AnalyticsData = loadAnalytics()): RangeMetrics {
+  const todayStart = dayStart(Date.now());
+  const winStart = todayStart - (days - 1) * DAY;
+  const prevStart = winStart - days * DAY;
+
+  const inWin = (ts: number) => ts >= winStart && ts < todayStart + DAY;
+  const inPrev = (ts: number) => ts >= prevStart && ts < winStart;
+
+  const curViews = data.views.filter((v) => inWin(v.ts));
+  const prevViews = data.views.filter((v) => inPrev(v.ts));
+  const curSessions = data.sessions.filter((s) => inWin(s.start));
+  const prevSessions = data.sessions.filter((s) => inPrev(s.start));
+
+  const bounce = (arr: Session[]) => (arr.length ? Math.round((arr.filter((s) => s.views <= 1).length / arr.length) * 100) : 0);
+  const avg = (arr: Session[]) => (arr.length ? Math.round(arr.reduce((a, b) => a + (b.end - b.start), 0) / arr.length / 1000) : 0);
+
+  const curBounce = bounce(curSessions);
+  const curAvg = avg(curSessions);
+
+  const series: { day: number; views: number; sessions: number }[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d0 = todayStart - i * DAY;
+    const d1 = d0 + DAY;
+    series.push({
+      day: d0,
+      views: data.views.filter((v) => v.ts >= d0 && v.ts < d1).length,
+      sessions: data.sessions.filter((s) => s.start >= d0 && s.start < d1).length,
+    });
+  }
+
+  const pathCount = new Map<string, number>();
+  for (const v of curViews) pathCount.set(v.path, (pathCount.get(v.path) || 0) + 1);
+  const topPaths = [...pathCount.entries()].map(([path, count]) => ({ path, count })).sort((a, b) => b.count - a.count).slice(0, 8);
+
+  const refCount = new Map<string, number>();
+  for (const s of curSessions) refCount.set(s.referrer, (refCount.get(s.referrer) || 0) + 1);
+  const referrers = [...refCount.entries()].map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count).slice(0, 6);
+
+  return {
+    days,
+    views: curViews.length,
+    sessions: curSessions.length,
+    bounceRate: curBounce,
+    avgSessionSec: curAvg,
+    viewsDelta: pctDelta(curViews.length, prevViews.length),
+    sessionsDelta: pctDelta(curSessions.length, prevSessions.length),
+    bounceDelta: pctDelta(curBounce, bounce(prevSessions)),
+    avgDelta: pctDelta(curAvg, avg(prevSessions)),
+    series,
+    topPaths,
+    referrers,
+  };
+}
+
+/** Seed demo analytics so the dashboard is populated on first run (dev/demo). */
+export function seedDemoAnalytics() {
+  if (typeof window === "undefined") return;
+  if (localStorage.getItem(KEY)) return;
+  const now = Date.now();
+  const paths = ["landing", "home", "movies", "tv", "manga", "novel", "live", "search", "watch", "movie-watch", "profile"];
+  const refs = ["google.com", "direct", "t.co", "reddit.com", "bing.com", "youtube.com"];
+  const sessions: Session[] = [];
+  const views: PageView[] = [];
+  for (let d = 29; d >= 0; d--) {
+    const dayBase = now - d * DAY;
+    const n = 4 + Math.floor(Math.random() * 9);
+    for (let i = 0; i < n; i++) {
+      const start = dayBase - Math.floor(Math.random() * DAY * 0.5);
+      const nv = 1 + Math.floor(Math.random() * 5);
+      const dur = nv > 1 ? (30 + Math.floor(Math.random() * 500)) * 1000 : Math.floor(Math.random() * 12) * 1000;
+      sessions.push({ id: uid(), start, end: start + dur, views: nv, referrer: refs[Math.floor(Math.random() * refs.length)], entry: paths[Math.floor(Math.random() * 4)] });
+      for (let v = 0; v < nv; v++) views.push({ ts: start + v * (dur / nv), path: paths[Math.floor(Math.random() * paths.length)] });
+    }
+  }
+  save({ visitorId: uid(), firstSeen: now - 30 * DAY, lastSeen: now - 90 * 1000, sessions, views });
+}
+
 /** Wipe all analytics (admin action). */
 export function resetAnalytics() {
   if (typeof window === "undefined") return;

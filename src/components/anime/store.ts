@@ -167,7 +167,6 @@ type Route =
   | { page: "signin" }
   | { page: "signup" }
   | { page: "profile" }
-  | { page: "admin" }
   | { page: "settings" }
   | { page: "scraper" }
   | { page: "scraper-anime"; id: string }
@@ -293,7 +292,6 @@ export const useAppStore = create<AppState>()(
       else if (route.page === "signin") window.location.hash = "signin";
       else if (route.page === "signup") window.location.hash = "signup";
       else if (route.page === "profile") window.location.hash = "profile";
-      else if (route.page === "admin") window.location.hash = "admin";
       else if (route.page === "settings") window.location.hash = "settings";
       else if (route.page === "music") window.location.hash = "music";
       else if (route.page === "torrent") window.location.hash = "torrent";
@@ -473,7 +471,6 @@ export function parseHash(hash: string): Route {
   if (parts[0] === "signin") return { page: "signin" };
   if (parts[0] === "signup") return { page: "signup" };
   if (parts[0] === "profile") return { page: "profile" };
-  if (parts[0] === "admin") return { page: "admin" };
   if (parts[0] === "settings") return { page: "settings" };
   if (parts[0] === "scraper" && parts[1] === "anime" && parts[2])
     return { page: "scraper-anime", id: parts[2] };
