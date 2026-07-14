@@ -7,25 +7,14 @@ import { NovelNavbar } from "@/components/anime/novel-navbar";
 import SearchPage from "@/components/anime/search-page";
 import AnimeDetailPage from "@/components/anime/anime-detail";
 import WatchPage from "@/components/anime/watch-page";
-import GenrePage from "@/components/anime/genre-page";
 import BookmarksPage from "@/components/anime/bookmarks-page";
 import HistoryPage from "@/components/anime/history-page";
 import AnimeSectionPage from "@/components/anime/anime-section-page";
-import MoviesPage from "@/components/anime/movies-page";
-import TVPage from "@/components/anime/tv-page";
-import MovieDetailPage from "@/components/anime/movie-detail";
-import TVDetailPage from "@/components/anime/tv-detail";
-import MovieWatchPage from "@/components/anime/movie-watch";
-import TVWatchPage from "@/components/anime/tv-watch";
 import MangaPage from "@/components/anime/manga-page";
 import MangaDetailPage from "@/components/anime/manga-detail";
 import MangaReader from "@/components/anime/manga-reader";
-import WatchNowPage from "@/components/anime/watchnow-page";
 import ContactPage from "@/components/anime/contact-page";
 import GuidePage from "@/components/anime/guide-page";
-import LivePage from "@/components/anime/live-page";
-import LiveWatchPage from "@/components/anime/live-watch-page";
-import LiveTVWatchPage from "@/components/anime/live-tv-watch-page";
 import NovelPage from "@/components/anime/novel-page";
 import NovelDetailPage from "@/components/anime/novel-detail-page";
 import NovelReaderPage from "@/components/anime/novel-reader-page";
@@ -171,21 +160,20 @@ export default function MainPage() {
       if (rawFirst === "dub" && newRoute.page === "home") {
         history.replaceState(null, "", "#home");
       }
+      // "#genre/<name>" now lands on the anime Browse → Genres sub-page
+      // (the old genre-page was removed). parseHash already returned home;
+      // we additionally flip sectionSubPage so the user sees the genre grid
+      // instead of the home hero carousel.
+      const isLegacyGenreRedirect = rawFirst === "genre" && newRoute.page === "home";
       const current = useAppStore.getState().route;
       if (JSON.stringify(current) !== JSON.stringify(newRoute)) {
-        // For live-watch: preserve existing rich match data if matchId matches.
-        // navigate() stores full match data (teams, scores, streams, etc.)
-        // but the URL hash only has matchId+sport, so parseHash() would
-        // overwrite with empty strings for all other fields.
-        if (newRoute.page === "live-watch" && current.page === "live-watch" && newRoute.matchId === current.matchId) {
-          return;
-        }
-        // Same guard for live-tv-watch: preserve rich channel data (embedUrl, etc.)
-        // navigate() stores full channel data but parseHash() would lose it
-        if (newRoute.page === "live-tv-watch" && current.page === "live-tv-watch" && newRoute.channelId === current.channelId) {
-          return;
-        }
-        useAppStore.setState({ route: newRoute });
+        useAppStore.setState({
+          route: newRoute,
+          ...(isLegacyGenreRedirect ? { sectionSubPage: "genres" as const } : {}),
+        });
+      } else if (isLegacyGenreRedirect) {
+        // Route is already home — but make sure the sub-page still flips.
+        useAppStore.setState({ sectionSubPage: "genres" });
       }
     };
     handleHash();
@@ -226,14 +214,14 @@ export default function MainPage() {
     );
   }
 
-  const isWatchPage = route.page === "watch" || route.page === "movie-watch" || route.page === "tv-watch" || route.page === "live-watch" || route.page === "live-tv-watch" || route.page === "scraper-watch";
+  const isWatchPage = route.page === "watch" || route.page === "scraper-watch";
   const isMangaReader = route.page === "manga-read" || route.page === "novel-read";
   // Landing + Hub are standalone pages with their own header/chrome — never
   // wrapped in the app's Navbar/footer or content padding.
   const isStandalonePage = route.page === "landing" || route.page === "hub";
   // Auth pages fully own their own centered/glass layout — no outer padding.
   const isAuthPage = route.page === "signin" || route.page === "signup";
-  const isFullWidth = route.page === "home" || route.page === "watchnow" || route.page === "live" || route.page === "anime" || isStandalonePage || isAuthPage;
+  const isFullWidth = route.page === "home" || route.page === "anime" || isStandalonePage || isAuthPage;
   // "home" is the single canonical anime section home — FULL BLEED (no padding,
   // no top offset). Root "home" renders the anime carousel so refresh never
   // flips between two different homes.
@@ -243,7 +231,7 @@ export default function MainPage() {
   const isCinematicOwnLayout = isStandalonePage || route.page === "guide" || route.page === "contact" || route.page === "features";
   const isHomeFullBleed = (isAnimeSectionRoute && sectionSubPage === "home") || isCinematicOwnLayout || isAuthPage || route.page === "manga";
   // Browse sub-page wants true full-screen (no main padding) — its own internal layout handles spacing
-  const isBrowseFullBleed = isAnimeSectionRoute && (sectionSubPage === "browse" || sectionSubPage === "schedule");
+  const isBrowseFullBleed = isAnimeSectionRoute && (sectionSubPage === "browse" || sectionSubPage === "schedule" || sectionSubPage === "genres");
 
   // Whether footer & floating navbar are visible
   // Novel routes get their own navbar (NovelNavbar) — hide the anime navbar
@@ -263,24 +251,28 @@ export default function MainPage() {
       case "search": return <SearchPage initialQuery={route.query} />;
       case "anime": return <AnimeDetailPage animeId={route.id} />;
       case "watch": return <WatchPage animeId={route.id} episodeNum={route.episode} />;
-      case "genre": return <GenrePage genre={route.genre} />;
+      // Retired sections — old bookmarks / shared links for Movies, TV Shows,
+      // Live, WatchNow, and the legacy per-genre page all land on the anime
+      // section home. parseHash already redirected the hash to { page: "home" }.
+      case "genre":
+      case "movies":
+      case "movie-detail":
+      case "movie-watch":
+      case "tv":
+      case "tv-detail":
+      case "tv-watch":
+      case "watchnow":
+      case "live":
+      case "live-watch":
+      case "live-tv-watch":
+        return <AnimeSectionPage />;
       case "bookmarks": return <BookmarksPage />;
       case "history": return <HistoryPage />;
-      case "movies": return <MoviesPage />;
-      case "tv": return <TVPage />;
       case "manga": return <MangaPage />;
       case "manga-detail": return <MangaDetailPage mangaId={route.id} />;
       case "manga-read": return <MangaReader mangaId={route.id} chapterId={route.chapterId} />;
-      case "movie-detail": return <MovieDetailPage movieId={route.id} />;
-      case "tv-detail": return <TVDetailPage tvId={route.id} />;
-      case "movie-watch": return <MovieWatchPage movieId={route.id} />;
-      case "tv-watch": return <TVWatchPage tvId={route.id} season={route.season} episode={route.episode} />;
-      case "watchnow": return <WatchNowPage />;
       case "contact": return <ContactPage />;
       case "guide": return <GuidePage />;
-      case "live": return <LivePage />;
-      case "live-watch": return <LiveWatchPage matchId={route.matchId} matchTitle={route.matchTitle} matchSport={route.matchSport} matchSportName={route.matchSportName} matchHomeTeam={route.matchHomeTeam} matchAwayTeam={route.matchAwayTeam} matchHomeBadge={route.matchHomeBadge} matchAwayBadge={route.matchAwayBadge} matchPoster={route.matchPoster} matchPopular={route.matchPopular} matchSources={route.matchSources} matchDate={route.matchDate} matchStreamKey={(route as any).matchStreamKey} matchStreamCategory={(route as any).matchStreamCategory} matchChannelName={(route as any).matchChannelName} matchChannelCode={(route as any).matchChannelCode} matchDamitvId={(route as any).matchDamitvId} matchDamitvName={(route as any).matchDamitvName} matchWatchfootyId={(route as any).matchWatchfootyId} matchApiSource={(route as any).matchApiSource} matchSportsrcCategory={(route as any).matchSportsrcCategory} matchSportsrcId={(route as any).matchSportsrcId} matchWatchfootyStreams={(route as any).matchWatchfootyStreams} matchLeague={(route as any).matchLeague} matchLeagueLogo={(route as any).matchLeagueLogo} matchHomeScore={(route as any).matchHomeScore} matchAwayScore={(route as any).matchAwayScore} matchCurrentMinute={(route as any).matchCurrentMinute} />;
-      case "live-tv-watch": return <LiveTVWatchPage channelId={route.channelId || ""} channelName={route.channelName || ""} channelCategory={route.channelCategory || "General"} channelCountryCode={route.channelCountryCode} channelCountryName={route.channelCountryName} channelEmbedUrl={route.channelEmbedUrl || ""} channelStreamCategory={route.channelStreamCategory} channelDamitvDefaultUrl={route.channelDamitvDefaultUrl} channelViewers={route.channelViewers} channelLogoUrl={route.channelLogoUrl} channelDamitvEmbedUrl={route.channelDamitvEmbedUrl} channelDamitvId={route.channelDamitvId} channelDamitvResolveUrl={route.channelDamitvResolveUrl} channelStreamUrl={route.channelStreamUrl} />;
       case "novel": return <NovelPage />;
       case "novel-detail": return <NovelDetailPage novelId={route.novelId} novelTitle={route.novelTitle} novelCover={route.novelCover} novelAuthor={route.novelAuthor} novelSource={route.novelSource} />;
       case "novel-read": return <NovelReaderPage novelId={route.novelId} novelTitle={route.novelTitle} chapterId={route.chapterId} chapterNum={route.chapterNum} chapterTitle={route.chapterTitle} totalChapters={route.totalChapters} novelSource={route.novelSource} />;

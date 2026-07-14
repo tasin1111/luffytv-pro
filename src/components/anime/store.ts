@@ -415,24 +415,6 @@ export function getSectionNavLinks(route: Route): { id: SectionSubPage; label: s
     ];
   }
   
-  // Movies section
-  if (page === "movies") {
-    return [
-      { id: "home", label: "Home" },
-      { id: "trending", label: "Trending" },
-      { id: "top-rated", label: "Top Rated" },
-    ];
-  }
-  
-  // TV Shows section
-  if (page === "tv") {
-    return [
-      { id: "home", label: "Home" },
-      { id: "trending", label: "Trending" },
-      { id: "top-rated", label: "Top Rated" },
-    ];
-  }
-  
   // Live section — sports, TV channels, schedule, and news
   if (page === "live" || page === "live-watch" || page === "live-tv-watch") {
     return [
@@ -457,29 +439,34 @@ export function parseHash(hash: string): Route {
   if (parts[0] === "anime" && parts[1]) return { page: "anime", id: parts[1] };
   if (parts[0] === "watch" && parts[1] && parts[2])
     return { page: "watch", id: parts[1], episode: parseInt(parts[2], 10) || 1 };
-  if (parts[0] === "genre" && parts[1]) return { page: "genre", genre: decodeURIComponent(parts[1]) };
+  // NOTE: "#genre/X" is handled below in the retired-sections block — it now
+  // redirects to home (with sectionSubPage="genres" set in page.tsx handleHash).
   if (parts[0] === "bookmarks") return { page: "bookmarks" };
   if (parts[0] === "history") return { page: "history" };
   // Legacy "#dub" links normalize to the single canonical anime home.
   if (parts[0] === "dub") return { page: "home" };
-  if (parts[0] === "movies") return { page: "movies" };
-  if (parts[0] === "tv") return { page: "tv" };
+  // ── Retired sections — redirect ALL legacy Movies / TV / Live / WatchNow / Genre
+  // hashes to the canonical anime home so old bookmarks and shared links don't
+  // 404. (Genre also flips sectionSubPage → "genres" — handled in page.tsx
+  // handleHash, since parseHash only returns a Route.)
+  if (parts[0] === "movies") return { page: "home" };
+  if (parts[0] === "tv") return { page: "home" };
+  if (parts[0] === "live") return { page: "home" };
+  if (parts[0] === "watchnow") return { page: "home" };
+  if (parts[0] === "genre") return { page: "home" };
+  if (parts[0] === "movie" && parts[1]) return { page: "home" };
+  if (parts[0] === "tvshow" && parts[1]) return { page: "home" };
+  if (parts[0] === "watch-movie" && parts[1]) return { page: "home" };
+  if (parts[0] === "watch-tv") return { page: "home" };
+  if (parts[0] === "live-watch") return { page: "home" };
+  if (parts[0] === "live-tv-watch") return { page: "home" };
   if (parts[0] === "manga" && parts[1]) return { page: "manga-detail", id: parts[1] };
   if (parts[0] === "manga") return { page: "manga" };
   if (parts[0] === "read-manga" && parts[1] && parts[2])
     return { page: "manga-read", id: parts[1], chapterId: parts[2] };
-  if (parts[0] === "movie" && parts[1]) return { page: "movie-detail", id: parseInt(parts[1]) };
-  if (parts[0] === "tvshow" && parts[1]) return { page: "tv-detail", id: parseInt(parts[1]) };
-  if (parts[0] === "watch-movie" && parts[1]) return { page: "movie-watch", id: parseInt(parts[1]) };
-  if (parts[0] === "watch-tv" && parts[1] && parts[2] && parts[3])
-    return { page: "tv-watch", id: parseInt(parts[1]), season: parseInt(parts[2]), episode: parseInt(parts[3]) };
-  if (parts[0] === "watchnow") return { page: "watchnow" };
   if (parts[0] === "contact") return { page: "contact" };
   if (parts[0] === "guide") return { page: "guide" };
   if (parts[0] === "features") return { page: "features" };
-  if (parts[0] === "live") return { page: "live" };
-  if (parts[0] === "live-watch") return { page: "live-watch", matchId: decodeURIComponent(parts[1] || ""), matchTitle: "", matchSport: decodeURIComponent(parts[2] || ""), matchSportName: "", matchHomeTeam: "", matchAwayTeam: "", matchHomeBadge: "", matchAwayBadge: "", matchPoster: "", matchPopular: false, matchSources: "[]", matchDate: 0 };
-  if (parts[0] === "live-tv-watch") return { page: "live-tv-watch", channelId: decodeURIComponent(parts[1] || ""), channelName: "", channelCategory: decodeURIComponent(parts[2] || ""), channelStreamCategory: decodeURIComponent(parts[3] || ""), channelEmbedUrl: "" };
   if (parts[0] === "novel" && parts[1]) return { page: "novel-detail", novelId: decodeURIComponent(parts[1]), novelTitle: "", novelCover: "", novelAuthor: "", novelSource: "readlightnovel" };
   if (parts[0] === "novel") return { page: "novel" };
   if (parts[0] === "read-novel" && parts[1] && parts[2]) return { page: "novel-read", novelId: decodeURIComponent(parts[1]), novelTitle: "", chapterId: `chapter-${parts[2]}`, chapterNum: parseInt(parts[2]), chapterTitle: "", totalChapters: 0, novelSource: "readlightnovel" };

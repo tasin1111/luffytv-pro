@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useAppStore, getAnimeTitle, getAnimeImage, getTMDBTitle, getTMDBImage, getTMDBYear, getTMDBMediaType, type AnimeItem, type MiruroAnimeItem, type TMDBContentItem } from "./store";
+import { proxifyImage } from "@/lib/proxy";
 
 // ── Genre color map for popup tags ──
 const GENRE_COLORS: Record<string, string> = {
@@ -270,7 +271,7 @@ export default function ContentCard({ anime, tmdbItem, index = 0 }: ContentCardP
           {/* ── Poster image ── */}
           {image && (
             <img
-              src={image}
+              src={proxifyImage(image)}
               alt={title}
               className={`absolute inset-0 w-full h-full object-cover transition-all duration-500 ease-out ${
                 isHovered ? "scale-105 brightness-[0.55]" : "scale-100 brightness-100"

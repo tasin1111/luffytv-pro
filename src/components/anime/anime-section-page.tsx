@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useAppStore } from "./store";
 import type { MiruroAnimeResult } from "@/lib/miruro-api";
+import { proxifyImage } from "@/lib/proxy";
 import BrowsePage from "./browse-page";
 import SchedulePage from "./schedule-page";
 import AnimeHoverCard from "./anime-hover-card";
@@ -140,7 +141,7 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
       {/* Background image — FULL SCREEN, smooth crossfade transition */}
       {banner && (
         <img
-          src={banner}
+          src={proxifyImage(banner)}
           alt=""
           className="absolute inset-0 w-full h-full object-cover object-center"
           style={{ animation: "ltv-hero-crossfade 1.2s ease-in-out" }}
@@ -161,7 +162,7 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
           {/* TMDB Logo — small like AniLight */}
           {logoUrl && (
             <img
-              src={logoUrl}
+              src={proxifyImage(logoUrl)}
               alt={title}
               className="max-w-[340px] max-h-[110px] mb-3 drop-shadow-lg"
               style={{ objectFit: "contain", objectPosition: "left" }}
@@ -346,7 +347,7 @@ function TopTrending({ trending, topRated, navigate }: {
                 {/* Poster image — clipped to rounded corners separately */}
                 <div className="absolute inset-0 overflow-hidden" style={{ borderRadius: "8px" }}>
                   {cover ? (
-                    <img src={cover} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                    <img src={proxifyImage(cover)} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-white/10 font-bold text-2xl">{title.charAt(0)}</div>
                   )}
@@ -449,7 +450,7 @@ function FeaturedAnimeSection({ trending, navigate }: { trending: AnimeItem[]; n
         {/* Background image — anime backdrop */}
         {bgImage && (
           <img
-            src={bgImage}
+            src={proxifyImage(bgImage)}
             alt=""
             className="absolute inset-0 w-full h-full object-cover"
             loading="lazy"
@@ -464,7 +465,7 @@ function FeaturedAnimeSection({ trending, navigate }: { trending: AnimeItem[]; n
           {/* Poster — original size */}
           <div className="shrink-0 w-[120px] h-[170px] md:w-[150px] md:h-[210px] overflow-hidden" style={{ borderRadius: "12px" }}>
             {cover && (
-              <img src={cover} alt={title} className="w-full h-full object-cover" loading="lazy" />
+              <img src={proxifyImage(cover)} alt={title} className="w-full h-full object-cover" loading="lazy" />
             )}
           </div>
 
@@ -485,7 +486,7 @@ function FeaturedAnimeSection({ trending, navigate }: { trending: AnimeItem[]; n
 
             {/* Title (or TMDB logo) — bigger */}
             {logo ? (
-              <img src={logo} alt={title} className="max-w-[420px] max-h-[110px]" style={{ objectFit: "contain", objectPosition: "left" }} />
+              <img src={proxifyImage(logo)} alt={title} className="max-w-[420px] max-h-[110px]" style={{ objectFit: "contain", objectPosition: "left" }} />
             ) : (
               <h2 className="text-2xl md:text-3xl lg:text-4xl font-extrabold text-white leading-tight tracking-tight">{title}</h2>
             )}
@@ -573,7 +574,7 @@ function ContinueWatching({ navigate }: { navigate: (r: any) => void }) {
             >
               <div className="relative w-full aspect-video bg-white/5 overflow-hidden" style={{ borderRadius: "4px" }}>
                 {h.thumbnail && (
-                  <img src={h.thumbnail} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+                  <img src={proxifyImage(h.thumbnail)} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
                 )}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
                 {/* Play button overlay */}
@@ -626,7 +627,7 @@ function PosterCard({ anime, navigate }: { anime: AnimeItem; navigate: (r: any) 
       >
         <div className="relative w-full aspect-[3/4] bg-white/5 overflow-hidden" style={{ borderRadius: "4px" }}>
           {cover ? (
-            <img src={cover} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
+            <img src={proxifyImage(cover)} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" loading="lazy" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-white/10 font-bold text-2xl">{title.charAt(0)}</div>
           )}
@@ -786,11 +787,11 @@ function Discover({ trending, popular, topRated, recent, navigate }: {
                     className="relative flex items-center gap-2.5 text-left group overflow-hidden rounded-lg border border-white/[0.06] bg-[#0D0D0D] transition-all duration-300 hover:border-white/20"
                   >
                     {banner && (
-                      <img src={banner} alt="" className="absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:grayscale-0 group-hover:brightness-50" style={{ filter: "grayscale(1) brightness(0.25)", opacity: 0.6 }} loading="lazy" />
+                      <img src={proxifyImage(banner)} alt="" className="absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:grayscale-0 group-hover:brightness-50" style={{ filter: "grayscale(1) brightness(0.25)", opacity: 0.6 }} loading="lazy" />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-r from-[#0D0D0D] via-[#0D0D0D]/70 to-transparent transition-opacity duration-300 group-hover:via-[#0D0D0D]/50" />
                     <div className="relative shrink-0 w-[64px] h-[90px] overflow-hidden rounded z-10 transition-transform duration-300 group-hover:scale-105">
-                      {cover && <img src={cover} alt="" className="w-full h-full object-cover" loading="lazy" />}
+                      {cover && <img src={proxifyImage(cover)} alt="" className="w-full h-full object-cover" loading="lazy" />}
                     </div>
                     <div className="relative min-w-0 flex-1 z-10 py-2 pr-2 transition-transform duration-300 group-hover:translate-x-1">
                       <p className="text-sm font-bold text-white truncate group-hover:text-white transition-colors">{title}</p>
@@ -831,11 +832,11 @@ function Discover({ trending, popular, topRated, recent, navigate }: {
                     className="relative flex items-center gap-2.5 text-left group overflow-hidden rounded-lg border border-white/[0.06] bg-[#0D0D0D] transition-all duration-300 hover:border-white/20"
                   >
                     {banner && (
-                      <img src={banner} alt="" className="absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:grayscale-0 group-hover:brightness-50" style={{ filter: "grayscale(1) brightness(0.25)", opacity: 0.6 }} loading="lazy" />
+                      <img src={proxifyImage(banner)} alt="" className="absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:grayscale-0 group-hover:brightness-50" style={{ filter: "grayscale(1) brightness(0.25)", opacity: 0.6 }} loading="lazy" />
                     )}
                     <div className="absolute inset-0 bg-gradient-to-r from-[#0D0D0D] via-[#0D0D0D]/70 to-transparent transition-opacity duration-300 group-hover:via-[#0D0D0D]/50" />
                     <div className="relative shrink-0 w-[64px] h-[90px] overflow-hidden rounded z-10 transition-transform duration-300 group-hover:scale-105">
-                      {cover && <img src={cover} alt="" className="w-full h-full object-cover" loading="lazy" />}
+                      {cover && <img src={proxifyImage(cover)} alt="" className="w-full h-full object-cover" loading="lazy" />}
                     </div>
                     <div className="relative min-w-0 flex-1 z-10 py-2 pr-2 transition-transform duration-300 group-hover:translate-x-1">
                       <p className="text-sm font-bold text-white truncate group-hover:text-white transition-colors">{title}</p>
@@ -1365,8 +1366,11 @@ export default function AnimeSectionPage() {
     return () => { cancelled = true; };
   }, []);
 
-  // If sub-page is browse, show the REAL BrowsePage (full filter UI + AniList results)
-  if (sectionSubPage === "browse") {
+  // If sub-page is browse or genres, show the REAL BrowsePage (full filter UI
+  // + AniList results). "genres" is the landing target for legacy "#genre/X"
+  // links — BrowsePage has its own genre filter so users can pick the genre
+  // they were after.
+  if (sectionSubPage === "browse" || sectionSubPage === "genres") {
     return (
       <div className="w-full bg-black text-white" style={{ paddingTop: "88px", minHeight: "100vh" }}>
         <div className="px-4 lg:px-8 pb-16">

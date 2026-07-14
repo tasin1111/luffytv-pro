@@ -197,8 +197,26 @@ export function proxify(url: string | null | undefined, mode: ProxyMode = "auto"
 }
 
 export const proxifyM3u8  = (url: string) => wrapM3u8Url(url);
-export const proxifyImage = (url: string) => wrapStreamUrl(url);
 export const proxifyRaw   = (url: string) => wrapStreamUrl(url);
+
+/**
+ * Wrap an image URL (banner / cover / thumbnail / poster) through the
+ * Cloudflare Worker proxy. The worker edge-caches the binary response so
+ * AniList/TMDB images load noticeably faster — especially on slow
+ * connections or repeated page views.
+ *
+ * Uses the same XOR-token encoding as `wrapStreamUrl` (/p/{token}).
+ * Local paths (e.g. `/hero-bg.png`), data: URIs and already-proxied URLs
+ * are returned unchanged.
+ */
+export function proxifyImage(url: string | null | undefined): string {
+  if (!url) return "";
+  if (typeof url !== "string") return "";
+  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+  if (url.startsWith("/")) return url;                 // local asset — don't proxy
+  if (url.startsWith(WORKER_PROXY)) return url;         // already wrapped
+  return buildProxyUrl(url);
+}
 
 /**
  * Wrap a manga image (poster/cover/banner/page) through the Cloudflare
