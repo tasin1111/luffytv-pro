@@ -73,9 +73,48 @@ function save(data: AnalyticsData) {
   } catch {}
 }
 
+/* ── Real server-side beacon (counts every visitor, aggregated in KV) ── */
+function getVisitorId(): string {
+  try {
+    let v = localStorage.getItem("luffytv_vid");
+    if (!v) { v = uid() + uid(); localStorage.setItem("luffytv_vid", v); }
+    return v;
+  } catch { return "anon"; }
+}
+export function isOwnerBrowser(): boolean {
+  try { return localStorage.getItem("luffytv_owner") === "1"; } catch { return false; }
+}
+export function setOwnerBrowser(on: boolean) {
+  try {
+    if (on) localStorage.setItem("luffytv_owner", "1");
+    else localStorage.removeItem("luffytv_owner");
+  } catch {}
+}
+function beacon(params: Record<string, string>) {
+  try {
+    const qs = new URLSearchParams(params).toString();
+    fetch(`/api/analytics/track?${qs}`, { method: "GET", keepalive: true, cache: "no-store" }).catch(() => {});
+  } catch {}
+}
+/** Fire once when a new account is created (real signup counter). */
+export function trackSignup() {
+  if (typeof window === "undefined" || isOwnerBrowser()) return;
+  beacon({ event: "signup" });
+}
+
 /** Record a page view. Call on every route change. */
 export function trackPageview(path: string) {
   if (typeof window === "undefined") return;
+
+  // Real analytics: beacon the server (skips the owner's own browser & /admin).
+  if (!isOwnerBrowser() && path !== "admin") {
+    let newSess = false;
+    try { if (!sessionStorage.getItem("ltv_s")) { sessionStorage.setItem("ltv_s", "1"); newSess = true; } } catch {}
+    let ref = "direct";
+    try { const r = document.referrer; if (r && !r.includes(location.host)) ref = new URL(r).hostname.replace(/^www\./, ""); } catch {}
+    beacon({ p: path, vid: getVisitorId(), r: ref, s: newSess ? "1" : "0" });
+  }
+
   const data = loadAnalytics();
   const now = Date.now();
   const gap = now - data.lastSeen;

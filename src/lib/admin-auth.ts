@@ -68,7 +68,11 @@ export function changeAdminPassword(oldPassword: string, newPassword: string): {
 }
 
 export function startAdminSession() {
-  try { localStorage.setItem(SESSION_KEY, String(Date.now() + SESSION_TTL)); } catch {}
+  try {
+    localStorage.setItem(SESSION_KEY, String(Date.now() + SESSION_TTL));
+    // Mark this browser as the owner's so their own visits aren't counted as traffic.
+    localStorage.setItem("luffytv_owner", "1");
+  } catch {}
 }
 
 export function isAdminSession(): boolean {

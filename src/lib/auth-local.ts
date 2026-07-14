@@ -139,6 +139,13 @@ export function signUp(input: {
   users.push(newUser);
   saveUsers(users);
 
+  // Real signup counter (skips the owner's own browser).
+  try {
+    if (typeof window !== "undefined" && localStorage.getItem("luffytv_owner") !== "1") {
+      fetch("/api/analytics/track?event=signup", { method: "GET", keepalive: true, cache: "no-store" }).catch(() => {});
+    }
+  } catch {}
+
   // Strip password hash before returning
   const { passwordHash, ...safe } = newUser;
   return { ok: true, user: safe };

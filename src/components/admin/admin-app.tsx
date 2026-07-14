@@ -1,15 +1,61 @@
 "use client";
 
-import { useState, useMemo, useSyncExternalStore } from "react";
+import { useState, useMemo, useEffect, useSyncExternalStore } from "react";
 import {
   hasAdminCredential, setAdminCredential, verifyAdmin, getAdminUsername,
   changeAdminPassword, startAdminSession, isAdminSession, endAdminSession,
 } from "@/lib/admin-auth";
-import {
-  loadAnalytics, getMetrics, getRangeMetrics, resetAnalytics, seedDemoAnalytics,
-} from "@/lib/analytics";
+import { setOwnerBrowser, isOwnerBrowser } from "@/lib/analytics";
 import { listUsersSafe } from "@/lib/auth-local";
 import { loadSeo, saveSeo, auditSeo, DEFAULT_SEO, type SeoSettings } from "@/lib/seo-config";
+
+/* ============================================================
+   Real analytics (server / KV) — types + fetch hook
+   ============================================================ */
+export interface Stats {
+  kvEnabled: boolean;
+  range: number;
+  totalViews: number;
+  totalSessions: number;
+  uniqueVisitors: number;
+  onlineNow: number;
+  signupsTotal: number;
+  views: number; viewsDelta: number | null;
+  sessions: number; sessionsDelta: number | null;
+  signups: number; signupsDelta: number | null;
+  series: { day: number; views: number; sessions: number }[];
+  topPaths: { path: string; count: number }[];
+  referrers: { source: string; count: number }[];
+  countries: { code: string; count: number }[];
+  devices: { name: string; count: number }[];
+}
+
+function useStats(range: number, refreshKey: number) {
+  const [data, setData] = useState<Stats | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    let cancel = false;
+    fetch(`/api/analytics/stats?days=${range}`, { cache: "no-store" })
+      .then((r) => r.json())
+      .then((d: Stats) => { if (!cancel) { setData(d); setLoading(false); } })
+      .catch(() => { if (!cancel) setLoading(false); });
+    return () => { cancel = true; };
+  }, [range, refreshKey]);
+  return { data, loading };
+}
+
+const COUNTRY_NAMES: Record<string, string> = {
+  US: "United States", GB: "United Kingdom", IN: "India", CA: "Canada", DE: "Germany", FR: "France",
+  BR: "Brazil", JP: "Japan", AU: "Australia", PH: "Philippines", ID: "Indonesia", NG: "Nigeria",
+  PK: "Pakistan", BD: "Bangladesh", MX: "Mexico", ES: "Spain", IT: "Italy", NL: "Netherlands",
+  RU: "Russia", TR: "Turkey", SA: "Saudi Arabia", AE: "UAE", EG: "Egypt", ZA: "South Africa",
+  KR: "South Korea", SE: "Sweden", PL: "Poland", VN: "Vietnam", TH: "Thailand", MY: "Malaysia",
+  "??": "Unknown",
+};
+function flag(cc: string): string {
+  if (cc.length !== 2 || cc === "??") return "🌐";
+  return String.fromCodePoint(...[...cc.toUpperCase()].map((c) => 0x1f1e6 + c.charCodeAt(0) - 65));
+}
 
 /* ============================================================
    Admin theme / customization (persisted)
@@ -138,9 +184,14 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [accent, setAccent] = useState(loadAccent);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const rm = useMemo(() => getRangeMetrics(range), [range, refreshKey]);
-  const overall = useMemo(() => getMetrics(loadAnalytics()), [refreshKey]);
+  const { data: stats, loading } = useStats(range, refreshKey);
   const users = useMemo(() => listUsersSafe(), [refreshKey]);
+
+  // Live auto-refresh every 30s (keeps "online now" & counters fresh).
+  useEffect(() => {
+    const id = setInterval(() => setRefreshKey((k) => k + 1), 30000);
+    return () => clearInterval(id);
+  }, []);
 
   const setAcc = (v: string) => { setAccent(v); saveAccent(v); };
 
@@ -208,12 +259,19 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         </header>
 
         <main className="flex-1 p-4 sm:p-6 overflow-x-hidden">
-          {tab === "dashboard" && <DashboardTab rm={rm} overall={overall} userCount={users.length} accent={accent} />}
-          {tab === "audience" && <AudienceTab rm={rm} overall={overall} accent={accent} />}
-          {tab === "content" && <ContentTab rm={rm} accent={accent} />}
-          {tab === "users" && <UsersTab users={users} accent={accent} />}
-          {tab === "seo" && <SeoTab accent={accent} />}
-          {tab === "settings" && <SettingsTab accent={accent} setAccent={setAcc} onData={() => setRefreshKey((k) => k + 1)} />}
+          {stats && !stats.kvEnabled && (tab === "dashboard" || tab === "audience" || tab === "content") && <KvBanner />}
+          {loading && !stats ? (
+            <div className="flex items-center justify-center py-24"><div className="w-7 h-7 rounded-full border-2 border-white/20 border-t-white/70 animate-spin" /></div>
+          ) : (
+            <>
+              {tab === "dashboard" && <DashboardTab s={stats} userCount={users.length} accent={accent} />}
+              {tab === "audience" && <AudienceTab s={stats} accent={accent} />}
+              {tab === "content" && <ContentTab s={stats} accent={accent} />}
+              {tab === "users" && <UsersTab users={users} accent={accent} />}
+              {tab === "seo" && <SeoTab accent={accent} />}
+              {tab === "settings" && <SettingsTab accent={accent} setAccent={setAcc} onData={() => setRefreshKey((k) => k + 1)} />}
+            </>
+          )}
         </main>
       </div>
     </div>
@@ -349,79 +407,99 @@ const PAGE_LABELS: Record<string, string> = {
   "movie-watch": "Movie Watch", "tv-watch": "TV Watch", "manga-read": "Manga Reader", admin: "Admin",
 };
 const plabel = (p: string) => PAGE_LABELS[p] || p;
-function fmtDur(sec: number) { return sec < 60 ? `${sec}s` : `${Math.floor(sec / 60)}m ${sec % 60}s`; }
 
 /* ============================================================
-   Tabs
+   KV status banner
    ============================================================ */
-function DashboardTab({ rm, overall, userCount, accent }: { rm: ReturnType<typeof getRangeMetrics>; overall: ReturnType<typeof getMetrics>; userCount: number; accent: string }) {
-  const sourceColors = ["#3b82f6", "#22D3EE", "#8b5cf6", "#f59e0b", "#10b981", "#f43f5e"];
+function KvBanner() {
+  return (
+    <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-4 mb-6 flex items-start gap-3">
+      <span className="text-lg">⚡</span>
+      <div className="text-xs text-amber-200/80 leading-relaxed">
+        <span className="font-bold text-amber-300">Local mode — connect a store for real global numbers.</span>{" "}
+        Real visitor counting needs a shared datastore. In your Vercel project open <b>Storage → Create → KV</b> and connect it to this
+        project. It auto-adds the env vars and every visit is then counted here — automatically, no code changes.
+      </div>
+    </div>
+  );
+}
+
+const SOURCE_COLORS = ["#3b82f6", "#22D3EE", "#8b5cf6", "#f59e0b", "#10b981", "#f43f5e"];
+const EMPTY: Stats = { kvEnabled: false, range: 14, totalViews: 0, totalSessions: 0, uniqueVisitors: 0, onlineNow: 0, signupsTotal: 0, views: 0, viewsDelta: null, sessions: 0, sessionsDelta: null, signups: 0, signupsDelta: null, series: [], topPaths: [], referrers: [], countries: [], devices: [] };
+
+/* ============================================================
+   Tabs (real server data)
+   ============================================================ */
+function DashboardTab({ s, userCount, accent }: { s: Stats | null; userCount: number; accent: string }) {
+  const d = s || EMPTY;
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Kpi label={`Page views · last ${rm.days}d`} value={rm.views.toLocaleString()} delta={rm.viewsDelta} icon="eye" accent={accent} spark={rm.series.map((s) => s.views)} />
-        <Kpi label={`Sessions · last ${rm.days}d`} value={rm.sessions.toLocaleString()} delta={rm.sessionsDelta} icon="cursor" accent={accent} spark={rm.series.map((s) => s.sessions)} />
-        <Kpi label="Bounce rate" value={`${rm.bounceRate}%`} delta={rm.bounceDelta} invert icon="bounce" accent={accent} />
-        <Kpi label="Avg. session" value={fmtDur(rm.avgSessionSec)} delta={rm.avgDelta} icon="clock" accent={accent} />
+        <Kpi label={`Page views · ${d.range}d`} value={d.views.toLocaleString()} delta={d.viewsDelta} icon="eye" accent={accent} spark={d.series.map((x) => x.views)} />
+        <Kpi label={`Unique visitors · all-time`} value={d.uniqueVisitors.toLocaleString()} icon="user" accent="#8b5cf6" />
+        <Kpi label={`Sessions · ${d.range}d`} value={d.sessions.toLocaleString()} delta={d.sessionsDelta} icon="cursor" accent="#22D3EE" spark={d.series.map((x) => x.sessions)} />
+        <Kpi label="Online now" value={d.onlineNow} icon="live" accent="#10b981" />
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Kpi label="Active now" value={overall.activeNow} icon="live" accent="#10b981" />
-        <Kpi label="Registered members" value={userCount} icon="user" accent="#8b5cf6" />
-        <Kpi label="Returning" value={`${overall.returningRate}%`} icon="repeat" accent="#22D3EE" />
-        <Kpi label="All-time views" value={overall.totalViews.toLocaleString()} icon="chart" accent="#f59e0b" />
+        <Kpi label="New signups" value={d.signups} delta={d.signupsDelta} icon="sparkle" accent="#f59e0b" />
+        <Kpi label="Registered members" value={userCount} icon="users" accent="#f43f5e" />
+        <Kpi label="Views / visitor" value={d.uniqueVisitors ? (d.totalViews / d.uniqueVisitors).toFixed(1) : "0"} icon="chart" accent="#06b6d4" />
+        <Kpi label="All-time views" value={d.totalViews.toLocaleString()} icon="eye" accent={accent} />
       </div>
 
       <Card className="p-5">
-        <PanelHead title="Traffic overview" sub={`Page views & sessions · last ${rm.days} days`} />
-        <AreaChart series={rm.series} accent={accent} />
+        <PanelHead title="Traffic overview" sub={`Page views & sessions · last ${d.range} days`} />
+        {d.series.length ? <AreaChart series={d.series} accent={accent} /> : <Empty />}
       </Card>
 
       <div className="grid lg:grid-cols-3 gap-6">
-        <Card className="p-5 lg:col-span-2">
-          <PanelHead title="Top pages" />
-          <BarList rows={rm.topPaths.map((p) => ({ label: plabel(p.path), value: p.count }))} accent={accent} />
-        </Card>
-        <Card className="p-5">
-          <PanelHead title="Traffic sources" />
-          <Donut data={rm.referrers.map((r, i) => ({ label: r.source, value: r.count, color: sourceColors[i % sourceColors.length] }))} accent={accent} />
-        </Card>
+        <Card className="p-5 lg:col-span-2"><PanelHead title="Top pages" /><BarList rows={d.topPaths.map((p) => ({ label: plabel(p.path), value: p.count }))} accent={accent} /></Card>
+        <Card className="p-5"><PanelHead title="Traffic sources" /><Donut data={d.referrers.map((r, i) => ({ label: r.source, value: r.count, color: SOURCE_COLORS[i % SOURCE_COLORS.length] }))} accent={accent} /></Card>
       </div>
     </div>
   );
 }
 
-function AudienceTab({ rm, overall, accent }: { rm: ReturnType<typeof getRangeMetrics>; overall: ReturnType<typeof getMetrics>; accent: string }) {
-  const newS = Math.max(0, overall.totalSessions - overall.returningSessions);
-  const sourceColors = ["#3b82f6", "#22D3EE", "#8b5cf6", "#f59e0b", "#10b981", "#f43f5e"];
+function AudienceTab({ s, accent }: { s: Stats | null; accent: string }) {
+  const d = s || EMPTY;
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Kpi label="Sessions" value={rm.sessions} delta={rm.sessionsDelta} icon="cursor" accent={accent} />
-        <Kpi label="New visitors" value={newS} icon="sparkle" accent="#10b981" />
-        <Kpi label="Returning" value={overall.returningSessions} icon="repeat" accent="#22D3EE" />
-        <Kpi label="Bounce rate" value={`${rm.bounceRate}%`} delta={rm.bounceDelta} invert icon="bounce" accent="#f59e0b" />
+        <Kpi label="Unique visitors" value={d.uniqueVisitors.toLocaleString()} icon="user" accent="#8b5cf6" />
+        <Kpi label={`Sessions · ${d.range}d`} value={d.sessions} delta={d.sessionsDelta} icon="cursor" accent={accent} />
+        <Kpi label="Online now" value={d.onlineNow} icon="live" accent="#10b981" />
+        <Kpi label="Countries" value={d.countries.length} icon="globe" accent="#22D3EE" />
       </div>
-      <Card className="p-5"><PanelHead title="Sessions over time" /><AreaChart series={rm.series} accent={accent} /></Card>
       <div className="grid lg:grid-cols-2 gap-6">
         <Card className="p-5">
-          <PanelHead title="New vs returning" />
-          <div className="flex h-4 w-full rounded-full overflow-hidden bg-white/[0.06] mb-4">
-            <div style={{ width: `${overall.totalSessions ? (newS / overall.totalSessions) * 100 : 0}%`, backgroundColor: "#10b981" }} />
-            <div style={{ width: `${overall.returningRate}%`, backgroundColor: "#22D3EE" }} />
-          </div>
-          <div className="space-y-2 text-xs">
-            <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-sm bg-[#10b981]" /><span className="text-white/60 flex-1">New</span><span className="font-bold">{newS}</span></div>
-            <div className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-sm bg-[#22D3EE]" /><span className="text-white/60 flex-1">Returning</span><span className="font-bold">{overall.returningSessions}</span></div>
-          </div>
+          <PanelHead title="Top countries" sub="Real geography from visitor IPs" />
+          {d.countries.length ? (
+            <div className="space-y-2.5">
+              {d.countries.map((c) => {
+                const max = Math.max(1, ...d.countries.map((x) => x.count));
+                return (
+                  <div key={c.code} className="flex items-center gap-3">
+                    <span className="text-base shrink-0">{flag(c.code)}</span>
+                    <span className="text-xs text-white/60 w-28 truncate shrink-0">{COUNTRY_NAMES[c.code] || c.code}</span>
+                    <div className="flex-1 h-2 rounded-full bg-white/[0.06] overflow-hidden"><div className="h-full rounded-full" style={{ width: `${(c.count / max) * 100}%`, backgroundColor: accent }} /></div>
+                    <span className="text-xs font-bold tabular-nums w-9 text-right">{c.count}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <Empty />}
         </Card>
-        <Card className="p-5"><PanelHead title="Traffic sources" /><Donut data={rm.referrers.map((r, i) => ({ label: r.source, value: r.count, color: sourceColors[i % sourceColors.length] }))} accent={accent} /></Card>
+        <Card className="p-5"><PanelHead title="Devices" /><Donut data={d.devices.map((x, i) => ({ label: x.name, value: x.count, color: SOURCE_COLORS[i % SOURCE_COLORS.length] }))} accent={accent} /></Card>
       </div>
+      <Card className="p-5"><PanelHead title="Sessions over time" />{d.series.length ? <AreaChart series={d.series} accent={accent} /> : <Empty />}</Card>
+      <Card className="p-5"><PanelHead title="Traffic sources" /><Donut data={d.referrers.map((r, i) => ({ label: r.source, value: r.count, color: SOURCE_COLORS[i % SOURCE_COLORS.length] }))} accent={accent} /></Card>
     </div>
   );
 }
 
-function ContentTab({ rm, accent }: { rm: ReturnType<typeof getRangeMetrics>; accent: string }) {
+function ContentTab({ s, accent }: { s: Stats | null; accent: string }) {
+  const d = s || EMPTY;
   const sectionOf = (p: string): string | null => {
     if (["home", "watch", "anime", "genre"].includes(p)) return "Anime";
     if (p.startsWith("movie") || p === "movies") return "Movies";
@@ -434,14 +512,14 @@ function ContentTab({ rm, accent }: { rm: ReturnType<typeof getRangeMetrics>; ac
   const colors: Record<string, string> = { Anime: "#48A6FF", Movies: "#F59E0B", TV: "#34D399", Manga: "#F472B6", Novels: "#a855f7", Live: "#ef4444" };
   const bySection = useMemo(() => {
     const m = new Map<string, number>();
-    for (const p of rm.topPaths) { const s = sectionOf(p.path); if (s) m.set(s, (m.get(s) || 0) + p.count); }
+    for (const p of d.topPaths) { const sec = sectionOf(p.path); if (sec) m.set(sec, (m.get(sec) || 0) + p.count); }
     return [...m.entries()].map(([label, value]) => ({ label, value, color: colors[label] })).sort((a, b) => b.value - a.value);
-  }, [rm]);
+  }, [d]);
   return (
     <div className="space-y-6">
       <Card className="p-5">
         <PanelHead title="Engagement by section" />
-        {bySection.length === 0 ? <p className="text-sm text-white/35 text-center py-6">No section views recorded yet.</p> : (
+        {bySection.length === 0 ? <Empty /> : (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {bySection.map((r) => (
               <div key={r.label} className="rounded-xl border border-white/[0.06] p-4" style={{ background: `linear-gradient(135deg, ${r.color}14, transparent)` }}>
@@ -452,9 +530,13 @@ function ContentTab({ rm, accent }: { rm: ReturnType<typeof getRangeMetrics>; ac
           </div>
         )}
       </Card>
-      <Card className="p-5"><PanelHead title="All viewed pages" /><BarList rows={rm.topPaths.map((p) => ({ label: plabel(p.path), value: p.count }))} accent={accent} /></Card>
+      <Card className="p-5"><PanelHead title="All viewed pages" /><BarList rows={d.topPaths.map((p) => ({ label: plabel(p.path), value: p.count }))} accent={accent} /></Card>
     </div>
   );
+}
+
+function Empty() {
+  return <p className="text-sm text-white/35 text-center py-8">No data yet — real visits will appear here.</p>;
 }
 
 function UsersTab({ users, accent }: { users: ReturnType<typeof listUsersSafe>; accent: string }) {
@@ -538,9 +620,11 @@ function SeoTab({ accent }: { accent: string }) {
   );
 }
 
-function SettingsTab({ accent, setAccent, onData }: { accent: string; setAccent: (v: string) => void; onData: () => void }) {
+function SettingsTab({ accent, setAccent }: { accent: string; setAccent: (v: string) => void; onData: () => void }) {
   const [oldPw, setOldPw] = useState(""); const [newPw, setNewPw] = useState(""); const [msg, setMsg] = useState<{ ok: boolean; t: string } | null>(null);
+  const [countMe, setCountMe] = useState(() => !isOwnerBrowser());
   const changePw = () => { const r = changeAdminPassword(oldPw, newPw); setMsg({ ok: r.ok, t: r.ok ? "Password updated" : (r.error || "Failed") }); if (r.ok) { setOldPw(""); setNewPw(""); } };
+  const toggleCount = () => { const next = !countMe; setCountMe(next); setOwnerBrowser(!next); };
   return (
     <div className="grid lg:grid-cols-2 gap-6">
       <Card className="p-5">
@@ -562,12 +646,17 @@ function SettingsTab({ accent, setAccent, onData }: { accent: string; setAccent:
       </Card>
 
       <Card className="p-5 lg:col-span-2">
-        <PanelHead title="Data management" sub="Analytics stored locally on this deployment" />
-        <div className="flex flex-wrap gap-2">
-          <button onClick={() => { seedDemoAnalytics(); onData(); }} className="px-4 py-2 rounded-lg border border-white/10 text-sm font-bold text-white/70 hover:bg-white/[0.05]">Load sample data</button>
-          <button onClick={() => { if (confirm("Reset all analytics data? This cannot be undone.")) { resetAnalytics(); onData(); } }} className="px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/25 text-sm font-bold text-red-400 hover:bg-red-500/20">Reset analytics</button>
-        </div>
-        <p className="text-[11px] text-white/35 mt-3 max-w-xl leading-relaxed">Metrics are collected by the built-in tracker per deployment (localStorage). To aggregate across every visitor and device, connect a shared datastore (Vercel KV / Postgres) — the tracker is structured for it.</p>
+        <PanelHead title="Tracking" sub="How real visitor analytics are collected" />
+        <label className="flex items-center justify-between gap-3 py-2 cursor-pointer">
+          <span className="text-sm text-white/70">Count my own visits in analytics</span>
+          <button onClick={toggleCount} className="relative w-11 h-6 rounded-full transition-colors" style={{ backgroundColor: countMe ? accent : "rgba(255,255,255,0.12)" }}>
+            <span className="absolute top-0.5 w-5 h-5 rounded-full bg-white transition-all" style={{ left: countMe ? "22px" : "2px" }} />
+          </button>
+        </label>
+        <p className="text-[11px] text-white/35 mt-3 max-w-2xl leading-relaxed">
+          Visitor analytics are recorded server-side and aggregated in a KV store (real, global). Your own visits are excluded by default so they
+          don&apos;t inflate the numbers. To enable global counting on Vercel: <b>Storage → Create → KV → Connect to project</b> — no code changes needed.
+        </p>
       </Card>
     </div>
   );
@@ -593,6 +682,7 @@ function NavIcon({ name }: { name: string }) {
     chart: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
     sparkle: "M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z",
     refresh: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
+    globe: "M21 12a9 9 0 11-18 0 9 9 0 0118 0z M3.6 9h16.8M3.6 15h16.8 M12 3a15 15 0 010 18 M12 3a15 15 0 000 18",
     logout: "M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1",
     collapse: "M11 19l-7-7 7-7m8 14l-7-7 7-7",
     expand: "M13 5l7 7-7 7M5 5l7 7-7 7",
