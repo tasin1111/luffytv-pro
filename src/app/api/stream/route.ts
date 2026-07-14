@@ -53,6 +53,8 @@ const ALLOWED_HOSTS = [
   "vidlink.pro", "api.vidlink.pro", "enc-dec.app",
   // Vidlink CDN hosts (MP4 stream URLs)
   "vodvidl.site", "hakunaymatata.com",
+  // AniDap subtitle CDNs (lostproject.club = Yuki subs, krussdomi.com = Sora subs)
+  "lostproject.club", "krussdomi.com",
   // Moviebox API + player domain
   "aoneroom.com", "h5-api.aoneroom.com", "moviebox.ph",
   // Netfilm player domain (Moviebox stream CDN)

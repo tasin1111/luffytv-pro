@@ -174,7 +174,7 @@ export async function GET(
                 isEmbed: false,
                 hardsub: r.hardsub,
                 priority: p++,
-                subtitleTracks: (r.tracks || []).map(t => ({ url: wrapStreamUrl(t.url), lang: t.lang || "en", label: t.label || "English" })),
+                subtitleTracks: wrapSubsVercel(r.tracks as any, "https://megaplay.buzz/"),
                 intro: r.intro || null,
                 outro: r.outro || null,
               });
@@ -186,7 +186,7 @@ export async function GET(
       (async () => {
         try {
           const pm = await withTimeout(fetchAniPmSources(id, epNum, { sub: true, dub: true, timeoutMs: 7000 }).catch(() => []), 7000, []);
-          if (pm?.length) { let p = 5; for (const r of pm) { if (!r.streamUrl) continue; servers.push({ id: `anipm:${r.provider}:${r.type}`, name: `AniPm ${r.provider}${r.type === "dub" ? " (Dub)" : ""}`, source: "anipm" as any, provider: r.provider, type: r.type, quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: r.isEmbed, hardsub: r.hardsub, priority: p++, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: wrapStreamUrl(t.url), lang: t.lang || "en", label: t.label || "English" })) }); } }
+          if (pm?.length) { let p = 5; for (const r of pm) { if (!r.streamUrl) continue; servers.push({ id: `anipm:${r.provider}:${r.type}`, name: `AniPm ${r.provider}${r.type === "dub" ? " (Dub)" : ""}`, source: "anipm" as any, provider: r.provider, type: r.type, quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: r.isEmbed, hardsub: r.hardsub, priority: p++, subtitleTracks: wrapSubsVercel(r.tracks as any, "https://ani.pm/") }); } }
         } catch {}
       })(),
       // Senshi (priority 6)
@@ -217,8 +217,8 @@ export async function GET(
       (async () => {
         try {
           const al = await withTimeout(fetchAniLightSources(id, epNum, { sub: true, dub: true, timeoutMs: 7000 }).catch(() => []), 7000, []);
-          al.filter((r: any) => r.type === "sub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:sub:${i}`, name: `AniLight ${r.quality}`.trim(), source: "anilight", provider: "anilight", type: "sub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 9 + i * 0.1, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: wrapStreamUrl(t.url), lang: t.lang || "en", label: t.label || "English" })) }));
-          al.filter((r: any) => r.type === "dub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:dub:${i}`, name: `AniLight ${r.quality} (Dub)`.trim(), source: "anilight", provider: "anilight", type: "dub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 9.5 + i * 0.1, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: wrapStreamUrl(t.url), lang: t.lang || "en", label: t.label || "English" })) }));
+          al.filter((r: any) => r.type === "sub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:sub:${i}`, name: `AniLight ${r.quality}`.trim(), source: "anilight", provider: "anilight", type: "sub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 9 + i * 0.1, subtitleTracks: wrapSubsVercel(r.tracks as any, "https://anilight.live/") }))
+          al.filter((r: any) => r.type === "dub").slice(0, 3).forEach((r: any, i: number) => servers.push({ id: `anilight:dub:${i}`, name: `AniLight ${r.quality} (Dub)`.trim(), source: "anilight", provider: "anilight", type: "dub", quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: 9.5 + i * 0.1, subtitleTracks: wrapSubsVercel(r.tracks as any, "https://anilight.live/") }))
         } catch {}
       })(),
       // AniZone (priority 10)
@@ -259,7 +259,7 @@ export async function GET(
                 isEmbed: !srv.m3u8Url,
                 hardsub: false,
                 priority: p++,
-                subtitleTracks: wrapSubs(srv.subtitleTracks),
+                subtitleTracks: wrapSubsVercel(srv.subtitleTracks as any, "https://megaplay.buzz/"),
                 intro: srv.intro || ak.intro,
                 outro: srv.outro || ak.outro,
               });
