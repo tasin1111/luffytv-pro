@@ -11,14 +11,14 @@
  *      NOTE: the `id` here is a slug, NOT a number.
  *
  *   2. Available providers for an episode
- *      GET https://chad.anidap.se/rest/api/servers?id={slug}&epNum={n}
+ *      GET https://chad.anidap.lol/rest/api/servers?id={slug}&epNum={n}
  *      → {
  *          subProviders: [{ id, default, tip }, ...],
  *          dubProviders: [{ id, default, tip }, ...]
  *        }
  *
  *   3. Sources for a specific episode + type + provider
- *      GET https://chad.anidap.se/rest/api/sources?id={slug}&epNum={n}&type={sub|dub}&providerId={provider}
+ *      GET https://chad.anidap.lol/rest/api/sources?id={slug}&epNum={n}&type={sub|dub}&providerId={provider}
  *      → {
  *          sources:  [{ url, quality, type }],          // m3u8 or mp4
  *          tracks:   [{ id, url, lang, label, kind, default }] | null,  // WebVTT/SRT captions
@@ -51,9 +51,9 @@
  */
 
 // NOTE: AniDap moved from anidap.se → anidap.lol (anidap.se 301-redirects).
-// The chad.anidap.se API backend still works with either origin.
+// The chad.anidap.lol API backend still works with either origin.
 const ANIDAP_FRONT = "https://anidap.lol";
-const ANIDAP_API = "https://chad.anidap.se/rest/api";
+const ANIDAP_API = "https://chad.anidap.lol/rest/api";
 
 import { wrapStreamUrl, wrapM3u8Url } from "./proxy";
 import { validateSkipTime } from "./episode-metadata";

@@ -19,20 +19,20 @@
 
 const GRAPHQL_URL = "https://graphql.animex.one/graphql";
 
-// Use chad.anidap.se as the REST API host instead of pp.animex.one.
+// Use chad.anidap.lol as the REST API host instead of pp.animex.one.
 // Both servers serve the EXACT same API (same backend, same data), but
 // pp.animex.one returns {"error":"bot_detected","status":403} when called
-// from Vercel's IPs, while chad.anidap.se does not. The AniDap frontend
-// (anidap.se) uses chad.anidap.se exclusively — it's the same Cloudflare
+// from Vercel's IPs, while chad.anidap.lol does not. The AniDap frontend
+// (anidap.se) uses chad.anidap.lol exclusively — it's the same Cloudflare
 // Worker but with a more permissive bot policy.
-const REST_BASE = "https://chad.anidap.se/rest/api";
+const REST_BASE = "https://chad.anidap.lol/rest/api";
 
 const UPSTREAM_HEADERS: Record<string, string> = {
   "User-Agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
   Accept: "application/json, text/plain, */*",
   // Use anidap.se as Origin/Referer — matches what the AniDap frontend sends
-  // when calling chad.anidap.se. (animex.one would also work but anidap.se
+  // when calling chad.anidap.lol. (animex.one would also work but anidap.se
   // is more consistent with the host change above.)
   Origin: "https://animex.one",
   Referer: "https://animex.one/",
@@ -181,11 +181,11 @@ function detectFormat(streamType: string, url: string): string {
 /**
  * Fetch with timeout — uses standard fetch (NOT curl).
  *
- * chad.anidap.se is NOT Cloudflare-protected, so regular fetch works fine.
+ * chad.anidap.lol is NOT Cloudflare-protected, so regular fetch works fine.
  * The old curl-based approach failed on Vercel because:
  *   1. child_process.execFile("curl") may not be available on Vercel
  *   2. Spawning a process per request adds ~200ms overhead
- *   3. curl's TLS fingerprint isn't needed for chad.anidap.se
+ *   3. curl's TLS fingerprint isn't needed for chad.anidap.lol
  *
  * Only GraphQL (graphql.animex.one) might need CF bypass, but testing shows
  * it also works with regular fetch from Vercel's IPs.

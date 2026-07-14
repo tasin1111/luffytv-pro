@@ -4,7 +4,7 @@
  * The user observed that AnimeX mimi loads faster than AniDB. This module
  * resolves the m3u8 URL in 2 quick steps:
  *   1. AniList ID → slug (via AnimeX GraphQL at graphql.animex.one)
- *   2. Fetch sources for the "mimi" provider (via chad.anidap.se REST API)
+ *   2. Fetch sources for the "mimi" provider (via chad.anidap.lol REST API)
  *
  * Returns the direct m3u8 URL (from vivibebe.site) for hls.js playback.
  * No iframe, no embed page scraping — just the raw m3u8.
@@ -13,7 +13,7 @@
  */
 
 const ANIMEX_GRAPHQL = "https://graphql.animex.one/graphql";
-const ANIMEX_REST = "https://chad.anidap.se/rest/api";
+const ANIMEX_REST = "https://chad.anidap.lol/rest/api";
 
 const HEADERS: Record<string, string> = {
   "User-Agent":

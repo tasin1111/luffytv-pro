@@ -69,6 +69,19 @@ export async function GET(
       }));
     }
 
+    // Wrap subtitle URLs through Vercel /api/stream (NOT the Worker proxy)
+    // Used for CF-protected CDNs that the Worker can't reach (CF-to-CF block).
+    function wrapSubsVercel(tracks: Array<{ url: string; lang?: string; label?: string }> | undefined, referer: string): Array<{ url: string; lang: string; label: string }> {
+      if (!tracks || tracks.length === 0) return [];
+      return tracks.map(t => ({
+        url: t.url.startsWith("http")
+          ? `/api/stream?url=${encodeURIComponent(t.url)}&referer=${encodeURIComponent(referer)}`
+          : t.url,
+        lang: t.lang || "en",
+        label: t.label || "English",
+      }));
+    }
+
     const servers: Array<{
       id: string;
       name: string;
@@ -130,7 +143,7 @@ export async function GET(
       (async () => {
         try {
           const kr = await withTimeout(fetchAllKyrenSources(id, epNum, { sub: true, dub: true, timeoutMs: 7000 }).catch(() => []), 7000, []);
-          if (kr?.length) { let p = 3; for (const r of kr) servers.push({ id: `kyren:${r.server}:${r.type}`, name: `Kyren ${r.server.charAt(0).toUpperCase() + r.server.slice(1)}${r.type === "dub" ? " (Dub)" : ""}`, source: "kyren", provider: r.server, type: r.type, quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: p++, subtitleTracks: (r.tracks || []).map((t: any) => ({ url: wrapStreamUrl(t.url), lang: t.lang || "en", label: t.label || "English" })) }); }
+          if (kr?.length) { let p = 3; for (const r of kr) servers.push({ id: `kyren:${r.server}:${r.type}`, name: `Kyren ${r.server.charAt(0).toUpperCase() + r.server.slice(1)}${r.type === "dub" ? " (Dub)" : ""}`, source: "kyren", provider: r.server, type: r.type, quality: r.quality || "1080p", streamUrl: r.streamUrl, isM3U8: r.isM3U8, isMP4: r.isMP4, isEmbed: false, hardsub: false, priority: p++, subtitleTracks: wrapSubsVercel(r.tracks as any, "https://kyren.moe/") }); }
         } catch {}
       })(),
       // AniDap (priority 4) — fetch ALL providers in parallel

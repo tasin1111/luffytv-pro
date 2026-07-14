@@ -1,7 +1,7 @@
 /**
  * GET /api/anime/animex-servers/[anilistId]/[episode]
  *
- * Fetches Animex servers INDEPENDENTLY from chad.anidap.se (the mirror of pp.animex.one).
+ * Fetches Animex servers INDEPENDENTLY from chad.anidap.lol (the mirror of pp.animex.one).
  * This runs as a SEPARATE request from the main servers endpoint,
  * so it doesn't compete with other sources for the Vercel 30s timeout.
  *

@@ -239,19 +239,27 @@ export async function fetchAniPmSources(
   if (wantSub && data.sub) processServers(data.sub, "sub");
   if (wantDub && data.dub) processServers(data.dub, "dub");
 
-  // DEDUPLICATE by exact URL only — AniPm returns some servers multiple times
-  // with the EXACT same URL (true duplicates). But we do NOT deduplicate by
-  // provider name — different URLs from the same provider are different
-  // streams (different mirrors/episodes) and should all be shown.
-  // We also do NOT filter by type — embed, mp4, and hls servers are ALL shown.
-  const seenUrls = new Set<string>();
+  // DEDUPLICATE by provider:type — AniPm returns MANY servers with the same
+  // provider name (e.g. "Lyra" appears 20+ times with different URLs).
+  // We keep only ONE per provider:type combo: prefer HLS over embed,
+  // then prefer the first occurrence. This prevents the server list from
+  // being flooded with 47 AniPm servers.
+  const seen = new Set<string>();
   const deduped: AniPmVerifiedResult[] = [];
-  for (const r of verified) {
-    if (seenUrls.has(r.streamUrl)) continue;
-    seenUrls.add(r.streamUrl);
+  // Sort: HLS first (isM3U8=true), then file (isMP4), then embed — so the
+  // first occurrence of each provider is the best quality.
+  const sorted = [...verified].sort((a, b) => {
+    const aRank = a.isM3U8 ? 0 : (a.isMP4 ? 1 : 2);
+    const bRank = b.isM3U8 ? 0 : (b.isMP4 ? 1 : 2);
+    return aRank - bRank;
+  });
+  for (const r of sorted) {
+    const key = `${r.provider}:${r.type}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
     deduped.push(r);
   }
 
-  console.log(`[AniPm] ${deduped.length} servers (deduped from ${verified.length} by exact URL)`);
+  console.log(`[AniPm] ${deduped.length} servers (deduped from ${verified.length} by provider:type)`);
   return deduped;
 }
