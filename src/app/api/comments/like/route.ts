@@ -33,6 +33,6 @@ export async function POST(request: Request) {
     }
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to toggle like";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Like unavailable" }, { status: 200 });
   }
 }

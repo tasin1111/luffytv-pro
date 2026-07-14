@@ -183,8 +183,8 @@ export async function GET(
       (async () => {
         try {
           const adResults = await withTimeout(
-            fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: 7000 }).catch(() => []),
-            7000,
+            fetchAllAniDapSources(id, epNum, { sub: true, dub: true, timeoutMs: 12000 }).catch(() => []),
+            12000,
             [],
           );
           if (adResults?.length) {

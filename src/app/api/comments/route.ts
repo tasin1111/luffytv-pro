@@ -11,6 +11,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "animeId required" }, { status: 400 });
     }
 
+    // Gracefully handle missing database (Vercel read-only filesystem)
+    if (!db) {
+      return NextResponse.json({ comments: [], stats: { avgRating: 0, totalRatings: 0 } });
+    }
+
     const where: Record<string, unknown> = { animeId };
     if (episode) where.episode = parseFloat(episode);
 
@@ -27,8 +32,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({ comments, stats: { avgRating: Math.round(avgRating * 10) / 10, totalRatings } });
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : "Failed to fetch comments";
-    return NextResponse.json({ error: message }, { status: 500 });
+    // Return empty comments instead of 500 error when database is unavailable
+    return NextResponse.json({ comments: [], stats: { avgRating: 0, totalRatings: 0 } });
   }
 }
 
@@ -53,7 +58,7 @@ export async function POST(request: Request) {
     return NextResponse.json(comment);
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to create comment";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Comments unavailable" }, { status: 200 });
   }
 }
 
@@ -71,6 +76,6 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : "Failed to delete comment";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: "Comments unavailable" }, { status: 200 });
   }
 }
