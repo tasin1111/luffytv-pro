@@ -15,8 +15,6 @@ import { resolveAniKoto } from "@/lib/anikoto-direct";
 import { fetchAllReAnimeSources } from "@/lib/reanime-api";
 import { fetchAllLunaSources, LUNA_PROVIDER_META } from "@/lib/luna-api";
 import { fetchAniPmSources } from "@/lib/anipm-api";
-import { resolveAnichiStreams } from "@/lib/anichi-direct";
-import { resolveAninekoStreams } from "@/lib/anineko-to-direct";
 import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
@@ -468,91 +466,11 @@ export async function GET(
         } catch {}
       })(),
 
-      // ── Anichi.to (priority 0.5 — direct m3u8 with subtitles + skip times) ──
-      // Extracts direct m3u8 URLs from embed pages (vidtube/megaplay/vidwish)
-      // using the getSourcesNew API. Returns m3u8 + subtitle tracks + skip times.
-      (async () => {
-        try {
-          const anichiResults = await withTimeout(
-            resolveAnichiStreams(id, epNum, title),
-            12000,
-            [],
-          );
-          if (anichiResults?.length) {
-            let p = 0.5;
-            for (const r of anichiResults) {
-              // Wrap the m3u8 URL through our worker proxy (handles Referer + CORS)
-              const proxiedStreamUrl = r.isM3U8 ? wrapM3u8Url(r.streamUrl) : r.streamUrl;
-              let urlKey = "unknown";
-              try {
-                const u = new URL(r.streamUrl);
-                urlKey = (u.hostname.split(".")[0] + u.pathname + u.search).slice(0, 60);
-              } catch {}
-              servers.push({
-                id: `anichi:${urlKey}:${r.type}${r.hardsub ? ":hsub" : ""}`,
-                name: `Anichi ${r.serverName}${r.type === "dub" ? " (Dub)" : r.hardsub ? " (HS)" : ""}`,
-                source: "anichi" as any,
-                provider: r.serverName.toLowerCase().replace(/\s/g, ""),
-                type: r.type,
-                quality: r.quality || "1080p",
-                streamUrl: proxiedStreamUrl,
-                isM3U8: r.isM3U8,
-                isMP4: r.isMP4,
-                isEmbed: r.isEmbed,
-                hardsub: r.hardsub,
-                priority: p,
-                subtitleTracks: wrapSubs(r.subtitleTracks),
-                intro: r.intro || null,
-                outro: r.outro || null,
-              });
-              p += 0.1;
-            }
-          }
-        } catch {}
-      })(),
-
-      // ── AniNeko.to (priority 0.6 — direct m3u8 WITH subtitles!) ──
-      // Extracts direct m3u8 from vivibebe.site embeds + soft sub subtitle URLs
-      // from cdn.anizara.store. Obfuscated CDNs (otakuhg/otakuvid/playmogo) are skipped.
-      (async () => {
-        try {
-          const aninekoResults = await withTimeout(
-            resolveAninekoStreams(id, epNum, title),
-            12000,
-            [],
-          );
-          if (aninekoResults?.length) {
-            let p = 0.6;
-            for (const r of aninekoResults) {
-              // Wrap the m3u8 URL through our worker proxy (handles Referer + CORS)
-              const proxiedStreamUrl = r.isM3U8 ? wrapM3u8Url(r.streamUrl) : r.streamUrl;
-              let urlKey = "unknown";
-              try {
-                const u = new URL(r.streamUrl);
-                urlKey = (u.hostname.split(".")[0] + u.pathname + u.search).slice(0, 60);
-              } catch {}
-              servers.push({
-                id: `anineko-to:${urlKey}:${r.type}${r.hardsub ? ":hsub" : ""}`,
-                name: `AniNeko ${r.serverName}${r.type === "dub" ? " (Dub)" : r.hardsub ? " (HS)" : ""}`,
-                source: "anineko-to" as any,
-                provider: r.serverName.toLowerCase().replace(/\s/g, ""),
-                type: r.type,
-                quality: r.quality || "1080p",
-                streamUrl: proxiedStreamUrl,
-                isM3U8: r.isM3U8,
-                isMP4: r.isMP4,
-                isEmbed: r.isEmbed,
-                hardsub: r.hardsub,
-                priority: p,
-                subtitleTracks: wrapSubs(r.subtitleTracks),
-                intro: null,
-                outro: null,
-              });
-              p += 0.1;
-            }
-          }
-        } catch {}
-      })(),
+      // NOTE: Anichi.to and AniNeko.to have been MOVED to their own dedicated
+      // endpoints (/api/anime/anichi-servers and /api/anime/anineko-to-servers).
+      // They need the anime title to search, which arrives late — bundling them
+      // here caused a race condition where they returned 0 servers. The frontend
+      // now calls them separately when the title is available.
     ];
 
     // Wait for ALL providers to finish (each has its own 7s timeout).

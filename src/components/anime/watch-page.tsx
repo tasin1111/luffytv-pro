@@ -992,29 +992,45 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     setHasShownLoadingScreen(false);
   }, [anilistId]);
 
-  // ── Re-fetch instant-servers when the anime title becomes available ──
-  // The main instant-servers fetch (in the effect below) runs immediately on
-  // mount, but animeTitle is still empty at that point (it's fetched from
-  // AniList separately). Providers like Anichi.to and AniNeko.to need the
-  // title to search for the anime — without it, they return 0 servers.
-  // This effect triggers when animeTitle changes (from "" to the real title)
-  // and re-fetches instant-servers with the title, merging any new servers.
+  // ── Fetch Anichi.to + AniNeko.to servers when the anime title is available ──
+  // These providers need the title to search for the anime on their site.
+  // They have their own dedicated endpoints (separate from instant-servers)
+  // so they don't block or get blocked by other providers.
+  // Called in parallel when animeTitle changes from "" to the real title.
   useEffect(() => {
     if (!anilistId || !animeTitle) return;
     let cancelled = false;
-    fetch(`/api/anime/instant-servers/${anilistId}/${episodeNum}?title=${encodeURIComponent(animeTitle)}`)
+
+    // Fetch Anichi.to servers (direct m3u8 + subtitles + skip times)
+    fetch(`/api/anime/anichi-servers/${anilistId}/${episodeNum}?title=${encodeURIComponent(animeTitle)}`)
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (cancelled || !data?.servers?.length) return;
         setServerList(prev => {
           const existingIds = new Set(prev.map(s => s.id));
           const newServers = data.servers.filter((s: ServerEntry) => !existingIds.has(s.id));
-          if (newServers.length === 0) return prev; // no new servers, skip update
-          console.log(`[WatchPage] Title-based fetch added ${newServers.length} new servers (Anichi/AniNeko.to)`);
+          if (newServers.length === 0) return prev;
+          console.log(`[WatchPage] Anichi: added ${newServers.length} servers`);
           return [...prev, ...newServers];
         });
       })
       .catch(() => { /* best-effort */ });
+
+    // Fetch AniNeko.to servers (direct m3u8 + soft sub subtitles)
+    fetch(`/api/anime/anineko-to-servers/${anilistId}/${episodeNum}?title=${encodeURIComponent(animeTitle)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data?.servers?.length) return;
+        setServerList(prev => {
+          const existingIds = new Set(prev.map(s => s.id));
+          const newServers = data.servers.filter((s: ServerEntry) => !existingIds.has(s.id));
+          if (newServers.length === 0) return prev;
+          console.log(`[WatchPage] AniNeko.to: added ${newServers.length} servers`);
+          return [...prev, ...newServers];
+        });
+      })
+      .catch(() => { /* best-effort */ });
+
     return () => { cancelled = true; };
   }, [anilistId, episodeNum, animeTitle]);
 
