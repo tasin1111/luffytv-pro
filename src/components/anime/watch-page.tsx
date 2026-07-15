@@ -321,7 +321,7 @@ function EmbedPlayerWithFallback({
         className="w-full h-full border-0"
         allowFullScreen
         allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
-        referrerPolicy="no-referrer"
+        referrerPolicy="no-referrer-when-downgrade"
         title={`${animeTitle} - Episode ${episodeNum}`}
         onLoad={handleIframeLoad}
         onError={handleEmbedError}
@@ -1325,13 +1325,21 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     // box, oversized text) that we can't override (cross-origin iframe).
     // Strip these params so the embed doesn't render subs. The subtitleTracks
     // are still passed below for our own HLS player overlay (non-embed servers).
+    //
+    // ALSO: route the embed URL through /api/embed-proxy so the embed page
+    // is fetched server-side with the correct Referer header. The embed
+    // player's JS checks document.referrer — when loaded directly in our
+    // iframe with referrerPolicy="no-referrer", document.referrer is empty
+    // and the player refuses to load the video. The proxy solves this by
+    // fetching the HTML with the right Referer and serving it back to us.
     let finalStreamUrl = streamUrl;
     if (isEmbed) {
       try {
         const u = new URL(streamUrl);
         // Remove all subtitle-related query params
         ["sub", "subtitle", "captions", "caption_1", "caption_2", "c1_file", "c2_file", "c1_label", "c2_label", "sub_1", "sub_2", "sub_label"].forEach(p => u.searchParams.delete(p));
-        finalStreamUrl = u.toString();
+        // Route through our embed proxy so the correct Referer is sent
+        finalStreamUrl = `/api/embed-proxy?url=${encodeURIComponent(u.toString())}`;
       } catch { /* if URL parsing fails, use original */ }
     }
 
