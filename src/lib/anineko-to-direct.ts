@@ -180,12 +180,13 @@ export async function resolveAninekoStreams(
       tabTypeMap["tab_2"] = "dub";
     }
 
-    // 4. Extract all server buttons
+    // 4. Extract all server buttons + extract m3u8 from each embed
     const results: AninekoStreamResult[] = [];
     const buttonRegex = /<button[^>]*class="nv-server-btn[^"]*"[^>]*data-video="([^"]+)"[^>]*data-tab="(tab_\d+)"[^>]*>([\s\S]*?)<\/button>/gi;
+    const matchPromises: Promise<AninekoStreamResult | null>[] = [];
     let match;
     while ((match = buttonRegex.exec(html)) !== null) {
-      const videoUrl = match[1];
+      const embedUrl = match[1];
       const tab = match[2];
       const buttonContent = match[3];
       // Extract server name — the button content is like "HD-1<span>Hard Sub</span>"
@@ -197,22 +198,33 @@ export async function resolveAninekoStreams(
       const type: "sub" | "dub" = tabType === "dub" ? "dub" : "sub";
       const hardsub = tabType === "hsub";
 
-      // Extract subtitle URL (only present on soft sub servers)
-      const subtitle = extractSubtitleFromVideoUrl(videoUrl);
+      // Extract subtitle URL from the embed URL's query params (soft sub servers)
+      const subtitle = extractSubtitleFromVideoUrl(embedUrl);
       const subtitleTracks = subtitle ? [subtitle] : [];
 
-      results.push({
-        provider: "anineko",
-        type,
-        quality: "1080p",
-        streamUrl: videoUrl, // embed URL — iframe-able
-        isM3U8: false,
-        isMP4: false,
-        isEmbed: true,
-        hardsub,
-        serverName,
-        subtitleTracks,
-      });
+      // For each embed URL, extract the direct m3u8 (non-embed).
+      // This lets us play in our HLS player with correct subtitle styling.
+      matchPromises.push(
+        extractM3u8FromAninekoEmbed(embedUrl).then(m3u8Url => {
+          if (!m3u8Url) return null; // skip if we can't extract m3u8
+          return {
+            provider: "anineko" as const,
+            type,
+            quality: "1080p",
+            streamUrl: m3u8Url, // DIRECT m3u8 URL
+            isM3U8: true,
+            isMP4: false,
+            isEmbed: false, // NOT an embed — direct m3u8
+            hardsub,
+            serverName,
+            subtitleTracks,
+          } satisfies AninekoStreamResult;
+        })
+      );
+    }
+    const settled = await Promise.allSettled(matchPromises);
+    for (const r of settled) {
+      if (r.status === "fulfilled" && r.value) results.push(r.value);
     }
 
     console.log(`[AniNeko] ${anilistId} ep${episodeNum}: ${results.length} streams from ${slug} (${results.filter(r => r.subtitleTracks.length > 0).length} with subs)`);
@@ -220,5 +232,57 @@ export async function resolveAninekoStreams(
   } catch (e: any) {
     console.log(`[AniNeko] error for ${anilistId} ep${episodeNum}: ${e?.message || e}`);
     return [];
+  }
+}
+
+/**
+ * Extract the direct m3u8 URL from an AniNeko embed page.
+ *
+ * AniNeko uses these embed CDNs:
+ *   - vivibebe.site  → m3u8 is directly in the HTML: /public/stream/{hash}/master.m3u8
+ *   - otakuhg.site   → obfuscated JS (returns null — can't extract)
+ *   - otakuvid.online → obfuscated JS (returns null — can't extract)
+ *   - playmogo.com   → obfuscated JS (returns null — can't extract)
+ *   - bibiemb.xyz    → similar to vivibebe (try same approach)
+ *
+ * For obfuscated CDNs, we return null and the server is skipped (not shown
+ * in the list). This is better than showing a broken embed.
+ */
+async function extractM3u8FromAninekoEmbed(embedUrl: string): Promise<string | null> {
+  try {
+    const parsed = new URL(embedUrl);
+    const hostname = parsed.hostname;
+    const path = parsed.pathname;
+
+    // vivibebe.site / bibiemb.xyz — m3u8 is directly in the HTML
+    if (hostname.includes("vivibebe") || hostname.includes("bibiemb") ||
+        hostname.includes("vibeplayer")) {
+      const embedRes = await fetch(embedUrl, {
+        headers: {
+          "User-Agent": UA,
+          Referer: ANINEKO_BASE + "/",
+          Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        },
+        redirect: "follow",
+      });
+      if (!embedRes.ok) return null;
+      const html = await embedRes.text();
+
+      // Pattern: const src = "https://vivibebe.site/public/stream/{hash}/master.m3u8";
+      const m3u8Match = html.match(/(?:src|file|source)\s*=\s*["'](https?:\/\/[^"']+\.m3u8)["']/i);
+      if (m3u8Match) return m3u8Match[1];
+
+      // Fallback: construct from the hash in the path
+      const hashMatch = path.match(/\/([a-f0-9]{16,})/i);
+      if (hashMatch) {
+        return `https://${hostname}/public/stream/${hashMatch[1]}/master.m3u8`;
+      }
+    }
+
+    // otakuhg / otakuvid / playmogo — obfuscated JS, can't extract m3u8
+    // Return null so the server is skipped (not shown as broken embed)
+    return null;
+  } catch {
+    return null;
   }
 }

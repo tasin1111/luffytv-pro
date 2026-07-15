@@ -26,8 +26,9 @@ const CDN_RULES = [
   // Miruro CDNs
   { test: h => h.endsWith('.anidb.app') || h === 'anidb.app',
     referer: 'https://www.miruro.tv/', origin: 'https://www.miruro.tv', secSite: 'cross-site' },
+  // nekostream.site CDNs (Anichi) — need vidtube.site or megaplay.buzz referer
   { test: h => h.endsWith('.nekostream.site') || h === 'nekostream.site',
-    referer: 'https://www.miruro.tv/', origin: 'https://www.miruro.tv', secSite: 'cross-site' },
+    referer: 'https://vidtube.site/', origin: 'https://vidtube.site', secSite: 'cross-site' },
   { test: h => h.endsWith('.owocdn.top') || h === 'owocdn.top',
     referer: 'https://kwik.cx/', origin: 'https://kwik.cx', secSite: 'cross-site' },
   { test: h => h.endsWith('.uwucdn.top') || h === 'uwucdn.top',

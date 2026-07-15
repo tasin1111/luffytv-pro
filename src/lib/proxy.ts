@@ -33,7 +33,9 @@ const CDN_REFERERS: Record<string, string> = {
   "ply.24stream.xyz":      "https://allanime.uns.bio/",
   // Miruro CDNs
   "hls.anidb.app":         "https://www.miruro.tv/",
-  "mt.nekostream.site":    "https://www.miruro.tv/",
+  // nekostream.site CDNs (Anichi) — need vidtube.site or megaplay.buzz referer
+  "mt.nekostream.site":    "https://vidtube.site/",
+  "9hjkrt.nekostream.site": "https://megaplay.buzz/",
   "vault-16.owocdn.top":   "https://kwik.cx/",
   "vault-01.uwucdn.top":   "https://kwik.cx/",
   "hls.krussdomi.com":     "https://krussdomi.com/",
@@ -48,7 +50,6 @@ const CDN_REFERERS: Record<string, string> = {
   "megaplay.buzz":         "https://megaplay.buzz/",
   // AniLight quality variants
   "nanobyte.bigdreamsmalldih.site": "https://kwik.cx/",
-  "9hjkrt.nekostream.site":         "https://kwik.cx/",
   // Kwik — same-origin
   "kwik.cx":               "https://kwik.cx/",
   // AniKage

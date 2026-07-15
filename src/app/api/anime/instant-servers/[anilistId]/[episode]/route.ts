@@ -468,22 +468,21 @@ export async function GET(
         } catch {}
       })(),
 
-      // ── Anichi.to (priority 0.5 — embed streams with skip times) ──
-      // New site, returns embed URLs (vidtube/megaplay) + intro/outro skip data
+      // ── Anichi.to (priority 0.5 — direct m3u8 with subtitles + skip times) ──
+      // Extracts direct m3u8 URLs from embed pages (vidtube/megaplay/vidwish)
+      // using the getSourcesNew API. Returns m3u8 + subtitle tracks + skip times.
       (async () => {
         try {
           const anichiResults = await withTimeout(
             resolveAnichiStreams(id, epNum, title),
-            10000,
+            12000,
             [],
           );
           if (anichiResults?.length) {
             let p = 0.5;
             for (const r of anichiResults) {
-              // Use the FULL stream URL (path + query) for guaranteed unique ID.
-              // Previous 8-char hash caused collisions when two servers shared
-              // the same path prefix (e.g. megaplay.buzz/stream/s-5/73497/sub
-              // for both HD-1 and Vidstream-2).
+              // Wrap the m3u8 URL through our worker proxy (handles Referer + CORS)
+              const proxiedStreamUrl = r.isM3U8 ? wrapM3u8Url(r.streamUrl) : r.streamUrl;
               let urlKey = "unknown";
               try {
                 const u = new URL(r.streamUrl);
@@ -496,7 +495,7 @@ export async function GET(
                 provider: r.serverName.toLowerCase().replace(/\s/g, ""),
                 type: r.type,
                 quality: r.quality || "1080p",
-                streamUrl: r.streamUrl,
+                streamUrl: proxiedStreamUrl,
                 isM3U8: r.isM3U8,
                 isMP4: r.isMP4,
                 isEmbed: r.isEmbed,
@@ -512,19 +511,21 @@ export async function GET(
         } catch {}
       })(),
 
-      // ── AniNeko.to (priority 0.6 — embed streams WITH subtitles!) ──
-      // New site, returns embed URLs + soft sub subtitle URLs from cdn.anizara.store
+      // ── AniNeko.to (priority 0.6 — direct m3u8 WITH subtitles!) ──
+      // Extracts direct m3u8 from vivibebe.site embeds + soft sub subtitle URLs
+      // from cdn.anizara.store. Obfuscated CDNs (otakuhg/otakuvid/playmogo) are skipped.
       (async () => {
         try {
           const aninekoResults = await withTimeout(
             resolveAninekoStreams(id, epNum, title),
-            10000,
+            12000,
             [],
           );
           if (aninekoResults?.length) {
             let p = 0.6;
             for (const r of aninekoResults) {
-              // Use the FULL stream URL (path + query) for guaranteed unique ID.
+              // Wrap the m3u8 URL through our worker proxy (handles Referer + CORS)
+              const proxiedStreamUrl = r.isM3U8 ? wrapM3u8Url(r.streamUrl) : r.streamUrl;
               let urlKey = "unknown";
               try {
                 const u = new URL(r.streamUrl);
@@ -537,7 +538,7 @@ export async function GET(
                 provider: r.serverName.toLowerCase().replace(/\s/g, ""),
                 type: r.type,
                 quality: r.quality || "1080p",
-                streamUrl: r.streamUrl,
+                streamUrl: proxiedStreamUrl,
                 isM3U8: r.isM3U8,
                 isMP4: r.isMP4,
                 isEmbed: r.isEmbed,

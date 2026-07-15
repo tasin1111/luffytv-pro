@@ -255,20 +255,28 @@ export async function getAnichiServers(serverIdsBase64: string): Promise<AnichiS
  * Get the stream URL for a server.
  * URL: /ajax/server?get={linkId}
  * Returns: { url, skip_data: { intro: [start, end], outro: [start, end] } }
+ *
+ * The returned URL is an embed page (vidtube.site, megaplay.buzz, vidwish.live).
+ * We fetch that embed page and extract the actual m3u8 URL from it, so we can
+ * play it directly in our HLS player instead of using an iframe.
  */
 export async function getAnichiStream(linkId: string): Promise<{
-  url: string;
+  url: string;          // direct m3u8 URL (extracted from embed)
   intro: { start: number; end: number } | null;
   outro: { start: number; end: number } | null;
+  subtitleTracks: Array<{ url: string; lang: string; label: string }>;
 } | null> {
   try {
+    // 1. Get the embed URL from Anichi
     const url = `${ANICHI_BASE}/ajax/server?get=${encodeURIComponent(linkId)}`;
     const res = await anichiFetch(url);
     if (!res.ok) return null;
     const data = await res.json();
     if (data.status !== 200 || !data.result) return null;
     const result = data.result;
-    const streamUrl: string = result.url || "";
+    const embedUrl: string = result.url || "";
+    if (!embedUrl) return null;
+
     const skipData = result.skip_data || {};
     const intro = Array.isArray(skipData.intro) && skipData.intro.length === 2 && (skipData.intro[0] > 0 || skipData.intro[1] > 0)
       ? { start: skipData.intro[0], end: skipData.intro[1] }
@@ -276,7 +284,118 @@ export async function getAnichiStream(linkId: string): Promise<{
     const outro = Array.isArray(skipData.outro) && skipData.outro.length === 2 && (skipData.outro[0] > 0 || skipData.outro[1] > 0)
       ? { start: skipData.outro[0], end: skipData.outro[1] }
       : null;
-    return { url: streamUrl, intro, outro };
+
+    // 2. Extract the m3u8 from the embed page
+    const extracted = await extractM3u8FromEmbed(embedUrl);
+    if (!extracted) return null;
+
+    return {
+      url: extracted.m3u8Url,
+      intro,
+      outro,
+      subtitleTracks: extracted.subtitleTracks,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract the direct m3u8 URL from an embed page.
+ *
+ * Supports these embed CDNs:
+ *   - vidtube.site  → /stream/getSourcesNew?id={data-id}&type={sub|dub}
+ *   - megaplay.buzz → /stream/getSourcesNew?id={data-id}&type={sub|dub}
+ *   - vidwish.live  → same pattern (same player)
+ *   - vivibebe.site → m3u8 is directly in the HTML: /public/stream/{hash}/master.m3u8
+ *
+ * Returns null if the m3u8 can't be extracted (e.g. obfuscated player).
+ */
+async function extractM3u8FromEmbed(embedUrl: string): Promise<{
+  m3u8Url: string;
+  subtitleTracks: Array<{ url: string; lang: string; label: string }>;
+} | null> {
+  try {
+    const parsed = new URL(embedUrl);
+    const hostname = parsed.hostname;
+    const path = parsed.pathname;
+
+    // Determine the type (sub/dub) from the URL path
+    const type = path.includes("/dub") ? "dub" : "sub";
+
+    // Fetch the embed page HTML
+    const embedRes = await fetch(embedUrl, {
+      headers: {
+        "User-Agent": UA,
+        Referer: ANICHI_BASE + "/",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+      redirect: "follow",
+    });
+    if (!embedRes.ok) return null;
+    const html = await embedRes.text();
+
+    // ── vivibebe.site: m3u8 is directly in the HTML ──
+    // Pattern: const src = "https://vivibebe.site/public/stream/{hash}/master.m3u8";
+    if (hostname.includes("vivibebe") || hostname.includes("vibeplayer")) {
+      const m3u8Match = html.match(/(?:src|file|source)\s*=\s*["'](https?:\/\/[^"']+\.m3u8)["']/i);
+      if (m3u8Match) {
+        return { m3u8Url: m3u8Match[1], subtitleTracks: [] };
+      }
+      // Fallback: construct from the hash in the path
+      const hashMatch = path.match(/\/([a-f0-9]{16,})/i);
+      if (hashMatch) {
+        return {
+          m3u8Url: `https://${hostname}/public/stream/${hashMatch[1]}/master.m3u8`,
+          subtitleTracks: [],
+        };
+      }
+    }
+
+    // ── vidtube.site / megaplay.buzz / vidwish.live: use getSourcesNew API ──
+    // The embed page has: <div id="megaplay-player" data-id="{id}" ...>
+    // The API is at: /stream/getSourcesNew?id={id}&type={sub|dub}
+    const dataIdMatch = html.match(/data-id="(\d+)"/);
+    if (dataIdMatch) {
+      const dataId = dataIdMatch[1];
+      const apiUrl = `https://${hostname}/stream/getSourcesNew?id=${dataId}&type=${type}`;
+      const apiRes = await fetch(apiUrl, {
+        headers: {
+          "User-Agent": UA,
+          Referer: `https://${hostname}/`,
+          "X-Requested-With": "XMLHttpRequest",
+          Accept: "application/json, text/plain, */*",
+        },
+        redirect: "follow",
+      });
+      if (apiRes.ok) {
+        const apiData = await apiRes.json();
+        const m3u8Url = apiData?.sources?.file || apiData?.sources?.[0]?.file;
+        if (m3u8Url) {
+          // Extract subtitle tracks if present
+          const subtitleTracks: Array<{ url: string; lang: string; label: string }> = [];
+          const tracks = apiData?.tracks || [];
+          for (const t of tracks) {
+            if (t.file && t.kind === "captions") {
+              subtitleTracks.push({
+                url: t.file,
+                lang: "en",
+                label: t.label || "English",
+              });
+            }
+          }
+          return { m3u8Url, subtitleTracks };
+        }
+      }
+    }
+
+    // ── Fallback: search for any m3u8 URL in the HTML ──
+    const anyM3u8 = html.match(/https?:\/\/[^"'\s]+\.m3u8[^"'\s]*/i);
+    if (anyM3u8) {
+      return { m3u8Url: anyM3u8[0], subtitleTracks: [] };
+    }
+
+    return null;
   } catch {
     return null;
   }
@@ -313,7 +432,7 @@ export async function resolveAnichiStreams(
     const servers = await getAnichiServers(episode.serverIds);
     if (servers.length === 0) return [];
 
-    // 6. For each server, get the stream URL (limit to first 4 to avoid too many requests)
+    // 6. For each server, get the stream URL (limit to first 6 to avoid too many requests)
     const results: AnichiStreamResult[] = [];
     const serversToFetch = servers.slice(0, 6); // VidPlay-1, HD-1, Vidstream-2, VidCloud-1 + hsub + dub
     const streamPromises = serversToFetch.map(async (server) => {
@@ -324,16 +443,16 @@ export async function resolveAnichiStreams(
       return {
         provider: "anichi" as const,
         type,
-        quality: "1080p", // Anichi doesn't expose quality per server
-        streamUrl: stream.url, // embed URL — iframe-able
-        isM3U8: false,
+        quality: "1080p",
+        streamUrl: stream.url, // DIRECT m3u8 URL (extracted from embed)
+        isM3U8: true,          // played in our HLS player
         isMP4: false,
-        isEmbed: true,
+        isEmbed: false,        // NOT an embed — direct m3u8
         hardsub,
         serverName: server.name,
         intro: stream.intro,
         outro: stream.outro,
-        subtitleTracks: [], // Anichi embeds don't expose subtitle URLs directly
+        subtitleTracks: stream.subtitleTracks, // includes subs from getSourcesNew API
       } satisfies AnichiStreamResult;
     });
     const settled = await Promise.allSettled(streamPromises);
