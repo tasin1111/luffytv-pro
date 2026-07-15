@@ -1319,6 +1319,22 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     const isEmbed = (server as any).isEmbed === true;
     const isDASH = (server as any).isDASH === true;
 
+    // For embed servers (AniNeko, Anichi, etc.), the embed URL often includes
+    // subtitle params (e.g. ?sub=, ?caption_1=, ?c1_file=) that tell the embed
+    // player to render its OWN subtitles — which have ugly styling (big black
+    // box, oversized text) that we can't override (cross-origin iframe).
+    // Strip these params so the embed doesn't render subs. The subtitleTracks
+    // are still passed below for our own HLS player overlay (non-embed servers).
+    let finalStreamUrl = streamUrl;
+    if (isEmbed) {
+      try {
+        const u = new URL(streamUrl);
+        // Remove all subtitle-related query params
+        ["sub", "subtitle", "captions", "caption_1", "caption_2", "c1_file", "c2_file", "c1_label", "c2_label", "sub_1", "sub_2", "sub_label"].forEach(p => u.searchParams.delete(p));
+        finalStreamUrl = u.toString();
+      } catch { /* if URL parsing fails, use original */ }
+    }
+
     // Skip times priority (PERSISTENT across provider switches):
     // 1. AniSkip (community DB, fetched separately — most reliable)
     // 2. AniKage (from instant-servers, baked into every server entry)
@@ -1335,10 +1351,10 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     const outro = effectiveSkip.outro ?? serverOutro ?? null;
 
     const newStreamData: StreamData = {
-      video_link: streamUrl,
+      video_link: finalStreamUrl,
       source_type: isEmbed ? "embed" : (isDASH ? "dash" : (isMP4 ? "mp4" : "hls")),
       hls_sources: [{
-        url: streamUrl,
+        url: finalStreamUrl,
         quality,
         label: `${server.name} ${quality}`.trim(),
         isM3U8,

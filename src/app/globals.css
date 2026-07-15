@@ -791,47 +791,46 @@ video::-webkit-media-controls { border-radius: 8px; }
 }
 
 /* ── Subtitle / Caption Rendering (video ::cue) ── */
-/* Bold white text with NO solid backdrop — transparent background with a
-   strong multi-layer text-shadow outline so the text stays readable on
-   any scene (bright skies, white flashes, etc) without an ugly black box.
-   This is the same approach Netflix / Crunchyroll use. */
+/* Small bold white text with NO solid backdrop — transparent background
+   with a tight black outline so text stays readable on any scene.
+   Applies to OUR HLS player (non-embed servers like Kyren, AniDap, etc).
+   Embed servers (AniNeko, Anichi) render their own subtitles — we strip
+   the subtitle params from embed URLs so they don't show ugly subs. */
 video::cue {
   font-family: "Inter", "Helvetica Neue", "Arial", "Noto Sans SC", sans-serif;
-  font-size: 1.15em;
+  font-size: 0.95em;
   font-weight: 700;
   color: #ffffff;
   background-color: transparent;
   background: transparent;
   padding: 0;
   border-radius: 0;
-  /* 8-direction text-shadow creates a smooth black outline around every
-     letter — readable on any background, no solid box needed. */
+  /* Tight 4-direction outline + soft glow — readable, no box */
   text-shadow:
     -1px -1px 0 #000,
      1px -1px 0 #000,
     -1px  1px 0 #000,
      1px  1px 0 #000,
-     0   0   6px #000,
-     0   2px 4px rgba(0, 0, 0, 0.8);
-  line-height: 1.35;
+     0   0   4px #000;
+  line-height: 1.3;
   letter-spacing: 0.01em;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
-/* Slightly larger on bigger screens — but still reasonable */
+/* Slightly larger on bigger screens */
 @media (min-width: 768px) {
   video::cue {
-    font-size: 1.3em;
+    font-size: 1.05em;
   }
 }
 @media (min-width: 1280px) {
   video::cue {
-    font-size: 1.45em;
+    font-size: 1.15em;
   }
 }
-/* Fullscreen — small bump only */
+/* Fullscreen — small bump */
 video:fullscreen::cue {
-  font-size: 1.6em;
+  font-size: 1.3em;
 }
 /* Cue region (the container that holds cues) — position from bottom */
 video::cue-region {
