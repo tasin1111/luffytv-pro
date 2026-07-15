@@ -18,6 +18,32 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+/**
+ * Determine the correct Referer for an AniDap subtitle URL based on its CDN host.
+ * Many subtitle CDNs return 403 without the right Referer.
+ */
+function getAniDapReferer(url: string): string {
+  try {
+    const hostname = new URL(url).hostname;
+    if (hostname.includes("krussdomi")) return "https://krussdomi.com/";
+    if (hostname.includes("lostproject")) return "https://animex.one/";
+    if (hostname.includes("24stream")) return "https://animex.one/";
+    if (hostname.includes("mewstream")) return "https://megaplay.buzz/";
+    if (hostname.includes("streamzone1")) return "https://megaplay.buzz/";
+    if (hostname.includes("vibeplayer") || hostname.includes("vivibebe")) return "https://vibeplayer.site/";
+    if (hostname.includes("animeapps")) return "https://animex.one/";
+    if (hostname.includes("nekostream")) return "https://www.miruro.tv/";
+    if (hostname.includes("anidb")) return "https://www.miruro.tv/";
+    if (hostname.includes("kwik")) return "https://kwik.cx/";
+    if (hostname.includes("owocdn") || hostname.includes("uwucdn")) return "https://kwik.cx/";
+    if (hostname.includes("megaplay")) return "https://megaplay.buzz/";
+    if (hostname.includes("slopnet") || hostname.includes("flixcloud")) return "https://flixcloud.cc/";
+    return "https://animex.one/"; // AniDap default
+  } catch {
+    return "https://animex.one/";
+  }
+}
+
 interface AniDapServer {
   id: string;
   name: string;
@@ -57,6 +83,26 @@ export async function GET(
       const meta = ANIDAP_PROVIDER_META[r.provider as AniDapProvider];
       const provName = meta?.name || (r.provider[0].toUpperCase() + r.provider.slice(1));
       const typeTag = r.type === "dub" ? " (Dub)" : (meta?.hardsub ? " (HS)" : "");
+      // Wrap subtitle URLs through /api/stream with the correct Referer.
+      // Also filters out ASS subtitles (browsers can't render them).
+      const rawTracks = (r.tracks || []) as Array<{ url: string; lang: string; label: string }>;
+      const subtitleTracks = rawTracks
+        .filter(t => {
+          const u = (t?.url || "").toLowerCase().split("?")[0];
+          if (u.endsWith(".ass")) return false; // browsers can't render ASS
+          return true;
+        })
+        .map(t => {
+          const url = t.url || "";
+          const referer = getAniDapReferer(url);
+          return {
+            url: url.startsWith("http")
+              ? `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(referer)}`
+              : url,
+            lang: t.lang || "en",
+            label: t.label || "English",
+          };
+        });
       return {
         id: `anidap:${r.provider}:${r.type}`,
         name: `AniDap ${provName}${typeTag}`,
@@ -69,11 +115,7 @@ export async function GET(
         isMP4: r.isMP4 || false,
         isDASH: r.isDASH === true,
         hardsub: meta?.hardsub === true,
-        subtitleTracks: r.tracks?.map((t: any) => ({
-          url: t.url,
-          lang: t.lang,
-          label: t.label,
-        })) || [],
+        subtitleTracks,
         intro: r.intro || null,
         outro: r.outro || null,
       };

@@ -55,6 +55,19 @@ const ALLOWED_HOSTS = [
   "vodvidl.site", "hakunaymatata.com",
   // AniDap subtitle CDNs (lostproject.club = Yuki subs, krussdomi.com = Sora subs)
   "lostproject.club", "krussdomi.com",
+  // AniZone / Luna ASS subtitle CDN (filtered out client-side, but allow
+  // the host in case future ASS→VTT conversion is added)
+  "xin-cdn.xyz", "suzaku.xin-cdn.xyz",
+  // AniKage subtitle CDN
+  "anikage.cc", "api.anikage.cc", "prox.anikage.cc",
+  // SlopNet (ReAnime subtitles/fonts)
+  "slopnet.site", "vault94.slopnet.site", "vault99.slopnet.site",
+  // AnimeOnsen subtitle CDN
+  "animeonsen.xyz", "cdn.animeonsen.xyz",
+  // Additional subtitle CDNs seen across providers
+  "mewstream.buzz", "streamzone1.site", "cinewave2.site",
+  "1oe.lostproject.club", "subbl.krussdomi.com",
+  "seiryuu.vid-cdn.xyz", "vid-cdn.xyz",
   // Moviebox API + player domain
   "aoneroom.com", "h5-api.aoneroom.com", "moviebox.ph",
   // Netfilm player domain (Moviebox stream CDN)

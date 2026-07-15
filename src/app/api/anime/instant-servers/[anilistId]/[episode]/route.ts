@@ -15,7 +15,7 @@ import { resolveAniKoto } from "@/lib/anikoto-direct";
 import { fetchAllReAnimeSources } from "@/lib/reanime-api";
 import { fetchAllLunaSources, LUNA_PROVIDER_META } from "@/lib/luna-api";
 import { fetchAniPmSources } from "@/lib/anipm-api";
-import { wrapM3u8Url, wrapM3u8UrlWithReferer, wrapStreamUrl } from "@/lib/proxy";
+import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -60,21 +60,80 @@ export async function GET(
       ]);
     }
 
-    // Wrap subtitle URLs through the Worker proxy so they work cross-origin
+    // Wrap subtitle URLs through /api/stream (Vercel route) which:
+    //   1. Sends the correct Referer header for the CDN
+    //   2. Converts SRT → WebVTT on-the-fly (browsers only render VTT)
+    //   3. Passes VTT through with correct content-type
+    // NOTE: We route through /api/stream instead of the Worker proxy because
+    // /api/stream has SRT→VTT conversion built in. The worker also has it now,
+    // but /api/stream is the guaranteed-correct path for subtitles.
+    // ASS subtitles are filtered out (browsers can't render them natively,
+    // and the basic ASS→VTT conversion in the worker is lossy).
     function wrapSubs(tracks?: Array<{ url: string; lang: string; label: string }>): Array<{ url: string; lang: string; label: string }> | undefined {
       if (!tracks || tracks.length === 0) return undefined;
-      return tracks.map(t => ({
-        url: t.url.startsWith("http") ? wrapStreamUrl(t.url) : t.url,
-        lang: t.lang || "en",
-        label: t.label || "English",
-      }));
+      const filtered = tracks.filter(t => {
+        const u = (t.url || "").toLowerCase().split("?")[0];
+        // ASS subtitles can't be rendered by browsers natively — skip them
+        // (the worker does basic ASS→VTT conversion, but it's lossy and
+        // often produces broken cues. Better to skip than show garbage.)
+        if (u.endsWith(".ass")) return false;
+        return true;
+      });
+      if (filtered.length === 0) return undefined;
+      return filtered.map(t => {
+        const url = t.url || "";
+        const referer = getRefererForSubtitle(url);
+        return {
+          url: url.startsWith("http")
+            ? `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(referer)}`
+            : url,
+          lang: t.lang || "en",
+          label: t.label || "English",
+        };
+      });
+    }
+
+    // Determine the correct Referer for a subtitle URL based on its CDN host.
+    // This is critical — many subtitle CDNs return 403 without the right Referer.
+    function getRefererForSubtitle(url: string): string {
+      try {
+        const hostname = new URL(url).hostname;
+        // Reuse the same CDN referer logic from proxy.ts for consistency
+        if (hostname.includes("animex") || hostname.includes("24stream")) return "https://animex.one/";
+        if (hostname.includes("miruro") || hostname.includes("anidb")) return "https://www.miruro.tv/";
+        if (hostname.includes("kwik")) return "https://kwik.cx/";
+        if (hostname.includes("owocdn") || hostname.includes("uwucdn")) return "https://kwik.cx/";
+        if (hostname.includes("krussdomi")) return "https://krussdomi.com/";
+        if (hostname.includes("megaplay")) return "https://megaplay.buzz/";
+        if (hostname.includes("vibeplayer") || hostname.includes("vivibebe")) return "https://vibeplayer.site/";
+        if (hostname.includes("animeapps")) return "https://animex.one/";
+        if (hostname.includes("nekostream")) return "https://www.miruro.tv/";
+        if (hostname.includes("slopnet") || hostname.includes("flixcloud")) return "https://flixcloud.cc/";
+        if (hostname.includes("kyren")) return "https://kyren.moe/";
+        if (hostname.includes("anikage")) return "https://anikage.cc/";
+        if (hostname.includes("ani.pm")) return "https://ani.pm/";
+        if (hostname.includes("ninstream") || hostname.includes("senshi")) return "https://senshi.live/";
+        if (hostname.includes("xin-cdn") || hostname.includes("anizone")) return "https://anizone.to/";
+        if (hostname.includes("animeheaven")) return "https://animeheaven.me/";
+        if (hostname.includes("allanime") || hostname.includes("allmanga")) return "https://allanime.uns.bio/";
+        if (hostname.includes("lostproject")) return "https://animex.one/";
+        return "https://www.miruro.tv/"; // default
+      } catch {
+        return "https://www.miruro.tv/";
+      }
     }
 
     // Wrap subtitle URLs through Vercel /api/stream (NOT the Worker proxy)
     // Used for CF-protected CDNs that the Worker can't reach (CF-to-CF block).
+    // Also filters out ASS subtitles (browsers can't render them natively).
     function wrapSubsVercel(tracks: Array<{ url: string; lang?: string; label?: string }> | undefined, referer: string): Array<{ url: string; lang: string; label: string }> {
       if (!tracks || tracks.length === 0) return [];
-      return tracks.map(t => ({
+      const filtered = tracks.filter(t => {
+        const u = (t.url || "").toLowerCase().split("?")[0];
+        if (u.endsWith(".ass")) return false; // browsers can't render ASS
+        return true;
+      });
+      return filtered.map(t => ({
         url: t.url.startsWith("http")
           ? `/api/stream?url=${encodeURIComponent(t.url)}&referer=${encodeURIComponent(referer)}`
           : t.url,

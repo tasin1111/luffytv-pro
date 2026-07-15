@@ -334,20 +334,90 @@ async function proxyTarget(targetUrl, refParam, request) {
     });
   }
 
-  // Binary / TS segment: stream as-is
-  // BUT: fix Content-Type for subtitle files (.vtt, .srt, .ass)
-  // Many CDNs return application/octet-stream for subtitles, which causes
-  // the browser's <track> element to refuse rendering them.
-  // We detect by file extension and set the correct MIME type.
-  let contentType = upstreamResp.headers.get('Content-Type') || 'application/octet-stream';
+  // ── Subtitle files: convert SRT → WebVTT so browsers can render them ──
+  // The <track> element ONLY supports text/vtt. SRT and ASS are not supported.
+  // We convert SRT to VTT on-the-fly (timestamp comma → period + WEBVTT header).
+  // ASS is too complex to convert losslessly, so we do a basic strip of the
+  // styling header and extract dialogue lines as plain VTT cues.
   const urlPath = targetUrl.split('?')[0].toLowerCase().split('#')[0];
-  if (urlPath.endsWith('.vtt')) {
-    contentType = 'text/vtt; charset=utf-8';
-  } else if (urlPath.endsWith('.srt')) {
-    contentType = 'application/x-subrip; charset=utf-8';
-  } else if (urlPath.endsWith('.ass')) {
-    contentType = 'text/x-ass; charset=utf-8';
+
+  if (urlPath.endsWith('.srt')) {
+    const srtText = await upstreamResp.text();
+    const vttBody = srtText
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/^\uFEFF/, '')           // strip BOM
+      .replace(/^\d+\s*$/gm, '')         // strip index lines like "1", "2"...
+      .replace(/(\d{2}:\d{2}:\d{2}),(\d{3})/g, '$1.$2')  // , → . in timestamps
+      .trim();
+    const vtt = `WEBVTT\n\n${vttBody}\n`;
+    return new Response(vtt, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/vtt; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400, immutable',
+        ...corsHeaders(),
+      },
+    });
   }
+
+  if (urlPath.endsWith('.vtt')) {
+    // Pass through with correct content-type (many CDNs return octet-stream)
+    const vttText = await upstreamResp.text();
+    return new Response(vttText, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/vtt; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400, immutable',
+        ...corsHeaders(),
+      },
+    });
+  }
+
+  if (urlPath.endsWith('.ass')) {
+    // Basic ASS → VTT conversion: strip [Script Info] / [V4+ Styles] / [Events]
+    // header, extract Dialogue lines, strip ASS styling tags {\...}
+    const assText = await upstreamResp.text();
+    const lines = assText.split(/\r?\n/);
+    const vttCues = [];
+    let idx = 1;
+    for (const line of lines) {
+      if (!line.startsWith('Dialogue:')) continue;
+      const parts = line.split(',');
+      // Dialogue: Layer,Start,End,Style,Name,MarginL,MarginR,MarginV,Effect,Text
+      if (parts.length < 10) continue;
+      const start = parts[1].trim();
+      const end = parts[2].trim();
+      const text = parts.slice(9).join(',').trim()
+        .replace(/\{[^}]*\}/g, '')    // strip ASS override tags {\...}
+        .replace(/\\N/g, '\n')         // \N → newline
+        .replace(/\\n/g, ' ')          // \n → space
+        .replace(/\\h/g, ' ');         // \h → hard space
+      if (!text) continue;
+      // ASS time format: H:MM:SS.cc → VTT: HH:MM:SS.mmm
+      const fmt = (t) => {
+        const m = t.match(/^(\d+):(\d{2}):(\d{2})\.(\d{2})$/);
+        if (!m) return null;
+        return `${m[1].padStart(2,'0')}:${m[2]}:${m[3]}.${m[4]}0`;
+      };
+      const vStart = fmt(start);
+      const vEnd = fmt(end);
+      if (!vStart || !vEnd) continue;
+      vttCues.push(`${idx++}\n${vStart} --> ${vEnd}\n${text}\n`);
+    }
+    const vtt = `WEBVTT\n\n${vttCues.join('\n')}`;
+    return new Response(vtt, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/vtt; charset=utf-8',
+        'Cache-Control': 'public, max-age=86400, immutable',
+        ...corsHeaders(),
+      },
+    });
+  }
+
+  // Binary / TS segment: stream as-is with correct content-type
+  let contentType = upstreamResp.headers.get('Content-Type') || 'application/octet-stream';
 
   const passHeaders = {
     'Content-Type':  contentType,

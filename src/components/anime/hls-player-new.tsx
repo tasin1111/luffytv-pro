@@ -353,6 +353,39 @@ export default function HLSPlayerNew({
     if (hlsRef.current) { hlsRef.current.currentLevel = level; setCurrentQuality(level); }
     setActiveMenu(null);
   };
+
+  // ── Auto-enable the first external subtitle track ──
+  // The `default` attribute on <track> doesn't always work reliably across
+  // browsers (especially when the track loads after the video starts). This
+  // effect explicitly enables the first external subtitle track once the
+  // video metadata has loaded AND there are no HLS-embedded subtitles.
+  // This ensures subtitles show automatically when the user starts watching.
+  useEffect(() => {
+    if (hlsSubtitles.length > 0) return; // HLS-embedded subs handle their own default
+    if (!subtitleTracks || subtitleTracks.length === 0) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    const enableFirstSub = () => {
+      // video.textTracks includes both HLS-embedded and external <track> elements.
+      // External tracks come AFTER HLS tracks in the list. Since we have no HLS
+      // subs (checked above), the first external track is at index 0.
+      if (video.textTracks.length > 0 && currentSubtitle === -1) {
+        // Don't override if the user explicitly turned subs off
+        video.textTracks[0].mode = 'showing';
+        setCurrentSubtitle(0);
+      }
+    };
+
+    // Try immediately (in case metadata already loaded)
+    if (video.readyState >= 1) {
+      enableFirstSub();
+    } else {
+      video.addEventListener('loadedmetadata', enableFirstSub, { once: true });
+      return () => video.removeEventListener('loadedmetadata', enableFirstSub);
+    }
+  }, [hlsSubtitles.length, subtitleTracks, currentSubtitle]);
+
   const changeSubtitle = (track: number) => {
     if (track === -1) {
       if (hlsRef.current) hlsRef.current.subtitleTrack = -1;
@@ -591,14 +624,21 @@ export default function HLSPlayerNew({
         crossOrigin="anonymous"
       >
         {(subtitleTracks || []).map((t, i) => {
-          // The subtitle URL is ALREADY wrapped through our worker proxy
-          // (instant-servers route does wrapStreamUrl(t.url), and watch-page-shell
-          // may proxify() it again — but proxify/wrapStreamUrl both check for
-          // already-wrapped URLs and return as-is, so no double-wrapping).
+          // The subtitle URL is ALREADY wrapped through /api/stream (which
+          // handles SRT→VTT conversion + sends the correct Referer header).
           // Just use t.url directly — no need to proxify again here.
+          // The `default` attribute auto-selects the first external subtitle
+          // track so it shows immediately when the video starts playing.
           const trackSrc = t.url;
           return (
-            <track key={`ext-sub-${i}`} kind="subtitles" src={trackSrc} srcLang={t.lang || 'en'} label={t.label || t.lang || 'English'} default={i === 0 && hlsSubtitles.length === 0} />
+            <track
+              key={`ext-sub-${i}`}
+              kind="subtitles"
+              src={trackSrc}
+              srcLang={t.lang || 'en'}
+              label={t.label || t.lang || 'English'}
+              default={i === 0 && hlsSubtitles.length === 0}
+            />
           );
         })}
       </video>
