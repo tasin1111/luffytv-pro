@@ -3,15 +3,14 @@
 import { useState, useEffect, useMemo } from "react";
 
 /**
- * PlayerLoadingScreen — fastest + coolest cinematic loading overlay.
+ * PlayerLoadingScreen — smooth, calm cinematic loading overlay.
  *
  * Design philosophy:
- *   - INSTANT entrance: all content snaps in with one 280ms scale+fade,
- *     NO staggered reveal (that was making it feel slow).
- *   - One-shot "punch" effects on mount: white flash + shockwave ring +
- *     title glitch — feels like an anime power-up moment.
- *   - Continuous cool layers: radial speed lines, sonar ping, embers,
- *     Ken Burns, film grain, light sweep.
+ *   - ONE punch on mount (soft flash + shockwave), then everything settles.
+ *   - Continuous layers are SLOW and atmospheric — no busy/vibrating motion:
+ *     just a slow Ken Burns, gentle embers, soft glow pulse on spinner.
+ *   - Removed: speed lines, sonar pings, title glitch, jittery grain — these
+ *     were making the screen feel busy and vibrating.
  *
  * Parent flips `ready` to true → screen fades out (600ms) → unmounts.
  */
@@ -63,29 +62,28 @@ export function PlayerLoadingScreen({
 }) {
   const [mounted, setMounted] = useState(true);
   const [opacity, setOpacity] = useState(0);
-  // `punched` flips true 30ms after mount — triggers the one-shot effects
-  // (flash, shockwave, title glitch). Stays true thereafter.
   const [punched, setPunched] = useState(false);
 
   const [joke] = useState(
     () => ANIME_JOKES[Math.floor(Math.random() * ANIME_JOKES.length)]
   );
 
+  // Fewer embers, slower drift — calmer atmosphere.
   const embers = useMemo<Ember[]>(() => {
     const arr: Ember[] = [];
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 8; i++) {
       arr.push({
         left: Math.random() * 100,
-        size: 1.5 + Math.random() * 2.5,
-        delay: Math.random() * 6,
-        duration: 6 + Math.random() * 6,
-        drift: (Math.random() - 0.5) * 60,
+        size: 1.5 + Math.random() * 2,
+        delay: Math.random() * 8,
+        duration: 10 + Math.random() * 8,
+        drift: (Math.random() - 0.5) * 40,
       });
     }
     return arr;
   }, []);
 
-  // Mount: opacity 0 -> 1 + trigger one-shot punch effects.
+  // Fade IN on mount + trigger one-shot punch.
   useEffect(() => {
     const t1 = setTimeout(() => {
       setOpacity(1);
@@ -94,7 +92,7 @@ export function PlayerLoadingScreen({
     return () => clearTimeout(t1);
   }, []);
 
-  // Fade out when ready, unmount after transition.
+  // Fade OUT when ready, unmount after transition.
   useEffect(() => {
     if (!ready) return;
     setOpacity(0);
@@ -113,7 +111,7 @@ export function PlayerLoadingScreen({
         transition: "opacity 600ms cubic-bezier(0.25, 0.1, 0.25, 1)",
       }}
     >
-      {/* ═══ Layer 1: Backdrop — Ken Burns (faster: 10s) ═══ */}
+      {/* ═══ Layer 1: Backdrop — slow Ken Burns (14s, gentle) ═══ */}
       {backdrop ? (
         <img
           src={backdrop}
@@ -121,8 +119,8 @@ export function PlayerLoadingScreen({
           className="absolute inset-0 w-full h-full object-cover"
           style={{
             filter: "blur(24px) brightness(0.6) saturate(1.2)",
-            transform: "scale(1.18)",
-            animation: "pls-kenburns 10s ease-in-out infinite alternate",
+            transform: "scale(1.16)",
+            animation: "pls-kenburns 14s ease-in-out infinite alternate",
           }}
         />
       ) : (
@@ -140,7 +138,7 @@ export function PlayerLoadingScreen({
         }}
       />
 
-      {/* ═══ Layer 3: Floating embers ═══ */}
+      {/* ═══ Layer 3: Floating embers (fewer, slower) ═══ */}
       <div className="absolute inset-0 pointer-events-none">
         {embers.map((e, i) => (
           <span
@@ -152,7 +150,7 @@ export function PlayerLoadingScreen({
               width: `${e.size}px`,
               height: `${e.size}px`,
               opacity: 0,
-              boxShadow: "0 0 6px rgba(255,255,255,0.7)",
+              boxShadow: "0 0 6px rgba(255,255,255,0.6)",
               animation: `pls-ember ${e.duration}s linear ${e.delay}s infinite`,
               ["--drift" as any]: `${e.drift}px`,
             }}
@@ -160,162 +158,87 @@ export function PlayerLoadingScreen({
         ))}
       </div>
 
-      {/* ═══ Layer 4: Light sweep ═══ */}
+      {/* ═══ Layer 4: Soft light sweep (slow, 6s) ═══ */}
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            "linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.06) 50%, transparent 65%)",
+            "linear-gradient(105deg, transparent 35%, rgba(255,255,255,0.04) 50%, transparent 65%)",
           backgroundSize: "250% 100%",
-          animation: "pls-sweep 4s ease-in-out infinite",
+          animation: "pls-sweep 6s ease-in-out infinite",
         }}
       />
 
-      {/* ═══ Layer 5: Film grain ═══ */}
+      {/* ═══ Layer 5: Film grain (very slow, subtle) ═══ */}
       <div
-        className="absolute inset-0 pointer-events-none opacity-[0.06] mix-blend-overlay"
+        className="absolute inset-0 pointer-events-none opacity-[0.04] mix-blend-overlay"
         style={{
           backgroundImage: `url("${GRAIN_DATA_URI}")`,
           backgroundRepeat: "repeat",
           backgroundSize: "180px 180px",
-          animation: "pls-grain 0.5s steps(3) infinite",
+          animation: "pls-grain 1.5s steps(2) infinite",
         }}
       />
 
-      {/* ═══ Layer 6: Radial speed lines (anime-style) ═══ */}
-      <div
-        className="absolute inset-0 pointer-events-none flex items-center justify-center"
-        style={{ top: "30vh" }}
-      >
-        <div
-          className="relative"
-          style={{
-            width: "1px",
-            height: "1px",
-            opacity: opacity > 0.5 ? 1 : 0,
-            transition: "opacity 300ms ease",
-          }}
-        >
-          {/* 16 radial lines emanating outward, rotating slowly */}
-          <div
-            className="absolute inset-0"
-            style={{ animation: "pls-spin 12s linear infinite" }}
-          >
-            {Array.from({ length: 16 }).map((_, i) => (
-              <div
-                key={i}
-                className="absolute origin-left"
-                style={{
-                  width: "60vw",
-                  height: "1px",
-                  left: "0",
-                  top: "0",
-                  transform: `rotate(${i * 22.5}deg)`,
-                  background:
-                    "linear-gradient(90deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0.05) 30%, transparent 100%)",
-                  animation: `pls-speedline 1.2s ease-out ${i * 0.05}s infinite`,
-                }}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ═══ Layer 7: One-shot shockwave (plays once on mount) ═══ */}
+      {/* ═══ Layer 6: One-shot shockwave (plays once on mount) ═══ */}
       {punched && (
         <div
           className="absolute pointer-events-none flex items-center justify-center"
           style={{ top: "30vh", left: 0, right: 0 }}
         >
           <div
-            className="rounded-full border-2 border-white/40"
+            className="rounded-full border-2 border-white/30"
             style={{
               width: "80px",
               height: "80px",
-              animation: "pls-shockwave 700ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
+              animation: "pls-shockwave 900ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
             }}
           />
         </div>
       )}
 
-      {/* ═══ Layer 8: Main content — INSTANT entrance (no stagger) ═══ */}
+      {/* ═══ Layer 7: Main content — single smooth entrance ═══ */}
       <div
         className="absolute left-0 right-0 flex flex-col items-center px-6"
         style={{
           top: "30vh",
           opacity: opacity > 0.5 ? 1 : 0,
-          transform: punched ? "scale(1)" : "scale(0.92)",
+          transform: punched ? "scale(1)" : "scale(0.94)",
           transition:
-            "opacity 280ms ease, transform 280ms cubic-bezier(0.34, 1.56, 0.64, 1)",
+            "opacity 400ms ease, transform 500ms cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
       >
-        {/* Spinner — triple ring + center dot + pulsing glow */}
+        {/* Spinner — single ring + slow glow (no triple-ring, no sonar) */}
         <div className="relative w-16 h-16 mb-6">
-          {/* Sonar ping rings — emanate outward every 1.6s */}
+          {/* Soft glow halo — slow breathing */}
           <div
-            className="absolute inset-0 rounded-full border border-white/30"
-            style={{ animation: "pls-sonar 1.6s ease-out infinite" }}
-          />
-          <div
-            className="absolute inset-0 rounded-full border border-white/30"
-            style={{ animation: "pls-sonar 1.6s ease-out 0.8s infinite" }}
-          />
-          {/* Glow halo */}
-          <div
-            className="absolute -inset-5 rounded-full bg-white/10 blur-2xl"
-            style={{ animation: "pls-pulse 1.6s ease-in-out infinite" }}
+            className="absolute -inset-5 rounded-full bg-white/8 blur-2xl"
+            style={{ animation: "pls-pulse 2.8s ease-in-out infinite" }}
           />
           <div className="absolute inset-0 rounded-full border-[2.5px] border-white/[0.08]" />
           <div
             className="absolute inset-0 rounded-full border-[2.5px] border-transparent border-t-white/90"
-            style={{ animation: "pls-spin 0.6s linear infinite" }}
+            style={{ animation: "pls-spin 1s linear infinite" }}
           />
-          <div
-            className="absolute inset-[6px] rounded-full border-[2px] border-transparent border-t-white/40"
-            style={{
-              animation: "pls-spin 1s linear infinite reverse",
-            }}
-          />
+          {/* Center dot — gentle pulse */}
           <div className="absolute inset-0 flex items-center justify-center">
             <div
-              className="w-1.5 h-1.5 rounded-full bg-white/90"
-              style={{ animation: "pls-pulse 1.2s ease-in-out infinite" }}
+              className="w-1.5 h-1.5 rounded-full bg-white/80"
+              style={{ animation: "pls-pulse 2s ease-in-out infinite" }}
             />
           </div>
         </div>
 
-        {/* Title — with one-shot glitch on mount + breathing glow */}
+        {/* Title — clean, no glitch, soft breathing glow only */}
         {title && (
           <p
-            className="text-lg sm:text-xl font-bold text-white/95 max-w-lg text-center line-clamp-2 mb-3 relative"
+            className="text-lg sm:text-xl font-bold text-white/95 max-w-lg text-center line-clamp-2 mb-3"
             style={{
-              animation:
-                "pls-glitch 250ms steps(2) 1, pls-breathe 2s ease-in-out 250ms infinite",
               textShadow: "0 0 12px rgba(255,255,255,0.2)",
+              animation: "pls-breathe 3s ease-in-out infinite",
             }}
           >
             {title}
-            {/* Chromatic split layers for glitch */}
-            <span
-              aria-hidden
-              className="absolute inset-0 text-cyan-400/60 mix-blend-screen"
-              style={{
-                clipPath: "inset(0 0 60% 0)",
-                animation: "pls-glitch-split 250ms steps(2) 1",
-              }}
-            >
-              {title}
-            </span>
-            <span
-              aria-hidden
-              className="absolute inset-0 text-red-500/60 mix-blend-screen"
-              style={{
-                clipPath: "inset(60% 0 0 0)",
-                animation: "pls-glitch-split 250ms steps(2) 1",
-              }}
-            >
-              {title}
-            </span>
           </p>
         )}
 
@@ -324,37 +247,27 @@ export function PlayerLoadingScreen({
           {ready ? "Ready" : "Preparing your stream"}
         </p>
 
-        {/* Segmented progress bar — instant fill, pulses while loading */}
-        <div className="flex gap-1.5">
-          {[0, 1, 2, 3, 4].map((i) => (
-            <div
-              key={i}
-              className="w-9 h-[3px] rounded-full bg-white/[0.08] overflow-hidden relative"
-            >
-              <div
-                className="absolute inset-0 rounded-full"
-                style={{
-                  background:
-                    "linear-gradient(90deg, rgba(255,255,255,0.5), rgba(255,255,255,0.95))",
-                  boxShadow: "0 0 8px rgba(255,255,255,0.5)",
-                  transform: "scaleX(1)",
-                  transformOrigin: "left",
-                  transition: "transform 400ms cubic-bezier(0.25, 0.1, 0.25, 1)",
-                  animation: `pls-seg-pulse 1.5s ease-in-out ${i * 0.15}s infinite`,
-                }}
-              />
-            </div>
-          ))}
+        {/* Progress bar — single smooth fill with gentle pulse (no segments) */}
+        <div className="w-44 h-[3px] rounded-full bg-white/[0.08] overflow-hidden relative">
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background:
+                "linear-gradient(90deg, rgba(255,255,255,0.4), rgba(255,255,255,0.9))",
+              boxShadow: "0 0 8px rgba(255,255,255,0.4)",
+              animation: "pls-fill-pulse 2s ease-in-out infinite",
+            }}
+          />
         </div>
       </div>
 
-      {/* ═══ Layer 9: Joke (immediate) ═══ */}
+      {/* ═══ Layer 8: Joke (immediate) ═══ */}
       <div
         className="absolute left-0 right-0 flex flex-col items-center px-8"
         style={{
           bottom: "12vh",
           opacity: opacity > 0.5 ? 1 : 0,
-          transition: "opacity 400ms ease",
+          transition: "opacity 500ms ease",
         }}
       >
         <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/30 mb-3">
@@ -365,12 +278,12 @@ export function PlayerLoadingScreen({
         </p>
       </div>
 
-      {/* ═══ Layer 10: One-shot white flash on mount (200ms) ═══ */}
+      {/* ═══ Layer 9: One-shot soft flash on mount ═══ */}
       {punched && (
         <div
           className="absolute inset-0 pointer-events-none bg-white"
           style={{
-            animation: "pls-flash 250ms ease-out forwards",
+            animation: "pls-flash 350ms ease-out forwards",
           }}
         />
       )}
@@ -382,20 +295,20 @@ export function PlayerLoadingScreen({
         }
         @keyframes pls-pulse {
           0%, 100% { opacity: 0.4; transform: scale(1); }
-          50%      { opacity: 0.9; transform: scale(1.15); }
+          50%      { opacity: 0.8; transform: scale(1.1); }
         }
         @keyframes pls-breathe {
           0%, 100% { text-shadow: 0 0 12px rgba(255,255,255,0.15); }
-          50%      { text-shadow: 0 0 24px rgba(255,255,255,0.45); }
+          50%      { text-shadow: 0 0 20px rgba(255,255,255,0.3); }
         }
         @keyframes pls-kenburns {
           from { transform: scale(1.14) translate(0, 0); }
-          to   { transform: scale(1.24) translate(-2%, -1.5%); }
+          to   { transform: scale(1.2) translate(-1.5%, -1%); }
         }
         @keyframes pls-ember {
           0%   { opacity: 0; transform: translateY(0) translateX(0) scale(0.5); }
-          15%  { opacity: 0.7; }
-          85%  { opacity: 0.5; }
+          15%  { opacity: 0.6; }
+          85%  { opacity: 0.4; }
           100% { opacity: 0; transform: translateY(-100vh) translateX(var(--drift, 0px)) scale(1); }
         }
         @keyframes pls-sweep {
@@ -404,73 +317,31 @@ export function PlayerLoadingScreen({
         }
         @keyframes pls-grain {
           0%   { transform: translate(0, 0); }
-          33%  { transform: translate(-3px, 2px); }
-          66%  { transform: translate(2px, -3px); }
+          50%  { transform: translate(-2px, 1px); }
           100% { transform: translate(0, 0); }
         }
-        @keyframes pls-seg-pulse {
-          0%, 100% { opacity: 1; }
-          50%      { opacity: 0.5; }
-        }
-        /* One-shot shockwave — expands from 80px to 600px, fades out */
+        /* One-shot shockwave — gentle expansion, no hard snap */
         @keyframes pls-shockwave {
           0% {
             width: 80px; height: 80px;
-            opacity: 0.9;
-            border-width: 3px;
-            filter: blur(0px);
+            opacity: 0.7;
+            border-width: 2px;
           }
           100% {
-            width: 600px; height: 600px;
+            width: 480px; height: 480px;
             opacity: 0;
             border-width: 1px;
-            filter: blur(2px);
           }
         }
-        /* One-shot flash — bright white overlay that fades out in 250ms */
+        /* One-shot flash — soft, fades gently */
         @keyframes pls-flash {
-          0%   { opacity: 0.7; }
+          0%   { opacity: 0.4; }
           100% { opacity: 0; visibility: hidden; }
         }
-        /* Sonar ping — thin ring expands + fades every 1.6s */
-        @keyframes pls-sonar {
-          0% {
-            transform: scale(1);
-            opacity: 0.8;
-          }
-          100% {
-            transform: scale(3);
-            opacity: 0;
-          }
-        }
-        /* Speed lines — each line fades + extends outward in a loop */
-        @keyframes pls-speedline {
-          0% {
-            opacity: 0;
-            transform: scaleX(0.3);
-          }
-          20% {
-            opacity: 1;
-          }
-          100% {
-            opacity: 0;
-            transform: scaleX(1);
-          }
-        }
-        /* Title glitch — quick chromatic split on mount, plays once */
-        @keyframes pls-glitch {
-          0%   { transform: translate(0); }
-          25%  { transform: translate(-2px, 1px); }
-          50%  { transform: translate(2px, -1px); }
-          75%  { transform: translate(-1px, 0); }
-          100% { transform: translate(0); }
-        }
-        @keyframes pls-glitch-split {
-          0%   { transform: translate(0); opacity: 0.8; }
-          25%  { transform: translate(-3px, 1px); opacity: 1; }
-          50%  { transform: translate(3px, -1px); opacity: 0.6; }
-          75%  { transform: translate(-2px, 0); opacity: 0.4; }
-          100% { transform: translate(0); opacity: 0; }
+        /* Progress bar — gentle fill pulse (smooth, not segmented) */
+        @keyframes pls-fill-pulse {
+          0%, 100% { opacity: 0.7; transform: scaleX(0.85); }
+          50%      { opacity: 1; transform: scaleX(1); }
         }
       `}</style>
     </div>
