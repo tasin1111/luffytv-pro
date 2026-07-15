@@ -104,6 +104,16 @@ const SUB_CDN_RULES = [
   // ── AniWaves ──
   { test: h => h.includes('echovideo') || h.includes('gn1r5n'),
     referer: 'https://aniwaves.ru/',          origin: 'https://aniwaves.ru' },
+
+  // ── AniNeko.to subtitle CDN (anizara.store) — no referer required, works directly ──
+  { test: h => h.includes('anizara.store') || h.includes('anizara'),
+    referer: 'https://anineko.to/',            origin: 'https://anineko.to' },
+
+  // ── Anichi.to / VidTube / MegaPlay embed CDNs ──
+  { test: h => h.includes('vidtube.site'),
+    referer: 'https://anichi.to/',             origin: 'https://anichi.to' },
+  { test: h => h.includes('megaplay.buzz'),
+    referer: 'https://megaplay.buzz/',         origin: 'https://megaplay.buzz' },
 ];
 
 function getRefererFor(url) {

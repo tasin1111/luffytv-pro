@@ -15,6 +15,8 @@ import { resolveAniKoto } from "@/lib/anikoto-direct";
 import { fetchAllReAnimeSources } from "@/lib/reanime-api";
 import { fetchAllLunaSources, LUNA_PROVIDER_META } from "@/lib/luna-api";
 import { fetchAniPmSources } from "@/lib/anipm-api";
+import { resolveAnichiStreams } from "@/lib/anichi-direct";
+import { resolveAninekoStreams } from "@/lib/anineko-to-direct";
 import { wrapM3u8Url, wrapM3u8UrlWithReferer } from "@/lib/proxy";
 
 export const runtime = "nodejs";
@@ -130,6 +132,8 @@ export async function GET(
         if (hostname.includes("lostproject")) return "https://megaplay.buzz/"; // VERIFIED: lostproject requires megaplay referer
         if (hostname.includes("animeonsen")) return "https://www.animeonsen.xyz/";
         if (hostname.includes("vid-cdn")) return "https://luna.animeaqua.net/";
+        if (hostname.includes("anizara")) return "https://anineko.to/"; // AniNeko.to subtitle CDN
+        if (hostname.includes("vidtube")) return "https://anichi.to/"; // Anichi.to embed CDN
         return "https://www.miruro.tv/"; // default
       } catch {
         return "https://www.miruro.tv/";
@@ -166,7 +170,7 @@ export async function GET(
     const servers: Array<{
       id: string;
       name: string;
-      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone" | "aniwaves" | "anilight" | "kyren" | "anikoto" | "reanime" | "luna" | "anipm";
+      source: "animex" | "anidb" | "anineko" | "anidap" | "anikage" | "senshi" | "allmanga" | "anizone" | "aniwaves" | "anilight" | "kyren" | "anikoto" | "reanime" | "luna" | "anipm" | "anichi" | "anineko-to";
       provider: string;
       type: "sub" | "dub";
       quality: string;
@@ -459,6 +463,76 @@ export async function GET(
                 intro: r.intro || null,
                 outro: r.outro || null,
               });
+            }
+          }
+        } catch {}
+      })(),
+
+      // ── Anichi.to (priority 0.5 — embed streams with skip times) ──
+      // New site, returns embed URLs (vidtube/megaplay) + intro/outro skip data
+      (async () => {
+        try {
+          const anichiResults = await withTimeout(
+            resolveAnichiStreams(id, epNum, title),
+            10000,
+            [],
+          );
+          if (anichiResults?.length) {
+            let p = 0.5;
+            for (const r of anichiResults) {
+              servers.push({
+                id: `anichi:${r.serverName}:${r.type}${r.hardsub ? ":hsub" : ""}`,
+                name: `Anichi ${r.serverName}${r.type === "dub" ? " (Dub)" : r.hardsub ? " (HS)" : ""}`,
+                source: "anichi" as any,
+                provider: r.serverName.toLowerCase().replace(/\s/g, ""),
+                type: r.type,
+                quality: r.quality || "1080p",
+                streamUrl: r.streamUrl,
+                isM3U8: r.isM3U8,
+                isMP4: r.isMP4,
+                isEmbed: r.isEmbed,
+                hardsub: r.hardsub,
+                priority: p,
+                subtitleTracks: wrapSubs(r.subtitleTracks),
+                intro: r.intro || null,
+                outro: r.outro || null,
+              });
+              p += 0.1;
+            }
+          }
+        } catch {}
+      })(),
+
+      // ── AniNeko.to (priority 0.6 — embed streams WITH subtitles!) ──
+      // New site, returns embed URLs + soft sub subtitle URLs from cdn.anizara.store
+      (async () => {
+        try {
+          const aninekoResults = await withTimeout(
+            resolveAninekoStreams(id, epNum, title),
+            10000,
+            [],
+          );
+          if (aninekoResults?.length) {
+            let p = 0.6;
+            for (const r of aninekoResults) {
+              servers.push({
+                id: `anineko-to:${r.serverName}:${r.type}${r.hardsub ? ":hsub" : ""}`,
+                name: `AniNeko ${r.serverName}${r.type === "dub" ? " (Dub)" : r.hardsub ? " (HS)" : ""}`,
+                source: "anineko-to" as any,
+                provider: r.serverName.toLowerCase().replace(/\s/g, ""),
+                type: r.type,
+                quality: r.quality || "1080p",
+                streamUrl: r.streamUrl,
+                isM3U8: r.isM3U8,
+                isMP4: r.isMP4,
+                isEmbed: r.isEmbed,
+                hardsub: r.hardsub,
+                priority: p,
+                subtitleTracks: wrapSubs(r.subtitleTracks),
+                intro: null,
+                outro: null,
+              });
+              p += 0.1;
             }
           }
         } catch {}

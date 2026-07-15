@@ -68,6 +68,10 @@ const ALLOWED_HOSTS = [
   "mewstream.buzz", "streamzone1.site", "cinewave2.site",
   "1oe.lostproject.club", "subbl.krussdomi.com",
   "seiryuu.vid-cdn.xyz", "vid-cdn.xyz",
+  // AniNeko.to subtitle CDN (anizara.store)
+  "anizara.store", "cdn.anizara.store",
+  // Anichi.to / VidTube / MegaPlay embed CDNs
+  "vidtube.site",
   // Moviebox API + player domain
   "aoneroom.com", "h5-api.aoneroom.com", "moviebox.ph",
   // Netfilm player domain (Moviebox stream CDN)
