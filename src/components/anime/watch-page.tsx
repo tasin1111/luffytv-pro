@@ -8,6 +8,7 @@ import WatchPageExtras from "./watch-page-extras";
 import { getProviderDisplayName } from "@/lib/miruro-api";
 import { proxifyM3u8, proxify } from "@/lib/proxy";
 import { WatchPageShell } from "./watch-page-shell";
+import { PlayerLoadingScreen } from "./player-loading-screen";
 import { validateSkipTime } from "@/lib/episode-metadata";
 
 // ============================================================
@@ -1484,7 +1485,14 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
   // ── RENDER — use new WatchPageShell ──
   return (
-    <WatchPageShell
+    <>
+      {/* Full-page loading screen — covers ENTIRE watch page while loading */}
+      <PlayerLoadingScreen
+        ready={playerReady}
+        backdrop={animeImage || undefined}
+        title={animeTitle || undefined}
+      />
+      <WatchPageShell
       streamLoading={streamLoading}
       streamError={streamError}
       streamData={streamData}
@@ -1559,5 +1567,6 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
       onCanPlay={() => setPlayerReady(true)}
       animeBackdrop={animeImage || undefined}
     />
+    </>
   );
 }
