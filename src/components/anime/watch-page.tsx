@@ -1360,11 +1360,14 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     setStreamLoading(false);
     setStreamError(null);
 
-    // Safety: if player doesn't fire onCanPlay within 10s, hide loading screen
-    // (the video might be playing but the event didn't fire — don't trap the user)
-    setTimeout(() => {
-      setPlayerReady(prev => prev || true);
-    }, 10000);
+    // ── Dismiss the full-page loading screen the MOMENT we have a stream URL.
+    // Don't wait for the video's `onCanPlay` event — that can take 5-10s while
+    // the HLS manifest downloads and the first segment buffers. The user wants
+    // the loading screen gone the instant ANY server is ready, with the player
+    // showing its own internal buffering spinner inside the video frame.
+    // (The `onCanPlay` callback below is still wired up as a backup for any
+    // edge case where this path didn't fire.)
+    setPlayerReady(true);
 
     // ── Save to history (Continue Watching) ──
     // Adds this episode to the history store so it appears in the

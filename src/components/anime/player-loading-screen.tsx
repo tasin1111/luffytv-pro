@@ -5,9 +5,16 @@ import { useState, useEffect } from "react";
 /**
  * PlayerLoadingScreen — cinematic full-page loading overlay.
  *
- * Shows ONCE per anime (not per episode).
- * Content at ~22% from top.
- * Smooth animations using CSS transitions (no janky keyframes).
+ * Shows ONCE per anime (not per episode). Parent controls `ready` —
+ * when it flips to `true`, the screen fades out smoothly (600ms) then
+ * unmounts. Playback can then start in the player; the player's own
+ * buffering spinner takes over inside the video frame.
+ *
+ * Design:
+ *   - Anime backdrop image visible at ~35% opacity (NOT invisible)
+ *   - Light gradient overlays so the artwork shows through
+ *   - Joke shown immediately on mount (no artificial delay)
+ *   - Content positioned at ~32% from top (lower than center, more cinematic)
  */
 
 const ANIME_JOKES = [
@@ -38,128 +45,162 @@ export function PlayerLoadingScreen({
   backdrop?: string;
   title?: string;
 }) {
-  const [phase, setPhase] = useState(0);
-  const [visible, setVisible] = useState(false);
-  const [joke] = useState(() => ANIME_JOKES[Math.floor(Math.random() * ANIME_JOKES.length)]);
-  const [showJoke, setShowJoke] = useState(false);
+  // `mounted` controls whether the component is in the DOM at all.
+  // `opacity` drives the CSS fade in / out.
+  // We keep the component mounted for 700ms AFTER `ready` flips true
+  // so the fade-out transition can actually play (instead of instantly
+  // unmounting and snapping off).
+  const [mounted, setMounted] = useState(true);
+  const [opacity, setOpacity] = useState(0);
 
-  // Fade IN on mount
+  // Pick a joke ONCE per mount (stable across re-renders).
+  const [joke] = useState(
+    () => ANIME_JOKES[Math.floor(Math.random() * ANIME_JOKES.length)]
+  );
+
+  // Fade IN on mount.
   useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 50);
+    const t = setTimeout(() => setOpacity(1), 30);
     return () => clearTimeout(t);
   }, []);
 
-  // Phase progression
+  // Fade OUT when ready, then unmount after the transition finishes.
   useEffect(() => {
-    if (ready) {
-      setVisible(false); // trigger fade out
-      return;
-    }
-    const timers: ReturnType<typeof setTimeout>[] = [];
-    timers.push(setTimeout(() => setPhase(1), 800));
-    timers.push(setTimeout(() => setPhase(2), 1600));
-    timers.push(setTimeout(() => setPhase(3), 2400));
-    timers.push(setTimeout(() => setShowJoke(true), 3000));
-    return () => timers.forEach(clearTimeout);
+    if (!ready) return;
+    setOpacity(0);
+    const t = setTimeout(() => setMounted(false), 650);
+    return () => clearTimeout(t);
   }, [ready]);
 
-  if (ready && !visible) return null;
-
-  const phases = ["Loading anime...", "Finding servers...", "Connecting to server...", "Starting playback..."];
-  const currentText = ready ? "Ready" : phases[Math.min(phase, 3)];
-  const dotsFilled = ready ? 5 : Math.min(phase + 1, 4);
-  const progressWidth = ready ? 100 : (dotsFilled / 5) * 100;
+  if (!mounted) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[200] bg-black"
+      className="fixed inset-0 z-[200] overflow-hidden"
       style={{
-        opacity: visible ? 1 : 0,
+        opacity,
+        pointerEvents: opacity > 0.5 ? "auto" : "none",
         transition: "opacity 600ms cubic-bezier(0.25, 0.1, 0.25, 1)",
-        pointerEvents: visible ? "auto" : "none",
       }}
     >
-      {/* Backdrop */}
-      {backdrop && (
+      {/* ─── Backdrop image (actually visible this time) ─── */}
+      {backdrop ? (
         <img
           src={backdrop}
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
           style={{
-            opacity: visible ? 0.18 : 0,
-            filter: "blur(60px) brightness(0.25)",
-            transform: visible ? "scale(1.08)" : "scale(1)",
-            transition: "opacity 800ms ease, transform 6s ease-out",
+            filter: "blur(28px) brightness(0.55) saturate(1.1)",
+            transform: "scale(1.12)",
           }}
         />
+      ) : (
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0a0a14] via-black to-[#0a0a14]" />
       )}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/95 via-black/85 to-black/95" />
 
-      {/* Main content — positioned at ~22% from top */}
+      {/* ─── Gradient overlays (lighter so backdrop shows through) ─── */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/85 via-black/55 to-black/90" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-transparent to-black/60" />
+      {/* Subtle vignette for depth */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background:
+            "radial-gradient(ellipse at center, transparent 0%, rgba(0,0,0,0.55) 100%)",
+        }}
+      />
+
+      {/* ─── Main content (lower position, ~32% from top) ─── */}
       <div
         className="absolute left-0 right-0 flex flex-col items-center px-6"
         style={{
-          top: "20vh",
-          opacity: visible ? 1 : 0,
-          transform: visible ? "translateY(0)" : "translateY(12px)",
-          transition: "opacity 500ms ease, transform 500ms ease",
+          top: "30vh",
+          transform: opacity > 0.5 ? "translateY(0)" : "translateY(10px)",
+          transition: "transform 600ms ease-out",
         }}
       >
-        {/* Spinner */}
-        <div className="relative w-14 h-14 mb-5">
-          <div className="absolute inset-0 rounded-full border-[2.5px] border-white/[0.05]" />
+        {/* Spinner — double ring with subtle glow */}
+        <div className="relative w-16 h-16 mb-6">
+          {/* Soft glow behind spinner */}
           <div
-            className="absolute inset-0 rounded-full border-[2.5px] border-transparent border-t-white"
-            style={{ animation: "spin 0.9s linear infinite" }}
+            className="absolute -inset-4 rounded-full bg-white/5 blur-2xl"
+            style={{ opacity: 0.6 }}
+          />
+          <div className="absolute inset-0 rounded-full border-[2.5px] border-white/[0.08]" />
+          <div
+            className="absolute inset-0 rounded-full border-[2.5px] border-transparent border-t-white/90"
+            style={{ animation: "pls-spin 0.9s linear infinite" }}
+          />
+          <div
+            className="absolute inset-[6px] rounded-full border-[2px] border-transparent border-t-white/40"
+            style={{
+              animation: "pls-spin 1.4s linear infinite reverse",
+            }}
           />
         </div>
 
         {/* Title */}
         {title && (
-          <p className="text-lg sm:text-xl font-bold text-white/85 max-w-lg text-center line-clamp-2 mb-3">
+          <p className="text-lg sm:text-xl font-bold text-white/95 max-w-lg text-center line-clamp-2 mb-3 drop-shadow-lg">
             {title}
           </p>
         )}
 
-        {/* Progress text */}
-        <p className="text-[13px] font-medium text-white/45 mb-4" style={{ transition: "opacity 300ms ease" }}>
-          {currentText}
+        {/* Status text */}
+        <p className="text-[13px] font-semibold uppercase tracking-[0.18em] text-white/55 mb-4">
+          {ready ? "Ready" : "Preparing your stream"}
         </p>
 
-        {/* Progress bar — smooth fill */}
-        <div className="w-40 h-[2px] bg-white/[0.05] rounded-full overflow-hidden">
+        {/* Progress bar — smooth indeterminate fill */}
+        <div className="w-48 h-[3px] bg-white/[0.08] rounded-full overflow-hidden relative">
           <div
-            className="h-full bg-white/50 rounded-full"
+            className="absolute top-0 left-0 h-full rounded-full"
             style={{
-              width: `${progressWidth}%`,
-              transition: "width 700ms cubic-bezier(0.25, 0.1, 0.25, 1)",
+              width: ready ? "100%" : "40%",
+              background:
+                "linear-gradient(90deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.9) 50%, rgba(255,255,255,0.3) 100%)",
+              transition: "width 600ms cubic-bezier(0.25, 0.1, 0.25, 1)",
             }}
           />
+          {/* Shimmer sweep (only while loading) */}
+          {!ready && (
+            <div
+              className="absolute top-0 h-full w-1/3 rounded-full"
+              style={{
+                background:
+                  "linear-gradient(90deg, transparent, rgba(255,255,255,0.7), transparent)",
+                animation: "pls-shimmer 1.4s ease-in-out infinite",
+              }}
+            />
+          )}
         </div>
       </div>
 
-      {/* Joke — bottom area */}
+      {/* ─── Joke (shown immediately, bottom area) ─── */}
       <div
         className="absolute left-0 right-0 flex flex-col items-center px-8"
         style={{
-          bottom: "14vh",
-          opacity: showJoke && !ready ? 1 : 0,
-          transform: showJoke && !ready ? "translateY(0)" : "translateY(16px)",
-          transition: "opacity 600ms ease, transform 600ms ease",
+          bottom: "12vh",
+          opacity: opacity > 0.5 ? 1 : 0,
+          transition: "opacity 500ms ease 200ms",
         }}
       >
-        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/15 mb-3">
-          While you wait...
+        <p className="text-[10px] font-bold uppercase tracking-[0.3em] text-white/30 mb-3">
+          While you wait
         </p>
-        <p className="text-sm text-white/35 max-w-md text-center leading-relaxed italic">
+        <p className="text-sm text-white/55 max-w-md text-center leading-relaxed italic">
           {joke}
         </p>
       </div>
 
       <style>{`
-        @keyframes spin {
+        @keyframes pls-spin {
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
+        }
+        @keyframes pls-shimmer {
+          0%   { left: -33%; }
+          100% { left: 100%; }
         }
       `}</style>
     </div>
