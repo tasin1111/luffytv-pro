@@ -127,7 +127,7 @@ export async function GET(
         if (hostname.includes("xin-cdn") || hostname.includes("anizone")) return "https://anizone.to/";
         if (hostname.includes("animeheaven")) return "https://animeheaven.me/";
         if (hostname.includes("allanime") || hostname.includes("allmanga")) return "https://allanime.uns.bio/";
-        if (hostname.includes("lostproject")) return "https://animex.one/";
+        if (hostname.includes("lostproject")) return "https://megaplay.buzz/"; // VERIFIED: lostproject requires megaplay referer
         if (hostname.includes("animeonsen")) return "https://www.animeonsen.xyz/";
         if (hostname.includes("vid-cdn")) return "https://luna.animeaqua.net/";
         return "https://www.miruro.tv/"; // default

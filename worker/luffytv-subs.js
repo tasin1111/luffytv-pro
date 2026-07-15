@@ -47,7 +47,8 @@ const XOR_KEY = '10b06cdc1ca48c9fb0b94af97cc040cf';
 const SUB_CDN_RULES = [
   // ── Animex / AniDap subtitle CDNs ──
   { test: h => h.includes('krussdomi'),       referer: 'https://krussdomi.com/',     origin: 'https://krussdomi.com' },
-  { test: h => h.includes('lostproject'),     referer: 'https://animex.one/',         origin: 'https://animex.one' },
+  // lostproject.club (AniDap Yuki subs) — VERIFIED: requires megaplay.buzz referer (not animex.one)
+  { test: h => h.includes('lostproject'),     referer: 'https://megaplay.buzz/',      origin: 'https://megaplay.buzz' },
   { test: h => h.includes('24stream'),        referer: 'https://animex.one/',         origin: 'https://animex.one' },
   { test: h => h.includes('mewstream'),       referer: 'https://megaplay.buzz/',      origin: 'https://megaplay.buzz' },
   { test: h => h.includes('streamzone1'),     referer: 'https://megaplay.buzz/',      origin: 'https://megaplay.buzz' },

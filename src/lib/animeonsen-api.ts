@@ -380,10 +380,12 @@ export async function fetchAllOnsenSources(
     // The proxy.ts CDN_REFERER_PATTERNS already handles *.animeonsen.xyz
     const proxiedUrl = wrapM3u8Url(playback.videoUrl);
 
-    // Wrap subtitle URLs through worker proxy (subtitles are on api.animeonsen.xyz
-    // which is CF-protected — the worker proxy bypasses CF)
+    // Return RAW subtitle URLs — the instant-servers route will wrap them
+    // through the dedicated subtitle worker (luffytv-subs) which handles
+    // SRT→VTT conversion + correct Referer injection. Double-wrapping
+    // (workerWrap here + subs worker later) breaks the URL.
     const proxiedSubs = (playback.subtitleUrls || []).map((s) => ({
-      url: workerWrap(s.url),
+      url: s.url,
       lang: s.lang,
       label: s.label,
     }));

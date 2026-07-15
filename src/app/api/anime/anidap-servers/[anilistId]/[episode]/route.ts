@@ -30,7 +30,7 @@ function getAniDapReferer(url: string): string {
   try {
     const hostname = new URL(url).hostname;
     if (hostname.includes("krussdomi")) return "https://krussdomi.com/";
-    if (hostname.includes("lostproject")) return "https://animex.one/";
+    if (hostname.includes("lostproject")) return "https://megaplay.buzz/"; // VERIFIED: lostproject requires megaplay referer
     if (hostname.includes("24stream")) return "https://animex.one/";
     if (hostname.includes("mewstream")) return "https://megaplay.buzz/";
     if (hostname.includes("streamzone1")) return "https://megaplay.buzz/";

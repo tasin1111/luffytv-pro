@@ -269,10 +269,13 @@ export async function fetchAllLunaSources(
         .filter(s => s?.url || s?.file)
         .map(s => {
           const subUrl = s.url || s.file || "";
-          // Wrap subtitle URL through our worker proxy (for CORS + Referer)
-          const wrappedSubUrl = wrapStreamUrl(subUrl);
+          // Return RAW subtitle URL — do NOT wrap through the worker proxy here.
+          // The instant-servers route will wrap it through the dedicated subtitle
+          // worker (luffytv-subs) which handles SRT→VTT conversion + correct
+          // Referer injection. Double-wrapping (main proxy + subs proxy) breaks
+          // the URL because the subs worker tries to fetch an already-wrapped URL.
           return {
-            url: wrappedSubUrl,
+            url: subUrl,
             lang: s.srcLang || s.lang || "en",
             label: s.label || s.srcLang || s.lang || "English",
           };
