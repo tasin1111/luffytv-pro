@@ -60,37 +60,49 @@ export async function GET(
       ]);
     }
 
-    // Wrap subtitle URLs through /api/stream (Vercel route) which:
-    //   1. Sends the correct Referer header for the CDN
+    // Wrap subtitle URLs through the DEDICATED subtitle worker (luffytv-subs).
+    // This worker is SEPARATE from luffytv-proxy — it ONLY handles subtitles:
+    //   1. Injects the correct Referer/Origin per CDN host (no 403s)
     //   2. Converts SRT → WebVTT on-the-fly (browsers only render VTT)
-    //   3. Passes VTT through with correct content-type
-    // NOTE: We route through /api/stream instead of the Worker proxy because
-    // /api/stream has SRT→VTT conversion built in. The worker also has it now,
-    // but /api/stream is the guaranteed-correct path for subtitles.
-    // ASS subtitles are filtered out (browsers can't render them natively,
-    // and the basic ASS→VTT conversion in the worker is lossy).
+    //   3. Converts ASS → WebVTT (basic — strips styling, extracts Dialogue)
+    //   4. Passes VTT through with correct content-type
+    //   5. Caches at edge for 24h (subtitles don't change)
+    //   6. Full CORS headers (Access-Control-Allow-Origin: *)
+    //
+    // If NEXT_PUBLIC_SUBS_PROXY_BASE isn't set, falls back to /api/stream
+    // (Vercel route) which has the same SRT→VTT conversion.
+    const SUBS_WORKER = process.env.NEXT_PUBLIC_SUBS_PROXY_BASE || "";
+
     function wrapSubs(tracks?: Array<{ url: string; lang: string; label: string }>): Array<{ url: string; lang: string; label: string }> | undefined {
       if (!tracks || tracks.length === 0) return undefined;
-      const filtered = tracks.filter(t => {
-        const u = (t.url || "").toLowerCase().split("?")[0];
-        // ASS subtitles can't be rendered by browsers natively — skip them
-        // (the worker does basic ASS→VTT conversion, but it's lossy and
-        // often produces broken cues. Better to skip than show garbage.)
-        if (u.endsWith(".ass")) return false;
-        return true;
-      });
-      if (filtered.length === 0) return undefined;
-      return filtered.map(t => {
+      // NOTE: .ass subtitles ARE included now — the luffytv-subs worker
+      // converts them to VTT (basic conversion: strips styling tags, extracts
+      // Dialogue lines). If the worker isn't deployed, /api/stream fallback
+      // will pass them through with application/x-subrip content-type and the
+      // browser won't render them — but at least the menu won't be cluttered
+      // with broken tracks (the <track> element silently ignores unknown formats).
+      return tracks.map(t => {
         const url = t.url || "";
-        const referer = getRefererForSubtitle(url);
         return {
-          url: url.startsWith("http")
-            ? `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(referer)}`
-            : url,
+          url: url.startsWith("http") ? wrapSubsUrl(url) : url,
           lang: t.lang || "en",
           label: t.label || "English",
         };
       });
+    }
+
+    // Wrap a subtitle URL through the dedicated subtitle worker.
+    // Uses the /sub?url=<encoded>&ref=<encoded> endpoint (easy to debug).
+    // Falls back to /api/stream if the worker isn't configured.
+    function wrapSubsUrl(rawUrl: string): string {
+      const url = rawUrl.replace(/^https?:\/\/\/+/i, "https://"); // fix triple-slash bug
+      const referer = getRefererForSubtitle(url);
+      if (SUBS_WORKER) {
+        // Primary: dedicated subtitle worker
+        return `${SUBS_WORKER}/sub?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(referer)}`;
+      }
+      // Fallback: Vercel /api/stream route (has SRT→VTT conversion)
+      return `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(referer)}`;
     }
 
     // Determine the correct Referer for a subtitle URL based on its CDN host.
@@ -98,7 +110,6 @@ export async function GET(
     function getRefererForSubtitle(url: string): string {
       try {
         const hostname = new URL(url).hostname;
-        // Reuse the same CDN referer logic from proxy.ts for consistency
         if (hostname.includes("animex") || hostname.includes("24stream")) return "https://animex.one/";
         if (hostname.includes("miruro") || hostname.includes("anidb")) return "https://www.miruro.tv/";
         if (hostname.includes("kwik")) return "https://kwik.cx/";
@@ -117,29 +128,39 @@ export async function GET(
         if (hostname.includes("animeheaven")) return "https://animeheaven.me/";
         if (hostname.includes("allanime") || hostname.includes("allmanga")) return "https://allanime.uns.bio/";
         if (hostname.includes("lostproject")) return "https://animex.one/";
+        if (hostname.includes("animeonsen")) return "https://www.animeonsen.xyz/";
+        if (hostname.includes("vid-cdn")) return "https://luna.animeaqua.net/";
         return "https://www.miruro.tv/"; // default
       } catch {
         return "https://www.miruro.tv/";
       }
     }
 
-    // Wrap subtitle URLs through Vercel /api/stream (NOT the Worker proxy)
-    // Used for CF-protected CDNs that the Worker can't reach (CF-to-CF block).
-    // Also filters out ASS subtitles (browsers can't render them natively).
+    // Wrap subtitle URLs through the dedicated subtitle worker (or /api/stream
+    // fallback). Used for CF-protected CDNs. ASS subtitles are kept — the
+    // luffytv-subs worker converts them to VTT.
     function wrapSubsVercel(tracks: Array<{ url: string; lang?: string; label?: string }> | undefined, referer: string): Array<{ url: string; lang: string; label: string }> {
       if (!tracks || tracks.length === 0) return [];
-      const filtered = tracks.filter(t => {
-        const u = (t.url || "").toLowerCase().split("?")[0];
-        if (u.endsWith(".ass")) return false; // browsers can't render ASS
-        return true;
+      return tracks.map(t => {
+        const url = (t.url || "").replace(/^https?:\/\/\/+/i, "https://");
+        const ref = referer || getRefererForSubtitle(url);
+        if (SUBS_WORKER) {
+          return {
+            url: url.startsWith("http")
+              ? `${SUBS_WORKER}/sub?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(ref)}`
+              : url,
+            lang: t.lang || "en",
+            label: t.label || "English",
+          };
+        }
+        return {
+          url: url.startsWith("http")
+            ? `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(ref)}`
+            : url,
+          lang: t.lang || "en",
+          label: t.label || "English",
+        };
       });
-      return filtered.map(t => ({
-        url: t.url.startsWith("http")
-          ? `/api/stream?url=${encodeURIComponent(t.url)}&referer=${encodeURIComponent(referer)}`
-          : t.url,
-        lang: t.lang || "en",
-        label: t.label || "English",
-      }));
     }
 
     const servers: Array<{

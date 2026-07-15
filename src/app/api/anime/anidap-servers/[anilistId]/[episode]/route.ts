@@ -18,6 +18,10 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+// Dedicated subtitle worker (luffytv-subs) — handles SRT/ASS → VTT conversion
+// + correct Referer injection. Falls back to /api/stream if not configured.
+const SUBS_WORKER = process.env.NEXT_PUBLIC_SUBS_PROXY_BASE || "";
+
 /**
  * Determine the correct Referer for an AniDap subtitle URL based on its CDN host.
  * Many subtitle CDNs return 403 without the right Referer.
@@ -83,26 +87,30 @@ export async function GET(
       const meta = ANIDAP_PROVIDER_META[r.provider as AniDapProvider];
       const provName = meta?.name || (r.provider[0].toUpperCase() + r.provider.slice(1));
       const typeTag = r.type === "dub" ? " (Dub)" : (meta?.hardsub ? " (HS)" : "");
-      // Wrap subtitle URLs through /api/stream with the correct Referer.
-      // Also filters out ASS subtitles (browsers can't render them).
+      // Wrap subtitle URLs through the DEDICATED subtitle worker (luffytv-subs)
+      // with the correct Referer. Falls back to /api/stream if the worker
+      // isn't configured. ASS subtitles are kept — the worker converts them.
       const rawTracks = (r.tracks || []) as Array<{ url: string; lang: string; label: string }>;
-      const subtitleTracks = rawTracks
-        .filter(t => {
-          const u = (t?.url || "").toLowerCase().split("?")[0];
-          if (u.endsWith(".ass")) return false; // browsers can't render ASS
-          return true;
-        })
-        .map(t => {
-          const url = t.url || "";
-          const referer = getAniDapReferer(url);
+      const subtitleTracks = rawTracks.map(t => {
+        const url = (t.url || "").replace(/^https?:\/\/\/+/i, "https://"); // fix triple-slash
+        const referer = getAniDapReferer(url);
+        if (SUBS_WORKER) {
           return {
             url: url.startsWith("http")
-              ? `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(referer)}`
+              ? `${SUBS_WORKER}/sub?url=${encodeURIComponent(url)}&ref=${encodeURIComponent(referer)}`
               : url,
             lang: t.lang || "en",
             label: t.label || "English",
           };
-        });
+        }
+        return {
+          url: url.startsWith("http")
+            ? `/api/stream?url=${encodeURIComponent(url)}&referer=${encodeURIComponent(referer)}`
+            : url,
+          lang: t.lang || "en",
+          label: t.label || "English",
+        };
+      });
       return {
         id: `anidap:${r.provider}:${r.type}`,
         name: `AniDap ${provName}${typeTag}`,
