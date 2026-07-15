@@ -480,8 +480,11 @@ export async function GET(
           if (anichiResults?.length) {
             let p = 0.5;
             for (const r of anichiResults) {
+              // Extract CDN host from stream URL for unique ID (e.g. "vidtube", "megaplay")
+              let cdnHost = "unknown";
+              try { cdnHost = new URL(r.streamUrl).hostname.split(".")[0]; } catch {}
               servers.push({
-                id: `anichi:${r.serverName}:${r.type}${r.hardsub ? ":hsub" : ""}`,
+                id: `anichi:${cdnHost}:${r.serverName}:${r.type}${r.hardsub ? ":hsub" : ""}`,
                 name: `Anichi ${r.serverName}${r.type === "dub" ? " (Dub)" : r.hardsub ? " (HS)" : ""}`,
                 source: "anichi" as any,
                 provider: r.serverName.toLowerCase().replace(/\s/g, ""),
@@ -515,8 +518,11 @@ export async function GET(
           if (aninekoResults?.length) {
             let p = 0.6;
             for (const r of aninekoResults) {
+              // Extract CDN host from stream URL for unique ID (e.g. "vivibebe", "otakuhg", "otakuvid", "playmogo")
+              let cdnHost = "unknown";
+              try { cdnHost = new URL(r.streamUrl).hostname.split(".")[0]; } catch {}
               servers.push({
-                id: `anineko-to:${r.serverName}:${r.type}${r.hardsub ? ":hsub" : ""}`,
+                id: `anineko-to:${cdnHost}:${r.serverName}:${r.type}${r.hardsub ? ":hsub" : ""}`,
                 name: `AniNeko ${r.serverName}${r.type === "dub" ? " (Dub)" : r.hardsub ? " (HS)" : ""}`,
                 source: "anineko-to" as any,
                 provider: r.serverName.toLowerCase().replace(/\s/g, ""),
