@@ -374,6 +374,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
 
   // ── Stream State ──
   const [streamData, setStreamData] = useState<StreamData | null>(null);
+  const [playerReady, setPlayerReady] = useState(false);
   const [activeProvider, setActiveProvider] = useState("kiwi");
   /**
    * Translation mode — 3-way toggle like AniDap/Anistream:
@@ -1000,6 +1001,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     setStreamLoading(true);
     setStreamError(null);
     setStreamData(null);
+    setPlayerReady(false);
 
     // Safety timeout: if no servers arrive within 30s, show error
     // (prevents infinite "Loading from..." state)
@@ -1345,6 +1347,12 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     setStreamLoading(false);
     setStreamError(null);
 
+    // Safety: if player doesn't fire onCanPlay within 10s, hide loading screen
+    // (the video might be playing but the event didn't fire — don't trap the user)
+    setTimeout(() => {
+      setPlayerReady(prev => prev || true);
+    }, 10000);
+
     // ── Save to history (Continue Watching) ──
     // Adds this episode to the history store so it appears in the
     // "Continue Watching" section on the home page. Progress is 0 on
@@ -1547,6 +1555,9 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
       synopsisExpanded={synopsisExpanded}
       setSynopsisExpanded={setSynopsisExpanded}
       animeId={animeId}
+      playerReady={playerReady}
+      onCanPlay={() => setPlayerReady(true)}
+      animeBackdrop={animeImage || undefined}
     />
   );
 }

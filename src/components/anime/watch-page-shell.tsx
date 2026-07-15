@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { PlayerLoadingScreen } from "./player-loading-screen";
 
 // ============================================================
 // WatchPageShell — Miruro-inspired watch layout
@@ -148,6 +149,7 @@ export function WatchPageShell({
   setScraperFallbackToken, showShortcuts, setShowShortcuts,
   lightsOff, setLightsOff,
   synopsisExpanded, setSynopsisExpanded, animeId,
+  playerReady, onCanPlay, animeBackdrop,
 }: any) {
   const [visibleEpCount, setVisibleEpCount] = useState(50);
   const [epSynopsisExpanded, setEpSynopsisExpanded] = useState(false);
@@ -222,6 +224,12 @@ export function WatchPageShell({
 
           {/* ─── PLAYER ─── */}
           <div className={`relative w-full shrink-0 overflow-hidden bg-black rounded-xl border border-white/[0.06] ${lightsOff ? "z-40" : ""}`} style={{ aspectRatio: "16 / 9" }}>
+            {/* Loading screen overlay */}
+            <PlayerLoadingScreen
+              ready={playerReady}
+              backdrop={animeBackdrop}
+              title={animeTitle}
+            />
             {streamData && streamData.source_type === "hls" && streamData.video_link && (
               <HLSPlayerNew
                 key={selectedServer}
@@ -237,6 +245,7 @@ export function WatchPageShell({
                 subtitleTracks={(streamData.subtitle_tracks || []).map((s: any) => ({ url: s.url, lang: s.label || "en", label: s.label || "English" }))}
                 onEnded={handleVideoEnded}
                 onProviderFailed={() => handleProviderFailed(activeProvider)}
+                onCanPlay={onCanPlay}
                 autoplay={autoPlay}
               />
             )}
@@ -251,6 +260,7 @@ export function WatchPageShell({
                 outro={streamData.outro}
                 onEnded={handleVideoEnded}
                 onProviderFailed={() => handleProviderFailed(activeProvider)}
+                onCanPlay={onCanPlay}
                 autoplay={autoPlay}
               />
             )}

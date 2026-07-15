@@ -16,6 +16,7 @@ interface HLSPlayerProps {
   subtitleTracks?: Array<{ url: string; lang: string; label: string }>;
   onEnded?: () => void;
   onProviderFailed?: () => void;
+  onCanPlay?: () => void;
   autoplay?: boolean;
 }
 
@@ -33,7 +34,7 @@ interface HLSPlayerProps {
 
 export default function HLSPlayerNew({
   url, animeId, episodeNum, sourceType = 'hls',
-  intro: introProp, outro: outroProp, allStreams, subtitleTracks, onEnded, onProviderFailed, autoplay = true,
+  intro: introProp, outro: outroProp, allStreams, subtitleTracks, onEnded, onProviderFailed, onCanPlay, autoplay = true,
 }: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -55,8 +56,11 @@ export default function HLSPlayerNew({
   // through a ref keeps the effect stable (only url/sourceType/autoplay matter).
   const onProviderFailedRef = useRef(onProviderFailed);
   const onEndedRef = useRef(onEnded);
+  const onCanPlayRef = useRef(onCanPlay);
+  const onCanPlayFiredRef = useRef(false);
   onProviderFailedRef.current = onProviderFailed;
   onEndedRef.current = onEnded;
+  onCanPlayRef.current = onCanPlay;
   const [playing, setPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -105,6 +109,7 @@ export default function HLSPlayerNew({
     retryCountRef.current = 0;
     setCurrentSubtitle(-1);
     setHlsSubtitles([]);
+    onCanPlayFiredRef.current = false; // reset for new stream
 
     if (hlsRef.current) {
       hlsRef.current.destroy();
@@ -275,6 +280,11 @@ export default function HLSPlayerNew({
     const onCanPlay = () => {
       if (waitingTimer) { clearTimeout(waitingTimer); waitingTimer = null; }
       setLoading(false);
+      // Notify parent that video is ready to play (for loading screen dismissal)
+      if (!onCanPlayFiredRef.current) {
+        onCanPlayFiredRef.current = true;
+        onCanPlayRef.current?.();
+      }
     };
     const onEnd = () => onEndedRef.current?.();
     const onErr = () => { setError('Playback error.'); setLoading(false); };
