@@ -6,9 +6,12 @@ import { motion, useScroll, useSpring, useTransform, useMotionValue } from "fram
 import { useAppStore } from "./store";
 import CinematicBackdrop from "./cinematic-backdrop";
 import { useCountUp } from "@/hooks/use-count-up";
+import { proxifyMangaImage } from "@/lib/proxy";
 
 const FONT = "var(--font-space-grotesk), 'Space Grotesk', sans-serif";
-const ACCENT = "#48A6FF";
+const ACCENT = "#48A6FF";   // anime — blue
+const MANGA = "#F472B6";    // manga — pink
+const NOVEL = "#34D399";    // novels — emerald
 
 interface TrendingItem {
   id: number;
@@ -29,23 +32,16 @@ function getCover(a: TrendingItem) {
   return a.coverImage?.extraLarge || a.coverImage?.large || "";
 }
 
-/* ─── TMDB items for the movies/TV showcase ─── */
-interface TMDBItem {
-  id: number;
-  title?: string;
-  name?: string;
-  poster_path?: string;
-  backdrop_path?: string;
-  vote_average?: number;
-  overview?: string;
-  release_date?: string;
-  first_air_date?: string;
+/* ─── Manga items for the manga showcase (real covers from /api/manga/home) ─── */
+interface MangaItem {
+  id: string;
+  title: string;
+  poster?: string;
+  posterMedium?: string;
+  posterSmall?: string;
+  cover?: string;
 }
-const tmdbTitle = (m: TMDBItem) => m.title || m.name || "";
-const tmdbPoster = (m: TMDBItem) => (m.poster_path ? `https://image.tmdb.org/t/p/w342${m.poster_path}` : "");
-const tmdbBackdrop = (m: TMDBItem) => (m.backdrop_path ? `https://image.tmdb.org/t/p/w1280${m.backdrop_path}` : "");
-const tmdbYear = (m: TMDBItem) => (m.release_date || m.first_air_date || "").split("-")[0];
-const tmdbScore = (m: TMDBItem) => (m.vote_average ? (m.vote_average > 10 ? m.vote_average / 10 : m.vote_average) : 0);
+const mangaCover = (m: MangaItem) => proxifyMangaImage(m.posterMedium || m.poster || m.posterSmall || m.cover || "");
 
 /* ─── Scroll-triggered reveal ─── */
 function Reveal({ children, delay = 0, y = 28, className = "" }: { children: React.ReactNode; delay?: number; y?: number; className?: string }) {
@@ -62,20 +58,20 @@ function Reveal({ children, delay = 0, y = 28, className = "" }: { children: Rea
   );
 }
 
-function SectionHeading({ eyebrow, title, sub, chapter }: { eyebrow: string; title: string; sub?: string; chapter?: string }) {
+function SectionHeading({ eyebrow, title, sub, chapter, accent = ACCENT }: { eyebrow: string; title: string; sub?: string; chapter?: string; accent?: string }) {
   return (
     <Reveal className="flex flex-col gap-3 mb-10 md:mb-12 max-w-2xl">
       <div className="flex items-baseline gap-4">
         {chapter && (
           <span
             className="text-4xl sm:text-5xl font-black leading-none select-none shrink-0"
-            style={{ fontFamily: FONT, color: "transparent", WebkitTextStroke: "1.5px rgba(72,166,255,0.35)" }}
+            style={{ fontFamily: FONT, color: "transparent", WebkitTextStroke: `1.5px ${accent}59` }}
             aria-hidden="true"
           >
             {chapter}
           </span>
         )}
-        <span className="ltv-cine-eyebrow text-xs font-bold uppercase">{eyebrow}</span>
+        <span className="text-xs font-bold uppercase tracking-[0.24em]" style={{ color: accent, fontFamily: FONT }}>{eyebrow}</span>
       </div>
       <h2 className="text-3xl sm:text-4xl md:text-5xl font-black text-white leading-[1.08]" style={{ fontFamily: FONT }}>
         {title}
@@ -92,7 +88,7 @@ function ScrollProgressBar() {
   return (
     <motion.div
       className="fixed top-0 left-0 right-0 z-[60] h-[2px] origin-left"
-      style={{ scaleX, background: "linear-gradient(90deg, #1e88ff, #48a6ff)" }}
+      style={{ scaleX, background: `linear-gradient(90deg, ${ACCENT}, ${MANGA}, ${NOVEL})` }}
     />
   );
 }
@@ -101,7 +97,9 @@ function ScrollProgressBar() {
 const CHAPTERS = [
   { id: "hero", num: "00", label: "Intro" },
   { id: "anime", num: "01", label: "Anime" },
-  { id: "library", num: "04", label: "Everything" },
+  { id: "manga", num: "02", label: "Manga" },
+  { id: "novels", num: "03", label: "Novels" },
+  { id: "experience", num: "04", label: "Experience" },
   { id: "join", num: "05", label: "Join" },
 ] as const;
 
@@ -161,14 +159,19 @@ function Stat({ value, label, suffix = "" }: { value: number; label: string; suf
 }
 
 /* ─── Small poster tile (marquee + collage) ─── */
-function PosterTile({ item, className = "", width = "w-[120px]" }: { item?: TrendingItem; className?: string; width?: string }) {
+function PosterTile({ item, className = "", width = "w-[120px]", badge, badgeColor }: { item?: TrendingItem; className?: string; width?: string; badge?: string; badgeColor?: string }) {
   const img = item ? getCover(item) : "";
   return (
-    <div className={`${width} aspect-[2/3] rounded-xl overflow-hidden bg-[#0b0d12] ring-1 ring-white/10 shrink-0 ${className}`}>
+    <div className={`relative ${width} aspect-[2/3] rounded-xl overflow-hidden bg-[#0b0d12] ring-1 ring-white/10 shrink-0 ${className}`}>
       {img ? (
         <img src={img} alt={item ? getTitle(item) : ""} className="w-full h-full object-cover" loading="lazy" />
       ) : (
         <div className="w-full h-full bg-gradient-to-br from-[#10131a] to-[#0b0d12]" />
+      )}
+      {badge && (
+        <span className="absolute top-2 left-2 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full text-black" style={{ backgroundColor: badgeColor || ACCENT, fontFamily: FONT }}>
+          {badge}
+        </span>
       )}
     </div>
   );
@@ -177,9 +180,9 @@ function PosterTile({ item, className = "", width = "w-[120px]" }: { item?: Tren
 export default function LandingPage() {
   const navigate = useAppStore(s => s.navigate);
   const [trending, setTrending] = useState<TrendingItem[]>([]);
-  const [movies, setMovies] = useState<TMDBItem[]>([]);
-  const [shows, setShows] = useState<TMDBItem[]>([]);
+  const [manga, setManga] = useState<MangaItem[]>([]);
   const shelfRef = useRef<HTMLDivElement>(null);
+  const mangaShelfRef = useRef<HTMLDivElement>(null);
 
   // ── Chapter tracking: which section is in view drives the rail dot + label ──
   const [activeChapter, setActiveChapter] = useState<string>("hero");
@@ -194,7 +197,7 @@ export default function LandingPage() {
     );
     Object.values(chapterRefs.current).forEach(el => el && observer.observe(el));
     return () => observer.disconnect();
-  }, [trending.length, movies.length]);
+  }, [trending.length, manga.length]);
 
   const jumpToChapter = useCallback((id: string) => {
     chapterRefs.current[id]?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -240,23 +243,27 @@ export default function LandingPage() {
         if (!cancelled) setTrending(trend.slice(0, 14));
       } catch { /* sections render with placeholders */ }
     })();
-    // Real movie/TV artwork for the showcase — sections hide gracefully if
-    // TMDB is unavailable.
+    // Real manga covers for the manga showcase — the section hides gracefully
+    // if the manga home feed is unavailable.
     (async () => {
       try {
-        const [mRes, tRes] = await Promise.all([
-          fetch("/api/tmdb/trending?type=movie&time=week"),
-          fetch("/api/tmdb/trending?type=tv&time=week"),
-        ]);
-        if (cancelled) return;
-        if (mRes.ok) {
-          const m = await mRes.json();
-          if (!cancelled) setMovies((m.results || []).filter((x: TMDBItem) => x.poster_path).slice(0, 14));
+        const res = await fetch("/api/manga/home");
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        const sections: { items?: MangaItem[] }[] = data.sections || [];
+        const seen = new Set<string>();
+        const flat: MangaItem[] = [];
+        for (const s of sections) {
+          for (const it of s.items || []) {
+            if (it?.id && !seen.has(it.id) && (it.poster || it.posterMedium || it.posterSmall || it.cover)) {
+              seen.add(it.id);
+              flat.push(it);
+            }
+            if (flat.length >= 14) break;
+          }
+          if (flat.length >= 14) break;
         }
-        if (tRes.ok) {
-          const t = await tRes.json();
-          if (!cancelled) setShows((t.results || []).filter((x: TMDBItem) => x.poster_path).slice(0, 14));
-        }
+        if (!cancelled) setManga(flat);
       } catch { /* showcase hides without data */ }
     })();
     return () => { cancelled = true; };
@@ -264,7 +271,8 @@ export default function LandingPage() {
 
   const navLinks = [
     { label: "Anime", onClick: () => navigate({ page: "home" }) },
-    { label: "Guide", onClick: () => navigate({ page: "guide" }) },
+    { label: "Manga", onClick: () => navigate({ page: "manga" }) },
+    { label: "Novels", onClick: () => navigate({ page: "novel" }) },
     { label: "Contact", onClick: () => navigate({ page: "contact" }) },
   ];
 
@@ -272,14 +280,11 @@ export default function LandingPage() {
   const collage = trending.slice(0, 4);
   const marqueeItems = trending.length ? trending : Array.from({ length: 10 }, (_, i) => ({ id: -i - 1, title: {} } as TrendingItem));
 
-  const scrollShelf = (dir: 1 | -1) => shelfRef.current?.scrollBy({ left: dir * 640, behavior: "smooth" });
+  const scrollShelf = (ref: React.RefObject<HTMLDivElement | null>, dir: 1 | -1) => ref.current?.scrollBy({ left: dir * 640, behavior: "smooth" });
 
-  // Movies showcase picks
-  const spotlight = movies.find(m => m.backdrop_path && m.overview);
-  const sideMovies = movies.filter(m => m.backdrop_path && m.id !== spotlight?.id).slice(0, 2);
-  const movieRail = movies.filter(m => m.id !== spotlight?.id && !sideMovies.some(s => s.id === m.id));
-
-  const liveCategories = ["Football", "Cricket", "Basketball", "F1", "UFC", "Tennis", "24/7 Channels"];
+  // Manga showcase picks — one spotlight cover + the rail
+  const mangaSpotlight = manga[0];
+  const mangaRail = manga.slice(1);
 
   // The app shell wraps routed pages in a div that keeps a lingering
   // `transform`/`filter` from its mount-reveal animation (present even at
@@ -327,7 +332,7 @@ export default function LandingPage() {
           </svg>
         </button>
         <button
-          onClick={() => navigate({ page: "hub" })}
+          onClick={() => navigate({ page: "home" })}
           className="ltv-cine-btn-primary h-[38px] px-4 rounded-full text-xs font-bold whitespace-nowrap"
         >
           Start Watching
@@ -349,6 +354,7 @@ export default function LandingPage() {
         className="relative min-h-[100svh] flex flex-col justify-center overflow-hidden pt-24 pb-10"
       >
         <motion.div className="ltv-cine-glow-orb w-[560px] h-[560px] left-[-12%] top-[6%]" style={{ background: "rgba(30,136,255,0.14)", y: heroGlowY }} />
+        <motion.div className="ltv-cine-glow-orb w-[420px] h-[420px] right-[-10%] bottom-[10%]" style={{ background: "rgba(244,114,182,0.07)", y: heroGlowY }} />
 
         <motion.div style={{ y: heroContentY, opacity: heroContentOpacity }} className="relative z-10 max-w-7xl mx-auto w-full px-6 lg:px-10 grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] items-center gap-12">
           {/* Copy */}
@@ -366,10 +372,13 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-              className="ltv-cine-gradient-text font-black leading-[0.98] tracking-tight text-5xl sm:text-6xl xl:text-7xl"
+              className="font-black leading-[0.98] tracking-tight text-5xl sm:text-6xl xl:text-7xl"
               style={{ fontFamily: FONT }}
             >
-              All your anime.<br />One universe.
+              <span className="ltv-cine-gradient-text">Watch.</span>{" "}
+              <span style={{ color: MANGA }}>Read.</span>
+              <br />
+              <span style={{ color: NOVEL }}>Escape.</span>
             </motion.h1>
 
             <motion.p
@@ -378,8 +387,8 @@ export default function LandingPage() {
               transition={{ duration: 0.8, delay: 0.32 }}
               className="text-[#c4c9d2] text-base sm:text-lg max-w-md mt-6 leading-relaxed"
             >
-              Anime, manga and light novels in one cinematic home —
-              press play and it just works.
+              Anime in HD, manga the moment it drops, and light novels in a
+              reader that remembers your page. Three worlds — one door.
             </motion.p>
 
             <motion.div
@@ -389,24 +398,33 @@ export default function LandingPage() {
               className="flex items-center gap-3 flex-wrap mt-9"
             >
               <motion.button
-                onClick={() => navigate({ page: "hub" })}
+                onClick={() => navigate({ page: "home" })}
                 whileHover={{ scale: 1.045, y: -2 }}
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
                 className="ltv-cine-btn-primary inline-flex items-center gap-2 px-8 py-3.5 rounded-full font-bold text-sm"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3" /></svg>
-                Start Watching
+                Watch Anime
               </motion.button>
               <motion.button
-                onClick={() => navigate({ page: "home" })}
+                onClick={() => navigate({ page: "manga" })}
                 whileHover={{ scale: 1.04, y: -2 }}
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
                 className="ltv-cine-btn-secondary inline-flex items-center gap-2 px-6 py-3.5 rounded-full font-bold text-sm"
               >
-                Browse Anime
+                Read Manga
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </motion.button>
+              <motion.button
+                onClick={() => navigate({ page: "novel" })}
+                whileHover={{ scale: 1.04, y: -2 }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                className="ltv-cine-btn-secondary inline-flex items-center gap-2 px-6 py-3.5 rounded-full font-bold text-sm"
+              >
+                Read Novels
               </motion.button>
             </motion.div>
 
@@ -417,8 +435,8 @@ export default function LandingPage() {
               className="flex items-center gap-8 sm:gap-10 mt-12 flex-wrap"
             >
               <Stat value={12000} suffix="+" label="Anime Titles" />
-              <Stat value={480000} suffix="+" label="Episodes" />
-              <Stat value={50000} suffix="+" label="Monthly Viewers" />
+              <Stat value={70000} suffix="+" label="Manga Titles" />
+              <Stat value={480000} suffix="+" label="Episodes & Chapters" />
             </motion.div>
           </div>
 
@@ -441,12 +459,19 @@ export default function LandingPage() {
             </motion.div>
             <motion.div style={{ x: driftFront1X, y: driftFront1Y }} className="absolute left-[34%] top-[4%] z-20">
               <div style={{ ["--fdur" as any]: "7s", ["--fdelay" as any]: "0.6s", ["--frot" as any]: "2deg" }} className="ltv-cine-float">
-                <PosterTile item={collage[0]} width="w-[230px]" className="shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] ring-[#48A6FF]/30" />
+                <PosterTile item={collage[0]} width="w-[230px]" badge="Anime" badgeColor={ACCENT} className="shadow-[0_40px_80px_-20px_rgba(0,0,0,0.9)] ring-[#48A6FF]/30" />
               </div>
             </motion.div>
             <motion.div style={{ x: driftFront2X, y: driftFront2Y }} className="absolute right-[2%] top-[30%] z-10">
               <div style={{ ["--fdur" as any]: "9s", ["--fdelay" as any]: "1.2s", ["--frot" as any]: "9deg" }} className="ltv-cine-float">
-                <PosterTile item={collage[2]} width="w-[180px]" className="shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]" />
+                {mangaSpotlight ? (
+                  <div className="relative w-[180px] aspect-[2/3] rounded-xl overflow-hidden bg-[#0b0d12] ring-1 ring-[#F472B6]/30 shrink-0 shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]">
+                    <img src={mangaCover(mangaSpotlight)} alt="" className="w-full h-full object-cover" loading="lazy" />
+                    <span className="absolute top-2 left-2 text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full text-black" style={{ backgroundColor: MANGA, fontFamily: FONT }}>Manga</span>
+                  </div>
+                ) : (
+                  <PosterTile item={collage[2]} width="w-[180px]" className="shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)]" />
+                )}
               </div>
             </motion.div>
             <motion.div style={{ x: driftMidX, y: driftMidY }} className="absolute left-[20%] bottom-[2%] z-30">
@@ -458,8 +483,8 @@ export default function LandingPage() {
             {/* Floating UI ornaments */}
             <motion.div style={{ x: driftMidX, y: driftBackY }} className="absolute right-[10%] top-[8%] z-40">
               <div style={{ ["--fdur" as any]: "6s", ["--fdelay" as any]: "0.3s" }} className="ltv-cine-float flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#0b0d12] ring-1 ring-white/10 shadow-xl text-xs font-bold">
-                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                LIVE Sports & TV
+                <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: MANGA }} />
+                New chapters daily
               </div>
             </motion.div>
             <motion.div style={{ x: driftBackX, y: driftMidY }} className="absolute left-[0%] bottom-[18%] z-40">
@@ -488,19 +513,19 @@ export default function LandingPage() {
         </motion.div>
       </section>
 
-      {/* ═══ TOP 10 — numbered ranking rail ═══ */}
+      {/* ═══ 01 · ANIME — numbered Top 10 ranking rail ═══ */}
       {trending.length > 0 && (
         <section id="anime" ref={(el: HTMLElement | null) => { chapterRefs.current.anime = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
           <div className="ltv-cine-hairline mb-16 sm:mb-24 -mt-2" />
           <div className="max-w-7xl mx-auto">
             <div className="flex items-end justify-between gap-4 flex-wrap">
-              <SectionHeading chapter="01" eyebrow="Trending Right Now" title="Today's Top 10" />
+              <SectionHeading chapter="01" eyebrow="Anime · Trending Right Now" title="Today's Top 10" />
               <Reveal>
                 <div className="hidden md:flex items-center gap-2 mb-12">
-                  <button onClick={() => scrollShelf(-1)} aria-label="Scroll left" className="w-10 h-10 rounded-full bg-[#0b0d12] border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:border-[#48A6FF]/50 transition-all">
+                  <button onClick={() => scrollShelf(shelfRef, -1)} aria-label="Scroll left" className="w-10 h-10 rounded-full bg-[#0b0d12] border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:border-[#48A6FF]/50 transition-all">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg>
                   </button>
-                  <button onClick={() => scrollShelf(1)} aria-label="Scroll right" className="w-10 h-10 rounded-full bg-[#0b0d12] border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:border-[#48A6FF]/50 transition-all">
+                  <button onClick={() => scrollShelf(shelfRef, 1)} aria-label="Scroll right" className="w-10 h-10 rounded-full bg-[#0b0d12] border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:border-[#48A6FF]/50 transition-all">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
                   </button>
                 </div>
@@ -540,72 +565,273 @@ export default function LandingPage() {
                 </motion.button>
               ))}
             </div>
+
+            <Reveal className="mt-8">
+              <button onClick={() => navigate({ page: "home" })} className="inline-flex items-center gap-2 text-sm font-bold transition-colors hover:text-white" style={{ color: ACCENT }}>
+                Browse the full anime library
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </button>
+            </Reveal>
           </div>
         </section>
       )}
 
-      {/* ═══ LIBRARY ═══ */}
-      <section id="library" ref={(el: HTMLElement | null) => { chapterRefs.current.library = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
-        <div className="max-w-7xl mx-auto">
-          <SectionHeading
-            chapter="04"
-            eyebrow="One Platform, Everything"
-            title="And that's not all."
-            sub="Manga, light novels, music and more — the whole library lives behind one door."
-          />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 auto-rows-[150px] sm:auto-rows-[170px]">
-            {/* Anime — big tile with real covers */}
-            <Reveal className="col-span-2 row-span-2">
-              <button onClick={() => navigate({ page: "home" })} className="group relative w-full h-full rounded-3xl overflow-hidden border border-white/[0.07] hover:border-[#48A6FF]/45 transition-colors text-left block">
-                {collage[0] && <img src={getCover(collage[0])} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-75 group-hover:scale-[1.03] transition-all duration-700" loading="lazy" />}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-[#050608]/30 to-transparent" />
-                <div className="absolute bottom-0 left-0 p-6">
-                  <span className="text-[10px] font-extrabold uppercase tracking-[0.24em] mb-1.5 block" style={{ color: ACCENT, fontFamily: FONT }}>The main event</span>
-                  <p className="text-2xl sm:text-3xl font-black text-white" style={{ fontFamily: FONT }}>Anime</p>
-                  <p className="text-[13px] text-[#c4c9d2] mt-1">10,000+ titles · Sub, dub & hardsub</p>
+      {/* ═══ 02 · MANGA — spotlight + fresh-covers rail ═══ */}
+      {manga.length > 0 && (
+        <section id="manga" ref={(el: HTMLElement | null) => { chapterRefs.current.manga = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10 overflow-hidden">
+          <div className="ltv-cine-glow-orb w-[460px] h-[460px] right-[-10%] top-[10%]" style={{ background: "rgba(244,114,182,0.08)" }} />
+          <div className="max-w-7xl mx-auto relative">
+            <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr] gap-12 items-center">
+              {/* Copy + spotlight cover */}
+              <div>
+                <SectionHeading
+                  chapter="02"
+                  accent={MANGA}
+                  eyebrow="Manga · Fresh Off The Press"
+                  title="Read it the moment it drops."
+                  sub="70,000+ manga, manhwa and manhua with a clean, fast chapter reader — vertical strip or paged, your call."
+                />
+                <Reveal delay={0.1}>
+                  <div className="flex flex-col gap-3 mb-8">
+                    {[
+                      "Vertical & paged reading modes with zoom",
+                      "Progress saved per chapter — resume from your profile",
+                      "Save anything to My List with one tap",
+                    ].map(f => (
+                      <div key={f} className="flex items-center gap-3 text-sm text-[#c4c9d2]">
+                        <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(244,114,182,0.12)" }}>
+                          <svg className="w-3 h-3" style={{ color: MANGA }} fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg>
+                        </span>
+                        {f}
+                      </div>
+                    ))}
+                  </div>
+                </Reveal>
+                <Reveal delay={0.18}>
+                  <motion.button
+                    onClick={() => navigate({ page: "manga" })}
+                    whileHover={{ scale: 1.04, y: -2 }}
+                    whileTap={{ scale: 0.97 }}
+                    transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                    className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full font-bold text-sm text-black"
+                    style={{ background: `linear-gradient(135deg, ${MANGA}, #f9a8d4)`, boxShadow: "0 10px 34px -10px rgba(244,114,182,0.55)" }}
+                  >
+                    Open the Manga Library
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                  </motion.button>
+                </Reveal>
+              </div>
+
+              {/* Staggered cover wall — real manga artwork */}
+              <Reveal delay={0.12}>
+                <div className="grid grid-cols-3 gap-3 sm:gap-4">
+                  {manga.slice(0, 6).map((m, i) => (
+                    <motion.button
+                      key={m.id}
+                      onClick={() => navigate({ page: "manga-detail", id: m.id })}
+                      whileHover={{ y: -6, scale: 1.03 }}
+                      transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                      className={`relative aspect-[2/3] rounded-xl overflow-hidden bg-[#0b0d12] ring-1 ring-white/10 hover:ring-[#F472B6]/50 text-left group ${i % 3 === 1 ? "mt-6 sm:mt-10" : ""}`}
+                    >
+                      <img src={mangaCover(m)} alt={m.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <p className="absolute bottom-2 left-2 right-2 text-[11px] font-bold text-white line-clamp-2 leading-tight opacity-0 group-hover:opacity-100 transition-opacity">{m.title}</p>
+                    </motion.button>
+                  ))}
                 </div>
-              </button>
+              </Reveal>
+            </div>
+
+            {/* Full-width cover rail */}
+            {mangaRail.length > 6 && (
+              <div className="mt-14">
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-xs font-bold uppercase tracking-[0.24em]" style={{ color: MANGA, fontFamily: FONT }}>More from the shelves</span>
+                  <div className="hidden md:flex items-center gap-2">
+                    <button onClick={() => scrollShelf(mangaShelfRef, -1)} aria-label="Scroll left" className="w-9 h-9 rounded-full bg-[#0b0d12] border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:border-[#F472B6]/50 transition-all">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <button onClick={() => scrollShelf(mangaShelfRef, 1)} aria-label="Scroll right" className="w-9 h-9 rounded-full bg-[#0b0d12] border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:border-[#F472B6]/50 transition-all">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                  </div>
+                </div>
+                <div ref={mangaShelfRef} className="ltv-cine-shelf flex gap-3 overflow-x-auto pb-2">
+                  {mangaRail.slice(6).map(m => (
+                    <button key={m.id} onClick={() => navigate({ page: "manga-detail", id: m.id })} className="group w-[120px] shrink-0 text-left">
+                      <div className="relative w-full aspect-[2/3] rounded-xl overflow-hidden bg-[#0b0d12] ring-1 ring-white/10 group-hover:ring-[#F472B6]/50 transition-all">
+                        <img src={mangaCover(m)} alt={m.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+                      </div>
+                      <p className="text-[11px] font-bold text-[#c4c9d2] group-hover:text-white line-clamp-1 mt-2 transition-colors">{m.title}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* ═══ 03 · NOVELS — the reader experience ═══ */}
+      <section id="novels" ref={(el: HTMLElement | null) => { chapterRefs.current.novels = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10 overflow-hidden">
+        <div className="ltv-cine-glow-orb w-[420px] h-[420px] left-[-10%] bottom-[0%]" style={{ background: "rgba(52,211,153,0.07)" }} />
+        <div className="max-w-7xl mx-auto relative">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] gap-12 items-center">
+            {/* Mock reader panel — a faithful miniature of the actual novel reader */}
+            <Reveal className="order-2 lg:order-1">
+              <div className="relative">
+                <div className="absolute -inset-4 rounded-[28px] opacity-60" style={{ background: "radial-gradient(ellipse 70% 70% at 50% 50%, rgba(52,211,153,0.08), transparent 70%)" }} />
+                <div className="relative rounded-3xl border border-white/[0.08] bg-[#0b0e13] overflow-hidden shadow-[0_40px_90px_-30px_rgba(0,0,0,0.9)]">
+                  {/* Reader top bar */}
+                  <div className="flex items-center justify-between px-5 py-3 border-b border-white/[0.06]">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full bg-white/10" />
+                      <span className="w-2.5 h-2.5 rounded-full bg-white/10" />
+                    </div>
+                    <span className="text-[11px] font-bold text-[#a1a7b3]" style={{ fontFamily: FONT }}>Chapter 217 · The Hero Returns</span>
+                    <svg className="w-4 h-4 text-[#767d8a]" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
+                  </div>
+                  {/* Reader body */}
+                  <div className="px-6 sm:px-10 py-8 space-y-4">
+                    <p className="text-[15px] leading-[1.9] text-[#d7dbe2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                      The gate opened without a sound. Beyond it, the city he had
+                      sworn to protect glittered like a promise he had almost
+                      forgotten how to keep.
+                    </p>
+                    <p className="text-[15px] leading-[1.9] text-[#d7dbe2]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                      &ldquo;Ten years,&rdquo; he whispered. The words tasted like
+                      ash and starlight.
+                    </p>
+                    <p className="text-[15px] leading-[1.9] text-[#8b93a1]" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>
+                      Somewhere below, a bell began to ring —
+                    </p>
+                  </div>
+                  {/* Reader bottom bar */}
+                  <div className="flex items-center gap-3 px-5 py-3.5 border-t border-white/[0.06]">
+                    <span className="text-[10px] font-bold text-[#767d8a] shrink-0">63%</span>
+                    <div className="flex-1 h-1 rounded-full bg-white/[0.07] overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: "63%", background: NOVEL }} />
+                    </div>
+                    <span className="text-[10px] font-bold text-[#767d8a] shrink-0">Ch. 217 / 340</span>
+                  </div>
+                </div>
+                {/* Floating pill */}
+                <div className="absolute -top-4 -right-3 sm:-right-6 flex items-center gap-2 px-3.5 py-2 rounded-full bg-[#0b0d12] ring-1 ring-white/10 shadow-xl text-xs font-bold">
+                  <svg className="w-3.5 h-3.5" style={{ color: NOVEL }} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
+                  Picks up right where you left off
+                </div>
+              </div>
             </Reveal>
 
-            {/* Manga tile — real cover */}
-            <Reveal delay={0.18}>
-              <button onClick={() => navigate({ page: "manga" })} className="group relative w-full h-full rounded-2xl overflow-hidden border border-white/[0.07] hover:border-[#F472B6]/45 transition-colors text-left block">
-                {collage[1] && <img src={getCover(collage[1])} alt="" className="absolute inset-0 w-full h-full object-cover opacity-45 grayscale group-hover:grayscale-0 group-hover:opacity-60 group-hover:scale-[1.04] transition-all duration-700" loading="lazy" />}
-                <div className="absolute inset-0 bg-gradient-to-t from-[#050608] via-[#050608]/35 to-transparent" />
-                <div className="absolute bottom-0 left-0 p-4">
-                  <p className="text-lg font-black text-white" style={{ fontFamily: FONT }}>Manga</p>
-                  <p className="text-[11px] text-[#a1a7b3]">Clean chapter reader</p>
+            {/* Copy */}
+            <div className="order-1 lg:order-2">
+              <SectionHeading
+                chapter="03"
+                accent={NOVEL}
+                eyebrow="Light Novels · For The Readers"
+                title="The story before the story."
+                sub="Read the source material your favorite anime came from — in a distraction-free reader built for long nights."
+              />
+              <Reveal delay={0.1}>
+                <div className="flex flex-col gap-3 mb-8">
+                  {[
+                    "Clean serif typography, tuned for long reading sessions",
+                    "Chapter-by-chapter navigation with a live progress bar",
+                    "Your page syncs to your profile — continue on any visit",
+                  ].map(f => (
+                    <div key={f} className="flex items-center gap-3 text-sm text-[#c4c9d2]">
+                      <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{ background: "rgba(52,211,153,0.12)" }}>
+                        <svg className="w-3 h-3" style={{ color: NOVEL }} fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg>
+                      </span>
+                      {f}
+                    </div>
+                  ))}
                 </div>
-              </button>
-            </Reveal>
-
-            {/* Novels tile */}
-            <Reveal delay={0.22}>
-              <button onClick={() => navigate({ page: "novel" })} className="group relative w-full h-full rounded-2xl overflow-hidden border border-white/[0.07] hover:border-[#A3B3CC]/45 transition-colors text-left block bg-[#0d1016]">
-                <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 130% 90% at 50% 115%, rgba(163,179,204,0.14), transparent 65%)" }} />
-                <span className="absolute top-4 left-4 text-2xl" aria-hidden="true">📚</span>
-                <div className="absolute bottom-0 left-0 p-4">
-                  <p className="text-lg font-black text-white" style={{ fontFamily: FONT }}>Light Novels</p>
-                  <p className="text-[11px] text-[#a1a7b3]">The story before the story</p>
-                </div>
-              </button>
-            </Reveal>
+              </Reveal>
+              <Reveal delay={0.18}>
+                <motion.button
+                  onClick={() => navigate({ page: "novel" })}
+                  whileHover={{ scale: 1.04, y: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 17 }}
+                  className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full font-bold text-sm text-black"
+                  style={{ background: `linear-gradient(135deg, ${NOVEL}, #6ee7b7)`, boxShadow: "0 10px 34px -10px rgba(52,211,153,0.5)" }}
+                >
+                  Start Reading Novels
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                </motion.button>
+              </Reveal>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* ═══ FINAL CTA ═══ */}
+      {/* ═══ 04 · EXPERIENCE — real shipped features, gamified profile ═══ */}
+      <section id="experience" ref={(el: HTMLElement | null) => { chapterRefs.current.experience = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
+        <div className="max-w-7xl mx-auto">
+          <SectionHeading
+            chapter="04"
+            eyebrow="One Account, Three Worlds"
+            title="Built like a game."
+            sub="Everything you watch and read feeds one profile — XP, levels, streaks and a heatmap of your whole journey."
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              {
+                icon: <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 16.8l-6.2 4.5 2.4-7.4L2 9.4h7.6z" />,
+                filled: true,
+                color: ACCENT,
+                title: "Level up for real",
+                desc: "Every episode, chapter and page earns XP. Levels, streaks and 12 achievements — all from what you actually do.",
+              },
+              {
+                icon: <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />,
+                filled: false,
+                color: MANGA,
+                title: "Resume anywhere",
+                desc: "Anime episode, manga chapter or novel page — one Continue button takes you back to the exact spot.",
+              },
+              {
+                icon: <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />,
+                filled: true,
+                color: NOVEL,
+                title: "One list to rule them",
+                desc: "Save anime, manga and novels into a single My List that lives on your profile — sorted, synced, yours.",
+              },
+              {
+                icon: <path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />,
+                filled: false,
+                color: "#a855f7",
+                title: "Your year, mapped",
+                desc: "A GitHub-style activity heatmap shows every day you watched or read. Keep the streak alive.",
+              },
+            ].map((f, i) => (
+              <Reveal key={f.title} delay={i * 0.08}>
+                <div className="group h-full rounded-2xl border border-white/[0.07] bg-[#0b0e13]/80 p-6 hover:border-white/[0.16] transition-colors">
+                  <span className="w-11 h-11 rounded-xl flex items-center justify-center mb-5" style={{ background: `${f.color}1a` }}>
+                    <svg className="w-5 h-5" style={{ color: f.color }} fill={f.filled ? f.color : "none"} stroke={f.filled ? "none" : "currentColor"} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">{f.icon}</svg>
+                  </span>
+                  <h3 className="text-base font-black text-white mb-2" style={{ fontFamily: FONT }}>{f.title}</h3>
+                  <p className="text-[13px] text-[#a1a7b3] leading-relaxed">{f.desc}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ═══ 05 · FINAL CTA ═══ */}
       <section id="join" ref={(el: HTMLElement | null) => { chapterRefs.current.join = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
         <Reveal className="max-w-5xl mx-auto">
           <div className="ltv-cine-surface rounded-3xl p-10 sm:p-16 flex flex-col items-center text-center gap-6 relative overflow-hidden">
             <div className="ltv-cine-glow-orb w-[300px] h-[300px] left-1/2 -translate-x-1/2 -top-24" style={{ background: "rgba(30,136,255,0.12)" }} />
             <span className="text-3xl font-black leading-none select-none relative" style={{ fontFamily: FONT, color: "transparent", WebkitTextStroke: "1.5px rgba(72,166,255,0.35)" }} aria-hidden="true">05</span>
             <span className="ltv-cine-eyebrow text-xs font-bold uppercase relative">No sign-up required</span>
-            <h2 className="text-3xl sm:text-5xl font-black relative leading-[1.05]" style={{ fontFamily: FONT }}>Ready when you are.<br />It&apos;s free.</h2>
-            <p className="text-[#a1a7b3] max-w-md relative">Pick a section, press play. 50,000+ people already watch here every month.</p>
+            <h2 className="text-3xl sm:text-5xl font-black relative leading-[1.05]" style={{ fontFamily: FONT }}>Three worlds are waiting.<br />It&apos;s free.</h2>
+            <p className="text-[#a1a7b3] max-w-md relative">Watch an episode, read a chapter, start a novel — no account needed until you want your progress to follow you.</p>
             <div className="flex items-center gap-3 flex-wrap justify-center relative">
               <motion.button
-                onClick={() => navigate({ page: "hub" })}
+                onClick={() => navigate({ page: "home" })}
                 whileHover={{ scale: 1.045, y: -2 }}
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
@@ -627,7 +853,7 @@ export default function LandingPage() {
               </a>
             </div>
             <div className="flex items-center justify-center gap-x-5 gap-y-2 flex-wrap relative mt-2">
-              {["Zero ads", "HD & 4K", "Auto-resume", "Sub · Dub · Hardsub"].map(f => (
+              {["Zero ads", "HD & 4K anime", "Manga & novel reader", "Progress sync", "Sub · Dub"].map(f => (
                 <span key={f} className="inline-flex items-center gap-1.5 text-[11px] font-bold text-[#767d8a]">
                   <svg className="w-3 h-3" style={{ color: ACCENT }} fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg>
                   {f}
@@ -643,11 +869,13 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-8 mb-10">
           <div className="col-span-2 sm:col-span-1">
             <span className="text-lg font-bold" style={{ fontFamily: FONT }}>LUFFY <span style={{ color: ACCENT }}>TV</span></span>
-            <p className="text-xs text-[#767d8a] mt-3 leading-relaxed max-w-[220px]">Free anime, movies, TV, and live sports streaming — no ads, no limits.</p>
+            <p className="text-xs text-[#767d8a] mt-3 leading-relaxed max-w-[220px]">Free anime, manga &amp; light novels — no ads, no limits.</p>
           </div>
           <div className="flex flex-col gap-2.5">
             <span className="text-xs font-bold uppercase tracking-wider text-white mb-1">Browse</span>
             <button onClick={() => navigate({ page: "home" })} className="text-sm text-[#a1a7b3] hover:text-white transition-colors text-left">Anime</button>
+            <button onClick={() => navigate({ page: "manga" })} className="text-sm text-[#a1a7b3] hover:text-white transition-colors text-left">Manga</button>
+            <button onClick={() => navigate({ page: "novel" })} className="text-sm text-[#a1a7b3] hover:text-white transition-colors text-left">Light Novels</button>
           </div>
           <div className="flex flex-col gap-2.5">
             <span className="text-xs font-bold uppercase tracking-wider text-white mb-1">Company</span>
@@ -661,7 +889,7 @@ export default function LandingPage() {
         </div>
         <div className="ltv-cine-divider max-w-7xl mx-auto mb-6" />
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <p className="text-[11px] text-[#5b616c]">&copy; {new Date().getFullYear()} Luffy TV — Powered by TMDB &amp; AniList</p>
+          <p className="text-[11px] text-[#5b616c]">&copy; {new Date().getFullYear()} Luffy TV — Powered by AniList</p>
           <p className="text-[11px] text-[#5b616c]">Fan-made project. Not affiliated with any studio.</p>
         </div>
       </footer>
