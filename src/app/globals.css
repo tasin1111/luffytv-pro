@@ -791,41 +791,47 @@ video::-webkit-media-controls { border-radius: 8px; }
 }
 
 /* ── Subtitle / Caption Rendering (video ::cue) ── */
-/* White bold text with strong black backdrop so subtitles are always
-   readable on any background (bright scenes, white skies, etc).
-   Applies to BOTH HLS-embedded WebVTT tracks AND external <track> elements. */
+/* Bold white text with NO solid backdrop — transparent background with a
+   strong multi-layer text-shadow outline so the text stays readable on
+   any scene (bright skies, white flashes, etc) without an ugly black box.
+   This is the same approach Netflix / Crunchyroll use. */
 video::cue {
   font-family: "Inter", "Helvetica Neue", "Arial", "Noto Sans SC", sans-serif;
-  font-size: 1.6em;
+  font-size: 1.15em;
   font-weight: 700;
   color: #ffffff;
-  background-color: rgba(0, 0, 0, 0.75);
-  background: rgba(0, 0, 0, 0.75);
-  padding: 0.15em 0.4em;
-  border-radius: 4px;
+  background-color: transparent;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  /* 8-direction text-shadow creates a smooth black outline around every
+     letter — readable on any background, no solid box needed. */
   text-shadow:
-    0 0 4px rgba(0, 0, 0, 0.9),
-    0 2px 6px rgba(0, 0, 0, 0.8);
-  -webkit-text-stroke: 0.5px rgba(0, 0, 0, 0.4);
-  line-height: 1.4;
+    -1px -1px 0 #000,
+     1px -1px 0 #000,
+    -1px  1px 0 #000,
+     1px  1px 0 #000,
+     0   0   6px #000,
+     0   2px 4px rgba(0, 0, 0, 0.8);
+  line-height: 1.35;
   letter-spacing: 0.01em;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
-/* Larger subtitles on bigger screens */
+/* Slightly larger on bigger screens — but still reasonable */
 @media (min-width: 768px) {
   video::cue {
-    font-size: 1.8em;
+    font-size: 1.3em;
   }
 }
 @media (min-width: 1280px) {
   video::cue {
-    font-size: 2em;
+    font-size: 1.45em;
   }
 }
-/* When the video is fullscreen, make subtitles even bigger */
+/* Fullscreen — small bump only */
 video:fullscreen::cue {
-  font-size: 2.2em;
+  font-size: 1.6em;
 }
 /* Cue region (the container that holds cues) — position from bottom */
 video::cue-region {
