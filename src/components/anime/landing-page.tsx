@@ -332,7 +332,7 @@ export default function LandingPage() {
           </svg>
         </button>
         <button
-          onClick={() => navigate({ page: "home" })}
+          onClick={() => navigate({ page: "hub" })}
           className="ltv-cine-btn-primary h-[38px] px-4 rounded-full text-xs font-bold whitespace-nowrap"
         >
           Start Watching
@@ -831,7 +831,7 @@ export default function LandingPage() {
             <p className="text-[#a1a7b3] max-w-md relative">Watch an episode, read a chapter, start a novel — no account needed until you want your progress to follow you.</p>
             <div className="flex items-center gap-3 flex-wrap justify-center relative">
               <motion.button
-                onClick={() => navigate({ page: "home" })}
+                onClick={() => navigate({ page: "hub" })}
                 whileHover={{ scale: 1.045, y: -2 }}
                 whileTap={{ scale: 0.97 }}
                 transition={{ type: "spring", stiffness: 400, damping: 17 }}
