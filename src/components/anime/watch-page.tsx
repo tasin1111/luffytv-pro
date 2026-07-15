@@ -992,6 +992,32 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     setHasShownLoadingScreen(false);
   }, [anilistId]);
 
+  // ── Re-fetch instant-servers when the anime title becomes available ──
+  // The main instant-servers fetch (in the effect below) runs immediately on
+  // mount, but animeTitle is still empty at that point (it's fetched from
+  // AniList separately). Providers like Anichi.to and AniNeko.to need the
+  // title to search for the anime — without it, they return 0 servers.
+  // This effect triggers when animeTitle changes (from "" to the real title)
+  // and re-fetches instant-servers with the title, merging any new servers.
+  useEffect(() => {
+    if (!anilistId || !animeTitle) return;
+    let cancelled = false;
+    fetch(`/api/anime/instant-servers/${anilistId}/${episodeNum}?title=${encodeURIComponent(animeTitle)}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (cancelled || !data?.servers?.length) return;
+        setServerList(prev => {
+          const existingIds = new Set(prev.map(s => s.id));
+          const newServers = data.servers.filter((s: ServerEntry) => !existingIds.has(s.id));
+          if (newServers.length === 0) return prev; // no new servers, skip update
+          console.log(`[WatchPage] Title-based fetch added ${newServers.length} new servers (Anichi/AniNeko.to)`);
+          return [...prev, ...newServers];
+        });
+      })
+      .catch(() => { /* best-effort */ });
+    return () => { cancelled = true; };
+  }, [anilistId, episodeNum, animeTitle]);
+
   // NOTE: The old fetchStream effect that called /api/anime/scraper/miruro-direct
   // has been REMOVED. Stream loading is now handled by the server selector
   // effect below (line ~575) which uses the verified streamUrl from /api/anime/servers.
