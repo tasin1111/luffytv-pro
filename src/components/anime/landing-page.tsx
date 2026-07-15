@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { motion, useScroll, useSpring, useTransform, useMotionValue } from "framer-motion";
+import { motion, AnimatePresence, useScroll, useSpring, useTransform, useMotionValue, useMotionTemplate } from "framer-motion";
 import { useAppStore } from "./store";
 import CinematicBackdrop from "./cinematic-backdrop";
 import { useCountUp } from "@/hooks/use-count-up";
@@ -96,11 +96,12 @@ function ScrollProgressBar() {
 /* ─── Chapter markers — the "reel" this page plays through ─── */
 const CHAPTERS = [
   { id: "hero", num: "00", label: "Intro" },
-  { id: "anime", num: "01", label: "Anime" },
-  { id: "manga", num: "02", label: "Manga" },
-  { id: "novels", num: "03", label: "Novels" },
-  { id: "experience", num: "04", label: "Experience" },
-  { id: "join", num: "05", label: "Join" },
+  { id: "worlds", num: "01", label: "Worlds" },
+  { id: "anime", num: "02", label: "Anime" },
+  { id: "manga", num: "03", label: "Manga" },
+  { id: "novels", num: "04", label: "Novels" },
+  { id: "experience", num: "05", label: "Experience" },
+  { id: "join", num: "06", label: "Join" },
 ] as const;
 
 /* ─── Fixed left rail — desktop only, click to jump chapters ─── */
@@ -177,6 +178,122 @@ function PosterTile({ item, className = "", width = "w-[120px]", badge, badgeCol
   );
 }
 
+/* ─── Rotating "mood" — cycles genres, click jumps into search ─── */
+const MOODS = ["Isekai", "Dark Fantasy", "Romance", "Shounen", "Sci-Fi", "Slice of Life", "Psychological", "Sports"];
+function RotatingMood({ onPick }: { onPick: (m: string) => void }) {
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI(v => (v + 1) % MOODS.length), 2200);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <button
+      onClick={() => onPick(MOODS[i])}
+      className="group inline-flex items-baseline gap-2 mt-4 text-sm text-[#8b93a1] hover:text-white transition-colors"
+      title={`Search ${MOODS[i]}`}
+    >
+      <span>Tonight feels like</span>
+      <span className="relative inline-flex overflow-hidden h-[1.45em] items-baseline">
+        <AnimatePresence mode="wait">
+          <motion.span
+            key={MOODS[i]}
+            initial={{ y: "110%", opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: "-110%", opacity: 0 }}
+            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+            className="inline-block font-black underline decoration-2 underline-offset-4"
+            style={{ color: ACCENT, fontFamily: FONT, textDecorationColor: `${ACCENT}66` }}
+          >
+            {MOODS[i]}
+          </motion.span>
+        </AnimatePresence>
+      </span>
+      <svg className="w-3 h-3 self-center opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+    </button>
+  );
+}
+
+/* ─── Worlds switcher — three expanding doors (anime/manga/novels) ─── */
+function WorldsSwitcher({ animeImg, mangaImg, onGo }: { animeImg: string; mangaImg: string; onGo: (page: "home" | "manga" | "novel") => void }) {
+  const [active, setActive] = useState(0);
+  const worlds = [
+    {
+      title: "Anime", color: ACCENT, img: animeImg, page: "home" as const, cta: "Start watching",
+      desc: "12,000+ series in HD — sub & dub.",
+      bullets: ["HD & 4K streaming", "Sub · Dub", "Auto-resume every episode"],
+    },
+    {
+      title: "Manga", color: MANGA, img: mangaImg, page: "manga" as const, cta: "Start reading",
+      desc: "70,000+ titles, updated daily.",
+      bullets: ["Vertical & paged reader", "New chapters daily", "One-tap My List"],
+    },
+    {
+      title: "Novels", color: NOVEL, img: "", page: "novel" as const, cta: "Open a book",
+      desc: "The source material, beautifully set.",
+      bullets: ["Serif reading mode", "Chapter-by-chapter nav", "Progress synced to profile"],
+    },
+  ];
+  return (
+    <div className="flex flex-col lg:flex-row gap-4 lg:h-[430px]">
+      {worlds.map((w, i) => {
+        const on = active === i;
+        return (
+          <motion.button
+            key={w.title}
+            onMouseEnter={() => setActive(i)}
+            onFocus={() => setActive(i)}
+            onClick={() => onGo(w.page)}
+            animate={{ flexGrow: on ? 2.6 : 1 }}
+            transition={{ type: "spring", stiffness: 200, damping: 28 }}
+            className="relative overflow-hidden rounded-3xl border text-left h-[200px] sm:h-[230px] lg:h-auto lg:basis-0 transition-colors duration-300"
+            style={{ borderColor: on ? `${w.color}59` : "rgba(255,255,255,0.07)", flexGrow: 1 }}
+          >
+            {w.img ? (
+              <img src={w.img} alt="" className={`absolute inset-0 w-full h-full object-cover transition-all duration-700 ${on ? "opacity-45 scale-105 grayscale-0" : "opacity-25 grayscale"}`} loading="lazy" />
+            ) : (
+              <div className="absolute inset-0 bg-[#0c1117]">
+                <div className="absolute inset-0" style={{ background: `radial-gradient(120% 90% at 50% 110%, ${w.color}1f, transparent 60%)` }} />
+                <span className="absolute top-6 right-6 text-4xl opacity-60" aria-hidden="true">📖</span>
+              </div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-transparent" />
+            <div className="absolute inset-0 pointer-events-none transition-opacity duration-500" style={{ background: `radial-gradient(120% 100% at 50% 120%, ${w.color}30, transparent 60%)`, opacity: on ? 1 : 0 }} />
+
+            <div className="relative z-10 h-full flex flex-col justify-end p-6 sm:p-7">
+              <span className="w-9 h-1 rounded-full mb-3 transition-all duration-500" style={{ background: w.color, width: on ? 44 : 24 }} />
+              <h3 className="text-2xl sm:text-3xl font-black text-white" style={{ fontFamily: FONT }}>{w.title}</h3>
+              <p className="text-[13px] text-[#c4c9d2] mt-1">{w.desc}</p>
+              <motion.div
+                animate={{ height: on ? "auto" : 0, opacity: on ? 1 : 0 }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                className="overflow-hidden hidden lg:block"
+              >
+                <ul className="flex flex-col gap-1.5 mt-4">
+                  {w.bullets.map(b => (
+                    <li key={b} className="flex items-center gap-2 text-[12px] text-[#c4c9d2]">
+                      <svg className="w-3 h-3 shrink-0" style={{ color: w.color }} fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" /></svg>
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+                <span className="inline-flex items-center gap-2 mt-5 px-5 py-2.5 rounded-full text-xs font-bold text-black" style={{ background: w.color }}>
+                  {w.cta}
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+                </span>
+              </motion.div>
+              {/* Mobile: always show the CTA chip */}
+              <span className="lg:hidden inline-flex items-center gap-2 mt-4 px-4 py-2 rounded-full text-xs font-bold text-black w-fit" style={{ background: w.color }}>
+                {w.cta}
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+              </span>
+            </div>
+          </motion.button>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function LandingPage() {
   const navigate = useAppStore(s => s.navigate);
   const [trending, setTrending] = useState<TrendingItem[]>([]);
@@ -210,11 +327,19 @@ export default function LandingPage() {
   const springY = useSpring(pointerY, { stiffness: 60, damping: 18, mass: 0.4 });
   const heroTiltX = useTransform(springY, [-0.5, 0.5], [6, -6]);
   const heroTiltY = useTransform(springX, [-0.5, 0.5], [-8, 8]);
+  // Cursor spotlight — a soft light that follows the mouse across the hero
+  const spotX = useMotionValue(-800);
+  const spotY = useMotionValue(-800);
+  const spotlight = useMotionTemplate`radial-gradient(640px circle at ${spotX}px ${spotY}px, rgba(72,166,255,0.09), transparent 70%)`;
   const handleHeroPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     pointerX.set((e.clientX - rect.left) / rect.width - 0.5);
     pointerY.set((e.clientY - rect.top) / rect.height - 0.5);
+    spotX.set(e.clientX - rect.left);
+    spotY.set(e.clientY - rect.top);
   };
+  // Top-10 hover backdrop — the hovered cover glows blurred behind the rail
+  const [rankBg, setRankBg] = useState("");
   // Depth layers — the front-most poster drifts the most, back layers barely move
   const driftFront1X = useTransform(springX, [-0.5, 0.5], [-26, 26]);
   const driftFront1Y = useTransform(springY, [-0.5, 0.5], [-18, 18]);
@@ -355,6 +480,8 @@ export default function LandingPage() {
       >
         <motion.div className="ltv-cine-glow-orb w-[560px] h-[560px] left-[-12%] top-[6%]" style={{ background: "rgba(30,136,255,0.14)", y: heroGlowY }} />
         <motion.div className="ltv-cine-glow-orb w-[420px] h-[420px] right-[-10%] bottom-[10%]" style={{ background: "rgba(244,114,182,0.07)", y: heroGlowY }} />
+        {/* Cursor spotlight — follows the mouse across the whole hero */}
+        <motion.div className="absolute inset-0 pointer-events-none z-[5] hidden lg:block" style={{ background: spotlight }} />
 
         <motion.div style={{ y: heroContentY, opacity: heroContentOpacity }} className="relative z-10 max-w-7xl mx-auto w-full px-6 lg:px-10 grid grid-cols-1 lg:grid-cols-[1.05fr_0.95fr] items-center gap-12">
           {/* Copy */}
@@ -368,18 +495,29 @@ export default function LandingPage() {
               Free · No Ads · No Sign-up
             </motion.span>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
+            <h1
               className="font-black leading-[0.98] tracking-tight text-5xl sm:text-6xl xl:text-7xl"
               style={{ fontFamily: FONT }}
             >
-              <span className="ltv-cine-gradient-text">Watch.</span>{" "}
-              <span style={{ color: MANGA }}>Read.</span>
-              <br />
-              <span style={{ color: NOVEL }}>Escape.</span>
-            </motion.h1>
+              {[
+                { t: "Watch.", cls: "ltv-cine-gradient-text", glow: "" },
+                { t: "Read.", color: MANGA, glow: `0 0 44px ${MANGA}40` },
+                { t: "Escape.", color: NOVEL, glow: `0 0 44px ${NOVEL}40`, newline: true },
+              ].map((w, i) => (
+                <span key={w.t}>
+                  {w.newline && <br />}
+                  <motion.span
+                    className={`inline-block mr-4 ${w.cls || ""}`}
+                    style={w.color ? { color: w.color, textShadow: w.glow } : undefined}
+                    initial={{ opacity: 0, y: 44, rotate: 2.5, filter: "blur(10px)" }}
+                    animate={{ opacity: 1, y: 0, rotate: 0, filter: "blur(0px)" }}
+                    transition={{ duration: 0.75, delay: 0.15 + i * 0.16, ease: [0.22, 1, 0.36, 1] }}
+                  >
+                    {w.t}
+                  </motion.span>
+                </span>
+              ))}
+            </h1>
 
             <motion.p
               initial={{ opacity: 0, y: 20 }}
@@ -390,6 +528,10 @@ export default function LandingPage() {
               Anime in HD, manga the moment it drops, and light novels in a
               reader that remembers your page. Three worlds — one door.
             </motion.p>
+
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.5 }}>
+              <RotatingMood onPick={(m) => navigate({ page: "search", query: m })} />
+            </motion.div>
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -510,16 +652,63 @@ export default function LandingPage() {
               </button>
             ))}
           </div>
+          {/* Second row — manga covers drifting the opposite way */}
+          {manga.length > 3 && (
+            <div className="ltv-cine-marquee-track mt-3" style={{ animationDirection: "reverse" }}>
+              {[...manga, ...manga].map((m, i) => (
+                <button key={`${m.id}-${i}`} onClick={() => navigate({ page: "manga-detail", id: m.id })} className="focus:outline-none">
+                  <div className="relative w-[110px] aspect-[2/3] rounded-xl overflow-hidden bg-[#0b0d12] ring-1 ring-white/10 shrink-0 opacity-70 hover:opacity-100 transition-opacity">
+                    <img src={mangaCover(m)} alt={m.title} className="w-full h-full object-cover" loading="lazy" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </motion.div>
+      </section>
+
+      {/* ═══ 01 · WORLDS — three expanding doors ═══ */}
+      <section id="worlds" ref={(el: HTMLElement | null) => { chapterRefs.current.worlds = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
+        <div className="max-w-7xl mx-auto">
+          <SectionHeading
+            chapter="01"
+            eyebrow="Pick Your World"
+            title="Three doors. One key."
+            sub="Hover a world to peek inside — all of it is free."
+          />
+          <Reveal delay={0.1}>
+            <WorldsSwitcher
+              animeImg={collage[0] ? getCover(collage[0]) : ""}
+              mangaImg={mangaSpotlight ? mangaCover(mangaSpotlight) : ""}
+              onGo={(page) => navigate({ page })}
+            />
+          </Reveal>
+        </div>
       </section>
 
       {/* ═══ 01 · ANIME — numbered Top 10 ranking rail ═══ */}
       {trending.length > 0 && (
-        <section id="anime" ref={(el: HTMLElement | null) => { chapterRefs.current.anime = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
-          <div className="ltv-cine-hairline mb-16 sm:mb-24 -mt-2" />
-          <div className="max-w-7xl mx-auto">
+        <section id="anime" ref={(el: HTMLElement | null) => { chapterRefs.current.anime = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10 overflow-hidden">
+          {/* Hovered cover glows blurred behind the whole rail */}
+          <AnimatePresence>
+            {rankBg && (
+              <motion.img
+                key={rankBg}
+                src={rankBg}
+                alt=""
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.13 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.7 }}
+                className="absolute inset-0 w-full h-full object-cover blur-3xl scale-110 pointer-events-none"
+                aria-hidden="true"
+              />
+            )}
+          </AnimatePresence>
+          <div className="ltv-cine-hairline mb-16 sm:mb-24 -mt-2 relative" />
+          <div className="max-w-7xl mx-auto relative">
             <div className="flex items-end justify-between gap-4 flex-wrap">
-              <SectionHeading chapter="01" eyebrow="Anime · Trending Right Now" title="Today's Top 10" />
+              <SectionHeading chapter="02" eyebrow="Anime · Trending Right Now" title="Today's Top 10" />
               <Reveal>
                 <div className="hidden md:flex items-center gap-2 mb-12">
                   <button onClick={() => scrollShelf(shelfRef, -1)} aria-label="Scroll left" className="w-10 h-10 rounded-full bg-[#0b0d12] border border-white/10 flex items-center justify-center text-white/70 hover:text-white hover:border-[#48A6FF]/50 transition-all">
@@ -537,6 +726,8 @@ export default function LandingPage() {
                 <motion.button
                   key={item.id}
                   onClick={() => navigate({ page: "anime", id: String(item.id) })}
+                  onMouseEnter={() => setRankBg(getCover(item))}
+                  onMouseLeave={() => setRankBg("")}
                   className="ltv-cine-rank-item flex items-end shrink-0 group text-left"
                   initial={{ opacity: 0, y: 24 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -585,7 +776,7 @@ export default function LandingPage() {
               {/* Copy + spotlight cover */}
               <div>
                 <SectionHeading
-                  chapter="02"
+                  chapter="03"
                   accent={MANGA}
                   eyebrow="Manga · Fresh Off The Press"
                   title="Read it the moment it drops."
@@ -726,7 +917,7 @@ export default function LandingPage() {
             {/* Copy */}
             <div className="order-1 lg:order-2">
               <SectionHeading
-                chapter="03"
+                chapter="04"
                 accent={NOVEL}
                 eyebrow="Light Novels · For The Readers"
                 title="The story before the story."
@@ -770,7 +961,7 @@ export default function LandingPage() {
       <section id="experience" ref={(el: HTMLElement | null) => { chapterRefs.current.experience = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
         <div className="max-w-7xl mx-auto">
           <SectionHeading
-            chapter="04"
+            chapter="05"
             eyebrow="One Account, Three Worlds"
             title="Built like a game."
             sub="Everything you watch and read feeds one profile — XP, levels, streaks and a heatmap of your whole journey."
@@ -824,8 +1015,13 @@ export default function LandingPage() {
       <section id="join" ref={(el: HTMLElement | null) => { chapterRefs.current.join = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
         <Reveal className="max-w-5xl mx-auto">
           <div className="ltv-cine-surface rounded-3xl p-10 sm:p-16 flex flex-col items-center text-center gap-6 relative overflow-hidden">
-            <div className="ltv-cine-glow-orb w-[300px] h-[300px] left-1/2 -translate-x-1/2 -top-24" style={{ background: "rgba(30,136,255,0.12)" }} />
-            <span className="text-3xl font-black leading-none select-none relative" style={{ fontFamily: FONT, color: "transparent", WebkitTextStroke: "1.5px rgba(72,166,255,0.35)" }} aria-hidden="true">05</span>
+            <motion.div
+              className="ltv-cine-glow-orb w-[300px] h-[300px] left-1/2 -translate-x-1/2 -top-24"
+              style={{ background: "rgba(30,136,255,0.12)" }}
+              animate={{ scale: [1, 1.3, 1], opacity: [0.6, 1, 0.6] }}
+              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <span className="text-3xl font-black leading-none select-none relative" style={{ fontFamily: FONT, color: "transparent", WebkitTextStroke: "1.5px rgba(72,166,255,0.35)" }} aria-hidden="true">06</span>
             <span className="ltv-cine-eyebrow text-xs font-bold uppercase relative">No sign-up required</span>
             <h2 className="text-3xl sm:text-5xl font-black relative leading-[1.05]" style={{ fontFamily: FONT }}>Three worlds are waiting.<br />It&apos;s free.</h2>
             <p className="text-[#a1a7b3] max-w-md relative">Watch an episode, read a chapter, start a novel — no account needed until you want your progress to follow you.</p>
