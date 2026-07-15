@@ -376,6 +376,7 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
   // ── Stream State ──
   const [streamData, setStreamData] = useState<StreamData | null>(null);
   const [playerReady, setPlayerReady] = useState(false);
+  const [hasShownLoadingScreen, setHasShownLoadingScreen] = useState(false);
   const [activeProvider, setActiveProvider] = useState("kiwi");
   /**
    * Translation mode — 3-way toggle like AniDap/Anistream:
@@ -985,6 +986,12 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     return () => { cancelled = true; };
   }, [anilistId]);
 
+  // Reset loading screen when anime changes (different anilistId = new anime)
+  // so the cinematic loading shows once per anime, not per episode
+  useEffect(() => {
+    setHasShownLoadingScreen(false);
+  }, [anilistId]);
+
   // NOTE: The old fetchStream effect that called /api/anime/scraper/miruro-direct
   // has been REMOVED. Stream loading is now handled by the server selector
   // effect below (line ~575) which uses the verified streamUrl from /api/anime/servers.
@@ -1002,7 +1009,12 @@ export default function WatchPage({ animeId, episodeNum }: WatchPageProps) {
     setStreamLoading(true);
     setStreamError(null);
     setStreamData(null);
-    setPlayerReady(false);
+    // Only show loading screen on FIRST visit (not episode changes)
+    // The loading screen is a one-time cinematic intro per anime
+    if (!hasShownLoadingScreen) {
+      setPlayerReady(false);
+      setHasShownLoadingScreen(true);
+    }
 
     // Safety timeout: if no servers arrive within 30s, show error
     // (prevents infinite "Loading from..." state)
