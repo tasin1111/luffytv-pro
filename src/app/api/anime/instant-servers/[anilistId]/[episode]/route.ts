@@ -480,17 +480,17 @@ export async function GET(
           if (anichiResults?.length) {
             let p = 0.5;
             for (const r of anichiResults) {
-              // Extract CDN host + path hash for unique ID
-              let cdnHost = "unknown";
-              let pathHash = "";
+              // Use the FULL stream URL (path + query) for guaranteed unique ID.
+              // Previous 8-char hash caused collisions when two servers shared
+              // the same path prefix (e.g. megaplay.buzz/stream/s-5/73497/sub
+              // for both HD-1 and Vidstream-2).
+              let urlKey = "unknown";
               try {
                 const u = new URL(r.streamUrl);
-                cdnHost = u.hostname.split(".")[0];
-                // Use first 8 chars of pathname as hash for uniqueness
-                pathHash = u.pathname.slice(1, 9);
+                urlKey = (u.hostname.split(".")[0] + u.pathname + u.search).slice(0, 60);
               } catch {}
               servers.push({
-                id: `anichi:${cdnHost}:${pathHash}:${r.type}${r.hardsub ? ":hsub" : ""}`,
+                id: `anichi:${urlKey}:${r.type}${r.hardsub ? ":hsub" : ""}`,
                 name: `Anichi ${r.serverName}${r.type === "dub" ? " (Dub)" : r.hardsub ? " (HS)" : ""}`,
                 source: "anichi" as any,
                 provider: r.serverName.toLowerCase().replace(/\s/g, ""),
@@ -524,16 +524,14 @@ export async function GET(
           if (aninekoResults?.length) {
             let p = 0.6;
             for (const r of aninekoResults) {
-              // Extract CDN host + path hash for unique ID
-              let cdnHost = "unknown";
-              let pathHash = "";
+              // Use the FULL stream URL (path + query) for guaranteed unique ID.
+              let urlKey = "unknown";
               try {
                 const u = new URL(r.streamUrl);
-                cdnHost = u.hostname.split(".")[0];
-                pathHash = u.pathname.slice(1, 9);
+                urlKey = (u.hostname.split(".")[0] + u.pathname + u.search).slice(0, 60);
               } catch {}
               servers.push({
-                id: `anineko-to:${cdnHost}:${pathHash}:${r.type}${r.hardsub ? ":hsub" : ""}`,
+                id: `anineko-to:${urlKey}:${r.type}${r.hardsub ? ":hsub" : ""}`,
                 name: `AniNeko ${r.serverName}${r.type === "dub" ? " (Dub)" : r.hardsub ? " (HS)" : ""}`,
                 source: "anineko-to" as any,
                 provider: r.serverName.toLowerCase().replace(/\s/g, ""),

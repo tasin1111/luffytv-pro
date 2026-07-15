@@ -65,21 +65,52 @@ async function aninekoFetch(url: string): Promise<string | null> {
 }
 
 /**
- * Search AniNeko for anime by title. Returns the first matching slug.
+ * Search AniNeko for anime by title. Returns the best matching slug.
+ * Prefers exact title matches (e.g. "One Piece" → "one-piece", not
+ * "one-piece-episode-of-luffy-hand-island-adventure").
  */
 export async function searchAnineko(title: string): Promise<string | null> {
   try {
     const url = `${ANINEKO_BASE}/browser?keyword=${encodeURIComponent(title)}`;
     const html = await aninekoFetch(url);
     if (!html) return null;
-    // Extract first /watch/{slug} that's not an episode
+
+    // Collect ALL /watch/{slug} matches (not episode URLs)
+    const slugs: string[] = [];
+    const seen = new Set<string>();
     const matches = html.matchAll(/href="\/watch\/([a-z0-9-]+)"/gi);
     for (const m of matches) {
       const slug = m[1];
-      // Skip episode URLs (contain /ep-)
-      if (!slug.includes("-ep-")) return slug;
+      if (slug.includes("-ep-")) continue; // skip episode URLs
+      if (seen.has(slug)) continue;
+      seen.add(slug);
+      slugs.push(slug);
     }
-    return null;
+    if (slugs.length === 0) return null;
+    if (slugs.length === 1) return slugs[0];
+
+    // Normalize the search title for comparison
+    const normalizedTitle = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    // Score each slug: how well does it match the title?
+    // Exact match = best. Starts with title = good. Contains title = ok.
+    let bestSlug = slugs[0];
+    let bestScore = -1;
+    for (const slug of slugs) {
+      let score = 0;
+      if (slug === normalizedTitle) score = 100; // exact
+      else if (slug.startsWith(normalizedTitle + "-") || slug.startsWith(normalizedTitle)) score = 80; // starts with title
+      else if (slug.includes(normalizedTitle)) score = 60; // contains title
+      else score = 10; // fallback — first result
+      // Penalize movies/specials (longer slugs usually = specials)
+      if (slug.includes("movie") || slug.includes("film") || slug.includes("special") || slug.includes("recap") || slug.includes("episode-of")) score -= 20;
+      // Prefer shorter slugs (main series over specials)
+      score -= slug.length * 0.05;
+      if (score > bestScore) {
+        bestScore = score;
+        bestSlug = slug;
+      }
+    }
+    return bestSlug;
   } catch {
     return null;
   }
@@ -157,9 +188,11 @@ export async function resolveAninekoStreams(
       const videoUrl = match[1];
       const tab = match[2];
       const buttonContent = match[3];
-      // Extract server name from button content — first non-empty text node
-      const nameMatch = buttonContent.match(/>\s*([^<\n]+)/);
-      const serverName = nameMatch ? nameMatch[1].trim() : "Server";
+      // Extract server name — the button content is like "HD-1<span>Hard Sub</span>"
+      // We want the FIRST text node (before any <span>), which is the actual server name.
+      // Strip all tags, then take the first non-empty line.
+      const textOnly = buttonContent.replace(/<[^>]+>/g, " ").trim();
+      const serverName = textOnly.split(/\s+/)[0] || "Server";
       const tabType = tabTypeMap[tab] || "sub";
       const type: "sub" | "dub" = tabType === "dub" ? "dub" : "sub";
       const hardsub = tabType === "hsub";

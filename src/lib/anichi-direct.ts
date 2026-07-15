@@ -82,7 +82,9 @@ async function anichiFetch(url: string, options: RequestInit = {}): Promise<Resp
 }
 
 /**
- * Search Anichi for anime by title. Returns the first matching slug.
+ * Search Anichi for anime by title. Returns the best matching slug.
+ * Prefers exact title matches (e.g. "One Piece" → "one-piece", not
+ * "one-piece-episode-of-luffy-hand-island-adventure").
  * URL: /filter?keyword={kw}
  */
 export async function searchAnichi(title: string): Promise<string | null> {
@@ -91,9 +93,41 @@ export async function searchAnichi(title: string): Promise<string | null> {
     const res = await anichiFetch(url);
     if (!res.ok) return null;
     const html = await res.text();
-    // Extract first anime slug from search results
-    const match = html.match(/href="https:\/\/anichi\.to\/anime\/([a-z0-9-]+)"/i);
-    return match?.[1] || null;
+
+    // Collect ALL anime slugs from search results
+    const slugs: string[] = [];
+    const seen = new Set<string>();
+    const matches = html.matchAll(/href="https:\/\/anichi\.to\/anime\/([a-z0-9-]+)"/gi);
+    for (const m of matches) {
+      const slug = m[1];
+      if (seen.has(slug)) continue;
+      seen.add(slug);
+      slugs.push(slug);
+    }
+    if (slugs.length === 0) return null;
+    if (slugs.length === 1) return slugs[0];
+
+    // Normalize the search title for comparison
+    const normalizedTitle = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    // Score each slug: exact match > starts with title > contains title
+    let bestSlug = slugs[0];
+    let bestScore = -1;
+    for (const slug of slugs) {
+      let score = 0;
+      if (slug === normalizedTitle) score = 100;
+      else if (slug.startsWith(normalizedTitle + "-") || slug.startsWith(normalizedTitle)) score = 80;
+      else if (slug.includes(normalizedTitle)) score = 60;
+      else score = 10;
+      // Penalize movies/specials
+      if (slug.includes("movie") || slug.includes("film") || slug.includes("special") || slug.includes("recap") || slug.includes("episode-of")) score -= 20;
+      // Prefer shorter slugs (main series over specials)
+      score -= slug.length * 0.05;
+      if (score > bestScore) {
+        bestScore = score;
+        bestSlug = slug;
+      }
+    }
+    return bestSlug;
   } catch {
     return null;
   }
