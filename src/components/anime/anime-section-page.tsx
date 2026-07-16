@@ -79,12 +79,10 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
   const [backdrops, setBackdrops] = useState<Record<number, string>>({});
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // TMDB logos + backdrops fetch DISABLED — was causing Vercel CPU timeouts
-  // and blocking the banner from loading. Now using AniList banner images
-  // exclusively (always available, no API key needed, no CPU usage).
-  // To re-enable TMDB later, uncomment the effect below AND set TMDB_API_KEY
-  // in Vercel env vars.
-  /*
+  // Fetch TVDB clearlogos + backgrounds for the hero banners.
+  // TVDB has the best anime clearlogos (transparent PNG logos like the
+  // One Piece logo). Falls back to AniList banner if TVDB has no background.
+  // Each TVDB API call has a 4s timeout to prevent Vercel function timeouts.
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -93,19 +91,19 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
         if (logos[anime.id] || backdrops[anime.id]) continue;
         try {
           const title = getTitle(anime);
-          const res = await fetch(`/api/anime/tmdb-images?anilistId=${anime.id}&title=${encodeURIComponent(title)}`);
+          const res = await fetch(`/api/anime/tvdb-images/${anime.id}?title=${encodeURIComponent(title)}`);
           if (res.ok) {
             const data = await res.json();
             if (cancelled) return;
             if (data.logoUrl) setLogos(prev => ({ ...prev, [anime.id]: data.logoUrl }));
             if (data.backdropUrl) setBackdrops(prev => ({ ...prev, [anime.id]: data.backdropUrl }));
           }
-        } catch {}
+        } catch { /* keep going to the next banner */ }
       }
     })();
     return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
-  */
 
   useEffect(() => {
     if (paused || items.length === 0) return;
@@ -124,8 +122,7 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
   }
 
   const anime = items[current];
-  // Use TMDB backdrop if available, otherwise AniList banner
-  // TMDB backdrop only — NO AniList fallback (user requested removal)
+  // Use TVDB backdrop if available, otherwise AniList banner
   const banner = backdrops[anime.id] || anime.bannerImage || getBanner(anime) || "";
   const logoUrl = logos[anime.id];
   const title = getTitle(anime);
