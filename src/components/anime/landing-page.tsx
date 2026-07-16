@@ -163,7 +163,7 @@ function Stat({ value, label, suffix = "" }: { value: number; label: string; suf
 function PosterTile({ item, className = "", width = "w-[120px]", badge, badgeColor }: { item?: TrendingItem; className?: string; width?: string; badge?: string; badgeColor?: string }) {
   const img = item ? getCover(item) : "";
   return (
-    <div className={`relative ${width} aspect-[2/3] rounded-xl overflow-hidden bg-[#0b0d12] ring-1 ring-white/10 shrink-0 ${className}`}>
+    <div className={`ltv-shine relative ${width} aspect-[2/3] rounded-xl overflow-hidden bg-[#0b0d12] ring-1 ring-white/10 shrink-0 ${className}`}>
       {img ? (
         <img src={img} alt={item ? getTitle(item) : ""} className="w-full h-full object-cover" loading="lazy" />
       ) : (
@@ -174,6 +174,38 @@ function PosterTile({ item, className = "", width = "w-[120px]", badge, badgeCol
           {badge}
         </span>
       )}
+    </div>
+  );
+}
+
+/* ─── Hero banner backdrop — real anime banner art, slow ken-burns crossfade ─── */
+function HeroBanners({ items }: { items: TrendingItem[] }) {
+  const banners = items.filter(t => t.bannerImage).slice(0, 6);
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (banners.length < 2) return;
+    const t = setInterval(() => setI(v => (v + 1) % banners.length), 9000);
+    return () => clearInterval(t);
+  }, [banners.length]);
+  if (banners.length === 0) return null;
+  const b = banners[i];
+  return (
+    <div className="absolute inset-0 overflow-hidden pointer-events-none" aria-hidden="true">
+      <AnimatePresence>
+        <motion.img
+          key={b.id}
+          src={b.bannerImage}
+          alt=""
+          initial={{ opacity: 0, scale: 1.06 }}
+          animate={{ opacity: 0.16, scale: 1.14 }}
+          exit={{ opacity: 0 }}
+          transition={{ opacity: { duration: 2.2 }, scale: { duration: 11, ease: "linear" } }}
+          className="absolute inset-0 w-full h-full object-cover blur-[6px]"
+        />
+      </AnimatePresence>
+      {/* Fade the art into the page's black so content stays readable */}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(180deg, rgba(5,6,8,0.55) 0%, rgba(5,6,8,0.35) 40%, #050608 96%)" }} />
+      <div className="absolute inset-0" style={{ background: "radial-gradient(90% 60% at 50% 100%, rgba(5,6,8,0.9), transparent 70%)" }} />
     </div>
   );
 }
@@ -245,7 +277,7 @@ function WorldsSwitcher({ animeImg, mangaImg, onGo }: { animeImg: string; mangaI
             onClick={() => onGo(w.page)}
             animate={{ flexGrow: on ? 2.6 : 1 }}
             transition={{ type: "spring", stiffness: 200, damping: 28 }}
-            className="relative overflow-hidden rounded-3xl border text-left h-[200px] sm:h-[230px] lg:h-auto lg:basis-0 transition-colors duration-300"
+            className="ltv-shine relative overflow-hidden rounded-3xl border text-left h-[200px] sm:h-[230px] lg:h-auto lg:basis-0 transition-colors duration-300"
             style={{ borderColor: on ? `${w.color}59` : "rgba(255,255,255,0.07)", flexGrow: 1 }}
           >
             {w.img ? (
@@ -469,6 +501,7 @@ export default function LandingPage() {
   return (
     <div className="ltv-cine-root w-full text-white overflow-x-hidden" style={{ fontFamily: "var(--font-inter), Inter, sans-serif" }}>
       <CinematicBackdrop />
+      <div className="ltv-land-grain" aria-hidden="true" />
       {portalReady ? createPortal(fixedChrome, document.body) : fixedChrome}
 
       {/* ═══ HERO — split: copy left, levitating poster collage right ═══ */}
@@ -478,6 +511,8 @@ export default function LandingPage() {
         onPointerMove={handleHeroPointerMove}
         className="relative min-h-[100svh] flex flex-col justify-center overflow-hidden pt-24 pb-10"
       >
+        {/* Real anime banner art breathing behind everything */}
+        <HeroBanners items={trending} />
         <motion.div className="ltv-cine-glow-orb w-[560px] h-[560px] left-[-12%] top-[6%]" style={{ background: "rgba(30,136,255,0.14)", y: heroGlowY }} />
         <motion.div className="ltv-cine-glow-orb w-[420px] h-[420px] right-[-10%] bottom-[10%]" style={{ background: "rgba(244,114,182,0.07)", y: heroGlowY }} />
         {/* Cursor spotlight — follows the mouse across the whole hero */}
@@ -500,7 +535,7 @@ export default function LandingPage() {
               style={{ fontFamily: FONT }}
             >
               {[
-                { t: "Watch.", cls: "ltv-cine-gradient-text", glow: "" },
+                { t: "Watch.", cls: "ltv-land-shimmer-text", glow: "" },
                 { t: "Read.", color: MANGA, glow: `0 0 44px ${MANGA}40` },
                 { t: "Escape.", color: NOVEL, glow: `0 0 44px ${NOVEL}40`, newline: true },
               ].map((w, i) => (
@@ -822,7 +857,7 @@ export default function LandingPage() {
                       onClick={() => navigate({ page: "manga-detail", id: m.id })}
                       whileHover={{ y: -6, scale: 1.03 }}
                       transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                      className={`relative aspect-[2/3] rounded-xl overflow-hidden bg-[#0b0d12] ring-1 ring-white/10 hover:ring-[#F472B6]/50 text-left group ${i % 3 === 1 ? "mt-6 sm:mt-10" : ""}`}
+                      className={`ltv-shine relative aspect-[2/3] rounded-xl overflow-hidden bg-[#0b0d12] ring-1 ring-white/10 hover:ring-[#F472B6]/50 text-left group ${i % 3 === 1 ? "mt-6 sm:mt-10" : ""}`}
                     >
                       <img src={mangaCover(m)} alt={m.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" loading="lazy" />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -1014,7 +1049,8 @@ export default function LandingPage() {
       {/* ═══ 05 · FINAL CTA ═══ */}
       <section id="join" ref={(el: HTMLElement | null) => { chapterRefs.current.join = el; }} className="relative z-10 py-16 sm:py-24 px-6 lg:px-10">
         <Reveal className="max-w-5xl mx-auto">
-          <div className="ltv-cine-surface rounded-3xl p-10 sm:p-16 flex flex-col items-center text-center gap-6 relative overflow-hidden">
+          <div className="ltv-cta-ring">
+          <div className="ltv-cine-surface rounded-3xl p-10 sm:p-16 flex flex-col items-center text-center gap-6 relative overflow-hidden" style={{ background: "#07090d" }}>
             <motion.div
               className="ltv-cine-glow-orb w-[300px] h-[300px] left-1/2 -translate-x-1/2 -top-24"
               style={{ background: "rgba(30,136,255,0.12)" }}
@@ -1056,6 +1092,7 @@ export default function LandingPage() {
                 </span>
               ))}
             </div>
+          </div>
           </div>
         </Reveal>
       </section>

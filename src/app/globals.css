@@ -11442,3 +11442,72 @@ footer {
   pointer-events: none;
   background: radial-gradient(ellipse at 20% 100%, rgba(244,114,182,0.08), transparent 55%);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   LANDING POLISH PASS — grain, shine sweeps, animated CTA ring
+   (additive utilities; used only by landing-page.tsx)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Filmic grain overlay — sits above backdrops, below content */
+.ltv-land-grain {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0.035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 160px 160px;
+}
+
+/* Light sweep on hover — apply to any overflow-hidden card/poster */
+.ltv-shine { position: relative; overflow: hidden; }
+.ltv-shine::after {
+  content: "";
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -75%;
+  width: 55%;
+  transform: skewX(-18deg) translateX(0);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+  pointer-events: none;
+  transition: none;
+}
+.ltv-shine:hover::after {
+  animation: ltv-shine-sweep 0.85s ease forwards;
+}
+@keyframes ltv-shine-sweep {
+  to { transform: skewX(-18deg) translateX(340%); }
+}
+
+/* Rotating conic-gradient ring for the final CTA card */
+.ltv-cta-ring {
+  position: relative;
+  border-radius: 26px;
+  padding: 1px;
+  background: conic-gradient(from var(--ring-angle, 0deg), rgba(72, 166, 255, 0.5), rgba(244, 114, 182, 0.35), rgba(52, 211, 153, 0.4), rgba(72, 166, 255, 0.5));
+  animation: ltv-ring-spin 7s linear infinite;
+}
+@property --ring-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes ltv-ring-spin {
+  to { --ring-angle: 360deg; }
+}
+/* Fallback for browsers without @property: static soft ring (animation just no-ops) */
+
+/* Animated shimmer headline — blue light drifting through white text */
+.ltv-land-shimmer-text {
+  background: linear-gradient(110deg, #ffffff 25%, #7cc0ff 42%, #ffffff 58%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: ltv-land-shimmer 5.5s ease-in-out infinite;
+}
+@keyframes ltv-land-shimmer {
+  0%, 100% { background-position: 110% 0; }
+  50% { background-position: -10% 0; }
+}
