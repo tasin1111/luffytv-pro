@@ -79,7 +79,9 @@ export const metadata: Metadata = {
   },
   category: "entertainment",
   icons: {
-    icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📺</text></svg>",
+    icon: "/logo.svg",
+    apple: "/logo.svg",
+    shortcut: "/logo.svg",
   },
 };
 
@@ -94,7 +96,7 @@ const JSON_LD = {
       "@id": `${SITE_URL}/#org`,
       name: "Luffy TV",
       url: SITE_URL,
-      logo: `${SITE_URL}/icon.png`,
+      logo: `${SITE_URL}/logo.svg`,
     },
     {
       "@type": "WebSite",
