@@ -1857,37 +1857,22 @@ video::cue-region {
    3. Right icons (separate pill, far right, circular icon buttons)
    ═══════════════════════════════════════════════════════════════ */
 
-/* ── LOGO — standalone, far left, SVG icon + italic white text ── */
+/* ── LOGO — standalone, far left, full SVG logo image ── */
 .ltv-nav-logo {
   position: fixed;
   top: 14px;
   left: 40px;
-  font-size: 1.35rem;
-  font-weight: 800;
-  color: #ffffff;
-  letter-spacing: -0.5px;
-  font-style: italic;
-  white-space: nowrap;
-  user-select: none;
   z-index: 101;
   background: transparent;
   border: none;
-  box-shadow: none;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  padding: 10px 0;
-  line-height: 1;
+  padding: 6px 0;
   cursor: pointer;
-  transition: opacity 0.2s ease;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  transition: opacity 0.2s ease, transform 0.2s ease;
 }
-.ltv-nav-logo:hover { opacity: 0.8; }
-.ltv-nav-logo-icon {
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
+.ltv-nav-logo:hover { opacity: 0.85; transform: scale(1.02); }
+.ltv-nav-logo-img {
+  height: 32px;
+  width: auto;
   display: block;
 }
 

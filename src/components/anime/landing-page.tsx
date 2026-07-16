@@ -464,8 +464,7 @@ export default function LandingPage() {
              navbar (logo left, floating glass pill center, actions right) so
              moving landing ⇄ app never feels like the navbar disappeared. ═══ */}
       <button className="ltv-nav-logo" onClick={() => navigate({ page: "landing" })} aria-label="LuffyTV">
-        <img src="/logo.svg" alt="LuffyTV" className="ltv-nav-logo-icon" />
-        <span>LuffyTV</span>
+        <img src="/logo.svg" alt="LuffyTV" className="ltv-nav-logo-img" />
       </button>
       <nav className="ltv-nav-pill">
         <div className="ltv-nav-links">

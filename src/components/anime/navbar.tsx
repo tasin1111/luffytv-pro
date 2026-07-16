@@ -213,14 +213,13 @@ export default function Navbar() {
 
   return (
     <>
-      {/* ═══ LOGO — standalone, far left, SVG icon + italic white text ═══ */}
+      {/* ═══ LOGO — standalone, far left, full SVG logo ═══ */}
       <button
         className="ltv-nav-logo"
         onClick={() => { navigate({ page: "home" }); setSectionSubPage("home"); }}
         aria-label="LuffyTV Home"
       >
-        <img src="/logo.svg" alt="LuffyTV" className="ltv-nav-logo-icon" />
-        <span>LuffyTV</span>
+        <img src="/logo.svg" alt="LuffyTV" className="ltv-nav-logo-img" />
       </button>
 
       {/* ═══ NAVBAR PILL — center, glassmorphism, contains links + divider + search ═══ */}
