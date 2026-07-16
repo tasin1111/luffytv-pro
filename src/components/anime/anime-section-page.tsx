@@ -79,10 +79,12 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
   const [backdrops, setBackdrops] = useState<Record<number, string>>({});
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Fetch TMDB logos + backdrops for EVERY featured banner.
-  // Sequentially (not one big parallel burst) so TMDB doesn't rate-limit the
-  // later requests — that burst was why banners past the first 2-3 lost their
-  // logo and fell back to plain title text.
+  // TMDB logos + backdrops fetch DISABLED — was causing Vercel CPU timeouts
+  // and blocking the banner from loading. Now using AniList banner images
+  // exclusively (always available, no API key needed, no CPU usage).
+  // To re-enable TMDB later, uncomment the effect below AND set TMDB_API_KEY
+  // in Vercel env vars.
+  /*
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -98,12 +100,12 @@ function HeroCarousel({ items, navigate }: { items: FeaturedAnime[]; navigate: (
             if (data.logoUrl) setLogos(prev => ({ ...prev, [anime.id]: data.logoUrl }));
             if (data.backdropUrl) setBackdrops(prev => ({ ...prev, [anime.id]: data.backdropUrl }));
           }
-        } catch { /* keep going to the next banner */ }
+        } catch {}
       }
     })();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items]);
+  */
 
   useEffect(() => {
     if (paused || items.length === 0) return;
