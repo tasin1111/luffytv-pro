@@ -414,15 +414,15 @@ function FeaturedAnimeSection({ trending, navigate }: { trending: AnimeItem[]; n
     setAnime(random);
   }, [trending]);
 
-  // Fetch TMDB backdrop + logo for the selected anime
+  // Fetch TVDB backdrop + logo for the selected anime (clearlogos from thetvdb.com)
   useEffect(() => {
     if (!anime) return;
     let cancelled = false;
-    async function fetchTmdb() {
+    async function fetchTvdb() {
       if (!anime) return;
       try {
         const title = getTitle(anime);
-        const res = await fetch(`/api/anime/tmdb-images?anilistId=${anime.id}&title=${encodeURIComponent(title)}`);
+        const res = await fetch(`/api/anime/tvdb-images/${anime.id}?title=${encodeURIComponent(title)}`);
         if (res.ok && !cancelled) {
           const data = await res.json();
           if (data.backdropUrl) setBackdrop(data.backdropUrl);
@@ -430,7 +430,7 @@ function FeaturedAnimeSection({ trending, navigate }: { trending: AnimeItem[]; n
         }
       } catch {}
     }
-    fetchTmdb();
+    fetchTvdb();
     return () => { cancelled = true; };
   }, [anime]);
 

@@ -380,16 +380,14 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
     loadDeferred();
   }, [anilistId]);
 
-  // ── Fetch TMDB logo + backdrop (like the home page hero) ──
-  // Depends only on anilistId. Derives the title from already-loaded
-  // state inside the callback to avoid TDZ issues with derived consts
-  // that are declared after the loading-skeleton early return.
+  // ── Fetch TVDB logo + backdrop (clearlogos from thetvdb.com) ──
+  // TVDB has the best anime clearlogos (transparent PNG logos).
+  // Falls back to AniList banner if TVDB has no background.
   useEffect(() => {
     if (!anilistId) return;
     let cancelled = false;
-    async function fetchTmdb() {
+    async function fetchTvdb() {
       try {
-        // Derive a search title from whatever state is available
         const alTitleObj = anilistInfo?.title || anilistMedia?.title || null;
         const titleForSearch =
           alTitleObj?.english || alTitleObj?.romaji ||
@@ -398,7 +396,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
           "";
         if (!titleForSearch) return;
         const res = await fetch(
-          `/api/anime/tmdb-images?anilistId=${anilistId}&title=${encodeURIComponent(titleForSearch)}`
+          `/api/anime/tvdb-images/${anilistId}?title=${encodeURIComponent(titleForSearch)}`
         );
         if (!res.ok || cancelled) return;
         const data = await res.json();
@@ -407,7 +405,7 @@ export default function AnimeDetailPage({ animeId }: AnimeDetailProps) {
         if (data.backdropUrl) setTmdbBackdrop(data.backdropUrl);
       } catch { /* ignore — page still works with AniList banner */ }
     }
-    fetchTmdb();
+    fetchTvdb();
     return () => { cancelled = true; };
   }, [anilistId, anilistInfo, anilistMedia, miruroInfo, anime]);
 
